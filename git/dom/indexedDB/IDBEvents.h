@@ -47,7 +47,6 @@
 #include "nsIIDBSuccessEvent.h"
 #include "nsIIDBTransactionEvent.h"
 #include "nsIIDBTransaction.h"
-#include "nsIIDBVersionChangeEvent.h"
 #include "nsIRunnable.h"
 #include "nsIVariant.h"
 
@@ -60,8 +59,6 @@
 #define COMPLETE_EVT_STR "complete"
 #define ABORT_EVT_STR "abort"
 #define TIMEOUT_EVT_STR "timeout"
-#define VERSIONCHANGE_EVT_STR "versionchange"
-#define BLOCKED_EVT_STR "blocked"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -75,8 +72,6 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBEVENT
   NS_FORWARD_TO_NSDOMEVENT
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBEvent, nsDOMEvent)
 
   static already_AddRefed<nsIDOMEvent>
   CreateGenericEvent(const nsAString& aType);
@@ -103,14 +98,11 @@ public:
 
   static already_AddRefed<nsIDOMEvent>
   Create(IDBRequest* aRequest,
-         nsresult aResult);
+         PRUint16 aCode);
 
   static already_AddRefed<nsIRunnable>
   CreateRunnable(IDBRequest* aRequest,
-                 nsresult aResult);
-
-  static already_AddRefed<nsIDOMEvent>
-  MaybeDuplicate(nsIDOMEvent* aOther);
+                 PRUint16 aCode);
 
 protected:
   IDBErrorEvent() { }
@@ -128,8 +120,6 @@ public:
   NS_DECL_NSIIDBTRANSACTIONEVENT
   NS_FORWARD_NSIDOMEVENT(IDBEvent::)
   NS_FORWARD_NSIIDBEVENT(IDBEvent::)
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBSuccessEvent, IDBEvent)
 
   static already_AddRefed<nsIDOMEvent>
   Create(IDBRequest* aRequest,
@@ -154,14 +144,15 @@ public:
   GetSuccessEvent(const nsAString& aValue)
   : mValue(aValue),
     mCachedValue(JSVAL_VOID),
-    mValueRooted(PR_FALSE)
+    mJSRuntime(nsnull)
   { }
 
-  ~GetSuccessEvent();
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(GetSuccessEvent,
-                                                         IDBSuccessEvent)
+  ~GetSuccessEvent()
+  {
+    if (mJSRuntime) {
+      js_RemoveRoot(mJSRuntime, &mCachedValue);
+    }
+  }
 
   NS_IMETHOD GetResult(JSContext* aCx,
                        jsval* aResult);
@@ -173,11 +164,8 @@ private:
   nsString mValue;
 
 protected:
-  void RootCachedValue();
-
   jsval mCachedValue;
   JSRuntime* mJSRuntime;
-  PRBool mValueRooted;
 };
 
 class GetAllSuccessEvent : public GetSuccessEvent
@@ -214,64 +202,6 @@ public:
 
 private:
   nsTArray<Key> mKeys;
-};
-
-class IDBVersionChangeEvent : public IDBEvent,
-                              public nsIIDBVersionChangeEvent
-{
-public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIIDBVERSIONCHANGEEVENT
-  NS_FORWARD_NSIDOMEVENT(IDBEvent::)
-  NS_FORWARD_NSIIDBEVENT(IDBEvent::)
-
-  inline static already_AddRefed<nsIDOMEvent>
-  Create(const nsAString& aVersion)
-  {
-    NS_NAMED_LITERAL_STRING(type, VERSIONCHANGE_EVT_STR);
-    return CreateInternal(nsnull, type, aVersion);
-  }
-
-  inline static already_AddRefed<nsIDOMEvent>
-  CreateBlocked(nsISupports* aSource,
-                const nsAString& aVersion)
-  {
-    NS_NAMED_LITERAL_STRING(type, BLOCKED_EVT_STR);
-    return CreateInternal(aSource, type, aVersion);
-  }
-
-  inline static already_AddRefed<nsIRunnable>
-  CreateRunnable(const nsAString& aVersion,
-                 nsIDOMEventTarget* aTarget)
-  {
-    NS_NAMED_LITERAL_STRING(type, VERSIONCHANGE_EVT_STR);
-    return CreateRunnableInternal(nsnull, type, aVersion, aTarget);
-  }
-
-  static already_AddRefed<nsIRunnable>
-  CreateBlockedRunnable(nsISupports* aSource,
-                        const nsAString& aVersion,
-                        nsIDOMEventTarget* aTarget)
-  {
-    NS_NAMED_LITERAL_STRING(type, BLOCKED_EVT_STR);
-    return CreateRunnableInternal(aSource, type, aVersion, aTarget);
-  }
-
-protected:
-  IDBVersionChangeEvent() { }
-
-  static already_AddRefed<nsIDOMEvent>
-  CreateInternal(nsISupports* aSource,
-                 const nsAString& aType,
-                 const nsAString& aVersion);
-
-  static already_AddRefed<nsIRunnable>
-  CreateRunnableInternal(nsISupports* aSource,
-                         const nsAString& aType,
-                         const nsAString& aVersion,
-                         nsIDOMEventTarget* aTarget);
-
-  nsString mVersion;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -146,7 +146,7 @@ JetpackActorCommon::jsval_to_PrimVariant(JSContext* cx, JSType type, jsval from,
     if (JSVAL_IS_INT(from))
       *to = JSVAL_TO_INT(from);
     else if (JSVAL_IS_DOUBLE(from))
-      *to = JSVAL_TO_DOUBLE(from);
+      *to = *JSVAL_TO_DOUBLE(from);
     else
       return false;
     return true;
@@ -200,9 +200,7 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
           !jsval_to_Variant(cx, val, vp, seen))
         *vp = void_t();
     }
-    InfallibleTArray<Variant> outElems;
-    outElems.SwapElements(elems);
-    *to = outElems;
+    *to = elems;
     return true;
   }
 
@@ -229,9 +227,7 @@ JetpackActorCommon::jsval_to_CompVariant(JSContext* cx, JSType type, jsval from,
       kvs.AppendElement(kv);
     }
   }
-  InfallibleTArray<KeyValue> outKvs;
-  outKvs.SwapElements(kvs);
-  *to = outKvs;
+  *to = kvs;
 
   return true;
 }
@@ -282,7 +278,7 @@ JetpackActorCommon::jsval_from_PrimVariant(JSContext* cx,
     return true;
 
   case PrimVariant::Tdouble:
-    return !!JS_NewNumberValue(cx, from.get_double(), to);
+    return !!JS_NewDoubleValue(cx, from.get_double(), to);
 
   case PrimVariant::TnsString: {
     const nsString& str = from.get_nsString();
@@ -302,7 +298,7 @@ JetpackActorCommon::jsval_from_PrimVariant(JSContext* cx,
 
   case PrimVariant::TPHandleParent: {
     JSObject* hobj =
-      static_cast<HandleParent*>(from.get_PHandleParent())->ToJSObject(cx);
+      static_cast<const HandleParent*>(from.get_PHandleParent())->ToJSObject(cx);
     if (!hobj)
       return false;
     *to = OBJECT_TO_JSVAL(hobj);
@@ -311,7 +307,7 @@ JetpackActorCommon::jsval_from_PrimVariant(JSContext* cx,
 
   case PrimVariant::TPHandleChild: {
     JSObject* hobj =
-      static_cast<HandleChild*>(from.get_PHandleChild())->ToJSObject(cx);
+      static_cast<const HandleChild*>(from.get_PHandleChild())->ToJSObject(cx);
     if (!hobj)
       return false;
     *to = OBJECT_TO_JSVAL(hobj);
@@ -353,11 +349,11 @@ JetpackActorCommon::jsval_from_CompVariant(JSContext* cx,
     for (PRUint32 i = 0; i < kvs.Length(); ++i) {
       const KeyValue& kv = kvs.ElementAt(i);
       js::AutoValueRooter toSet(cx);
-      if (!jsval_from_Variant(cx, kv.value(), toSet.jsval_addr(), seen) ||
+      if (!jsval_from_Variant(cx, kv.value(), toSet.addr(), seen) ||
           !JS_SetUCProperty(cx, obj,
                             kv.key().get(),
                             kv.key().Length(),
-                            toSet.jsval_addr()))
+                            toSet.addr()))
         return false;
     }
 
@@ -418,8 +414,8 @@ JetpackActorCommon::jsval_from_Variant(JSContext* cx, const Variant& from,
 bool
 JetpackActorCommon::RecvMessage(JSContext* cx,
                                 const nsString& messageName,
-                                const InfallibleTArray<Variant>& data,
-                                InfallibleTArray<Variant>* results)
+                                const nsTArray<Variant>& data,
+                                nsTArray<Variant>* results)
 {
   if (results)
     results->Clear();
@@ -456,19 +452,15 @@ JetpackActorCommon::RecvMessage(JSContext* cx,
   JSObject* implGlobal = JS_GetGlobalObject(cx);
   js::AutoValueRooter rval(cx);
 
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, implGlobal))
-    return false;
-
   for (PRUint32 i = 0; i < snapshot.Length(); ++i) {
     Variant* vp = results ? results->AppendElement() : NULL;
     rval.set(JSVAL_VOID);
     if (!JS_CallFunctionValue(cx, implGlobal, snapshot[i], argc, argv,
-                              rval.jsval_addr())) {
+                              rval.addr())) {
       (void) JS_ReportPendingException(cx);
       if (vp)
         *vp = void_t();
-    } else if (vp && !jsval_to_Variant(cx, rval.jsval_value(), vp))
+    } else if (vp && !jsval_to_Variant(cx, rval.value(), vp))
       *vp = void_t();
   }
 
@@ -533,7 +525,8 @@ JetpackActorCommon::RegisterReceiver(JSContext* cx,
                                      const nsString& messageName,
                                      jsval receiver)
 {
-  if (JS_TypeOfValue(cx, receiver) != JSTYPE_FUNCTION)
+  if (!JSVAL_IS_OBJECT(receiver) ||
+      !JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(receiver)))
     return NS_ERROR_INVALID_ARG;
 
   RecList* list;

@@ -251,8 +251,6 @@ nsXULDocument::nsXULDocument(void)
     mIsXUL = PR_TRUE;
 
     mDelayFrameLoaderInitialization = PR_TRUE;
-
-    mAllowXULXBL = eTriTrue;
 }
 
 nsXULDocument::~nsXULDocument()
@@ -380,6 +378,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTooltipNode)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLocalStore)
 
     if (tmp->mOverlayLoadObservers.IsInitialized())
@@ -389,6 +388,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTooltipNode)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
@@ -978,31 +978,34 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
 
 void
 nsXULDocument::AttributeWillChange(nsIDocument* aDocument,
-                                   Element* aElement, PRInt32 aNameSpaceID,
+                                   nsIContent* aContent, PRInt32 aNameSpaceID,
                                    nsIAtom* aAttribute, PRInt32 aModType)
 {
-    NS_ABORT_IF_FALSE(aElement, "Null content!");
+    NS_ABORT_IF_FALSE(aContent, "Null content!");
     NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
 
     // XXXbz check aNameSpaceID, dammit!
     // See if we need to update our ref map.
     if (aAttribute == nsGkAtoms::ref ||
-        (aAttribute == nsGkAtoms::id && !aElement->GetIDAttributeName())) {
+        (aAttribute == nsGkAtoms::id && !aContent->GetIDAttributeName())) {
         // Might not need this, but be safe for now.
         nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-        RemoveElementFromRefMap(aElement);
+        RemoveElementFromRefMap(aContent->AsElement());
     }
 }
 
 void
 nsXULDocument::AttributeChanged(nsIDocument* aDocument,
-                                Element* aElement, PRInt32 aNameSpaceID,
+                                nsIContent* aElementContent, PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute, PRInt32 aModType)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
     // Might not need this, but be safe for now.
     nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+
+    // XXXbz once we change AttributeChanged to take Element, we can nix this line
+    Element* aElement = aElementContent->AsElement();
 
     // XXXbz check aNameSpaceID, dammit!
     // See if we need to update our ref map.
@@ -1525,22 +1528,25 @@ nsXULDocument::GetHeight(PRInt32* aHeight)
 NS_IMETHODIMP
 nsXULDocument::GetPopupNode(nsIDOMNode** aNode)
 {
-    *aNode = nsnull;
+    // Get popup node.
+    nsresult rv = TrustedGetPopupNode(aNode); // addref happens here
 
-    nsCOMPtr<nsIDOMNode> node;
-    nsCOMPtr<nsPIWindowRoot> rootWin = GetWindowRoot();
-    if (rootWin)
-        node = rootWin->GetPopupNode(); // addref happens here
-
-    if (!node) {
-        nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-        if (pm) {
-            node = pm->GetLastTriggerPopupNode(this);
-        }
+    if (NS_SUCCEEDED(rv) && *aNode && !nsContentUtils::CanCallerAccess(*aNode)) {
+        NS_RELEASE(*aNode);
+        return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    if (node && nsContentUtils::CanCallerAccess(node))
-      node.swap(*aNode);
+    return rv;
+}
+
+NS_IMETHODIMP
+nsXULDocument::TrustedGetPopupNode(nsIDOMNode** aNode)
+{
+    *aNode = nsnull;
+
+    nsCOMPtr<nsPIWindowRoot> rootWin = GetWindowRoot();
+    if (rootWin)
+        rootWin->GetPopupNode(aNode); // addref happens here
 
     return NS_OK;
 }
@@ -1609,22 +1615,25 @@ nsXULDocument::GetPopupRangeOffset(PRInt32* aRangeOffset)
 NS_IMETHODIMP
 nsXULDocument::GetTooltipNode(nsIDOMNode** aNode)
 {
-    *aNode = nsnull;
-
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-    if (pm) {
-        nsCOMPtr<nsIDOMNode> node = pm->GetLastTriggerTooltipNode(this);
-        if (node && nsContentUtils::CanCallerAccess(node))
-            node.swap(*aNode);
+    if (mTooltipNode && !nsContentUtils::CanCallerAccess(mTooltipNode)) {
+        return NS_ERROR_DOM_SECURITY_ERR;
     }
+    *aNode = mTooltipNode;
+    NS_IF_ADDREF(*aNode);
+    return NS_OK;
+}
 
+NS_IMETHODIMP
+nsXULDocument::TrustedGetTooltipNode(nsIDOMNode** aNode)
+{
+    NS_IF_ADDREF(*aNode = mTooltipNode);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsXULDocument::SetTooltipNode(nsIDOMNode* aNode)
 {
-    // do nothing
+    mTooltipNode = aNode;
     return NS_OK;
 }
 
@@ -2430,7 +2439,7 @@ nsXULDocument::PrepareToWalk()
 
     // Do one-time initialization if we're preparing to walk the
     // master document's prototype.
-    nsRefPtr<Element> root;
+    nsCOMPtr<Element> root;
 
     if (mState == eState_Master) {
         // Add the root element
@@ -2921,7 +2930,7 @@ nsXULDocument::ResumeWalk()
                 nsXULPrototypeElement* protoele =
                     static_cast<nsXULPrototypeElement*>(childproto);
 
-                nsRefPtr<Element> child;
+                nsCOMPtr<Element> child;
 
                 if (!processingOverlayHookupNodes) {
                     rv = CreateElementFromPrototype(protoele,
@@ -3400,9 +3409,6 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, PRBool* aBlock)
       return rv;
     }
 
-    // Release script objects from FastLoad since we decided against using them
-    aScriptProto->UnlinkJSObjects();
-
     // Set the current script prototype so that OnStreamComplete can report
     // the right file if there are errors in the script.
     NS_ASSERTION(!mCurrentScriptProto,
@@ -3674,7 +3680,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
     }
 #endif
 
-    nsRefPtr<Element> result;
+    nsCOMPtr<Element> result;
 
     if (aPrototype->mNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
         // If it's a XUL element, it'll be lightweight until somebody
@@ -3696,9 +3702,8 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
         PRInt32 ns = newNodeInfo->NamespaceID();
         nsCOMPtr<nsINodeInfo> xtfNi = newNodeInfo;
         rv = NS_NewElement(getter_AddRefs(content), ns, newNodeInfo.forget(),
-                           NOT_FROM_PARSER);
-        if (NS_FAILED(rv))
-            return rv;
+                           PR_FALSE);
+        if (NS_FAILED(rv)) return rv;
 
         result = content->AsElement();
 
@@ -3723,7 +3728,7 @@ nsXULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
 {
     nsresult rv;
 
-    nsRefPtr<Element> element;
+    nsCOMPtr<Element> element;
     rv = CreateElementFromPrototype(aPrototype, getter_AddRefs(element));
     if (NS_FAILED(rv)) return rv;
 
@@ -3837,11 +3842,10 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
                                           getter_AddRefs(bodyContent));
 
         if (! bodyContent) {
-            nsresult rv =
-                document->CreateElem(nsDependentAtomString(nsGkAtoms::treechildren),
-                                     nsnull, kNameSpaceID_XUL,
-                                     PR_FALSE,
-                                     getter_AddRefs(bodyContent));
+            nsresult rv = document->CreateElem(nsAtomString(nsGkAtoms::treechildren),
+                                               nsnull, kNameSpaceID_XUL,
+                                               PR_FALSE,
+                                               getter_AddRefs(bodyContent));
             NS_ENSURE_SUCCESS(rv, rv);
 
             aElement->AppendChildTo(bodyContent, PR_FALSE);

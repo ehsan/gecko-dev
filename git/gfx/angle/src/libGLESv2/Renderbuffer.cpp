@@ -11,162 +11,77 @@
 #include "libGLESv2/Renderbuffer.h"
 
 #include "libGLESv2/main.h"
-#include "libGLESv2/Texture.h"
 #include "libGLESv2/utilities.h"
 
 namespace gl
 {
-unsigned int RenderbufferStorage::mCurrentSerial = 1;
+unsigned int Renderbuffer::mCurrentSerial = 1;
 
-Renderbuffer::Renderbuffer(GLuint id, RenderbufferStorage *storage) : RefCountObject(id)
+Renderbuffer::Renderbuffer()
 {
-    ASSERT(storage != NULL);
-    mStorage = storage;
+    mWidth = 0;
+    mHeight = 0;
+    mFormat = GL_RGBA4; // default format, needs to be one of the expected renderbuffer formats
+    mSerial = issueSerial();
 }
 
 Renderbuffer::~Renderbuffer()
 {
-    delete mStorage;
 }
 
-bool Renderbuffer::isColorbuffer() const
+bool Renderbuffer::isColorbuffer()
 {
-    return mStorage->isColorbuffer();
+    return false;
 }
 
-bool Renderbuffer::isDepthbuffer() const
+bool Renderbuffer::isDepthbuffer()
 {
-    return mStorage->isDepthbuffer();
+    return false;
 }
 
-bool Renderbuffer::isStencilbuffer() const
+bool Renderbuffer::isStencilbuffer()
 {
-    return mStorage->isStencilbuffer();
+    return false;
 }
 
 IDirect3DSurface9 *Renderbuffer::getRenderTarget()
 {
-    return mStorage->getRenderTarget();
+    return NULL;
 }
 
 IDirect3DSurface9 *Renderbuffer::getDepthStencil()
 {
-    return mStorage->getDepthStencil();
-}
-
-int Renderbuffer::getWidth() const
-{
-    return mStorage->getWidth();
-}
-
-int Renderbuffer::getHeight() const
-{
-    return mStorage->getHeight();
-}
-
-GLenum Renderbuffer::getFormat() const
-{
-    return mStorage->getFormat();
-}
-
-D3DFORMAT Renderbuffer::getD3DFormat() const
-{
-    return mStorage->getD3DFormat();
-}
-
-unsigned int Renderbuffer::getSerial() const
-{
-    return mStorage->getSerial();
-}
-
-void Renderbuffer::setStorage(RenderbufferStorage *newStorage)
-{
-    ASSERT(newStorage != NULL);
-
-    delete mStorage;
-    mStorage = newStorage;
-}
-
-RenderbufferStorage::RenderbufferStorage() : mSerial(issueSerial())
-{
-    mWidth = 0;
-    mHeight = 0;
-    mFormat = GL_RGBA4;
-    mD3DFormat = D3DFMT_A8R8G8B8;
-    mSamples = 0;
-}
-
-RenderbufferStorage::~RenderbufferStorage()
-{
-}
-
-bool RenderbufferStorage::isColorbuffer() const
-{
-    return false;
-}
-
-bool RenderbufferStorage::isDepthbuffer() const
-{
-    return false;
-}
-
-bool RenderbufferStorage::isStencilbuffer() const
-{
-    return false;
-}
-
-IDirect3DSurface9 *RenderbufferStorage::getRenderTarget()
-{
     return NULL;
 }
 
-IDirect3DSurface9 *RenderbufferStorage::getDepthStencil()
-{
-    return NULL;
-}
-
-int RenderbufferStorage::getWidth() const
+int Renderbuffer::getWidth()
 {
     return mWidth;
 }
 
-int RenderbufferStorage::getHeight() const
+int Renderbuffer::getHeight()
 {
     return mHeight;
 }
 
-void RenderbufferStorage::setSize(int width, int height)
+void Renderbuffer::setSize(int width, int height)
 {
     mWidth = width;
     mHeight = height;
 }
 
-GLenum RenderbufferStorage::getFormat() const
+
+GLenum Renderbuffer::getFormat()
 {
     return mFormat;
 }
 
-bool RenderbufferStorage::isFloatingPoint() const
-{
-    return false; // no floating point renderbuffers 
-}
-
-D3DFORMAT RenderbufferStorage::getD3DFormat() const
-{
-    return mD3DFormat;
-}
-
-GLsizei RenderbufferStorage::getSamples() const
-{
-    return mSamples;
-}
-
-unsigned int RenderbufferStorage::getSerial() const
+unsigned int Renderbuffer::getSerial() const
 {
     return mSerial;
 }
 
-unsigned int RenderbufferStorage::issueSerial()
+unsigned int Renderbuffer::issueSerial()
 {
     return mCurrentSerial++;
 }
@@ -181,55 +96,36 @@ Colorbuffer::Colorbuffer(IDirect3DSurface9 *renderTarget) : mRenderTarget(render
         renderTarget->GetDesc(&description);
 
         setSize(description.Width, description.Height);
-        mFormat = dx2es::ConvertBackBufferFormat(description.Format);
-        mD3DFormat = description.Format;
-        mSamples = es2dx::GetSamplesFromMultisampleType(description.MultiSampleType);
     }
+
 }
 
-Colorbuffer::Colorbuffer(const Texture* texture) : mRenderTarget(NULL)
-{
-    setSize(texture->getWidth(), texture->getHeight());
-    mD3DFormat = texture->getD3DFormat();
-    mSamples = 0;
-}
-
-Colorbuffer::Colorbuffer(int width, int height, GLenum format, GLsizei samples)
+Colorbuffer::Colorbuffer(int width, int height, GLenum format)
 {
     IDirect3DDevice9 *device = getDevice();
 
     mRenderTarget = NULL;
-    D3DFORMAT requestedFormat = es2dx::ConvertRenderbufferFormat(format);
-    int supportedSamples = getContext()->getNearestSupportedSamples(requestedFormat, samples);
+    HRESULT result = device->CreateRenderTarget(width, height, es2dx::ConvertRenderbufferFormat(format), 
+                                                D3DMULTISAMPLE_NONE, 0, FALSE, &mRenderTarget, NULL);
 
-    if (supportedSamples == -1)
+    if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
     {
         error(GL_OUT_OF_MEMORY);
 
         return;
     }
 
-    if (width > 0 && height > 0)
-    {
-        HRESULT result = device->CreateRenderTarget(width, height, requestedFormat, 
-                                                    es2dx::GetMultisampleTypeFromSamples(supportedSamples), 0, FALSE, &mRenderTarget, NULL);
-
-        if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
-        {
-            error(GL_OUT_OF_MEMORY);
-
-            return;
-        }
-
-        ASSERT(SUCCEEDED(result));
-    }
+    ASSERT(SUCCEEDED(result));
 
     if (mRenderTarget)
     {
         setSize(width, height);
         mFormat = format;
-        mD3DFormat = requestedFormat;
-        mSamples = supportedSamples;
+    }
+    else
+    {
+        setSize(0, 0);
+        mFormat = GL_RGBA4;
     }
 }
 
@@ -241,17 +137,17 @@ Colorbuffer::~Colorbuffer()
     }
 }
 
-bool Colorbuffer::isColorbuffer() const
+bool Colorbuffer::isColorbuffer()
 {
     return true;
 }
 
 GLuint Colorbuffer::getRedSize()
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetRedSize(description.Format);
     }
@@ -261,10 +157,10 @@ GLuint Colorbuffer::getRedSize()
 
 GLuint Colorbuffer::getGreenSize()
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetGreenSize(description.Format);
     }
@@ -274,10 +170,10 @@ GLuint Colorbuffer::getGreenSize()
 
 GLuint Colorbuffer::getBlueSize()
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetBlueSize(description.Format);
     }
@@ -287,10 +183,10 @@ GLuint Colorbuffer::getBlueSize()
 
 GLuint Colorbuffer::getAlphaSize()
 {
-    if (getRenderTarget())
+    if (mRenderTarget)
     {
         D3DSURFACE_DESC description;
-        getRenderTarget()->GetDesc(&description);
+        mRenderTarget->GetDesc(&description);
 
         return es2dx::GetAlphaSize(description.Format);
     }
@@ -303,7 +199,7 @@ IDirect3DSurface9 *Colorbuffer::getRenderTarget()
     return mRenderTarget;
 }
 
-DepthStencilbuffer::DepthStencilbuffer(IDirect3DSurface9 *depthStencil) : mDepthStencil(depthStencil)
+Depthbuffer::Depthbuffer(IDirect3DSurface9 *depthStencil) : mDepthStencil(depthStencil)
 {
     if (depthStencil)
     {
@@ -313,29 +209,18 @@ DepthStencilbuffer::DepthStencilbuffer(IDirect3DSurface9 *depthStencil) : mDepth
         depthStencil->GetDesc(&description);
 
         setSize(description.Width, description.Height);
-        mFormat = dx2es::ConvertDepthStencilFormat(description.Format);
-        mSamples = es2dx::GetSamplesFromMultisampleType(description.MultiSampleType); 
-        mD3DFormat = description.Format;
+        mFormat = GL_DEPTH_COMPONENT16; // If the renderbuffer parameters are queried, the calling function
+                                        // will expect one of the valid renderbuffer formats for use in 
+                                        // glRenderbufferStorage
     }
 }
 
-DepthStencilbuffer::DepthStencilbuffer(int width, int height, GLsizei samples)
+Depthbuffer::Depthbuffer(int width, int height)
 {
     IDirect3DDevice9 *device = getDevice();
 
     mDepthStencil = NULL;
-    
-    int supportedSamples = getContext()->getNearestSupportedSamples(D3DFMT_D24S8, samples);
-
-    if (supportedSamples == -1)
-    {
-        error(GL_OUT_OF_MEMORY);
-
-        return;
-    }
-
-    HRESULT result = device->CreateDepthStencilSurface(width, height, D3DFMT_D24S8, es2dx::GetMultisampleTypeFromSamples(supportedSamples),
-                                                       0, FALSE, &mDepthStencil, 0);
+    HRESULT result = device->CreateDepthStencilSurface(width, height, D3DFMT_D24S8, D3DMULTISAMPLE_NONE, 0, FALSE, &mDepthStencil, 0);
 
     if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
     {
@@ -349,13 +234,18 @@ DepthStencilbuffer::DepthStencilbuffer(int width, int height, GLsizei samples)
     if (mDepthStencil)
     {
         setSize(width, height);
-        mFormat = GL_DEPTH24_STENCIL8_OES;
-        mD3DFormat = D3DFMT_D24S8;
-        mSamples = supportedSamples;
+        mFormat = GL_DEPTH_COMPONENT16; // If the renderbuffer parameters are queried, the calling function
+                                        // will expect one of the valid renderbuffer formats for use in 
+                                        // glRenderbufferStorage
+    }
+    else
+    {
+        setSize(0, 0);
+        mFormat = GL_RGBA4; //default format
     }
 }
 
-DepthStencilbuffer::~DepthStencilbuffer()
+Depthbuffer::~Depthbuffer()
 {
     if (mDepthStencil)
     {
@@ -363,17 +253,12 @@ DepthStencilbuffer::~DepthStencilbuffer()
     }
 }
 
-bool DepthStencilbuffer::isDepthbuffer() const
+bool Depthbuffer::isDepthbuffer()
 {
     return true;
 }
 
-bool DepthStencilbuffer::isStencilbuffer() const
-{
-    return true;
-}
-
-GLuint DepthStencilbuffer::getDepthSize() const
+GLuint Depthbuffer::getDepthSize()
 {
     if (mDepthStencil)
     {
@@ -386,7 +271,66 @@ GLuint DepthStencilbuffer::getDepthSize() const
     return 0;
 }
 
-GLuint DepthStencilbuffer::getStencilSize() const
+IDirect3DSurface9 *Depthbuffer::getDepthStencil()
+{
+    return mDepthStencil;
+}
+
+Stencilbuffer::Stencilbuffer(IDirect3DSurface9 *depthStencil) : mDepthStencil(depthStencil)
+{
+    if (depthStencil)
+    {
+        depthStencil->AddRef();
+
+        D3DSURFACE_DESC description;
+        depthStencil->GetDesc(&description);
+
+        setSize(description.Width, description.Height);
+        mFormat = GL_STENCIL_INDEX8; // If the renderbuffer parameters are queried, the calling function
+                                     // will expect one of the valid renderbuffer formats for use in 
+                                     // glRenderbufferStorage
+    }
+}
+
+Stencilbuffer::Stencilbuffer(int width, int height)
+{
+    IDirect3DDevice9 *device = getDevice();
+
+    mDepthStencil = NULL;
+    HRESULT result = device->CreateDepthStencilSurface(width, height, D3DFMT_D24S8, D3DMULTISAMPLE_NONE, 0, FALSE, &mDepthStencil, 0);
+
+    if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
+    {
+        error(GL_OUT_OF_MEMORY);
+
+        return;
+    }
+
+    ASSERT(SUCCEEDED(result));
+
+    if (mDepthStencil)
+    {
+        setSize(width, height);
+        mFormat = GL_STENCIL_INDEX8; // If the renderbuffer parameters are queried, the calling function
+                                     // will expect one of the valid renderbuffer formats for use in 
+                                     // glRenderbufferStorage
+    }
+    else
+    {
+        setSize(0, 0);
+        mFormat = GL_RGBA4; //default format
+    }
+}
+
+Stencilbuffer::~Stencilbuffer()
+{
+    if (mDepthStencil)
+    {
+        mDepthStencil->Release();
+    }
+}
+
+GLuint Stencilbuffer::getStencilSize()
 {
     if (mDepthStencil)
     {
@@ -399,80 +343,13 @@ GLuint DepthStencilbuffer::getStencilSize() const
     return 0;
 }
 
-IDirect3DSurface9 *DepthStencilbuffer::getDepthStencil()
+bool Stencilbuffer::isStencilbuffer()
+{
+    return true;
+}
+
+IDirect3DSurface9 *Stencilbuffer::getDepthStencil()
 {
     return mDepthStencil;
-}
-
-Depthbuffer::Depthbuffer(IDirect3DSurface9 *depthStencil) : DepthStencilbuffer(depthStencil)
-{
-    if (depthStencil)
-    {
-        mFormat = GL_DEPTH_COMPONENT16; // If the renderbuffer parameters are queried, the calling function
-                                        // will expect one of the valid renderbuffer formats for use in 
-                                        // glRenderbufferStorage
-    }
-}
-
-Depthbuffer::Depthbuffer(int width, int height, GLsizei samples) : DepthStencilbuffer(width, height, samples)
-{
-    if (getDepthStencil())
-    {
-        mFormat = GL_DEPTH_COMPONENT16; // If the renderbuffer parameters are queried, the calling function
-                                        // will expect one of the valid renderbuffer formats for use in 
-                                        // glRenderbufferStorage
-    }
-}
-
-Depthbuffer::~Depthbuffer()
-{
-}
-
-bool Depthbuffer::isDepthbuffer() const
-{
-    return true;
-}
-
-bool Depthbuffer::isStencilbuffer() const
-{
-    return false;
-}
-
-Stencilbuffer::Stencilbuffer(IDirect3DSurface9 *depthStencil) : DepthStencilbuffer(depthStencil)
-{
-    if (depthStencil)
-    {
-        mFormat = GL_STENCIL_INDEX8; // If the renderbuffer parameters are queried, the calling function
-                                     // will expect one of the valid renderbuffer formats for use in 
-                                     // glRenderbufferStorage
-    }
-    else
-    {
-        mFormat = GL_RGBA4; //default format
-    }
-}
-
-Stencilbuffer::Stencilbuffer(int width, int height, GLsizei samples) : DepthStencilbuffer(width, height, samples)
-{
-    if (getDepthStencil())
-    {
-        mFormat = GL_STENCIL_INDEX8; // If the renderbuffer parameters are queried, the calling function
-                                     // will expect one of the valid renderbuffer formats for use in 
-                                     // glRenderbufferStorage
-    }
-}
-
-Stencilbuffer::~Stencilbuffer()
-{
-}
-
-bool Stencilbuffer::isDepthbuffer() const
-{
-    return false;
-}
-
-bool Stencilbuffer::isStencilbuffer() const
-{
-    return true;
 }
 }

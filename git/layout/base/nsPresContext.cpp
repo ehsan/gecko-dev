@@ -264,7 +264,7 @@ nsPresContext::~nsPresContext()
 
   // Disconnect the refresh driver *after* the transition manager, which
   // needs it.
-  if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
+  if (mRefreshDriver) {
     mRefreshDriver->Disconnect();
   }
 
@@ -485,7 +485,7 @@ nsPresContext::GetFontPreferences()
     mMinimumFontSize = CSSPixelsToAppUnits(size);
   }
   else if (unit == eUnit_pt) {
-    mMinimumFontSize = CSSPointsToAppUnits(size);
+    mMinimumFontSize = this->PointsToAppUnits(size);
   }
 
   // get attributes specific to each generic font
@@ -549,10 +549,10 @@ nsPresContext::GetFontPreferences()
     size = nsContentUtils::GetIntPref(pref.get());
     if (size > 0) {
       if (unit == eUnit_px) {
-        font->size = CSSPixelsToAppUnits(size);
+        font->size = nsPresContext::CSSPixelsToAppUnits(size);
       }
       else if (unit == eUnit_pt) {
-        font->size = CSSPointsToAppUnits(size);
+        font->size = this->PointsToAppUnits(size);
       }
     }
 
@@ -891,44 +891,9 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   if (!mTransitionManager)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (mDocument->GetDisplayDocument()) {
-    NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
-                 mDocument->GetDisplayDocument()->GetShell()->GetPresContext(),
-                 "Why are we being initialized?");
-    mRefreshDriver = mDocument->GetDisplayDocument()->GetShell()->
-      GetPresContext()->RefreshDriver();
-  } else {
-    nsIDocument* parent = mDocument->GetParentDocument();
-    // Unfortunately, sometimes |parent| here has no presshell because
-    // printing screws up things.  Assert that in other cases it does,
-    // but whenever the shell is null just fall back on using our own
-    // refresh driver.
-    NS_ASSERTION(!parent || mDocument->IsStaticDocument() || parent->GetShell(),
-                 "How did we end up with a presshell if our parent doesn't "
-                 "have one?");
-    if (parent && parent->GetShell()) {
-      NS_ASSERTION(parent->GetShell()->GetPresContext(),
-                   "How did we get a presshell?");
-
-      // We don't have our container set yet at this point
-      nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
-
-      nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
-      if (ourItem) {
-        nsCOMPtr<nsIDocShellTreeItem> parentItem;
-        ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
-        if (parentItem) {
-          mRefreshDriver = parent->GetShell()->GetPresContext()->RefreshDriver();
-        }
-      }
-    }
-
-    if (!mRefreshDriver) {
-      mRefreshDriver = new nsRefreshDriver(this);
-      if (!mRefreshDriver)
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
+  mRefreshDriver = new nsRefreshDriver(this);
+  if (!mRefreshDriver)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
@@ -2192,6 +2157,44 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
   request->mFlags = aFlags;
 }
 
+void
+nsPresContext::NotifyInvalidateRegion(const nsRegion& aRegion,
+                                      nsPoint aOffset, PRUint32 aFlags)
+{
+  const nsRect* r;
+  for (nsRegionRectIterator iter(aRegion); (r = iter.Next());) {
+    NotifyInvalidation(*r + aOffset, aFlags);
+  }
+}
+
+void
+nsPresContext::NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
+                                            const nsRegion& aInvalidateRegion)
+{
+  nsPresContext* pc = this;
+  PRUint32 crossDocFlags = 0;
+  nsIFrame* rootFrame = FrameManager()->GetRootFrame();
+  nsPoint offset(0,0);
+  while (pc) {
+    if (pc->MayHavePaintEventListener()) {
+      pc->NotifyInvalidateRegion(aBlitRegion, offset,
+                                 nsIFrame::INVALIDATE_REASON_SCROLL_BLIT | crossDocFlags);
+      pc->NotifyInvalidateRegion(aInvalidateRegion, offset,
+                                 nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT | crossDocFlags);
+    }
+    crossDocFlags = nsIFrame::INVALIDATE_CROSS_DOC;
+
+    nsIFrame* rootParentFrame = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
+    if (!rootParentFrame)
+      break;
+
+    pc = rootParentFrame->PresContext();
+    nsIFrame* nextRootFrame = pc->PresShell()->FrameManager()->GetRootFrame();
+    offset += rootFrame->GetOffsetTo(nextRootFrame);
+    rootFrame = nextRootFrame;
+  }
+}
+
 PRBool
 nsPresContext::HasCachedStyleData()
 {
@@ -2354,41 +2357,10 @@ nsPresContext::CheckForInterrupt(nsIFrame* aFrame)
   return mHasPendingInterrupt;
 }
 
-PRBool
-nsPresContext::IsRootContentDocument()
-{
-  // We are a root content document if: we are not a resource doc, we are
-  // not chrome, and we either have no parent or our parent is chrome.
-  if (mDocument->IsResourceDoc()) {
-    return PR_FALSE;
-  }
-  if (IsChrome()) {
-    return PR_FALSE;
-  }
-  // We may not have a root frame, so use views.
-  nsIViewManager* vm = PresShell()->GetViewManager();
-  nsIView* view = nsnull;
-  if (NS_FAILED(vm->GetRootView(view)) || !view) {
-    return PR_FALSE;
-  }
-  view = view->GetParent(); // anonymous inner view
-  if (!view) {
-    return PR_TRUE;
-  }
-  view = view->GetParent(); // subdocumentframe's view
-  if (!view) {
-    return PR_TRUE;
-  }
-
-  nsIFrame* f = static_cast<nsIFrame*>(view->GetClientData());
-  return (f && f->PresContext()->IsChrome());
-}
-
 nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
                                      nsPresContextType aType)
   : nsPresContext(aDocument, aType),
     mUpdatePluginGeometryForFrame(nsnull),
-    mDOMGeneration(0),
     mNeedsToUpdatePluginGeometry(PR_FALSE)
 {
   mRegisteredPlugins.Init();
@@ -2507,7 +2479,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   closure.mRootFrame = mShell->FrameManager()->GetRootFrame();
   closure.mRootAPD = closure.mRootFrame->PresContext()->AppUnitsPerDevPixel();
   closure.mChangedSubtree = aChangedSubtree;
-  closure.mChangedRect = aChangedSubtree->GetVisualOverflowRect() +
+  closure.mChangedRect = aChangedSubtree->GetOverflowRect() +
       aChangedSubtree->GetOffsetToCrossDoc(closure.mRootFrame);
   PRInt32 subtreeAPD = aChangedSubtree->PresContext()->AppUnitsPerDevPixel();
   closure.mChangedRect =
@@ -2520,8 +2492,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   nsRect bounds;
   if (bounds.IntersectRect(closure.mAffectedPluginBounds,
                            closure.mRootFrame->GetRect())) {
-    nsDisplayListBuilder builder(closure.mRootFrame,
-    		nsDisplayListBuilder::PLUGIN_GEOMETRY, PR_FALSE);
+    nsDisplayListBuilder builder(closure.mRootFrame, PR_FALSE, PR_FALSE);
     builder.SetAccurateVisibleRegions();
     nsDisplayList list;
 
@@ -2539,7 +2510,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
 #endif
 
     nsRegion visibleRegion(bounds);
-    list.ComputeVisibilityForRoot(&builder, &visibleRegion);
+    list.ComputeVisibility(&builder, &visibleRegion, nsnull);
 
 #ifdef DEBUG
     if (gDumpPluginList) {
@@ -2652,13 +2623,8 @@ nsRootPresContext::UpdatePluginGeometry()
 }
 
 void
-nsRootPresContext::SynchronousPluginGeometryUpdate()
+nsRootPresContext::ForcePluginGeometryUpdate()
 {
-  if (!mNeedsToUpdatePluginGeometry) {
-    // Nothing to do
-    return;
-  }
-
   // Force synchronous paint
   nsIPresShell* shell = GetPresShell();
   if (!shell)
@@ -2690,10 +2656,8 @@ nsRootPresContext::RequestUpdatePluginGeometry(nsIFrame* aFrame)
     mNeedsToUpdatePluginGeometry = PR_TRUE;
 
     // Dispatch a Gecko event to ensure plugin geometry gets updated
-    // XXX this really should be done through the refresh driver, once
-    // all painting happens in the refresh driver
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsRootPresContext::SynchronousPluginGeometryUpdate);
+      NS_NewRunnableMethod(this, &nsRootPresContext::ForcePluginGeometryUpdate);
     NS_DispatchToMainThread(event);
 
     mUpdatePluginGeometryForFrame = aFrame;

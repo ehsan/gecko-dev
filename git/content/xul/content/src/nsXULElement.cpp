@@ -102,6 +102,7 @@
 #include "nsIServiceManager.h"
 #include "nsICSSStyleRule.h"
 #include "nsIStyleSheet.h"
+#include "nsDOMCSSAttrDeclaration.h"
 #include "nsIURL.h"
 #include "nsIViewManager.h"
 #include "nsIWidget.h"
@@ -212,14 +213,7 @@ public:
   {
   }
 
-  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
-  {
-    nsresult rv;
-    *aStyle = static_cast<nsXULElement*>(mElement.get())->GetStyle(&rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ADDREF(*aStyle);
-    return NS_OK;
-  }
+  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(static_cast<nsXULElement*>(mElement.get())->)
   NS_FORWARD_NSIFRAMELOADEROWNER(static_cast<nsXULElement*>(mElement.get())->);
 private:
   nsCOMPtr<nsIDOMXULElement> mElement;
@@ -347,24 +341,15 @@ NS_NewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
 {
     NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
 
-    nsIDocument* doc = aNodeInfo.get()->GetDocument();
-    if (doc && !doc->AllowXULXBL()) {
-        nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-        return NS_ERROR_NOT_AVAILABLE;
-    }
-
-    NS_ADDREF(*aResult = new nsXULElement(aNodeInfo));
-
-    return NS_OK;
-}
-
-void
-NS_TrustedNewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
-{
-    NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
+    *aResult = nsnull;
 
     // Create an nsXULElement with the specified namespace and tag.
-    NS_ADDREF(*aResult = new nsXULElement(aNodeInfo));
+    nsXULElement* element = new nsXULElement(aNodeInfo);
+    NS_ENSURE_TRUE(element, NS_ERROR_OUT_OF_MEMORY);
+
+    NS_ADDREF(*aResult = element);
+
+    return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -672,7 +657,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
         !frame->AreAncestorViewsVisible())
         return;
 
-    nsXULElement* elm = FromContent(content);
+    nsCOMPtr<nsIDOMXULElement> elm(do_QueryInterface(content));
     if (elm) {
         // Define behavior for each type of XUL element.
         nsIAtom *tag = content->Tag();
@@ -682,7 +667,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
             nsCOMPtr<nsIDOMElement> element;
             // for radio buttons, focus the radiogroup instead
             if (tag == nsGkAtoms::radio) {
-              nsCOMPtr<nsIDOMXULSelectControlItemElement> controlItem(do_QueryInterface(content));
+              nsCOMPtr<nsIDOMXULSelectControlItemElement> controlItem(do_QueryInterface(elm));
               if (controlItem) {
                 PRBool disabled;
                 controlItem->GetDisabled(&disabled);
@@ -701,7 +686,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
           }
         }
         if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
-          elm->ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
+            ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
         }
     }
     else {
@@ -1355,9 +1340,9 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
 
     // When notifying, make sure to keep track of states whose value
     // depends solely on the value of an attribute.
-    nsEventStates stateMask;
+    PRUint32 stateMask;
     if (aNotify) {
-        stateMask = IntrinsicState();
+        stateMask = PRUint32(IntrinsicState());
  
         nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
                                          nsIDOMMutationEvent::REMOVAL);
@@ -1378,10 +1363,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     if (slots && slots->mAttributeMap) {
       slots->mAttributeMap->DropAttribute(aNameSpaceID, aName);
     }
-
-    // The id-handling code, and in the future possibly other code, need to
-    // react to unexpected attribute changes.
-    nsMutationGuard::DidMutate();
 
     nsAttrValue ignored;
     rv = mAttrsAndChildren.RemoveAttrAt(index, ignored);
@@ -1459,8 +1440,8 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     }
 
     if (aNotify) {
-        stateMask ^= IntrinsicState();
-        if (doc && !stateMask.IsEmpty()) {
+        stateMask = stateMask ^ PRUint32(IntrinsicState());
+        if (stateMask && doc) {
             MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, aNotify);
             doc->ContentStatesChanged(this, nsnull, stateMask);
         }
@@ -1943,8 +1924,10 @@ NS_IMPL_XUL_STRING_ATTR(TooltipText, tooltiptext)
 NS_IMPL_XUL_STRING_ATTR(StatusText, statustext)
 
 nsresult
-nsXULElement::EnsureLocalStyle()
+nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
+    nsresult rv;
+
     // Clone the prototype rule, if we don't have a local one.
     if (mPrototype &&
         !mAttrsAndChildren.GetAttr(nsGkAtoms::style, kNameSpaceID_None)) {
@@ -1952,21 +1935,34 @@ nsXULElement::EnsureLocalStyle()
         nsXULPrototypeAttribute *protoattr =
                   FindPrototypeAttribute(kNameSpaceID_None, nsGkAtoms::style);
         if (protoattr && protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
-            nsCOMPtr<nsICSSRule> ruleClone =
-                protoattr->mValue.GetCSSStyleRuleValue()->Clone();
-
-            nsString stringValue;
-            protoattr->mValue.ToString(stringValue);
+            nsCOMPtr<nsICSSRule> ruleClone;
+            rv = protoattr->mValue.GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
+            NS_ENSURE_SUCCESS(rv, rv);
 
             nsAttrValue value;
             nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
-            value.SetTo(styleRule, &stringValue);
+            value.SetTo(styleRule);
 
-            nsresult rv =
-                mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, value);
+            rv = mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, value);
             NS_ENSURE_SUCCESS(rv, rv);
         }
     }
+
+    // XXXbz could this call nsStyledElement::GetStyle now?
+    nsDOMSlots* slots = GetDOMSlots();
+    NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+    if (!slots->mStyle) {
+        slots->mStyle = new nsDOMCSSAttributeDeclaration(this
+#ifdef MOZ_SMIL
+                                                         , PR_FALSE
+#endif // MOZ_SMIL
+                                                         );
+        NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
+        SetFlags(NODE_MAY_HAVE_STYLE);
+    }
+
+    NS_IF_ADDREF(*aStyle = slots->mStyle);
 
     return NS_OK;
 }
@@ -1991,11 +1987,7 @@ nsXULElement::LoadSrc()
     nsXULSlots* slots = static_cast<nsXULSlots*>(GetSlots());
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
     if (!slots->mFrameLoader) {
-        // PR_FALSE as the last parameter so that xul:iframe/browser/editor
-        // session history handling works like dynamic html:iframes.
-        // Usually xul elements are used in chrome, which doesn't have
-        // session history at all.
-        slots->mFrameLoader = nsFrameLoader::Create(this, PR_FALSE);
+        slots->mFrameLoader = nsFrameLoader::Create(this);
         NS_ENSURE_TRUE(slots->mFrameLoader, NS_OK);
     }
 
@@ -2239,10 +2231,10 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
     return NS_OK;
 }
 
-nsEventStates
+PRInt32
 nsXULElement::IntrinsicState() const
 {
-    nsEventStates state = nsStyledElement::IntrinsicState();
+    PRInt32 state = nsStyledElement::IntrinsicState();
 
     const nsIAtom* tag = Tag();
     if (GetNameSpaceID() == kNameSpaceID_XUL &&
@@ -2327,24 +2319,19 @@ nsresult nsXULElement::MakeHeavyweight()
             continue;
         }
 
-        nsAttrValue attrValue;
+        // XXX we might wanna have a SetAndTakeAttr that takes an nsAttrName
+        nsAttrValue attrValue(protoattr->mValue);
         
         // Style rules need to be cloned.
-        if (protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
-            nsCOMPtr<nsICSSRule> ruleClone =
-                protoattr->mValue.GetCSSStyleRuleValue()->Clone();
-
-            nsString stringValue;
-            protoattr->mValue.ToString(stringValue);
+        if (attrValue.Type() == nsAttrValue::eCSSStyleRule) {
+            nsCOMPtr<nsICSSRule> ruleClone;
+            rv = attrValue.GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
+            NS_ENSURE_SUCCESS(rv, rv);
 
             nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
-            attrValue.SetTo(styleRule, &stringValue);
-        }
-        else {
-            attrValue.SetTo(protoattr->mValue);
+            attrValue.SetTo(styleRule);
         }
 
-        // XXX we might wanna have a SetAndTakeAttr that takes an nsAttrName
         if (protoattr->mName.IsAtom()) {
             rv = mAttrsAndChildren.SetAndTakeAttr(protoattr->mName.Atom(), attrValue);
         }
@@ -2861,7 +2848,7 @@ nsXULPrototypeElement::SetAttrAt(PRUint32 aPos, const nsAString& aValue,
                                      DocumentPrincipal(),
                                    getter_AddRefs(rule));
         if (rule) {
-            mAttributes[aPos].mValue.SetTo(rule, &aValue);
+            mAttributes[aPos].mValue.SetTo(rule);
 
             return NS_OK;
         }

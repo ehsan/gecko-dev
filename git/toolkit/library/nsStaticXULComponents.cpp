@@ -129,7 +129,7 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#ifdef ENABLE_LAYOUTDEBUG
+#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
@@ -178,15 +178,13 @@
 #define PLACES_MODULES \
     MODULE(nsPlacesModule)
 #else
-#define PLACES_MODULES
-#endif
-
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
-#define MORK_MODULES \
+#define PLACES_MODULES \
     MODULE(nsMorkModule)
 #else
-#define MORK_MODULES
+#define PLACES_MODULES
 #endif
+#endif    
 
 #ifdef MOZ_XUL
 #define XULENABLED_MODULES                   \
@@ -233,12 +231,6 @@
 #define JSCTYPES_MODULE
 #endif
 
-#if defined(MOZ_APP_COMPONENT_INCLUDE)
-#include MOZ_APP_COMPONENT_INCLUDE
-#else
-#define APP_COMPONENT_MODULES
-#endif
-
 #define XUL_MODULES                          \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
@@ -249,7 +241,6 @@
     AUTH_MODULE                              \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
-    MODULE(StartupCacheModule)               \
     MODULE(nsPrefModule)                     \
     RDF_MODULES                              \
     MODULE(nsParserModule)                   \
@@ -273,8 +264,8 @@
     FILEVIEW_MODULE                          \
     STORAGE_MODULE                           \
     PLACES_MODULES                           \
-    MORK_MODULES                             \
     XULENABLED_MODULES                       \
+    MODULE(AddonsModule)                     \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
     JSDEBUGGER_MODULES                       \
@@ -287,8 +278,6 @@
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
-    MODULE(jsperf)                           \
-    APP_COMPONENT_MODULES                    \
     /* end of list */
 
 #define MODULE(_name) \
@@ -299,11 +288,13 @@ XUL_MODULES
 #undef MODULE
 
 #define MODULE(_name) \
-    &NSMODULE_NAME(_name),
+    NSMODULE_NAME(_name),
 
-const mozilla::Module *const *const kPStaticModules[] = {
+static const mozilla::Module *const kStaticModules[] = {
   XUL_MODULES
   NULL
 };
 
 #undef MODULE
+
+mozilla::Module const *const *const kPStaticModules = kStaticModules;

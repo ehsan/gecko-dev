@@ -48,6 +48,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-121658.js';
 var UBound = 0;
 var BUGNUMBER = 121658;
 var msg = '"Too much recursion" errors should be safely caught by try...catch';

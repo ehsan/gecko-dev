@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-346915.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 346915;
 var summary = 'Optimize decompilation of delete expressions';

@@ -47,7 +47,6 @@
 #include "gfxIFormats.h"
 #include "gfxContext.h"
 #include "gfxPattern.h"
-#include "gfxDrawable.h"
 #include "gfxImageSurface.h"
 #if defined(XP_WIN)
 #include "gfxWindowsSurface.h"
@@ -143,24 +142,12 @@ private: // methods
     return ((1 << mPaletteDepth) * sizeof(PRUint32));
   }
 
-  struct SurfaceWithFormat {
-    nsRefPtr<gfxDrawable> mDrawable;
-    gfxImageSurface::gfxImageFormat mFormat;
-    SurfaceWithFormat() {}
-    SurfaceWithFormat(gfxDrawable* aDrawable, gfxImageSurface::gfxImageFormat aFormat)
-     : mDrawable(aDrawable), mFormat(aFormat) {}
-    PRBool IsValid() { return !!mDrawable; }
-  };
-
-  SurfaceWithFormat SurfaceForDrawing(PRBool             aDoPadding,
-                                      PRBool             aDoPartialDecode,
-                                      PRBool             aDoTile,
-                                      const nsIntMargin& aPadding,
-                                      gfxMatrix&         aUserSpaceToImageSpace,
-                                      gfxRect&           aFill,
-                                      gfxRect&           aSubimage,
-                                      gfxRect&           aSourceRect,
-                                      gfxRect&           aImageRect);
+  /**
+   * This returns the fastest operator to use for solid surfaces which have no
+   * alpha channel or their alpha channel is uniformly opaque.
+   * This differs per render mode.
+   */
+  gfxContext::GraphicsOperator OptimalFillOperator();
 
 private: // data
   nsRefPtr<gfxImageSurface> mImageSurface;

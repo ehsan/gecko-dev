@@ -12,7 +12,7 @@
  * instance, do not use const or JS > 1.5 features which are not yet
  * implemented everywhere.
  *
- */
+**/
 
 if (typeof(SimpleTest) == "undefined") {
     var SimpleTest = {};
@@ -32,41 +32,6 @@ if (parentRunner) {
   ipcMode = parentRunner.ipcMode;
 }
 
-/**
- * Check for OOP test plugin
- */
-SimpleTest.testPluginIsOOP = function () {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    var prefservice = Components.classes["@mozilla.org/preferences-service;1"]
-                                .getService(Components.interfaces.nsIPrefBranch);
-
-    var testPluginIsOOP = false;
-    if (navigator.platform.indexOf("Mac") == 0) {
-        var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
-                                   .getService(Components.interfaces.nsIXULAppInfo)
-                                   .QueryInterface(Components.interfaces.nsIXULRuntime);
-        if (xulRuntime.XPCOMABI.match(/x86-/)) {
-            try {
-                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.i386.test.plugin");
-            } catch (e) {
-                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.i386");
-            }
-        }
-        else if (xulRuntime.XPCOMABI.match(/x86_64-/)) {
-            try {
-                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.x86_64.test.plugin");
-            } catch (e) {
-                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.x86_64");
-            }
-        }
-    }
-    else {
-        testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled");
-    }
-
-    return testPluginIsOOP;
-};
-
 // Check to see if the TestRunner is present and has logging
 if (parentRunner) {
     SimpleTest._logEnabled = parentRunner.logEnabled;
@@ -77,7 +42,7 @@ SimpleTest._stopOnLoad = true;
 
 /**
  * Something like assert.
- */
+**/
 SimpleTest.ok = function (condition, name, diag) {
     var test = {'result': !!condition, 'name': name, 'diag': diag};
     if (SimpleTest._logEnabled)
@@ -87,7 +52,7 @@ SimpleTest.ok = function (condition, name, diag) {
 
 /**
  * Roughly equivalent to ok(a==b, name)
- */
+**/
 SimpleTest.is = function (a, b, name) {
     var repr = MochiKit.Base.repr;
     var pass = (a == b);
@@ -136,7 +101,7 @@ SimpleTest._logResult = function(test, passString, failString) {
 
 /**
  * Copies of is and isnot with the call to ok replaced by a call to todo.
- */
+**/
 
 SimpleTest.todo_is = function (a, b, name) {
     var repr = MochiKit.Base.repr;
@@ -157,7 +122,7 @@ SimpleTest.todo_isnot = function (a, b, name) {
 
 /**
  * Makes a test report, returns it as a DIV element.
- */
+**/
 SimpleTest.report = function () {
     var DIV = MochiKit.DOM.DIV;
     var passed = 0;
@@ -205,7 +170,7 @@ SimpleTest.report = function () {
 
 /**
  * Toggle element visibility
- */
+**/
 SimpleTest.toggle = function(el) {
     if (MochiKit.Style.computedStyle(el, 'display') == 'block') {
         el.style.display = 'none';
@@ -216,7 +181,7 @@ SimpleTest.toggle = function(el) {
 
 /**
  * Toggle visibility for divs with a specific class.
- */
+**/
 SimpleTest.toggleByClass = function (cls, evt) {
     var elems = getElementsByTagAndClassName('div', cls);
     MochiKit.Base.map(SimpleTest.toggle, elems);
@@ -226,7 +191,7 @@ SimpleTest.toggleByClass = function (cls, evt) {
 
 /**
  * Shows the report in the browser
- */
+**/
 
 SimpleTest.showReport = function() {
     var togglePassed = A({'href': '#'}, "Toggle passed checks");
@@ -261,12 +226,12 @@ SimpleTest.showReport = function() {
 };
 
 /**
- * Tells SimpleTest harness not to finish the test automatically.
- * Asynchronous tests must call this function.
+ * Tells SimpleTest to don't finish the test when the document is loaded,
+ * useful for asynchronous tests.
  *
- * After this function has been called,
- * an explicit call to SimpleTest.finish is required to finish the test.
- */
+ * When SimpleTest.waitForExplicitFinish is called,
+ * explicit SimpleTest.finish() is required.
+**/
 SimpleTest.waitForExplicitFinish = function () {
     SimpleTest._stopOnLoad = false;
 };
@@ -333,20 +298,13 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     fm.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
     childTargetWindow = childTargetWindow.value;
 
-    function info(msg) {
-      if (SimpleTest._logEnabled)
-        SimpleTest._logResult({result: true, name: msg}, "TEST-INFO");
-      else
-        dump("TEST-INFO | " + msg + "\n");
-    }
-
     function debugFocusLog(prefix) {
         netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
         var baseWindow = targetWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                                      .getInterface(Components.interfaces.nsIWebNavigation)
                                      .QueryInterface(Components.interfaces.nsIBaseWindow);
-        info(prefix + " -- loaded: " + targetWindow.document.readyState +
+        SimpleTest.ok(true, prefix + " -- loaded: " + targetWindow.document.readyState +
            " active window: " +
                (fm.activeWindow ? "(" + fm.activeWindow + ") " + fm.activeWindow.location : "<no window active>") +
            " focused window: " +
@@ -397,7 +355,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
         (expectBlankPage == (targetWindow.location == "about:blank")) &&
         targetWindow.document.readyState == "complete";
     if (!SimpleTest.waitForFocus_loaded) {
-        info("must wait for load");
+        SimpleTest.ok(true, "must wait for load");
         targetWindow.addEventListener("load", waitForEvent, true);
     }
 
@@ -411,12 +369,12 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     // If this is a child frame, ensure that the frame is focused.
     SimpleTest.waitForFocus_focused = (focusedChildWindow == childTargetWindow);
     if (SimpleTest.waitForFocus_focused) {
-        info("already focused");
+        SimpleTest.ok(true, "already focused");
         // If the frame is already focused and loaded, call the callback directly.
         maybeRunTests();
     }
     else {
-        info("must wait for focus");
+        SimpleTest.ok(true, "must wait for focus");
         childTargetWindow.addEventListener("focus", waitForEvent, true);
         childTargetWindow.focus();
     }
@@ -513,9 +471,10 @@ SimpleTest.executeSoon = function(aFunc) {
     if ("Components" in window && "classes" in window.Components) {
         try {
             netscape.security.PrivilegeManager
-                             .enablePrivilege("UniversalXPConnect");
+              .enablePrivilege("UniversalXPConnect");
             var tm = Components.classes["@mozilla.org/thread-manager;1"]
-                               .getService(Components.interfaces.nsIThreadManager);
+                       .getService(Components.interfaces.nsIThreadManager);
+
             tm.mainThread.dispatch({
                 run: function() {
                     aFunc();
@@ -527,42 +486,27 @@ SimpleTest.executeSoon = function(aFunc) {
             // failing, fall through to the setTimeout path.
         }
     }
-
     setTimeout(aFunc, 0);
 }
 
 /**
- * Finishes the test, after letting it actually end first.
- *
- * Tests must call this function when they have called
- * SimpleTest.waitForExplicitFinish before.
- */
+ * Finishes the tests. This is automatically called, except when
+ * SimpleTest.waitForExplicitFinish() has been invoked.
+**/
 SimpleTest.finish = function () {
-  SimpleTest.executeSoon(SimpleTest._finishNow);
-};
-
-/**
- * Finishes the test, now.
- *
- * Not to be directly called by tests.
- */
-SimpleTest._finishNow = function () {
     if (parentRunner) {
-        // The test is running in an iframe, and its parent has a TestRunner.
+        /* We're running in an iframe, and the parent has a TestRunner */
         parentRunner.testFinished(SimpleTest._tests);
     } else {
-        // The test is running alone in the window.
         SimpleTest.showReport();
     }
 };
 
-/**
- * Automatically call SimpleTest._finishNow when the document has loaded,
- * except when SimpleTest.waitForExplicitFinish has been called.
- */
+
 addLoadEvent(function() {
-    if (SimpleTest._stopOnLoad)
-      SimpleTest._finishNow();
+    if (SimpleTest._stopOnLoad) {
+        SimpleTest.finish();
+    }
 });
 
 //  --------------- Test.Builder/Test.More isDeeply() -----------------
@@ -793,7 +737,7 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
   }
 
   if (!SimpleTest._stopOnLoad) {
-    // Call finish, as the test (hopefully) doesn't run anymore.
-    SimpleTest.finish();
+    // Need to finish() manually here, yet let the test actually end first.
+    SimpleTest.executeSoon(SimpleTest.finish);
   }
 }

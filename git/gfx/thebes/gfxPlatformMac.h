@@ -60,7 +60,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxASurface::gfxContentType contentType);
+                                                         gfxASurface::gfxImageFormat imageFormat);
 
     already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
                                                 gfxASurface::gfxImageFormat format);

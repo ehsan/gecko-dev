@@ -78,11 +78,6 @@ public:
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
-
-  // nsGenericElement overrides
-  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo);
-
-
 };
 
 #endif // nsXMLElement_h___

@@ -41,6 +41,8 @@ do_load_httpd_js();
 // if these tests fail, we'll want the debug output
 DEBUG = true;
 
+const Timer = CC("@mozilla.org/timer;1", "nsITimer", "initWithCallback");
+
 
 /**
  * Constructs a new nsHttpServer instance.  This function is intended to
@@ -209,6 +211,20 @@ function isException(e, code)
 }
 
 /**
+ * Pending timers used by callLater, which must store them to avoid the timer
+ * being canceled and destroyed.  Stupid API...
+ */
+var __pendingTimers = [];
+
+/**
+ * Date.now() is not necessarily monotonically increasing (insert sob story
+ * about times not being the right tool to use for measuring intervals of time,
+ * robarnold can tell all), so be wary of error by erring by at least
+ * __timerFuzz ms.
+ */
+const __timerFuzz = 15;
+
+/**
  * Calls the given function at least the specified number of milliseconds later.
  * The callback will not undershoot the given time, but it might overshoot --
  * don't expect precision!
@@ -220,7 +236,48 @@ function isException(e, code)
  */
 function callLater(msecs, callback)
 {
-  do_timeout(msecs, callback);
+  do_check_true(msecs >= 0);
+
+  var start = Date.now();
+
+  function checkTime()
+  {
+    var index = __pendingTimers.indexOf(timer);
+    do_check_true(index >= 0); // sanity
+    __pendingTimers.splice(index, 1);
+    do_check_eq(__pendingTimers.indexOf(timer), -1);
+
+    // The current nsITimer implementation can undershoot, but even if it
+    // couldn't, paranoia is probably a virtue here given the potential for
+    // random orange on tinderboxen.
+    var end = Date.now();
+    var elapsed = end - start;
+    if (elapsed >= msecs)
+    {
+      dumpn("*** TIMER FIRE " + elapsed + "ms (" + msecs + "ms requested)");
+      try
+      {
+        callback();
+      }
+      catch (e)
+      {
+        do_throw("exception thrown from callLater callback: " + e);
+      }
+      return;
+    }
+
+    // Timer undershot, retry with a little overshoot to try to avoid more
+    // undershoots.
+    var newDelay = msecs - elapsed;
+    dumpn("*** TIMER UNDERSHOOT " + newDelay + "ms " +
+          "(" + msecs + "ms requested, delaying)");
+
+    callLater(newDelay, callback);
+  }
+
+  var timer =
+    new Timer(checkTime, msecs + __timerFuzz, Ci.nsITimer.TYPE_ONE_SHOT);
+  __pendingTimers.push(timer);
 }
 
 
@@ -293,7 +350,7 @@ function runHttpTests(testArray, done)
       }
       catch (e)
       {
-        do_report_unexpected_exception(e, "running test-completion callback");
+        do_throw("error running test-completion callback: " + e);
       }
       return;
     }
@@ -310,15 +367,11 @@ function runHttpTests(testArray, done)
     {
       try
       {
-        do_report_unexpected_exception(e, "testArray[" + testIndex + "].initChannel(ch)");
+        do_throw("testArray[" + testIndex + "].initChannel(ch) failed: " + e);
       }
-      catch (e)
-      {
-        /* swallow and let tests continue */
-      }
+      catch (e) { /* swallow and let tests continue */ }
     }
 
-    listener._channel = ch;
     ch.asyncOpen(listener, null);
   }
 
@@ -328,14 +381,11 @@ function runHttpTests(testArray, done)
   /** Stream listener for the channels. */
   var listener =
     {
-      /** Current channel being observed by this. */
-      _channel: null,
       /** Array of bytes of data in body of response. */
       _data: [],
 
       onStartRequest: function(request, cx)
       {
-        do_check_true(request === this._channel);
         var ch = request.QueryInterface(Ci.nsIHttpChannel)
                         .QueryInterface(Ci.nsIHttpChannelInternal);
 
@@ -348,12 +398,12 @@ function runHttpTests(testArray, done)
           }
           catch (e)
           {
-            do_report_unexpected_exception(e, "testArray[" + testIndex + "].onStartRequest");
+            do_throw("testArray[" + testIndex + "].onStartRequest: " + e);
           }
         }
         catch (e)
         {
-          do_note_exception(e, "!!! swallowing onStartRequest exception so onStopRequest is " +
+          dumpn("!!! swallowing onStartRequest exception so onStopRequest is " +
                 "called...");
         }
       },
@@ -364,8 +414,6 @@ function runHttpTests(testArray, done)
       },
       onStopRequest: function(request, cx, status)
       {
-        this._channel = null;
-
         var ch = request.QueryInterface(Ci.nsIHttpChannel)
                         .QueryInterface(Ci.nsIHttpChannelInternal);
 
@@ -473,7 +521,7 @@ function runRawTests(testArray, done)
       }
       catch (e)
       {
-        do_report_unexpected_exception(e, "running test-completion callback");
+        do_throw("error running test-completion callback: " + e);
       }
       return;
     }
@@ -497,7 +545,6 @@ function runRawTests(testArray, done)
 
   function waitForMoreInput(stream)
   {
-    reader.stream = stream;
     stream = stream.QueryInterface(Ci.nsIAsyncInputStream);
     stream.asyncWait(reader, 0, 0, currentThread);
   }
@@ -529,32 +576,20 @@ function runRawTests(testArray, done)
     {
       onInputStreamReady: function(stream)
       {
-        do_check_true(stream === this.stream);
+        var bis = new BinaryInputStream(stream);
+
+        var av = 0;
         try
         {
-          var bis = new BinaryInputStream(stream);
-
-          var av = 0;
-          try
-          {
-            av = bis.available();
-          }
-          catch (e)
-          {
-            /* default to 0 */
-            do_note_exception(e);
-          }
-
-          if (av > 0)
-          {
-            received += String.fromCharCode.apply(null, bis.readByteArray(av));
-            waitForMoreInput(stream);
-            return;
-          }
+          av = bis.available();
         }
-        catch(e)
+        catch (e) { /* default to 0 */ }
+
+        if (av > 0)
         {
-          do_report_unexpected_exception(e);
+          received += String.fromCharCode.apply(null, bis.readByteArray(av));
+          waitForMoreInput(stream);
+          return;
         }
 
         var rawTest = testArray[testIndex];
@@ -564,19 +599,12 @@ function runRawTests(testArray, done)
         }
         catch (e)
         {
-          do_report_unexpected_exception(e);
+          do_throw("error thrown by responseCheck: " + e);
         }
         finally
         {
-          try
-          {
-            stream.close();
-            performNextTest();
-          }
-          catch (e)
-          {
-            do_report_unexpected_exception(e);
-          }
+          stream.close();
+          performNextTest();
         }
       }
     };
@@ -597,25 +625,14 @@ function runRawTests(testArray, done)
           else
             testArray[testIndex].data[dataIndex] = str.substring(written);
         }
-        catch (e)
-        {
-          do_note_exception(e);
-          /* stream could have been closed, just ignore */
-        }
+        catch (e) { /* stream could have been closed, just ignore */ }
 
-        try
-        {
-          // Keep writing data while we can write and 
-          // until there's no more data to read
-          if (written > 0 && dataIndex < testArray[testIndex].data.length)
-            waitToWriteOutput(stream);
-          else
-            stream.close();
-        }
-        catch (e)
-        {
-          do_report_unexpected_exception(e);
-        }
+        // Keep writing data while we can write and 
+        // until there's no more data to read
+        if (written > 0 && dataIndex < testArray[testIndex].data.length)
+          waitToWriteOutput(stream);
+        else
+          stream.close();
       }
     };
 

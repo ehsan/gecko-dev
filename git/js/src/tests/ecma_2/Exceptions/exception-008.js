@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'exception-008.js';
 
 /**
  *  File Name:          exception-008

@@ -45,8 +45,8 @@
  */
 nsNativeDragSource::nsNativeDragSource(nsIDOMDataTransfer* aDataTransfer) :
   m_cRef(0),
-  m_hCursor(nsnull),
-  mUserCancelled(PR_FALSE)
+  mUserCancelled(PR_FALSE),
+  m_hCursor(nsnull)
 {
   mDataTransfer = do_QueryInterface(aDataTransfer);
 }

@@ -145,8 +145,8 @@ class nsContentSink : public nsICSSLoaderObserver,
   void NotifyAppend(nsIContent* aContent, PRUint32 aStartIndex);
 
   // nsIDocumentObserver
-  NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
-  NS_DECL_NSIDOCUMENTOBSERVER_ENDUPDATE
+  virtual void BeginUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType);
+  virtual void EndUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType);
 
   virtual void UpdateChildCounts() = 0;
 
@@ -270,9 +270,6 @@ protected:
   // stylesheets are all done loading.
 public:
   void StartLayout(PRBool aIgnorePendingSheets);
-
-  static void NotifyDocElementCreated(nsIDocument* aDoc);
-
 protected:
   void
   FavorPerformanceHint(PRBool perfOverStarvation, PRUint32 starvationDelay);

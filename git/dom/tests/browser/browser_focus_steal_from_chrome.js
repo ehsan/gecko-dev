@@ -90,7 +90,7 @@ function test() {
     if (setFocusToChrome) {
       // Set focus to a chrome element before the loaded content tries to move
       // focus.
-      document.getElementById("urlbar").focus();
+      BrowserSearch.searchBar.focus();
     }
     onLoadComplete();
   }

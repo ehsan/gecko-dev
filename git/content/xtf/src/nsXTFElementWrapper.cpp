@@ -124,14 +124,8 @@ nsXTFElementWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   NS_PRECONDITION(aInstancePtr, "null out param");
 
   NS_IMPL_QUERY_CYCLE_COLLECTION(nsXTFElementWrapper)
-  if (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||
-      aIID.Equals(NS_GET_IID(nsXPCClassInfo))) {
+  if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
     *aInstancePtr = static_cast<nsIClassInfo*>(this);
-    NS_ADDREF_THIS();
-    return NS_OK;
-  }
-  if (aIID.Equals(NS_GET_IID(nsIXPCScriptable))) {
-    *aInstancePtr = static_cast<nsIXPCScriptable*>(this);
     NS_ADDREF_THIS();
     return NS_OK;
   }
@@ -543,13 +537,13 @@ nsXTFElementWrapper::GetExistingAttrNameFromQName(const nsAString& aStr) const
   return nodeInfo;
 }
 
-nsEventStates
+PRInt32
 nsXTFElementWrapper::IntrinsicState() const
 {
-  nsEventStates retState = nsXTFElementWrapperBase::IntrinsicState();
-  if (mIntrinsicState.HasState(NS_EVENT_STATE_MOZ_READONLY)) {
+  PRInt32 retState = nsXTFElementWrapperBase::IntrinsicState();
+  if (mIntrinsicState & NS_EVENT_STATE_MOZ_READONLY) {
     retState &= ~NS_EVENT_STATE_MOZ_READWRITE;
-  } else if (mIntrinsicState.HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
+  } else if (mIntrinsicState & NS_EVENT_STATE_MOZ_READWRITE) {
     retState &= ~NS_EVENT_STATE_MOZ_READONLY;
   }
 
@@ -687,7 +681,8 @@ nsXTFElementWrapper::GetInterfaces(PRUint32* aCount, nsIID*** aArray)
   PRUint32 xtfCount = 0;
   nsIID** xtfArray = nsnull;
 
-  nsCOMPtr<nsIClassInfo> baseCi = GetBaseXPCClassInfo();
+  nsCOMPtr<nsIClassInfo> baseCi =
+    NS_GetDOMClassInfoInstance(eDOMClassInfo_Element_id);
   if (baseCi) {
     baseCi->GetInterfaces(&baseCount, &baseArray);
   }
@@ -745,7 +740,8 @@ nsXTFElementWrapper::GetHelperForLanguage(PRUint32 language,
                                           nsISupports** aHelper)
 {
   *aHelper = nsnull;
-  nsCOMPtr<nsIClassInfo> ci = GetBaseXPCClassInfo();
+  nsCOMPtr<nsIClassInfo> ci = 
+    NS_GetDOMClassInfoInstance(eDOMClassInfo_Element_id);
   return
     ci ? ci->GetHelperForLanguage(language, aHelper) : NS_ERROR_NOT_AVAILABLE;
 }
@@ -901,20 +897,19 @@ nsXTFElementWrapper::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 NS_IMETHODIMP
-nsXTFElementWrapper::SetIntrinsicState(nsEventStates::InternalType aNewState)
+nsXTFElementWrapper::SetIntrinsicState(PRInt32 aNewState)
 {
   nsIDocument *doc = GetCurrentDoc();
-  nsEventStates newStates(aNewState);
-  nsEventStates bits = mIntrinsicState ^ newStates;
-
-  if (!doc || bits.IsEmpty())
+  PRInt32 bits = mIntrinsicState ^ aNewState;
+  
+  if (!doc || !bits)
     return NS_OK;
 
-  NS_WARN_IF_FALSE(!newStates.HasAllStates(NS_EVENT_STATE_MOZ_READONLY |
-                                           NS_EVENT_STATE_MOZ_READWRITE),
+  NS_WARN_IF_FALSE(!((aNewState & NS_EVENT_STATE_MOZ_READONLY) &&
+                   (aNewState & NS_EVENT_STATE_MOZ_READWRITE)),
                    "Both READONLY and READWRITE are being set.  Yikes!!!");
 
-  mIntrinsicState = newStates;
+  mIntrinsicState = aNewState;
   mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
   doc->ContentStatesChanged(this, nsnull, bits);
 

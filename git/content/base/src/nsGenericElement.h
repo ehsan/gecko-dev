@@ -378,7 +378,7 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter);
+  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType);
   virtual nsIAtom *GetClassAttributeName() const;
   virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const;
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -430,7 +430,7 @@ public:
   virtual void SaveSubtreeState();
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 /*aNamespaceID*/, nsIAtom* /*aName*/)
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* /*aName*/)
   {
     return nsnull;
   }
@@ -748,7 +748,7 @@ public:
   nsIDOMDOMTokenList* GetClassList(nsresult *aResult);
   void SetCapture(PRBool aRetargetToElement);
   void ReleaseCapture();
-  PRBool MozMatchesSelector(const nsAString& aSelector, nsresult* aResult);
+  PRBool MozMatchesSelector(const nsAString& aSelector);
 
   /**
    * Get the attr info for the given namespace ID and attribute name.  The
@@ -761,10 +761,6 @@ public:
   virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsGenericElement)
-
-  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
-  {
-  }
 
 protected:
   /**

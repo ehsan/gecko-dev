@@ -103,14 +103,14 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
 PRInt32
 nsAccUtils::GetDefaultLevel(nsAccessible *aAccessible)
 {
-  PRUint32 role = aAccessible->Role();
+  PRUint32 role = nsAccUtils::Role(aAccessible);
 
   if (role == nsIAccessibleRole::ROLE_OUTLINEITEM)
     return 1;
 
   if (role == nsIAccessibleRole::ROLE_ROW) {
     nsAccessible *parent = aAccessible->GetParent();
-    if (parent && parent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE) {
+    if (Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
       // It is a row inside flatten treegrid. Group level is always 1 until it
       // is overriden by aria-level attribute.
       return 1;
@@ -357,7 +357,7 @@ nsAccUtils::GetAncestorWithRole(nsAccessible *aDescendant, PRUint32 aRole)
   nsAccessible *document = aDescendant->GetDocAccessible();
   nsAccessible *parent = aDescendant;
   while ((parent = parent->GetParent())) {
-    PRUint32 testRole = parent->Role();
+    PRUint32 testRole = nsAccUtils::Role(parent);
     if (testRole == aRole)
       return parent;
 
@@ -376,11 +376,16 @@ nsAccUtils::GetSelectableContainer(nsAccessible *aAccessible, PRUint32 aState)
   if (!(aState & nsIAccessibleStates::STATE_SELECTABLE))
     return nsnull;
 
-  nsAccessible* parent = aAccessible;
-  while ((parent = parent->GetParent()) && !parent->IsSelect()) {
-    if (Role(parent) == nsIAccessibleRole::ROLE_PANE)
+  nsCOMPtr<nsIAccessibleSelectable> container;
+  nsAccessible *parent = aAccessible;
+  while (!container) {
+    parent = parent->GetParent();
+    if (!parent || Role(parent) == nsIAccessibleRole::ROLE_PANE)
       return nsnull;
+
+    container = do_QueryObject(parent);
   }
+
   return parent;
 }
 
@@ -405,7 +410,8 @@ nsAccUtils::IsARIASelected(nsAccessible *aAccessible)
 }
 
 already_AddRefed<nsHyperTextAccessible>
-nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
+nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
+                                           nsINode **aNode)
 {
   // Get accessible from selection's focus DOM point (the DOM point where
   // selection is ended).
@@ -434,9 +440,12 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   do {
     nsHyperTextAccessible* textAcc = nsnull;
     CallQueryInterface(accessible, &textAcc);
-    if (textAcc)
-      return textAcc;
+    if (textAcc) {
+      if (aNode)
+        NS_ADDREF(*aNode = accessible->GetNode());
 
+      return textAcc;
+    }
   } while (accessible = accessible->GetParent());
 
   NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
@@ -572,6 +581,23 @@ nsAccUtils::GetRoleMapEntry(nsINode *aNode)
   // Always use some entry if there is a non-empty role string
   // To ensure an accessible object is created
   return &nsARIAMap::gLandmarkRoleMap;
+}
+
+PRUint32
+nsAccUtils::RoleInternal(nsIAccessible *aAcc)
+{
+  PRUint32 role = nsIAccessibleRole::ROLE_NOTHING;
+  if (aAcc) {
+    nsAccessible* accessible = nsnull;
+    CallQueryInterface(aAcc, &accessible);
+
+    if (accessible) {
+      accessible->GetRoleInternal(&role);
+      NS_RELEASE(accessible);
+    }
+  }
+
+  return role;
 }
 
 PRUint8
@@ -718,9 +744,6 @@ nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
 
     nsCOMPtr<nsIAccessibleTableCell> tableCellAcc =
       do_QueryInterface(cell);
-
-    // GetCellAt should always return an nsIAccessibleTableCell (XXX Bug 587529)
-    NS_ENSURE_STATE(tableCellAcc);
 
     PRInt32 origIdx = 1;
     if (moveToLeft)

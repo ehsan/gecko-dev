@@ -64,9 +64,7 @@
 #include "nsEventDispatcher.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
-#include "nsMediaError.h"
-
-using namespace mozilla::dom;
+#include "nsHTMLMediaError.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 
@@ -103,7 +101,7 @@ NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
 }
 
 nsHTMLVideoElement::nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }
@@ -160,26 +158,6 @@ nsMapRuleToAttributesFunc
 nsHTMLVideoElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
-}
-
-nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
-{
-    nsCAutoString value(
-#ifdef MOZ_WEBM
-        "video/webm,"
-#endif
-#ifdef MOZ_OGG
-        "video/ogg,"
-#endif
-        "video/*;q=0.9,"
-#ifdef MOZ_OGG
-        "application/ogg;q=0.7,"
-#endif
-        "audio/*;q=0.6,*/*;q=0.5");
-
-    return aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
-                                      value,
-                                      PR_FALSE);
 }
 
 NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)

@@ -66,8 +66,10 @@
 #include "nsClassHashtable.h"
 #include "nsTArray.h"
 
+#ifdef MOZ_OMNIJAR
 #include "mozilla/Omnijar.h"
-#include "nsIZipReader.h"
+#include "nsIManifestLoader.h"
+#endif
 
 struct nsFactoryEntry;
 class nsIServiceManager;
@@ -89,6 +91,14 @@ extern const char fileSizeValueName[];
 extern const char nativeComponentType[];
 extern const char staticComponentType[];
 
+typedef int LoaderType;
+
+// Predefined loader types.
+#define NS_LOADER_TYPE_NATIVE  -1
+#define NS_LOADER_TYPE_STATIC  -2
+#define NS_LOADER_TYPE_JAR     -3
+#define NS_LOADER_TYPE_INVALID -4
+
 #ifdef DEBUG
 #define XPCOM_CHECK_PENDING_CIDS
 #endif
@@ -108,12 +118,18 @@ class nsComponentManagerImpl
     , public nsSupportsWeakReference
     , public nsIComponentRegistrar
     , public nsIInterfaceRequestor
+#ifdef MOZ_OMNIJAR
+    , public nsIManifestLoaderSink
+#endif
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSICOMPONENTMANAGER
     NS_DECL_NSICOMPONENTREGISTRAR
+#ifdef MOZ_OMNIJAR
+    NS_DECL_NSIMANIFESTLOADERSINK
+#endif
 
     static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
@@ -159,12 +175,10 @@ public:
     {
         NSLocationType type;
         nsCOMPtr<nsILocalFile> location;
-        bool jar;
     };
 
     static nsTArray<const mozilla::Module*>* sStaticModules;
     static nsTArray<ComponentLocation>* sModuleLocations;
-    static nsTArray<ComponentLocation>* sJarModuleLocations;
 
     nsNativeModuleLoader mNativeModuleLoader;
 
@@ -189,14 +203,16 @@ public:
             , mFailed(false)
         { }
 
-        KnownModule(nsILocalFile* aFile, const nsACString& aPath)
+#ifdef MOZ_OMNIJAR
+        KnownModule(const nsACString& aPath)
             : mModule(NULL)
-            , mFile(aFile)
+            , mFile(NULL)
             , mPath(aPath)
             , mLoader(NULL)
             , mLoaded(false)
             , mFailed(false)
         { }
+#endif
 
         ~KnownModule()
         {
@@ -221,7 +237,9 @@ public:
     private:
         const mozilla::Module* mModule;
         nsCOMPtr<nsILocalFile> mFile;
+#ifdef MOZ_OMNIJAR
         nsCString mPath;
+#endif
         nsCOMPtr<mozilla::ModuleLoader> mLoader;
         bool mLoaded;
         bool mFailed;
@@ -231,8 +249,9 @@ public:
     // referenced by pointer from the factory entries.
     nsTArray< nsAutoPtr<KnownModule> > mKnownStaticModules;
     nsClassHashtable<nsHashableHashKey, KnownModule> mKnownFileModules;
-    // The key is a string in this format "<jar path>|<path within jar>"
+#ifdef MOZ_OMNIJAR
     nsClassHashtable<nsCStringHashKey, KnownModule> mKnownJARModules;
+#endif
 
     void RegisterModule(const mozilla::Module* aModule,
                         nsILocalFile* aFile);
@@ -240,43 +259,42 @@ public:
                           KnownModule* aModule);
     void RegisterContractID(const mozilla::Module::ContractIDEntry* aEntry);
 
-    void RegisterJarManifest(nsIZipReader* aReader,
-                             const char* aPath, bool aChromeOnly);
+    void RegisterLocation(NSLocationType aType, nsILocalFile* aLocation,
+                          bool aChromeOnly);
+
+#ifdef MOZ_OMNIJAR
+    void RegisterOmnijar(bool aChromeOnly);
+#endif
+
+    void GetManifestsInDirectory(nsILocalFile* aDirectory,
+                                 nsCOMArray<nsILocalFile>& aManifests);
 
     void RegisterManifestFile(NSLocationType aType, nsILocalFile* aFile,
                               bool aChromeOnly);
 
     struct ManifestProcessingContext
     {
-        ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile, bool aChromeOnly)
+        ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile)
             : mType(aType)
             , mFile(aFile)
             , mPath(NULL)
-            , mChromeOnly(aChromeOnly)
         { }
 
-        ManifestProcessingContext(NSLocationType aType, nsIZipReader* aReader, const char* aPath, bool aChromeOnly)
+#ifdef MOZ_OMNIJAR
+        ManifestProcessingContext(NSLocationType aType, const char* aPath)
             : mType(aType)
-            , mReader(aReader)
+            , mFile(mozilla::OmnijarPath())
             , mPath(aPath)
-            , mChromeOnly(aChromeOnly)
-        {
-            nsCOMPtr<nsIFile> file;
-            aReader->GetFile(getter_AddRefs(file));
-            nsCOMPtr<nsILocalFile> localfile = do_QueryInterface(file);
-            mFile = localfile;
-        }
+        { }
+#endif
 
         ~ManifestProcessingContext() { }
 
         NSLocationType mType;
         nsILocalFile* mFile;
-        nsIZipReader* mReader;
         const char* mPath;
-        bool mChromeOnly;
     };
 
-    void ManifestManifest(ManifestProcessingContext& cx, int lineno, char *const * argv);
     void ManifestBinaryComponent(ManifestProcessingContext& cx, int lineno, char *const * argv);
     void ManifestXPT(ManifestProcessingContext& cx, int lineno, char *const * argv);
     void ManifestComponent(ManifestProcessingContext& cx, int lineno, char *const * argv);
@@ -311,6 +329,11 @@ public:
 
 private:
     ~nsComponentManagerImpl();
+
+#ifdef MOZ_OMNIJAR
+    nsIManifestLoader* mManifestLoader;
+    bool mRegisterJARChromeOnly;
+#endif
 };
 
 

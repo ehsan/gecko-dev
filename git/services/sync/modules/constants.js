@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,7 +44,7 @@ WEAVE_ID:                              "@weave_id@",
 // Version of the data format this client supports. The data format describes
 // how records are packaged; this is separate from the Server API version and
 // the per-engine cleartext formats.
-STORAGE_VERSION:                       4,
+STORAGE_VERSION:                       2,
 
 UPDATED_DEV_URL:                       "https://services.mozilla.com/sync/updated/?version=@weave_version@&channel=@xpi_type@",
 UPDATED_REL_URL:                       "http://www.mozilla.com/firefox/sync/updated.html",
@@ -56,29 +55,12 @@ PREFS_BRANCH:                          "services.sync.",
 PWDMGR_HOST:                           "chrome://weave",
 PWDMGR_PASSWORD_REALM:                 "Mozilla Services Password",
 PWDMGR_PASSPHRASE_REALM:               "Mozilla Services Encryption Passphrase",
-PWDMGR_KEYBUNDLE_REALM:                "Mozilla Services Key Bundles",
-
-// Put in [] because those aren't allowed in a collection name.
-DEFAULT_KEYBUNDLE_NAME:                "[default]",
-
-// Our extra input to SHA256-HMAC in generateEntry.
-// This includes the full crypto spec; change this when our algo changes.
-HMAC_INPUT:                            "Sync-AES_256_CBC-HMAC256",
-
-// Key dimensions.
-SYNC_KEY_ENCODED_LENGTH:               26,
-SYNC_KEY_DECODED_LENGTH:               16,
-SYNC_KEY_HYPHENATED_LENGTH:            31,    // 26 chars, 5 hyphens.
 
 // Sync intervals for various clients configurations
 SINGLE_USER_SYNC:                      24 * 60 * 60 * 1000, // 1 day
 MULTI_DESKTOP_SYNC:                    60 * 60 * 1000, // 1 hour
 MULTI_MOBILE_SYNC:                     5 * 60 * 1000, // 5 minutes
 PARTIAL_DATA_SYNC:                     60 * 1000, // 1 minute
-
-// 50 is hardcoded here because of URL length restrictions.
-// (GUIDs can be up to 64 chars long)
-MOBILE_BATCH_SIZE:                     50,
 
 // score thresholds for early syncs
 SINGLE_USER_THRESHOLD:                 1000,
@@ -101,8 +83,6 @@ PERMS_DIRECTORY:                       0755,
 // FIXME: Record size limit is 256k (new cluster), so this can be quite large!
 // (Bug 569295)
 MAX_UPLOAD_RECORDS:                    100,
-MAX_HISTORY_UPLOAD:                    5000,
-MAX_HISTORY_DOWNLOAD:                  5000,
 
 // Top-level statuses:
 STATUS_OK:                             "success.status_ok",
@@ -120,23 +100,23 @@ ENGINE_SUCCEEDED:                      "success.engine",
 // login failure status codes:
 LOGIN_FAILED_NO_USERNAME:              "error.login.reason.no_username",
 LOGIN_FAILED_NO_PASSWORD:              "error.login.reason.no_password",
-LOGIN_FAILED_NO_PASSPHRASE:            "error.login.reason.no_synckey",
+LOGIN_FAILED_NO_PASSPHRASE:            "error.login.reason.no_passphrase",
 LOGIN_FAILED_NETWORK_ERROR:            "error.login.reason.network",
 LOGIN_FAILED_SERVER_ERROR:             "error.login.reason.server",
-LOGIN_FAILED_INVALID_PASSPHRASE:       "error.login.reason.synckey",
-LOGIN_FAILED_LOGIN_REJECTED:           "error.login.reason.account",
+LOGIN_FAILED_INVALID_PASSPHRASE:       "error.login.reason.passphrase",
+LOGIN_FAILED_LOGIN_REJECTED:           "error.login.reason.password",
 
 // sync failure status codes
 METARECORD_DOWNLOAD_FAIL:              "error.sync.reason.metarecord_download_fail",
 VERSION_OUT_OF_DATE:                   "error.sync.reason.version_out_of_date",
 DESKTOP_VERSION_OUT_OF_DATE:           "error.sync.reason.desktop_version_out_of_date",
+KEYS_DOWNLOAD_FAIL:                    "error.sync.reason.keys_download_fail",
+NO_KEYS_NO_KEYGEN:                     "error.sync.reason.no_keys_no_keygen",
+KEYS_UPLOAD_FAIL:                      "error.sync.reason.keys_upload_fail",
 SETUP_FAILED_NO_PASSPHRASE:            "error.sync.reason.setup_failed_no_passphrase",
 CREDENTIALS_CHANGED:                   "error.sync.reason.credentials_changed",
 ABORT_SYNC_COMMAND:                    "aborting sync, process commands said so",
 NO_SYNC_NODE_FOUND:                    "error.sync.reason.no_node_found",
-OVER_QUOTA:                            "error.sync.reason.over_quota",
-
-RESPONSE_OVER_QUOTA:                   "14",
 
 // engine failure status codes
 ENGINE_UPLOAD_FAIL:                    "error.engine.reason.record_upload_fail",

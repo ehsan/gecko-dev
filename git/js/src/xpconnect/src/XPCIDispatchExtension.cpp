@@ -43,10 +43,12 @@ static const char* const IDISPATCH_NAME = "IDispatch";
 PRBool XPCIDispatchExtension::mIsEnabled = PR_TRUE;
 
 JSBool XPCIDispatchExtension::DefineProperty(XPCCallContext & ccx, 
-                                             JSObject *obj, jsid id,
+                                             JSObject *obj, jsval idval,
                                              XPCWrappedNative* wrapperToReflectInterfaceNames,
                                              uintN propFlags, JSBool* resolved)
 {
+    if(!JSVAL_IS_STRING(idval))
+        return JS_FALSE;
     // Look up the native interface for IDispatch and then find a tearoff
     XPCNativeInterface* iface = XPCNativeInterface::GetNewOrUsed(ccx,
                                                                  "IDispatch");
@@ -59,14 +61,14 @@ JSBool XPCIDispatchExtension::DefineProperty(XPCCallContext & ccx,
     if(to == nsnull)
         return JS_FALSE;
     // Look up the member in the interface
-    const XPCDispInterface::Member * member = to->GetIDispatchInfo()->FindMember(id);
+    const XPCDispInterface::Member * member = to->GetIDispatchInfo()->FindMember(idval);
     if(!member)
     {
         // IDispatch is case insensitive, so if we don't find a case sensitive
         // match, we'll try a more expensive case-insensisitive search
         // TODO: We need to create cleaner solution that doesn't create
         // multiple properties of different case on the JS Object
-        member = to->GetIDispatchInfo()->FindMemberCI(ccx, id);
+        member = to->GetIDispatchInfo()->FindMemberCI(ccx, idval);
         if(!member)
             return JS_FALSE;
     }
@@ -80,14 +82,16 @@ JSBool XPCIDispatchExtension::DefineProperty(XPCCallContext & ccx,
     JSObject* funobj = xpc_CloneJSFunction(ccx, JSVAL_TO_OBJECT(funval), obj);
     if(!funobj)
         return JS_FALSE;
+    jsid id;
     // If this is a function or a parameterized property
     if(member->IsFunction() || member->IsParameterizedProperty())
     {
         // define the function on the object
-        AutoResolveName arn(ccx, id);
+        AutoResolveName arn(ccx, idval);
         if(resolved)
             *resolved = JS_TRUE;
-        return JS_DefinePropertyById(ccx, obj, id, OBJECT_TO_JSVAL(funobj),
+        return JS_ValueToId(ccx, idval, &id) &&
+               JS_DefinePropertyById(ccx, obj, id, OBJECT_TO_JSVAL(funobj),
                                      nsnull, nsnull, propFlags);
     }
     // Define the property on the object
@@ -105,10 +109,11 @@ JSBool XPCIDispatchExtension::DefineProperty(XPCCallContext & ccx,
     {
         setter = js_GetterOnlyPropertyStub;
     }
-    AutoResolveName arn(ccx, id);
+    AutoResolveName arn(ccx, idval);
     if(resolved)
         *resolved = JS_TRUE;
-    return JS_DefinePropertyById(ccx, obj, id, JSVAL_VOID, getter, setter,
+    return JS_ValueToId(ccx, idval, &id) &&
+           JS_DefinePropertyById(ccx, obj, id, JSVAL_VOID, getter, setter,
                                  propFlags);
 
 }
@@ -135,7 +140,7 @@ JSBool XPCIDispatchExtension::Enumerate(XPCCallContext& ccx, JSObject* obj,
     for(PRUint32 index = 0; index < members; ++index)
     {
         const XPCDispInterface::Member & member = pInfo->GetMember(index);
-        jsid name = member.GetName();
+        jsval name = member.GetName();
         if(!xpc_ForcePropertyResolve(ccx, obj, name))
             return JS_FALSE;
     }

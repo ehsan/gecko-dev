@@ -127,22 +127,9 @@ _newJSDScript(JSDContext*  jsdc,
         jsdscript->url = jsdlw_BuildAppRelativeFilename(jsdscript->app, raw_filename);
         if( function )
         {
-            JSString* funid = JS_GetFunctionId(function);
-            char* funbytes;
-            const char* funnanme;
-            if( fuinid )
-            {
-                funbytes = JS_EncodeString(cx, funid);
-                funname = funbytes ? funbytes : "";
-            }
-            else
-            {
-                funbytes = NULL;
-                funname = "anonymous";
-            }
             jsdscript->lwscript = 
-                LWDBG_GetScriptOfFunction(jsdscript->app,funname);
-            JS_Free(cx, funbytes);
+                LWDBG_GetScriptOfFunction(jsdscript->app,
+                                          JS_GetFunctionName(function));
     
             /* also, make sure this file is added to filelist if is .js file */
             if( HasFileExtention(raw_filename,"js") || 
@@ -232,7 +219,7 @@ _dumpJSDScriptList( JSDContext* jsdc )
 static JSHashNumber
 jsd_hash_script(const void *key)
 {
-    return ((JSHashNumber)(ptrdiff_t) key) >> 2; /* help lame MSVC1.5 on Win16 */
+    return ((JSHashNumber) key) >> 2; /* help lame MSVC1.5 on Win16 */
 }
 
 static void *
@@ -279,7 +266,7 @@ jsd_InitScriptManager(JSDContext* jsdc)
     jsdc->scriptsTable = JS_NewHashTable(JSD_SCRIPT_HASH_SIZE, jsd_hash_script,
                                          JS_CompareValues, JS_CompareValues,
                                          &script_alloc_ops, (void*) jsdc);
-    return !!jsdc->scriptsTable;
+    return (JSBool) jsdc->scriptsTable;
 }
 
 void
@@ -598,6 +585,11 @@ jsd_NewScriptHookProc(
     if( JSD_IS_DANGEROUS_THREAD(jsdc) )
         return;
     
+#ifdef LIVEWIRE
+    if( 1 == lineno )
+        jsdlw_PreLoadSource(jsdc, LWDBG_GetCurrentApp(), filename, JS_TRUE );
+#endif
+    
     JSD_LOCK_SCRIPTS(jsdc);
     jsdscript = _newJSDScript(jsdc, cx, script, fun);
     JSD_UNLOCK_SCRIPTS(jsdc);
@@ -619,7 +611,7 @@ jsd_NewScriptHookProc(
 
     if( hook )
         hook(jsdc, jsdscript, JS_TRUE, hookData);
-}
+}                
 
 void
 jsd_DestroyScriptHookProc( 

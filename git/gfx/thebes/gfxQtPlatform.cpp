@@ -81,11 +81,7 @@
 
 // Because the QPainter backend has some problems with glyphs rendering
 // it is better to use image or xlib cairo backends by default
-#if (MOZ_PLATFORM_MAEMO == 6)
 #define DEFAULT_RENDER_MODE RENDER_BUFFERED
-#else
-#define DEFAULT_RENDER_MODE RENDER_DIRECT
-#endif
 
 static QPaintEngine::Type sDefaultQtPaintEngineType = QPaintEngine::X11;
 gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
@@ -150,9 +146,6 @@ gfxQtPlatform::gfxQtPlatform()
         case 1:
             mRenderMode = RENDER_BUFFERED;
             break;
-        case 2:
-            mRenderMode = RENDER_DIRECT;
-            break;
         default:
             mRenderMode = RENDER_QPAINTER;
     }
@@ -197,24 +190,21 @@ gfxQtPlatform::~gfxQtPlatform()
 
 already_AddRefed<gfxASurface>
 gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
-                                      gfxASurface::gfxContentType contentType)
+                                      gfxASurface::gfxImageFormat imageFormat)
 {
     nsRefPtr<gfxASurface> newSurface = nsnull;
 
     // try to optimize it for 16bpp screen
-    gfxASurface::gfxImageFormat imageFormat = gfxASurface::FormatFromContent(contentType);
-    if (gfxASurface::CONTENT_COLOR == contentType
+    if (gfxASurface::ImageFormatRGB24 == imageFormat
         && 16 == QX11Info().depth())
         imageFormat = gfxASurface::ImageFormatRGB16_565;
 
-#ifdef CAIRO_HAS_QT_SURFACE
     if (mRenderMode == RENDER_QPAINTER) {
-      newSurface = new gfxQPainterSurface(size, imageFormat);
+      newSurface = new gfxQPainterSurface(size, gfxASurface::ContentFromFormat(imageFormat));
       return newSurface.forget();
     }
-#endif
 
-    if ((mRenderMode == RENDER_BUFFERED || mRenderMode == RENDER_DIRECT) &&
+    if (mRenderMode == RENDER_BUFFERED &&
         sDefaultQtPaintEngineType != QPaintEngine::X11) {
       newSurface = new gfxImageSurface(size, imageFormat);
       return newSurface.forget();
@@ -580,13 +570,14 @@ gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFo
 {
     mPrefFonts.Put(aKey, array);
 }
-
 #endif
 
-PRInt32
-gfxQtPlatform::GetDPI()
+void
+gfxQtPlatform::InitDisplayCaps()
 {
     QDesktopWidget* rootWindow = qApp->desktop();
-    PRInt32 dpi = rootWindow->logicalDpiY(); // y-axis DPI for fonts
-    return dpi <= 0 ? 96 : dpi;
+    sDPI = rootWindow->logicalDpiY(); // y-axis DPI for fonts
+    if (sDPI <= 0)
+        sDPI = 96; // something more sensible
 }
+

@@ -24,7 +24,6 @@
  * Contributor(s):
  *   Jason Duell <jduell.mcbugs@gmail.com>
  *   Daniel Witte <dwitte@mozilla.com>
- *   Honza Bambas <honzab@firemni.cz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,7 +44,6 @@
 
 #include "mozilla/net/HttpBaseChannel.h"
 #include "mozilla/net/PHttpChannelChild.h"
-#include "mozilla/net/ChannelEventQueue.h"
 
 #include "nsIStreamListener.h"
 #include "nsILoadGroup.h"
@@ -55,41 +53,43 @@
 #include "nsICacheInfoChannel.h"
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheChannel.h"
+#include "nsIEncodedChannel.h"
 #include "nsIUploadChannel2.h"
 #include "nsIResumableChannel.h"
 #include "nsIProxiedChannel.h"
 #include "nsITraceableChannel.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsIAssociatedContentSecurity.h"
-#include "nsIChildChannel.h"
-#include "nsIHttpChannelChild.h"
 
 namespace mozilla {
 namespace net {
 
+// TODO: replace with IPDL states: bug 536319
+enum HttpChannelChildState {
+  HCC_NEW,
+  HCC_OPENED,
+  HCC_ONSTART,
+  HCC_ONDATA,
+  HCC_ONSTOP
+};
+
+// Header file contents
 class HttpChannelChild : public PHttpChannelChild
                        , public HttpBaseChannel
                        , public nsICacheInfoChannel
+                       , public nsIEncodedChannel
+                       , public nsIResumableChannel
                        , public nsIProxiedChannel
                        , public nsITraceableChannel
                        , public nsIApplicationCacheChannel
-                       , public nsIAsyncVerifyRedirectCallback
-                       , public nsIAssociatedContentSecurity
-                       , public nsIChildChannel
-                       , public nsIHttpChannelChild
-                       , public ChannelEventQueue<HttpChannelChild>
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICACHEINFOCHANNEL
+  NS_DECL_NSIENCODEDCHANNEL
+  NS_DECL_NSIRESUMABLECHANNEL
   NS_DECL_NSIPROXIEDCHANNEL
   NS_DECL_NSITRACEABLECHANNEL
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
   NS_DECL_NSIAPPLICATIONCACHECHANNEL
-  NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
-  NS_DECL_NSIASSOCIATEDCONTENTSECURITY
-  NS_DECL_NSICHILDCHANNEL
-  NS_DECL_NSIHTTPCHANNELCHILD
 
   HttpChannelChild();
   virtual ~HttpChannelChild();
@@ -111,8 +111,6 @@ public:
   NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
   // nsISupportsPriority
   NS_IMETHOD SetPriority(PRInt32 value);
-  // nsIResumableChannel
-  NS_IMETHOD ResumeAt(PRUint64 startPos, const nsACString& entityID);
 
   // IPDL holds a reference while the PHttpChannel protocol is live (starting at
   // AsyncOpen, and ending at either OnStopRequest or any IPDL error, either of
@@ -120,96 +118,32 @@ public:
   void AddIPDLReference();
   void ReleaseIPDLReference();
 
-  bool IsSuspended();
-
 protected:
   bool RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                           const PRBool& useResponseHead,
-                          const RequestHeaderTuples& requestHeaders,
                           const PRBool& isFromCache,
                           const PRBool& cacheEntryAvailable,
                           const PRUint32& cacheExpirationTime,
-                          const nsCString& cachedCharset,
-                          const nsCString& securityInfoSerialization);
+                          const nsCString& cachedCharset);
   bool RecvOnDataAvailable(const nsCString& data, 
                            const PRUint32& offset,
                            const PRUint32& count);
   bool RecvOnStopRequest(const nsresult& statusCode);
   bool RecvOnProgress(const PRUint64& progress, const PRUint64& progressMax);
   bool RecvOnStatus(const nsresult& status, const nsString& statusArg);
-  bool RecvCancelEarly(const nsresult& status);
-  bool RecvRedirect1Begin(const PRUint32& newChannel,
-                          const URI& newURI,
-                          const PRUint32& redirectFlags,
-                          const nsHttpResponseHead& responseHead);
-  bool RecvRedirect3Complete();
-  bool RecvAssociateApplicationCache(const nsCString& groupID,
-                                     const nsCString& clientID);
-  bool RecvDeleteSelf();
-
-  bool GetAssociatedContentSecurity(nsIAssociatedContentSecurity** res = nsnull);
 
 private:
   RequestHeaderTuples mRequestHeaders;
-  nsCOMPtr<nsIChildChannel> mRedirectChannelChild;
-  nsCOMPtr<nsIURI> mRedirectOriginalURI;
-  nsCOMPtr<nsISupports> mSecurityInfo;
 
   PRPackedBool mIsFromCache;
   PRPackedBool mCacheEntryAvailable;
   PRUint32     mCacheExpirationTime;
   nsCString    mCachedCharset;
 
-  // If ResumeAt is called before AsyncOpen, we need to send extra data upstream
-  bool mSendResumeAt;
-  // Current suspension depth for this channel object
-  PRUint32 mSuspendCount;
-
+  // FIXME: replace with IPDL states (bug 536319) 
+  enum HttpChannelChildState mState;
   bool mIPCOpen;
-  bool mKeptAlive;
-
-  void OnStartRequest(const nsHttpResponseHead& responseHead,
-                          const PRBool& useResponseHead,
-                          const RequestHeaderTuples& requestHeaders,
-                          const PRBool& isFromCache,
-                          const PRBool& cacheEntryAvailable,
-                          const PRUint32& cacheExpirationTime,
-                          const nsCString& cachedCharset,
-                          const nsCString& securityInfoSerialization);
-  void OnDataAvailable(const nsCString& data, 
-                       const PRUint32& offset,
-                       const PRUint32& count);
-  void OnStopRequest(const nsresult& statusCode);
-  void OnProgress(const PRUint64& progress, const PRUint64& progressMax);
-  void OnStatus(const nsresult& status, const nsString& statusArg);
-  void OnCancel(const nsresult& status);
-  void Redirect1Begin(const PRUint32& newChannelId,
-                      const URI& newUri,
-                      const PRUint32& redirectFlags,
-                      const nsHttpResponseHead& responseHead);
-  void Redirect3Complete();
-  void DeleteSelf();
-
-  friend class StartRequestEvent;
-  friend class StopRequestEvent;
-  friend class DataAvailableEvent;
-  friend class ProgressEvent;
-  friend class StatusEvent;
-  friend class CancelEvent;
-  friend class Redirect1Event;
-  friend class Redirect3Event;
-  friend class DeleteSelfEvent;
 };
-
-//-----------------------------------------------------------------------------
-// inline functions
-//-----------------------------------------------------------------------------
-
-inline bool
-HttpChannelChild::IsSuspended()
-{
-  return mSuspendCount != 0;
-}
 
 } // namespace net
 } // namespace mozilla

@@ -146,11 +146,9 @@ Step::HandleResult(mozIStorageResultSet* aResultSet)
 NS_IMETHODIMP
 Step::HandleCompletion(PRUint16 aReason)
 {
-  if (aReason == mozIStorageStatementCallback::REASON_FINISHED) {
-    nsCOMPtr<mozIStorageResultSet> resultSet = mResultSet;
-    mResultSet = NULL;
-    Callback(resultSet);
-  }
+  nsCOMPtr<mozIStorageResultSet> resultSet = mResultSet;
+  mResultSet = NULL;
+  Callback(resultSet);
   return NS_OK;
 }
 
@@ -175,7 +173,7 @@ public:
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendStartVisitedQuery(aURI);
+    (void)cpc->SendStartVisitedQuery(IPC::URI(aURI));
     return NS_OK;
   }
 #endif
@@ -213,10 +211,6 @@ public:
 
   NS_IMETHOD HandleCompletion(PRUint16 aReason)
   {
-    if (aReason != mozIStorageStatementCallback::REASON_FINISHED) {
-      return NS_OK;
-    }
-
     if (mIsVisited) {
       History::GetService()->NotifyVisited(mURI);
     }
@@ -990,7 +984,7 @@ History::NotifyVisited(nsIURI* aURI)
     mozilla::dom::ContentParent* cpp = 
       mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
     if (cpp)
-      (void)cpp->SendNotifyVisited(aURI);
+      (void)cpp->SendNotifyVisited(IPC::URI(aURI));
   }
 #endif
 
@@ -1095,7 +1089,7 @@ History::VisitURI(nsIURI* aURI,
     mozilla::dom::ContentChild * cpc = 
       mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendVisitURI(aURI, aLastVisitedURI, aFlags);
+    (void)cpc->SendVisitURI(IPC::URI(aURI), IPC::URI(aLastVisitedURI), aFlags);
     return NS_OK;
   } 
 #endif /* MOZ_IPC */
@@ -1185,11 +1179,12 @@ History::RegisterVisitedCallback(nsIURI* aURI,
   NS_ASSERTION(aURI, "Must pass a non-null URI!");
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_PRECONDITION(aLink, "Must pass a non-null Link!");
+    NS_PRECONDITION(aLink, "Must pass a non-null URI!");
   }
 #else
-  NS_PRECONDITION(aLink, "Must pass a non-null Link!");
+  NS_PRECONDITION(aLink, "Must pass a non-null URI!");
 #endif
+
 
   // First, ensure that our hash table is setup.
   if (!mObservers.IsInitialized()) {
@@ -1212,27 +1207,12 @@ History::RegisterVisitedCallback(nsIURI* aURI,
     // Links wanting to know about this URI.  Therefore, we should query the
     // database now.
     nsresult rv = VisitedQuery::Start(aURI);
-
-    // In IPC builds, we are passed a NULL Link from
-    // ContentParent::RecvStartVisitedQuery.  Since we won't be adding a NULL
-    // entry to our list of observers, and the code after this point assumes
-    // that aLink is non-NULL, we will need to return now.
     if (NS_FAILED(rv) || !aLink) {
       // Remove our array from the hashtable so we don't keep it around.
       mObservers.RemoveEntry(aURI);
       return rv;
     }
   }
-#ifdef MOZ_IPC
-  // In IPC builds, we are passed a NULL Link from
-  // ContentParent::RecvStartVisitedQuery.  All of our code after this point
-  // assumes aLink is non-NULL, so we have to return now.
-  else if (!aLink) {
-    NS_ASSERTION(XRE_GetProcessType() == GeckoProcessType_Default,
-                 "We should only ever get a null Link in the default process!");
-    return NS_OK;
-  }
-#endif
 
   // Sanity check that Links are not registered more than once for a given URI.
   // This will not catch a case where it is registered for two different URIs.
@@ -1283,16 +1263,6 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
   if (mShuttingDown) {
     return NS_OK;
   }
-
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    mozilla::dom::ContentChild * cpc = 
-      mozilla::dom::ContentChild::GetSingleton();
-    NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendSetURITitle(aURI, nsDependentString(aTitle));
-    return NS_OK;
-  } 
-#endif /* MOZ_IPC */
 
   nsNavHistory* history = nsNavHistory::GetHistoryService();
 

@@ -45,49 +45,48 @@
 
 #include "nsComponentManagerUtils.h"
 #include "nsDOMClassInfo.h"
-#include "nsDOMJSUtils.h"
-#include "nsEventDispatcher.h"
-#include "nsPIDOMWindow.h"
 #include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 
 #include "IDBEvents.h"
-#include "IDBTransaction.h"
 
 USING_INDEXEDDB_NAMESPACE
 
-IDBRequest::IDBRequest()
-: mReadyState(nsIIDBRequest::LOADING)
+IDBRequest::IDBRequest(Generator* aGenerator,
+                       bool aWriteRequest)
+: mGenerator(aGenerator),
+  mReadyState(nsIIDBRequest::INITIAL),
+  mAborted(false),
+  mWriteRequest(aWriteRequest)
 {
+  NS_ASSERTION(aGenerator, "Null generator!");
 }
 
 IDBRequest::~IDBRequest()
 {
+  mGenerator->NoteDyingRequest(this);
+
   if (mListenerManager) {
     mListenerManager->Disconnect();
   }
 }
 
-// static
-already_AddRefed<IDBRequest>
-IDBRequest::Create(nsISupports* aSource,
-                   nsIScriptContext* aScriptContext,
-                   nsPIDOMWindow* aOwner,
-                   IDBTransaction* aTransaction)
+NS_IMETHODIMP
+IDBRequest::Abort()
 {
-  if (!aScriptContext || !aOwner) {
-    NS_ERROR("Null context and owner!");
-    return nsnull;
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  if (mAborted || mReadyState != nsIIDBRequest::LOADING) {
+    return NS_OK;
   }
 
-  nsRefPtr<IDBRequest> request(new IDBRequest());
+  if (mWriteRequest) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
-  request->mSource = aSource;
-  request->mTransaction = aTransaction;
-  request->mScriptContext = aScriptContext;
-  request->mOwner = aOwner;
-
-  return request.forget();
+  mAborted = true;
+  mReadyState = nsIIDBRequest::DONE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -129,14 +128,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBRequest,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnSuccessListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest,
                                                 nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnSuccessListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBRequest)
@@ -148,68 +145,3 @@ NS_IMPL_ADDREF_INHERITED(IDBRequest, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(IDBRequest, nsDOMEventTargetHelper)
 
 DOMCI_DATA(IDBRequest, IDBRequest)
-
-nsresult
-IDBRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
-  aVisitor.mCanHandle = PR_TRUE;
-  aVisitor.mParentTarget = mTransaction;
-  return NS_OK;
-}
-
-// static
-already_AddRefed<IDBVersionChangeRequest>
-IDBVersionChangeRequest::Create(nsISupports* aSource,
-                                nsIScriptContext* aScriptContext,
-                                nsPIDOMWindow* aOwner,
-                                IDBTransaction* aTransaction)
-{
-  if (!aScriptContext || !aOwner) {
-    NS_ERROR("Null context and owner!");
-    return nsnull;
-  }
-
-  nsRefPtr<IDBVersionChangeRequest> request(new IDBVersionChangeRequest());
-
-  request->mSource = aSource;
-  request->mTransaction = aTransaction;
-  request->mScriptContext = aScriptContext;
-  request->mOwner = aOwner;
-
-  return request.forget();
-}
-
-NS_IMETHODIMP
-IDBVersionChangeRequest::SetOnblocked(nsIDOMEventListener* aBlockedListener)
-{
-  return RemoveAddEventListener(NS_LITERAL_STRING(BLOCKED_EVT_STR),
-                                mOnBlockedListener, aBlockedListener);
-}
-
-NS_IMETHODIMP
-IDBVersionChangeRequest::GetOnblocked(nsIDOMEventListener** aBlockedListener)
-{
-  return GetInnerEventListener(mOnBlockedListener, aBlockedListener);
-}
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBVersionChangeRequest)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBVersionChangeRequest,
-                                                  IDBRequest)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnBlockedListener)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBVersionChangeRequest,
-                                                IDBRequest)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnBlockedListener)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBVersionChangeRequest)
-  NS_INTERFACE_MAP_ENTRY(nsIIDBVersionChangeRequest)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBVersionChangeRequest)
-NS_INTERFACE_MAP_END_INHERITING(IDBRequest)
-
-NS_IMPL_ADDREF_INHERITED(IDBVersionChangeRequest, IDBRequest)
-NS_IMPL_RELEASE_INHERITED(IDBVersionChangeRequest, IDBRequest)
-
-DOMCI_DATA(IDBVersionChangeRequest, IDBVersionChangeRequest)

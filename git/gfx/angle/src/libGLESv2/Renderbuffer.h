@@ -4,9 +4,8 @@
 // found in the LICENSE file.
 //
 
-// Renderbuffer.h: Defines the wrapper class gl::Renderbuffer, as well as the
-// class hierarchy used to store its contents: RenderbufferStorage, Colorbuffer,
-// DepthStencilbuffer, Depthbuffer and Stencilbuffer. Implements GL renderbuffer
+// Renderbuffer.h: Defines the virtual gl::Renderbuffer class and its derived
+// classes Colorbuffer, Depthbuffer and Stencilbuffer. Implements GL renderbuffer
 // objects and related functionality. [OpenGL ES 2.0.24] section 4.4.3 page 108.
 
 #ifndef LIBGLESV2_RENDERBUFFER_H_
@@ -17,35 +16,26 @@
 #include <d3d9.h>
 
 #include "common/angleutils.h"
-#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {
-    class Texture;
-
-// A class derived from RenderbufferStorage is created whenever glRenderbufferStorage
-// is called. The specific concrete type depends on whether the internal format is
-// colour depth, stencil or packed depth/stencil.
-class RenderbufferStorage
+class Renderbuffer
 {
   public:
-    RenderbufferStorage();
+    Renderbuffer();
 
-    virtual ~RenderbufferStorage() = 0;
+    virtual ~Renderbuffer();
 
-    virtual bool isColorbuffer() const;
-    virtual bool isDepthbuffer() const;
-    virtual bool isStencilbuffer() const;
+    virtual bool isColorbuffer();
+    virtual bool isDepthbuffer();
+    virtual bool isStencilbuffer();
 
     virtual IDirect3DSurface9 *getRenderTarget();
     virtual IDirect3DSurface9 *getDepthStencil();
 
-    virtual int getWidth() const;
-    virtual int getHeight() const;
-    virtual GLenum getFormat() const;
-    virtual bool isFloatingPoint() const;
-    D3DFORMAT getD3DFormat() const;
-    GLsizei getSamples() const;
+    virtual int getWidth();
+    virtual int getHeight();
+    GLenum getFormat();
     unsigned int getSerial() const;
 
     static unsigned int issueSerial();
@@ -53,12 +43,10 @@ class RenderbufferStorage
   protected:
     void setSize(int width, int height);
     GLenum mFormat;
-    D3DFORMAT mD3DFormat;
-    GLsizei mSamples;
-    const unsigned int mSerial;
+    unsigned int mSerial;
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(RenderbufferStorage);
+    DISALLOW_COPY_AND_ASSIGN(Renderbuffer);
 
     static unsigned int mCurrentSerial;
 
@@ -66,48 +54,15 @@ class RenderbufferStorage
     int mHeight;
 };
 
-// Renderbuffer implements the GL renderbuffer object.
-// It's only a wrapper for a RenderbufferStorage, but the internal object
-// can change whenever glRenderbufferStorage is called.
-class Renderbuffer : public RefCountObject
-{
-  public:
-    Renderbuffer(GLuint id, RenderbufferStorage *storage);
-
-    ~Renderbuffer();
-
-    bool isColorbuffer() const;
-    bool isDepthbuffer() const;
-    bool isStencilbuffer() const;
-
-    IDirect3DSurface9 *getRenderTarget();
-    IDirect3DSurface9 *getDepthStencil();
-
-    int getWidth() const;
-    int getHeight() const;
-    GLenum getFormat() const;
-    D3DFORMAT getD3DFormat() const;
-    unsigned int getSerial() const;
-
-    void setStorage(RenderbufferStorage *newStorage);
-    RenderbufferStorage *getStorage() { return mStorage; }
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(Renderbuffer);
-
-    RenderbufferStorage *mStorage;
-};
-
-class Colorbuffer : public RenderbufferStorage
+class Colorbuffer : public Renderbuffer
 {
   public:
     explicit Colorbuffer(IDirect3DSurface9 *renderTarget);
-    explicit Colorbuffer(const Texture* texture);
-    Colorbuffer(int width, int height, GLenum format, GLsizei samples);
+    Colorbuffer(int width, int height, GLenum format);
 
     ~Colorbuffer();
 
-    bool isColorbuffer() const;
+    bool isColorbuffer();
 
     GLuint getRedSize();
     GLuint getGreenSize();
@@ -123,55 +78,42 @@ class Colorbuffer : public RenderbufferStorage
     DISALLOW_COPY_AND_ASSIGN(Colorbuffer);
 };
 
-class DepthStencilbuffer : public RenderbufferStorage
+class Depthbuffer : public Renderbuffer
 {
   public:
-    explicit DepthStencilbuffer(IDirect3DSurface9 *depthStencil);
-    DepthStencilbuffer(int width, int height, GLsizei samples);
+    explicit Depthbuffer(IDirect3DSurface9 *depthStencil);
+    Depthbuffer(int width, int height);
 
-    ~DepthStencilbuffer();
+    ~Depthbuffer();
 
-    virtual bool isDepthbuffer() const;
-    virtual bool isStencilbuffer() const;
+    bool isDepthbuffer();
 
-    GLuint getDepthSize() const;
-    GLuint getStencilSize() const;
+    GLuint getDepthSize();
 
     IDirect3DSurface9 *getDepthStencil();
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(DepthStencilbuffer);
+    DISALLOW_COPY_AND_ASSIGN(Depthbuffer);
     IDirect3DSurface9 *mDepthStencil;
 };
 
-class Depthbuffer : public DepthStencilbuffer
-{
-  public:
-    explicit Depthbuffer(IDirect3DSurface9 *depthStencil);
-    Depthbuffer(int width, int height, GLsizei samples);
-
-    ~Depthbuffer();
-
-    bool isDepthbuffer() const;
-    bool isStencilbuffer() const;
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(Depthbuffer);
-};
-
-class Stencilbuffer : public DepthStencilbuffer
+class Stencilbuffer : public Renderbuffer
 {
   public:
     explicit Stencilbuffer(IDirect3DSurface9 *depthStencil);
-    Stencilbuffer(int width, int height, GLsizei samples);
+    Stencilbuffer(int width, int height);
 
     ~Stencilbuffer();
 
-    bool isDepthbuffer() const;
-    bool isStencilbuffer() const;
+    bool isStencilbuffer();
+
+    GLuint getStencilSize();
+
+    IDirect3DSurface9 *getDepthStencil();
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Stencilbuffer);
+    IDirect3DSurface9 *mDepthStencil;
 };
 }
 

@@ -51,7 +51,7 @@ class nsHTMLAudioElement : public nsHTMLMediaElement,
 {
 public:
   nsHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                     PRUint32 aFromParser = 0);
   virtual ~nsHTMLAudioElement();
 
   // nsISupports
@@ -77,7 +77,6 @@ public:
                         JSObject* aObj, PRUint32 argc, jsval* argv);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
 
   virtual nsXPCClassInfo* GetClassInfo();
 };

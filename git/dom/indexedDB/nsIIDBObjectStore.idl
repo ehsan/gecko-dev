@@ -54,7 +54,7 @@ interface nsIDOMDOMStringList;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-nsIIDBObjectStore
  * for more information.
  */
-[scriptable, uuid(83c3fa8f-b061-4cb7-adb2-d1aec62f134c)]
+[scriptable, uuid(9cb63602-a52f-4d21-b802-e7165143f83d)]
 interface nsIIDBObjectStore : nsISupports
 {
   readonly attribute DOMString name;
@@ -82,26 +82,29 @@ interface nsIIDBObjectStore : nsISupports
   // Success fires IDBTransactionEvent, result == key
   [implicit_jscontext, optional_argc]
   nsIIDBRequest
-  put(in jsval value,
-      [optional /* undefined */] in jsval key);
+  modify(in jsval value,
+         [optional /* undefined */] in jsval key);
+
+  // Success fires IDBTransactionEvent, result == key
+  [implicit_jscontext, optional_argc]
+  nsIIDBRequest
+  addOrModify(in jsval value,
+              [optional /* undefined */] in jsval key);
 
   // Success fires IDBTransactionEvent, result == null
   nsIIDBRequest
-  delete(in nsIVariant key);
+  remove(in nsIVariant key);
 
-  // Success fires IDBTransactionEvent, result == null
-  nsIIDBRequest
-  clear();
-
-  // Success fires IDBTransactionEvent, result == IDBCursor or result == null if
-  // no match.
+  // Success fires IDBTransactionEvent, result == IDBCursor or
+  // IDBCursorPreloadedRequest if preload == true. result == null if no match.
   [optional_argc]
   nsIIDBRequest
   openCursor([optional /* null */] in nsIIDBKeyRange range,
-             [optional /* NEXT */] in unsigned short direction);
+             [optional /* NEXT */] in unsigned short direction,
+             [optional /* false */] in boolean preload);
 
-  // Returns object immediately
-  nsIIDBIndex
+  // Success fires IDBTransactionEvent, result == IDBIndex
+  nsIIDBRequest
   createIndex(in AString name,
               in AString keyPath,
               [optional /* false */] in boolean unique);
@@ -110,6 +113,7 @@ interface nsIIDBObjectStore : nsISupports
   nsIIDBIndex
   index(in AString name);
 
-  void
-  deleteIndex(in AString name);
+  // Success fires IDBTransactionEvent, result == null
+  nsIIDBRequest
+  removeIndex(in AString name);
 };

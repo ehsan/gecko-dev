@@ -78,16 +78,14 @@ NS_IMETHODIMP
 StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
                           JSContext *aCtx,
                           JSObject *aScopeObj,
-                          jsid aId,
+                          jsval aId,
                           jsval *_vp,
                           PRBool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
 
-  if (JSID_IS_STRING(aId)) {
-    ::JSAutoByteString idBytes(aCtx, JSID_TO_STRING(aId));
-    NS_ENSURE_TRUE(!!idBytes, NS_ERROR_OUT_OF_MEMORY);
-    nsDependentCString jsid(idBytes.ptr());
+  if (JSVAL_IS_STRING(aId)) {
+    nsDependentCString jsid(::JS_GetStringBytes(JSVAL_TO_STRING(aId)));
 
     PRUint32 idx;
     nsresult rv = mStatement->GetColumnIndex(jsid, &idx);
@@ -154,7 +152,7 @@ NS_IMETHODIMP
 StatementRow::NewResolve(nsIXPConnectWrappedNative *aWrapper,
                          JSContext *aCtx,
                          JSObject *aScopeObj,
-                         jsid aId,
+                         jsval aId,
                          PRUint32 aFlags,
                          JSObject **_objp,
                          PRBool *_retval)
@@ -163,10 +161,9 @@ StatementRow::NewResolve(nsIXPConnectWrappedNative *aWrapper,
   // We do not throw at any point after this because we want to allow the
   // prototype chain to be checked for the property.
 
-  if (JSID_IS_STRING(aId)) {
-    ::JSAutoByteString idBytes(aCtx, JSID_TO_STRING(aId));
-    NS_ENSURE_TRUE(!!idBytes, NS_ERROR_OUT_OF_MEMORY);
-    nsDependentCString name(idBytes.ptr());
+  if (JSVAL_IS_STRING(aId)) {
+    JSString *str = JSVAL_TO_STRING(aId);
+    nsDependentCString name(::JS_GetStringBytes(str));
 
     PRUint32 idx;
     nsresult rv = mStatement->GetColumnIndex(name, &idx);
@@ -178,7 +175,9 @@ StatementRow::NewResolve(nsIXPConnectWrappedNative *aWrapper,
       return NS_OK;
     }
 
-    *_retval = ::JS_DefinePropertyById(aCtx, aScopeObj, aId, JSVAL_VOID,
+    *_retval = ::JS_DefineUCProperty(aCtx, aScopeObj, ::JS_GetStringChars(str),
+                                     ::JS_GetStringLength(str),
+                                     JSVAL_VOID,
                                      nsnull, nsnull, 0);
     *_objp = aScopeObj;
     return NS_OK;

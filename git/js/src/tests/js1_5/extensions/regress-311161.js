@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-311161.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 311161;
 var summary = 'toSource exposes random memory or crashes';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-495907.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 495907;
 var summary = 'Read upvar from trace-entry frame when created with top-level let';

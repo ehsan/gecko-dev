@@ -12,9 +12,9 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
-          src="common.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/common.js"></script>
   <script type="application/javascript"
-          src="events.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/events.js"></script>
 
   <script type="application/javascript">
 
@@ -43,16 +43,15 @@
       this.invoke = function setCaretOffsetInvoker_invoke()
       {
         this.target.caretOffset = aOffset;
-        todo(false, "Enable focus event handling when bug 422744 is fixed.");
       }
 
       this.getID = function setCaretOffsetInvoker_getID()
       {
-        return "nsIAccessibleText::caretOffset test";
+        "nsIAccessibleText::caretOffset test"
       }
 
       this.eventSeq = [
-        // new invokerChecker(EVENT_FOCUS, this.target),
+        new invokerChecker(EVENT_FOCUS, this.target),
         new caretMovedChecker(this.target, aOffset)
       ];
     }

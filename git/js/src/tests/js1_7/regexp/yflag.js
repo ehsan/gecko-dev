@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'yflag.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 371932;
 var summary = 'ES4 Regular Expression /y flag';
@@ -74,46 +75,36 @@ function test()
  
   print('Test sticky flag.');
 
-  /*
-   * calls to reportCompare invoke regular expression matches which interfere
-   * with the test of the sticky flag. Collect expect and actual values prior
-   * to calling reportCompare. Note setting y = /(1)/y resets the lastIndex etc.
-   */
-
   var y = /(1)/y;
-  var expect4 = 'captures: 1,1; RegExp.leftContext: ""; RegExp.rightContext: "234561"';
-  var actual4 = 'captures: ' + y.exec('1234561') +
+  expect = 'captures: 1,1; RegExp.leftContext: ""; RegExp.rightContext: "234561"';
+  actual = 'captures: ' + y.exec('1234561') +
     '; RegExp.leftContext: "' + RegExp.leftContext +
     '"; RegExp.rightContext: "' + RegExp.rightContext + '"';
+  reportCompare(expect, actual, summary + ' - /(1)/y.exec("1234561") first call');
 
-  var expect5 = 'captures: null; RegExp.leftContext: ""; RegExp.rightContext: "234561"';
-  var actual5 = 'captures: ' + y.exec('1234561') +
+  expect = 'captures: null; RegExp.leftContext: ""; RegExp.rightContext: "234561"';
+  actual = 'captures: ' + y.exec('1234561') +
     '; RegExp.leftContext: "' + RegExp.leftContext +
     '"; RegExp.rightContext: "' + RegExp.rightContext + '"';
-
-  reportCompare(expect4, actual4, summary + ' - /(1)/y.exec("1234561") first call');
-  reportCompare(expect5, actual5, summary + ' - /(1)/y.exec("1234561") second call');
-
+  reportCompare(expect, actual, summary + ' - /(1)/y.exec("1234561") second call');
   var y = /(1)/y;
-
-  reportCompare(expect5, actual5, summary);
+ 
+  reportCompare(expect, actual, summary);
 
   y = /(1)/y;
-  var expect6 = 'captures: 1,1; RegExp.leftContext: ""; RegExp.rightContext: "123456"';
-  var actual6 = 'captures: ' + y.exec('1123456') +
+  expect = 'captures: 1,1; RegExp.leftContext: ""; RegExp.rightContext: "123456"';
+  actual = 'captures: ' + y.exec('1123456') +
     '; RegExp.leftContext: "' + RegExp.leftContext +
     '"; RegExp.rightContext: "' + RegExp.rightContext + '"';
+  reportCompare(expect, actual, summary + ' - /(1)/y.exec("1123456") first call');
 
-  var expect7 = 'captures: 1,1; RegExp.leftContext: "1"; RegExp.rightContext: "23456"';
-  var actual7 = 'captures: ' + y.exec('1123456') +
+  expect = 'captures: 1,1; RegExp.leftContext: "1"; RegExp.rightContext: "23456"';
+  actual = 'captures: ' + y.exec('1123456') +
     '; RegExp.leftContext: "' + RegExp.leftContext +
     '"; RegExp.rightContext: "' + RegExp.rightContext + '"';
-
-  reportCompare(expect6, actual6, summary + ' - /(1)/y.exec("1123456") first call');
-  reportCompare(expect7, actual7, summary + ' - /(1)/y.exec("1123456") second call');
-
+  reportCompare(expect, actual, summary + ' - /(1)/y.exec("1123456") second call');
   var y = /(1)/y;
-
+ 
   reportCompare(expect, actual, summary);
 
   exitFunc ('test');

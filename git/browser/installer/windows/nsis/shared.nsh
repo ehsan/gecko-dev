@@ -57,7 +57,6 @@
     ${RegCleanUninstall}
     ${UpdateProtocolHandlers}
     ${FixShellIconHandler}
-    ${SetAppLSPCategories} ${LSP_CATEGORIES}
 
     ; Only update the Clients\StartMenuInternet registry key values if they
     ; don't exist or this installation is the same as the one set in those keys.
@@ -85,13 +84,16 @@
   ${SetUninstallKeys}
 
   ; Win7 taskbar and start menu link maintenance
-  ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}" $0
+  ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}"
 
   ; Remove files that may be left behind by the application in the
   ; VirtualStore directory.
   ${CleanVirtualStore}
 
-  ${RemoveDeprecatedFiles}
+  ; Remove talkback if it is present (remove after bug 386760 is fixed)
+  ${If} ${FileExists} "$INSTDIR\extensions\talkback@mozilla.org\"
+    RmDir /r "$INSTDIR\extensions\talkback@mozilla.org\"
+  ${EndIf}
 !macroend
 !define PostUpdate "!insertmacro PostUpdate"
 
@@ -286,7 +288,7 @@
   WriteRegStr HKLM "$0\Capabilities" "ApplicationIcon" "$8,0"
   WriteRegStr HKLM "$0\Capabilities" "ApplicationName" "${BrandShortName}"
 
-  WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".htm"   "FirefoxHTML"
+  WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".htm"   "FirefoxHTML" 
   WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".html"  "FirefoxHTML"
   WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".shtml" "FirefoxHTML"
   WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".xht"   "FirefoxHTML"
@@ -328,7 +330,7 @@
   ${WriteRegStr2} $TmpVal "$0" "PathToExe" "$8\${FileMainEXE}" 0
 
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})\Uninstall"
-  ${WriteRegStr2} $TmpVal "$0" "Description" "${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})" 0
+  ${WriteRegStr2} $TmpVal "$0" "Description" "${BrandFullNameInternal} (${AppVersion})" 0
 
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})"
   ${WriteRegStr2} $TmpVal  "$0" "" "${AppVersion} (${AB_CD})" 0
@@ -352,7 +354,7 @@
 ; Add uninstall registry entries. This macro tests for write access to determine
 ; if the uninstall keys should be added to HKLM or HKCU.
 !macro SetUninstallKeys
-  StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})"
+  StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} (${AppVersion})"
 
   WriteRegStr HKLM "$0" "${BrandShortName}InstallerTest" "Write Test"
   ${If} ${Errors}
@@ -367,10 +369,10 @@
   ${GetLongPath} "$INSTDIR" $8
 
   ; Write the uninstall registry keys
-  ${WriteRegStr2} $1 "$0" "Comments" "${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})" 0
+  ${WriteRegStr2} $1 "$0" "Comments" "${BrandFullNameInternal}" 0
   ${WriteRegStr2} $1 "$0" "DisplayIcon" "$8\${FileMainEXE},0" 0
-  ${WriteRegStr2} $1 "$0" "DisplayName" "${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})" 0
-  ${WriteRegStr2} $1 "$0" "DisplayVersion" "${AppVersion}" 0
+  ${WriteRegStr2} $1 "$0" "DisplayName" "${BrandFullNameInternal} (${AppVersion})" 0
+  ${WriteRegStr2} $1 "$0" "DisplayVersion" "${AppVersion} (${AB_CD})" 0
   ${WriteRegStr2} $1 "$0" "InstallLocation" "$8" 0
   ${WriteRegStr2} $1 "$0" "Publisher" "Mozilla" 0
   ${WriteRegStr2} $1 "$0" "UninstallString" "$8\uninstall\helper.exe" 0
@@ -378,9 +380,6 @@
   ${WriteRegStr2} $1 "$0" "URLUpdateInfo" "${URLUpdateInfo}" 0
   ${WriteRegDWORD2} $1 "$0" "NoModify" 1 0
   ${WriteRegDWORD2} $1 "$0" "NoRepair" 1 0
-
-  ${GetSize} "$8" "/S=0K" $R2 $R3 $R4
-  ${WriteRegDWORD2} $1 "$0" "EstimatedSize" $R2 0
 
   ${If} "$TmpVal" == "HKLM"
     SetShellVarContext all     ; Set SHCTX to all users (e.g. HKLM)
@@ -501,116 +500,6 @@
   ${EndIf}
 !macroend
 !define RemoveDeprecatedKeys "!insertmacro RemoveDeprecatedKeys"
-
-; Removes various directories and files for reasons noted below.
-!macro RemoveDeprecatedFiles
-  ; Remove talkback if it is present (remove after bug 386760 is fixed)
-  ${If} ${FileExists} "$INSTDIR\extensions\talkback@mozilla.org\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\talkback@mozilla.org\"
-  ${EndIf}
-
-  ; Remove the Java Console extension (bug 597235)
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0012-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0012-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0013-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0013-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0014-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0014-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0015-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0015-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0016-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0016-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0017-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0017-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0018-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0018-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0019-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0019-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0020-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0020-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0021-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0021-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0022-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0022-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0000-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0000-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0001-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0001-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0002-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0002-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0003-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0003-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0004-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0004-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0005-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0005-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0006-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0006-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0007-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0007-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0010-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0010-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0011-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0011-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0012-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0012-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0013-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0013-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0014-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0014-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0015-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0015-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0016-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0016-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0017-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0017-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0018-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0018-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0019-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0019-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0020-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0020-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0021-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0021-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0023-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0023-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}\"
-  ${EndIf}
-!macroend
-!define RemoveDeprecatedFiles "!insertmacro RemoveDeprecatedFiles"
 
 ; Creates the shortcuts log ini file with the appropriate entries if it doesn't
 ; already exist.

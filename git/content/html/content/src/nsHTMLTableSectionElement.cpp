@@ -133,9 +133,8 @@ nsHTMLTableSectionElement::GetRows(nsIDOMHTMLCollection** aValue)
 
   if (!mRows) {
     mRows = new nsContentList(this,
+                              nsGkAtoms::tr,
                               mNodeInfo->NamespaceID(),
-                              nsGkAtoms::tr,
-                              nsGkAtoms::tr,
                               PR_FALSE);
 
     NS_ENSURE_TRUE(mRows, NS_ERROR_OUT_OF_MEMORY);

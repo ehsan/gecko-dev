@@ -13,7 +13,7 @@
 namespace gl
 {
 
-Buffer::Buffer(GLuint id) : RefCountObject(id)
+Buffer::Buffer()
 {
     mContents = NULL;
     mSize = 0;

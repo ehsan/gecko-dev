@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'catchguard-002-n.js';
 
 DESCRIPTION = "var in catch clause should have caused an error.";
 EXPECTED = "error";

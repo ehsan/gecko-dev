@@ -1,20 +1,14 @@
 This is the ANGLE project, from http://code.google.com/p/angleproject/.
 
-Current revision: r498
+Current revision: r343
 
 Local patches:
+    angle-nspr.patch - use NSPR for TLS
+
     angle-shared.patch - add declspec dllexport/dllimport support on win32
 
-    angle-fixes.patch - fix angle issues 51 & 52
+To regenerate the flex/yacc generated files:
 
-== Visual Studio Solution Files ==
+flex --noline --nounistd --outfile=generated/glslang.cpp src/compiler/glslang.l
+bison --no-lines --defines=generated/glslang_tab.h --skeleton=yacc.c --output=generated/glslang_tab.cpp src/compiler/glslang.y
 
-The VS solution/project files that are used to build ANGLE are built
-with VS2008 in upstream ANGLE.  Because our build machines use VS2005,
-they need to be downgraded using
-http://www.emmet-gray.com/Articles/ProjectConverter.htm before being
-checked in with an ANGLE update.
-
-== Regenerating Parser ==
-
-The parser is now generated and included in the ANGLE svn repo.

@@ -6,16 +6,10 @@ function test() {
 
   var cr = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
                      .getService(Components.interfaces.nsIChromeRegistry);
-  
-  var chromeroot = getChromeRoot(gTestPath);              
-  try {
-    var xpipath = cr.convertChromeURL(makeURI(chromeroot + "unsigned.xpi")).spec;
-  } catch (ex) {
-    var xpipath = chromeroot + "unsigned.xpi"; //scenario where we are running from a .jar and already extracted
-  }
-  
+  var path = cr.convertChromeURL(makeURI(CHROMEROOT + "unsigned.xpi")).spec;
+
   var triggers = encodeURIComponent(JSON.stringify({
-    "Unsigned XPI": xpipath
+    "Unsigned XPI": path
   }));
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function() {

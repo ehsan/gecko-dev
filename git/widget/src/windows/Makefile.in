@@ -71,12 +71,7 @@ CPPSRCS		= \
 	TaskbarPreviewButton.cpp \
  	JumpListBuilder.cpp \
  	JumpListItem.cpp \
-	GfxInfo.cpp \
 	$(NULL)
-
-ifdef MOZ_CRASHREPORTER
-CPPSRCS += LSPAnnotator.cpp
-endif
 
 ifdef NS_PRINTING
 CPPSRCS		+= \
@@ -116,10 +111,6 @@ ifdef MOZ_ENABLE_D3D9_LAYER
 DEFINES		+= -DMOZ_ENABLE_D3D9_LAYER
 endif
 
-ifdef MOZ_ENABLE_D3D10_LAYER
-DEFINES		+= -DMOZ_ENABLE_D3D10_LAYER
-endif
-
 ifdef BUILD_STATIC_LIBS
 DEFINES		+= -DMOZ_STATIC_COMPONENT_LIBS
 endif # BUILD_STATIC_LIBS
@@ -138,6 +129,10 @@ FORCE_STATIC_LIB = 1
 
 ifdef WINCE
 EXTRA_DSO_LDOPTS += ddraw.lib
+endif
+
+ifndef WINCE
+ENABLE_CXX_EXCEPTIONS = 1
 endif
 
 ifdef MOZ_IPC

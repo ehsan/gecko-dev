@@ -598,13 +598,8 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   nsCOMPtr<nsICharsetConverterManager> convManager = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
-  // if we failed to get a decoder, there will be fallback, so don't propagate
-  //  the error.
-  if (NS_SUCCEEDED(rv)) {
-    mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
-  } else {
-    mCharsetSource = kCharsetFromWeakDocTypeDefault;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
+  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
   return NS_OK;
 }
 
@@ -754,9 +749,6 @@ nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
 void
 nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
 {
-  // This code needs to stay in sync with
-  // nsHtml5MetaScanner::tryCharset. Unfortunately, the
-  // trickery with member fields there leads to some copy-paste reuse. :-(
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   if (mCharsetSource >= kCharsetFromMetaTag) { // this threshold corresponds to "confident" in the HTML5 spec
     return;
@@ -766,21 +758,14 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     return; // not reparsing even if we wanted to
   }
 
-  nsCAutoString newEncoding;
-  CopyUTF16toUTF8(*aEncoding, newEncoding);
-  // XXX spec says only UTF-16
-  if (newEncoding.LowerCaseEqualsLiteral("utf-16") ||
-      newEncoding.LowerCaseEqualsLiteral("utf-16be") ||
-      newEncoding.LowerCaseEqualsLiteral("utf-16le")) {
-    newEncoding.Assign("UTF-8");
-  }
-
   nsresult rv = NS_OK;
   nsCOMPtr<nsICharsetAlias> calias(do_GetService(kCharsetAliasCID, &rv));
   if (NS_FAILED(rv)) {
     NS_NOTREACHED("Charset alias service not available.");
     return;
   }
+  nsCAutoString newEncoding;
+  CopyUTF16toUTF8(*aEncoding, newEncoding);
   PRBool eq;
   rv = calias->Equals(newEncoding, mCharset, &eq);
   if (NS_FAILED(rv)) {
@@ -802,21 +787,6 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     return;
   }
   
-  if (preferred.LowerCaseEqualsLiteral("utf-16") ||
-      preferred.LowerCaseEqualsLiteral("utf-16be") ||
-      preferred.LowerCaseEqualsLiteral("utf-16le") ||
-      preferred.LowerCaseEqualsLiteral("utf-32") ||
-      preferred.LowerCaseEqualsLiteral("utf-32be") ||
-      preferred.LowerCaseEqualsLiteral("utf-32le") ||
-      preferred.LowerCaseEqualsLiteral("utf-7") ||
-      preferred.LowerCaseEqualsLiteral("jis_x0212-1990") ||
-      preferred.LowerCaseEqualsLiteral("x-jis0208") ||
-      preferred.LowerCaseEqualsLiteral("x-imap4-modified-utf7") ||
-      preferred.LowerCaseEqualsLiteral("x-user-defined")) {
-    // Not a rough ASCII superset
-    return;
-  }
-
   mTreeBuilder->NeedsCharsetSwitchTo(preferred);
   FlushTreeOpsAndDisarmTimer();
   Interrupt();

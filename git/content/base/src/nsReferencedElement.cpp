@@ -75,8 +75,7 @@ static PRBool EqualExceptRef(nsIURL* aURL1, nsIURL* aURL2)
 }
 
 void
-nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
-                           PRBool aWatch, PRBool aReferenceImage)
+nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI, PRBool aWatch)
 {
   Unlink();
 
@@ -105,45 +104,34 @@ nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
   if (!doc)
     return;
 
+  // This will be the URI of the document the content belongs to
+  // (the URI of the XBL document if the content is anonymous
+  // XBL content)
+  nsCOMPtr<nsIURL> documentURL = do_QueryInterface(doc->GetDocumentURI());
   nsIContent* bindingParent = aFromContent->GetBindingParent();
+  PRBool isXBL = PR_FALSE;
   if (bindingParent) {
     nsXBLBinding* binding = doc->BindingManager()->GetBinding(bindingParent);
     if (binding) {
-      nsCOMPtr<nsIURL> bindingDocumentURL =
-        do_QueryInterface(binding->PrototypeBinding()->DocURI());
-      if (EqualExceptRef(url, bindingDocumentURL)) {
-        // XXX sXBL/XBL2 issue
-        // Our content is an anonymous XBL element from a binding inside the
-        // same document that the referenced URI points to. In order to avoid
-        // the risk of ID collisions we restrict ourselves to anonymous
-        // elements from this binding; specifically, URIs that are relative to
-        // the binding document should resolve to the copy of the target
-        // element that has been inserted into the bound document.
-        // If the URI points to a different document we don't need this
-        // restriction.
-        nsINodeList* anonymousChildren =
-          doc->BindingManager()->GetAnonymousNodesFor(bindingParent);
-
-        if (anonymousChildren) {
-          PRUint32 length;
-          anonymousChildren->GetLength(&length);
-          for (PRUint32 i = 0; i < length && !mElement; ++i) {
-            mElement =
-              nsContentUtils::MatchElementId(anonymousChildren->GetNodeAt(i), ref);
-          }
-        }
-
-        // We don't have watching working yet for XBL, so bail out here.
-        return;
-      }
+      // XXX sXBL/XBL2 issue
+      // If this is an anonymous XBL element then the URI is
+      // relative to the binding document. A full fix requires a
+      // proper XBL2 implementation but for now URIs that are
+      // relative to the binding document should be resolve to the
+      // copy of the target element that has been inserted into the
+      // bound document.
+      documentURL = do_QueryInterface(binding->PrototypeBinding()->DocURI());
+      isXBL = PR_TRUE;
     }
   }
-
-  nsCOMPtr<nsIURL> documentURL = do_QueryInterface(doc->GetDocumentURI());
   if (!documentURL)
     return;
 
   if (!EqualExceptRef(url, documentURL)) {
+    // Don't take the XBL codepath here, since we'll want to just
+    // normally set up our external resource document and then watch
+    // it as needed.
+    isXBL = PR_FALSE;
     nsRefPtr<nsIDocument::ExternalResourceLoad> load;
     doc = doc->RequestExternalResource(url, aFromContent, getter_AddRefs(load));
     if (!doc) {
@@ -162,14 +150,30 @@ nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
     }
   }
 
+  // Get the element
+  if (isXBL) {
+    nsINodeList* anonymousChildren =
+      doc->BindingManager()-> GetAnonymousNodesFor(bindingParent);
+
+    if (anonymousChildren) {
+      PRUint32 length;
+      anonymousChildren->GetLength(&length);
+      for (PRUint32 i = 0; i < length && !mElement; ++i) {
+        mElement =
+          nsContentUtils::MatchElementId(anonymousChildren->GetNodeAt(i), ref);
+      }
+    }
+
+    // We don't have watching working yet for XBL, so bail out here.
+    return;
+  }
+
   if (aWatch) {
     nsCOMPtr<nsIAtom> atom = do_GetAtom(ref);
     if (!atom)
       return;
     atom.swap(mWatchID);
   }
-
-  mReferencingImage = aReferenceImage;
 
   HaveNewDocument(doc, aWatch, ref);
 }
@@ -191,8 +195,6 @@ nsReferencedElement::ResetWithID(nsIContent* aFromContent, const nsString& aID,
     atom.swap(mWatchID);
   }
 
-  mReferencingImage = PR_FALSE;
-
   HaveNewDocument(doc, aWatch, aID);
 }
 
@@ -203,8 +205,7 @@ nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, PRBool aWatch,
   if (aWatch) {
     mWatchDocument = aDocument;
     if (mWatchDocument) {
-      mElement = mWatchDocument->AddIDTargetObserver(mWatchID, Observe, this,
-                                                     mReferencingImage);
+      mElement = mWatchDocument->AddIDTargetObserver(mWatchID, Observe, this);
     }
     return;
   }
@@ -213,8 +214,7 @@ nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, PRBool aWatch,
     return;
   }
 
-  Element *e = mReferencingImage ? aDocument->LookupImageElement(aRef) :
-                                   aDocument->GetElementById(aRef);
+  Element *e = aDocument->GetElementById(aRef);
   if (e) {
     mElement = e;
   }
@@ -233,8 +233,7 @@ void
 nsReferencedElement::Unlink()
 {
   if (mWatchDocument && mWatchID) {
-    mWatchDocument->RemoveIDTargetObserver(mWatchID, Observe, this,
-                                           mReferencingImage);
+    mWatchDocument->RemoveIDTargetObserver(mWatchID, Observe, this);
   }
   if (mPendingNotification) {
     mPendingNotification->Clear();
@@ -243,7 +242,6 @@ nsReferencedElement::Unlink()
   mWatchDocument = nsnull;
   mWatchID = nsnull;
   mElement = nsnull;
-  mReferencingImage = PR_FALSE;
 }
 
 PRBool

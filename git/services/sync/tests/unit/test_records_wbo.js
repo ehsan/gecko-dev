@@ -31,7 +31,6 @@ function coll_handler(metadata, response) {
 
 function run_test() {
   let server;
-  do_test_pending();
 
   try {
     let log = Log4Moz.repository.getLogger('Test');
@@ -51,9 +50,12 @@ function run_test() {
     let res = new Resource("http://localhost:8080/record");
     let resp = res.get();
 
-    let rec = new WBORecord("coll", "record");
+    let rec = new WBORecord();
     rec.deserialize(res.data);
     do_check_eq(rec.id, "asdf-1234-asdf-1234"); // NOT "record"!
+
+    rec.uri = res.uri;
+    do_check_eq(rec.id, "record"); // NOT "asdf-1234-asdf-1234"!
 
     do_check_eq(rec.modified, 2454725.98283);
     do_check_eq(typeof(rec.payload), "object");
@@ -69,12 +71,8 @@ function run_test() {
     do_check_eq(rec2.payload.cheese, "gruyere");
     do_check_eq(Records.response.status, 200);
 
-    // Testing collection extraction.
-    log.info("Extracting collection.");
-    let rec3 = new WBORecord("tabs", "foo");   // Create through constructor.
-    do_check_eq(rec3.collection, "tabs");
     log.info("Done!");
   }
   catch (e) { do_throw(e); }
-  finally { server.stop(do_test_finished); }
+  finally { server.stop(function() {}); }
 }

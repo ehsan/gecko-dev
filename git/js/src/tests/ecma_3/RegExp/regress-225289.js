@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-225289.js';
 var i = 0;
 var BUGNUMBER = 225289;
 var summary = 'Testing regexps with complementary alternatives';

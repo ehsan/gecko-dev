@@ -46,19 +46,15 @@
 
 #include "jsobj.h"
 
-extern js::Class js_DateClass;
+JS_BEGIN_EXTERN_C
+
+extern JSClass js_DateClass;
 
 inline bool
 JSObject::isDate() const
 {
     return getClass() == &js_DateClass;
 }
-
-#define HalfTimeDomain  8.64e15
-
-#define TIMECLIP(d) ((JSDOUBLE_IS_FINITE(d) \
-                      && !((d < 0 ? -d : d) > HalfTimeDomain)) \
-                     ? js_DoubleToInteger(d + (+0.)) : js_NaN)
 
 extern JSObject *
 js_InitDateClass(JSContext *cx, JSObject *obj);
@@ -138,6 +134,8 @@ js_IntervalNow();
 
 /* Date constructor native. Exposed only so the JIT can know its address. */
 JSBool
-js_Date(JSContext *cx, uintN argc, js::Value *vp);
+js_Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
+
+JS_END_EXTERN_C
 
 #endif /* jsdate_h___ */

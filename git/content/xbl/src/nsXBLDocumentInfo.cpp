@@ -55,7 +55,6 @@
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
 #include "mozilla/Services.h"
-#include "xpcpublic.h"
  
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
@@ -82,7 +81,7 @@ public:
   // nsIScriptObjectPrincipal methods
   virtual nsIPrincipal* GetPrincipal();
 
-  static JSBool doCheckAccess(JSContext *cx, JSObject *obj, jsid id,
+  static JSBool doCheckAccess(JSContext *cx, JSObject *obj, jsval id,
                               PRUint32 accessType);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXBLDocGlobalObject,
@@ -105,7 +104,7 @@ protected:
 };
 
 JSBool
-nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JSObject *obj, jsid id, PRUint32 accessType)
+nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JSObject *obj, jsval id, PRUint32 accessType)
 {
   nsIScriptSecurityManager *ssm = nsContentUtils::GetSecurityManager();
   if (!ssm) {
@@ -130,7 +129,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JSObject *obj, jsid id, PRUin
 
 static JSBool
 nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
-                                 jsid id, jsval *vp)
+                                 jsval id, jsval *vp)
 {
   return nsXBLDocGlobalObject::
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
@@ -138,14 +137,14 @@ nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
 
 static JSBool
 nsXBLDocGlobalObject_setProperty(JSContext *cx, JSObject *obj,
-                                 jsid id, jsval *vp)
+                                 jsval id, jsval *vp)
 {
   return nsXBLDocGlobalObject::
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_SET_PROPERTY);
 }
 
 static JSBool
-nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsid id,
+nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsval id,
                                  JSAccessMode mode, jsval *vp)
 {
   PRUint32 translated;
@@ -174,7 +173,7 @@ nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-nsXBLDocGlobalObject_resolve(JSContext *cx, JSObject *obj, jsid id)
+nsXBLDocGlobalObject_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
   JSBool did_resolve = JS_FALSE;
   return JS_ResolveStandardClass(cx, obj, id, &did_resolve);
@@ -264,7 +263,7 @@ nsXBLDocGlobalObject::SetContext(nsIScriptContext *aScriptContext)
   // hook up to the existing nsIScriptGlobalObject global setup by
   // nsGlobalWindow.
   nsresult rv;
-  rv = aScriptContext->InitContext();
+  rv = aScriptContext->InitContext(nsnull);
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Script Language's InitContext failed");
   aScriptContext->SetGCOnDestruction(PR_FALSE);
   aScriptContext->DidInitializeContext();
@@ -325,13 +324,9 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment(PRUint32 aLangID)
   // we must apparently override that with our own (although it isn't clear 
   // why - see bug 339647)
   JS_SetErrorReporter(cx, XBL_ProtoErrorReporter);
-
-  nsIPrincipal *principal = GetPrincipal();
-  JSCompartment *compartment;
-
-  rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
-                              false, &mJSObject, &compartment);
-  NS_ENSURE_SUCCESS(rv, nsnull);
+  mJSObject = ::JS_NewGlobalObject(cx, &gSharedGlobalClass);
+  if (!mJSObject)
+    return nsnull;
 
   ::JS_SetGlobalObject(cx, mJSObject);
 

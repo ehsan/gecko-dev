@@ -65,7 +65,6 @@
 #include "nsINameSpaceManager.h"
 #include "nsIDOMClassInfo.h"
 #include "nsWhitespaceTokenizer.h"
-#include "nsTreeContentView.h"
 
 // For security check
 #include "nsIDocument.h"
@@ -468,9 +467,6 @@ nsXULTreeBuilder::GetSelection(nsITreeSelection** aSelection)
 NS_IMETHODIMP
 nsXULTreeBuilder::SetSelection(nsITreeSelection* aSelection)
 {
-    NS_ENSURE_TRUE(!aSelection ||
-                   nsTreeContentView::CanTrustTreeSelection(aSelection),
-                   NS_ERROR_DOM_SECURITY_ERR);
     mSelection = aSelection;
     return NS_OK;
 }
@@ -545,12 +541,14 @@ nsXULTreeBuilder::IsContainer(PRInt32 aIndex, PRBool* aResult)
 
     nsTreeRows::iterator iter = mRows[aIndex];
 
-    PRBool isContainer;
-    iter->mMatch->mResult->GetIsContainer(&isContainer);
+    if (iter->mContainerType == nsTreeRows::eContainerType_Unknown) {
+        PRBool isContainer;
+        iter->mMatch->mResult->GetIsContainer(&isContainer);
 
-    iter->mContainerType = isContainer
-        ? nsTreeRows::eContainerType_Container
-        : nsTreeRows::eContainerType_Noncontainer;
+        iter->mContainerType = isContainer
+            ? nsTreeRows::eContainerType_Container
+            : nsTreeRows::eContainerType_Noncontainer;
+    }
 
     *aResult = (iter->mContainerType == nsTreeRows::eContainerType_Container);
     return NS_OK;

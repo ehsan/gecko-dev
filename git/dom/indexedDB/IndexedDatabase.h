@@ -43,11 +43,9 @@
 
 #include "nsIProgrammingLanguage.h"
 
-#include "jsapi.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsDOMError.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352025.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352025;
 var summary = 'decompilation of nested yields';

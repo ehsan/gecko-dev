@@ -38,7 +38,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsdbgapi.h"
-#include "jslock.h"
+#include "jscntxt.h"
+#include "jsfun.h"
 #include "jsd_xpc.h"
 
 #include "nsIXPConnect.h"
@@ -59,9 +60,6 @@
 /* XXX DOM dependency */
 #include "nsIScriptContext.h"
 #include "nsIJSContextStack.h"
-
-/* XXX private JS headers. */
-#include "jscompartment.h"
 
 /*
  * defining CAUTIOUS_SCRIPTHOOK makes jsds disable GC while calling out to the
@@ -1016,8 +1014,7 @@ jsdScript::CreatePPLineMap()
     PRBool      scriptOwner = PR_FALSE;
     
     if (fun) {
-        uintN nargs = JS_GetFunctionArgumentCount(cx, fun);
-        if (nargs > 12)
+        if (fun->nargs > 12)
             return nsnull;
         JSString *jsstr = JS_DecompileFunctionBody (cx, fun, 4);
         if (!jsstr)
@@ -1026,7 +1023,7 @@ jsdScript::CreatePPLineMap()
         const char *argnames[] = {"arg1", "arg2", "arg3", "arg4", 
                                   "arg5", "arg6", "arg7", "arg8",
                                   "arg9", "arg10", "arg11", "arg12" };
-        fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames,
+        fun = JS_CompileUCFunction (cx, obj, "ppfun", fun->nargs, argnames,
                                     JS_GetStringChars(jsstr),
                                     JS_GetStringLength(jsstr),
                                     "x-jsd:ppbuffer?type=function", 3);
@@ -1235,34 +1232,37 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
 
     JSAutoRequest ar(cx);
 
-    uintN nargs;
-    if (!fun ||
-        !JS_FunctionHasLocalNames(cx, fun) ||
-        (nargs = JS_GetFunctionArgumentCount(cx, fun)) == 0) {
+    if (!fun || !fun->hasLocalNames() || fun->nargs == 0) {
         *count = 0;
         *paramNames = nsnull;
         return NS_OK;
     }
 
     PRUnichar **ret =
-        static_cast<PRUnichar**>(NS_Alloc(nargs * sizeof(PRUnichar*)));
+        static_cast<PRUnichar**>(NS_Alloc(fun->nargs * sizeof(PRUnichar*)));
     if (!ret)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    void *mark;
-    jsuword *names = JS_GetFunctionLocalNameArray(cx, fun, &mark);
+    void *mark = JS_ARENA_MARK(&cx->tempPool);
+    jsuword *names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
     if (!names) {
         NS_Free(ret);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     nsresult rv = NS_OK;
-    for (uintN i = 0; i < nargs; ++i) {
-        JSAtom *atom = JS_LocalNameToAtom(names[i]);
+    for (uintN i = 0; i < fun->nargs; ++i) {
+        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(names[i]);
         if (!atom) {
             ret[i] = 0;
         } else {
-            JSString *str = JS_AtomKey(atom);
+            jsval atomVal = ATOM_KEY(atom);
+            if (!JSVAL_IS_STRING(atomVal)) {
+                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
+                rv = NS_ERROR_UNEXPECTED;
+                break;
+            }
+            JSString *str = JSVAL_TO_STRING(atomVal);
             ret[i] = NS_strndup(reinterpret_cast<PRUnichar*>(JS_GetStringChars(str)),
                                 JS_GetStringLength(str));
             if (!ret[i]) {
@@ -1272,10 +1272,10 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
             }
         }
     }
-    JS_ReleaseFunctionLocalNameArray(cx, mark);
+    JS_ARENA_RELEASE(&cx->tempPool, mark);
     if (NS_FAILED(rv))
         return rv;
-    *count = nargs;
+    *count = fun->nargs;
     *paramNames = ret;
     return NS_OK;
 }
@@ -1322,14 +1322,10 @@ jsdScript::GetFunctionSource(nsAString & aFunctionSource)
     JSAutoRequest ar(cx);
 
     JSString *jsstr;
-    if (fun) {
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, JS_GetFunctionObject(fun)))
-            return NS_ERROR_FAILURE;
+    if (fun)
         jsstr = JS_DecompileFunction (cx, fun, 4);
-    } else {
+    else {
         JSScript *script = JSD_GetJSScript (mCx, mScript);
-        js::SwitchToCompartment sc(cx, script->compartment);
         jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
     }
     if (!jsstr)
@@ -1488,7 +1484,8 @@ jsdScript::SetBreakpoint(PRUint32 aPC)
 {
     ASSERT_VALID_EPHEMERAL;
     jsuword pc = mFirstPC + aPC;
-    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc, NULL);
+    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc,
+                          reinterpret_cast<void *>(PRIVATE_TO_JSVAL(NULL)));
     return NS_OK;
 }
 
@@ -1849,6 +1846,14 @@ jsdStackFrame::GetFunctionName(nsACString &_rval)
 }
 
 NS_IMETHODIMP
+jsdStackFrame::GetIsNative(PRBool *_rval)
+{
+    ASSERT_VALID_EPHEMERAL;
+    *_rval = JSD_IsStackFrameNative (mCx, mThreadState, mStackFrameInfo);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 jsdStackFrame::GetIsDebugger(PRBool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
@@ -1902,7 +1907,9 @@ jsdStackFrame::GetLine(PRUint32 *_rval)
         jsuword pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
         *_rval = JSD_GetClosestLine (mCx, script, pc);
     } else {
-        return NS_ERROR_FAILURE;
+        if (!JSD_IsStackFrameNative(mCx, mThreadState, mStackFrameInfo))
+            return NS_ERROR_FAILURE;
+        *_rval = 1;
     }
     return NS_OK;
 }
@@ -1983,7 +1990,7 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
         if (JS_IsExceptionPending(cx))
             JS_GetPendingException (cx, &jv);
         else
-            jv = JSVAL_NULL;
+            jv = 0;
     }
 
     JS_RestoreExceptionState (cx, estate);
@@ -2188,7 +2195,10 @@ NS_IMETHODIMP
 jsdValue::GetDoubleValue(double *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    *_rval = JSD_GetValueDouble (mCx, mValue);
+    double *dp = JSD_GetValueDouble (mCx, mValue);
+    if (!dp)
+        return NS_ERROR_FAILURE;
+    *_rval = *dp;
     return NS_OK;
 }
 
@@ -2324,13 +2334,7 @@ jsdValue::GetWrappedValue()
 
     if (result)
     {
-        JSContext *cx;
-        rv = cc->GetJSContext(&cx);
-        if (NS_FAILED(rv))
-            return rv;
         *result = JSD_GetValueWrappedJSVal (mCx, mValue);
-        if (!JS_WrapValue(cx, result))
-            return NS_ERROR_FAILURE;
         cc->SetReturnValueWasSet(PR_TRUE);
     }
 
@@ -2405,12 +2409,6 @@ jsdService::GetIsOn (PRBool *_rval)
 NS_IMETHODIMP
 jsdService::On (void)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-jsdService::AsyncOn (jsdIActivationCallback *activationCallback)
-{
     nsresult  rv;
 
     /* get JS things from the CallContext */
@@ -2424,38 +2422,18 @@ jsdService::AsyncOn (jsdIActivationCallback *activationCallback)
     JSContext *cx;
     rv = cc->GetJSContext (&cx);
     if (NS_FAILED(rv)) return rv;
-
-    mActivationCallback = activationCallback;
     
-    return xpc->SetDebugModeWhenPossible(PR_TRUE);
+    return OnForRuntime(JS_GetRuntime (cx));
+    
 }
 
 NS_IMETHODIMP
-jsdService::RecompileForDebugMode (JSRuntime *rt, JSBool mode) {
-  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
-
-  JSContext *cx;
-  JSContext *iter = NULL;
-
-  jsword currentThreadId = reinterpret_cast<jsword>(js_CurrentThreadId());
-
-  while ((cx = JS_ContextIterator (rt, &iter))) {
-    if (JS_GetContextThread(cx) == currentThreadId) {
-      JS_SetDebugMode(cx, mode);
-    }
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-jsdService::ActivateDebugger (JSRuntime *rt)
+jsdService::OnForRuntime (JSRuntime *rt)
 {
     if (mOn)
         return (rt == mRuntime) ? NS_OK : NS_ERROR_ALREADY_INITIALIZED;
 
     mRuntime = rt;
-    RecompileForDebugMode(rt, JS_TRUE);
 
     if (gLastGCProc == jsds_GCCallbackProc)
         /* condition indicates that the callback proc has not been set yet */
@@ -2505,10 +2483,6 @@ jsdService::ActivateDebugger (JSRuntime *rt)
 #ifdef DEBUG
     printf ("+++ JavaScript debugging hooks installed.\n");
 #endif
-
-    if (mActivationCallback)
-        return mActivationCallback->OnDebuggerActivated();
-
     return NS_OK;
 }
 
@@ -2558,13 +2532,6 @@ jsdService::Off (void)
 #ifdef DEBUG
     printf ("+++ JavaScript debugging hooks removed.\n");
 #endif
-
-    nsresult rv;
-    nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID(), &rv);
-    if (NS_FAILED(rv))
-        return rv;
-
-    xpc->SetDebugModeWhenPossible(PR_FALSE);
 
     return NS_OK;
 }
@@ -2940,7 +2907,7 @@ jsdService::WrapValue(jsdIValue **_rval)
 }
 
 NS_IMETHODIMP
-jsdService::WrapJSValue(const jsval &value, jsdIValue** _rval)
+jsdService::WrapJSValue(jsval value, jsdIValue** _rval)
 {
     JSDValue *jsdv = JSD_NewValue(mCx, value);
     if (!jsdv)
@@ -3014,7 +2981,7 @@ jsdService::SetErrorHook (jsdIErrorHook *aHook)
     mErrorHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3058,7 +3025,7 @@ jsdService::SetDebugHook (jsdIExecutionHook *aHook)
     mDebugHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3086,7 +3053,7 @@ jsdService::SetDebuggerHook (jsdIExecutionHook *aHook)
     mDebuggerHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3114,7 +3081,7 @@ jsdService::SetInterruptHook (jsdIExecutionHook *aHook)
     mInterruptHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3142,7 +3109,7 @@ jsdService::SetScriptHook (jsdIScriptHook *aHook)
     mScriptHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3170,7 +3137,7 @@ jsdService::SetThrowHook (jsdIExecutionHook *aHook)
     mThrowHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3198,7 +3165,7 @@ jsdService::SetTopLevelHook (jsdICallHook *aHook)
     mTopLevelHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3226,7 +3193,7 @@ jsdService::SetFunctionHook (jsdICallHook *aHook)
     mFunctionHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3319,11 +3286,11 @@ jsdASObserver::Observe (nsISupports *aSubject, const char *aTopic,
     if (NS_FAILED(rv))
         return rv;
 
-    rv = jsds->ActivateDebugger(rt);
+    rv = jsds->OnForRuntime(rt);
     if (NS_FAILED(rv))
         return rv;
     
-    return NS_OK;
+    return jsds->SetFlags(JSD_DISABLE_OBJECT_TRACE);
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(jsdASObserver)

@@ -20,7 +20,6 @@
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
  *  Anant Narayanan <anant@kix.in>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["Resource", "AsyncResource"];
+const EXPORTED_SYMBOLS = ["Resource"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -51,38 +50,23 @@ Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
 
-/*
- * AsyncResource represents a remote network resource, identified by a URI.
- * Create an instance like so:
- * 
- *   let resource = new AsyncResource("http://foobar.com/path/to/resource");
- * 
- * The 'resource' object has the following methods to issue HTTP requests
- * of the corresponding HTTP methods:
- * 
- *   get(callback)
- *   put(data, callback)
- *   post(data, callback)
- *   delete(callback)
- * 
- * 'callback' is a function with the following signature:
- * 
- *   function callback(error, result) {...}
- * 
- * 'error' will be null on successful requests. Likewise, result will not be
- * passes (=undefined) when an error occurs. Note that this is independent of
- * the status of the HTTP response.
- */
-function AsyncResource(uri) {
+// = Resource =
+//
+// Represents a remote network resource, identified by a URI.
+function Resource(uri) {
   this._log = Log4Moz.repository.getLogger(this._logName);
   this._log.level =
     Log4Moz.Level[Utils.prefs.getCharPref("log.logger.network.resources")];
   this.uri = uri;
   this._headers = {};
-  this._onComplete = Utils.bind2(this, this._onComplete);
 }
-AsyncResource.prototype = {
+Resource.prototype = {
   _logName: "Net.Resource",
+
+  // ** {{{ Resource.serverTime }}} **
+  //
+  // Caches the latest server timestamp (X-Weave-Timestamp header).
+  serverTime: null,
 
   // ** {{{ Resource.authenticator }}} **
   //
@@ -153,7 +137,7 @@ AsyncResource.prototype = {
   // ** {{{ Resource._createRequest }}} **
   //
   // This method returns a new IO Channel for requests to be made
-  // through. It is never called directly, only {{{_doRequest}}} uses it
+  // through. It is never called directly, only {{{_request}}} uses it
   // to obtain a request channel.
   //
   _createRequest: function Res__createRequest() {
@@ -181,9 +165,14 @@ AsyncResource.prototype = {
 
   _onProgress: function Res__onProgress(channel) {},
 
-  _doRequest: function _doRequest(action, data, callback) {
-    this._callback = callback;
-    let channel = this._channel = this._createRequest();
+  // ** {{{ Resource._request }}} **
+  //
+  // Perform a particular HTTP request on the resource. This method
+  // is never called directly, but is used by the high-level
+  // {{{get}}}, {{{put}}}, {{{post}}} and {{delete}} methods.
+  _request: function Res__request(action, data) {
+    let iter = 0;
+    let channel = this._createRequest();
 
     if ("undefined" != typeof(data))
       this._data = data;
@@ -211,21 +200,29 @@ AsyncResource.prototype = {
 
     // Setup a channel listener so that the actual network operation
     // is performed asynchronously.
-    let listener = new ChannelListener(this._onComplete, this._onProgress,
-                                       this._log);
+    let [chanOpen, chanCb] = Sync.withCb(channel.asyncOpen, channel);
+    let listener = new ChannelListener(chanCb, this._onProgress, this._log);
     channel.requestMethod = action;
-    channel.asyncOpen(listener, null);
-  },
 
-  _onComplete: function _onComplete(error, data) {
-    if (error) {
-      this._callback(error);
-      return;
+    // The channel listener might get a failure code
+    try {
+      this._data = chanOpen(listener, null);
     }
+    catch(ex) {
+      // Combine the channel stack with this request stack
+      let error = Error(ex.message);
+      let chanStack = [];
+      if (ex.stack)
+        chanStack = ex.stack.trim().split(/\n/).slice(1);
+      let requestStack = error.stack.split(/\n/).slice(1);
 
-    this._data = data;
-    let channel = this._channel;
-    let action = channel.requestMethod;
+      // Strip out the args for the last 2 frames because they're usually HUGE!
+      for (let i = 0; i <= 1; i++)
+        requestStack[i] = requestStack[i].replace(/\(".*"\)@/, "(...)@");
+
+      error.stack = chanStack.concat(requestStack).join("\n");
+      throw error;
+    }
 
     // Set some default values in-case there's no response header
     let headers = {};
@@ -243,30 +240,24 @@ AsyncResource.prototype = {
 
       // Log the status of the request
       let mesg = [action, success ? "success" : "fail", status,
-                  channel.URI.spec].join(" ");
+        channel.URI.spec].join(" ");
       if (mesg.length > 200)
         mesg = mesg.substr(0, 200) + "…";
       this._log.debug(mesg);
       // Additionally give the full response body when Trace logging
       if (this._log.level <= Log4Moz.Level.Trace)
-        this._log.trace(action + " body: " + data);
+        this._log.trace(action + " body: " + this._data);
 
-      // This is a server-side safety valve to allow slowing down
-      // clients without hurting performance.
+      // this is a server-side safety valve to allow slowing down clients without hurting performance
       if (headers["x-weave-backoff"])
-        Observers.notify("weave:service:backoff:interval",
-                         parseInt(headers["x-weave-backoff"], 10));
-
-      if (success && headers["x-weave-quota-remaining"])
-        Observers.notify("weave:service:quota:remaining",
-                         parseInt(headers["x-weave-quota-remaining"], 10));
+        Observers.notify("weave:service:backoff:interval", parseInt(headers["x-weave-backoff"], 10))
     }
     // Got a response but no header; must be cached (use default values)
     catch(ex) {
       this._log.debug(action + " cached: " + status);
     }
 
-    let ret = new String(data);
+    let ret = new String(this._data);
     ret.headers = headers;
     ret.status = status;
     ret.success = success;
@@ -287,96 +278,22 @@ AsyncResource.prototype = {
       // Do the same type of request but with the new uri
       if (subject.newUri != "") {
         this.uri = subject.newUri;
-        this._doRequest(action, this._data, this._callback);
-        return;
+        return this._request.apply(this, arguments);
       }
     }
 
-    this._callback(null, ret);
-  },
-
-  get: function get(callback) {
-    this._doRequest("GET", undefined, callback);
-  },
-
-  put: function put(data, callback) {
-    if (typeof data == "function")
-      [data, callback] = [undefined, data];
-    this._doRequest("PUT", data, callback);
-  },
-
-  post: function post(data, callback) {
-    if (typeof data == "function")
-      [data, callback] = [undefined, data];
-    this._doRequest("POST", data, callback);
-  },
-
-  delete: function delete(callback) {
-    this._doRequest("DELETE", undefined, callback);
-  }
-};
-
-
-/*
- * Represent a remote network resource, identified by a URI, with a
- * synchronous API.
- * 
- * 'Resource' is not recommended for new code. Use the asynchronous API of
- * 'AsyncResource' instead.
- */
-function Resource(uri) {
-  AsyncResource.call(this, uri);
-}
-Resource.prototype = {
-
-  __proto__: AsyncResource.prototype,
-
-  // ** {{{ Resource.serverTime }}} **
-  //
-  // Caches the latest server timestamp (X-Weave-Timestamp header).
-  serverTime: null,
-
-  // ** {{{ Resource._request }}} **
-  //
-  // Perform a particular HTTP request on the resource. This method
-  // is never called directly, but is used by the high-level
-  // {{{get}}}, {{{put}}}, {{{post}}} and {{delete}} methods.
-  _request: function Res__request(action, data) {
-    let [doRequest, cb] = Sync.withCb(this._doRequest, this);
-    function callback(error, ret) {
-      if (error)
-        cb.throw(error);
-      cb(ret);
-    }
-
-    // The channel listener might get a failure code
-    try {
-      return doRequest(action, data, callback);
-    } catch(ex) {
-      // Combine the channel stack with this request stack
-      let error = Error(ex.message);
-      let chanStack = [];
-      if (ex.stack)
-        chanStack = ex.stack.trim().split(/\n/).slice(1);
-      let requestStack = error.stack.split(/\n/).slice(1);
-
-      // Strip out the args for the last 2 frames because they're usually HUGE!
-      for (let i = 0; i <= 1; i++)
-        requestStack[i] = requestStack[i].replace(/\(".*"\)@/, "(...)@");
-
-      error.stack = chanStack.concat(requestStack).join("\n");
-      throw error;
-    }
+    return ret;
   },
 
   // ** {{{ Resource.get }}} **
   //
   // Perform an asynchronous HTTP GET for this resource.
+  // onComplete will be called on completion of the request.
   get: function Res_get() {
     return this._request("GET");
   },
 
-  // ** {{{ Resource.put }}} **
+  // ** {{{ Resource.get }}} **
   //
   // Perform a HTTP PUT for this resource.
   put: function Res_put(data) {
@@ -434,12 +351,10 @@ ChannelListener.prototype = {
       this._data = null;
 
     // Throw the failure code name (and stop execution)
-    if (!Components.isSuccessCode(status)) {
-      this._onComplete(Error(Components.Exception("", status).name));
-      return;
-    }
+    if (!Components.isSuccessCode(status))
+      this._onComplete.throw(Error(Components.Exception("", status).name));
 
-    this._onComplete(null, this._data);
+    this._onComplete(this._data);
   },
 
   onDataAvailable: function Channel_onDataAvail(req, cb, stream, off, count) {
@@ -463,7 +378,7 @@ ChannelListener.prototype = {
     // Ignore any callbacks if we happen to get any now
     this.onStopRequest = function() {};
     this.onDataAvailable = function() {};
-    this._onComplete(Error("Aborting due to channel inactivity."));
+    this._onComplete.throw(Error("Aborting due to channel inactivity."));
   }
 };
 

@@ -52,39 +52,34 @@ function change_password(request, response) {
 }
 
 function run_test() {
-  initTestLogging("Trace");
-  
-  do_test_pending();
   let server = httpd_setup({
     "/1.0/johndoe/info/collections": info_collections,
-    "/1.0/johndoe/storage/meta/global": new ServerWBO().handler(),
-    "/1.0/johndoe/storage/crypto/keys": new ServerWBO().handler(),
     "/user/1.0/johndoe/password": change_password
   });
 
-  Service.username = "johndoe";
-  Service.password = JAPANESE;
-  Service.passphrase = "cantentsveryrelevantabbbb";
-  Service.serverURL = "http://localhost:8080/";
+  Weave.Service.username = "johndoe";
+  Weave.Service.password = JAPANESE;
+  Weave.Service.passphrase = "Must exist, but contents irrelevant.";
+  Weave.Service.serverURL = "http://localhost:8080/";
 
   try {
     _("Try to log in with the password.");
     server_password = "foobar";
-    do_check_false(Service.verifyLogin());
+    do_check_false(Weave.Service.verifyLogin());
     do_check_eq(server_password, "foobar");
 
     _("Make the server password the low byte version of our password.  Login should work and have transparently changed the password to the UTF8 version.");
     server_password = LOWBYTES;
-    do_check_true(Service.verifyLogin());
+    do_check_true(Weave.Service.verifyLogin());
     do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
 
     _("Can't use a password that has the same low bytes as ours.");
-    Service.password = APPLES;
-    do_check_false(Service.verifyLogin());
+    Weave.Service.password = APPLES;
+    do_check_false(Weave.Service.verifyLogin());
     do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
 
   } finally {
-    server.stop(do_test_finished);
-    Svc.Prefs.resetBranch("");
+    server.stop(function() {});
+    Weave.Svc.Prefs.resetBranch("");
   }
 }

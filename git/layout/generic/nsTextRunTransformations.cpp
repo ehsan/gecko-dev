@@ -40,11 +40,11 @@
 #include "nsTextFrameUtils.h"
 #include "gfxSkipChars.h"
 
+#include "nsICaseConversion.h"
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "gfxContext.h"
 #include "nsContentUtils.h"
-#include "nsUnicharUtils.h"
 
 #define SZLIG 0x00DF
 
@@ -234,6 +234,10 @@ void
 nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     gfxContext* aRefContext)
 {
+  nsICaseConversion* converter = nsContentUtils::GetCaseConv();
+  if (!converter)
+    return;
+
   gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
   gfxFontStyle fontStyle = *fontGroup->GetStyle();
   fontStyle.size *= 0.8;
@@ -275,7 +279,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         if (styles[i]->GetStyleFont()->mFont.variant == NS_STYLE_FONT_VARIANT_SMALL_CAPS) {
           PRUnichar ch = str[i];
           PRUnichar ch2;
-          ch2 = ToUpperCase(ch);
+          converter->ToUpper(ch, &ch2);
           isLowercase = ch != ch2 || ch == SZLIG;
         } else {
           // Don't transform the character! I.e., pretend that it's not lowercase
@@ -328,6 +332,10 @@ void
 nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     gfxContext* aRefContext)
 {
+  nsICaseConversion* converter = nsContentUtils::GetCaseConv();
+  if (!converter)
+    return;
+
   PRUint32 length = aTextRun->GetLength();
   const PRUnichar* str = aTextRun->GetTextUnicode();
   nsRefPtr<nsStyleContext>* styles = aTextRun->mStyles.Elements();
@@ -352,7 +360,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
 
     switch (style) {
     case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
-      ch = ToLowerCase(ch);
+      converter->ToLower(ch, &ch);
       break;
     case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
       if (ch == SZLIG) {
@@ -360,7 +368,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         extraChar = PR_TRUE;
         ch = 'S';
       } else {
-        ch = ToUpperCase(ch);
+        converter->ToUpper(ch, &ch);
       }
       break;
     case NS_STYLE_TEXT_TRANSFORM_CAPITALIZE:
@@ -370,7 +378,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
           extraChar = PR_TRUE;
           ch = 'S';
         } else {
-          ch = ToTitleCase(ch);
+          converter->ToTitle(ch, &ch);
         }
       }
       break;

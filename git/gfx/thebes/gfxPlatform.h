@@ -147,7 +147,7 @@ public:
      * and image format.
      */
     virtual already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                                 gfxASurface::gfxContentType contentType) = 0;
+                                                                 gfxASurface::gfxImageFormat imageFormat) = 0;
 
 
     virtual already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
@@ -174,9 +174,7 @@ public:
     virtual nsresult UpdateFontList();
 
     /**
-     * Create the platform font-list object (gfxPlatformFontList concrete subclass).
-     * This function is responsible to create the appropriate subclass of
-     * gfxPlatformFontList *and* to call its InitFontList() method.
+     * Create the platform font-list object (gfxPlatformFontList concrete subclass)
      */
     virtual gfxPlatformFontList *CreatePlatformFontList() {
         NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
@@ -235,17 +233,7 @@ public:
     /**
      * Whether to allow downloadable fonts via @font-face rules
      */
-    PRBool DownloadableFontsEnabled();
-
-    /**
-     * Whether to sanitize downloaded fonts using the OTS library
-     */
-    PRBool SanitizeDownloadedFonts();
-
-    /**
-     * Whether to preserve OpenType layout tables when sanitizing
-     */
-    PRBool PreserveOTLTablesWhenSanitizing();
+    virtual PRBool DownloadableFontsEnabled();
 
     /**
      * Whether to use the harfbuzz shaper (depending on script complexity).
@@ -349,13 +337,18 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
-    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
-
     /**
-     * Returns a 1x1 surface that can be used to create graphics contexts
-     * for measuring text etc as if they will be rendered to the screen
+     * Return display DPI
      */
-    gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
+    static PRInt32 GetDPI() {
+        if (sDPI < 0) {
+            gfxPlatform::GetPlatform()->InitDisplayCaps();
+        }
+        NS_ASSERTION(sDPI > 0, "Something is wrong");
+        return sDPI;
+    }
+
+    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 protected:
     gfxPlatform();
@@ -366,9 +359,13 @@ protected:
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
+    /**
+     * Initialize any needed display metrics (such as DPI)
+     */
+    virtual void InitDisplayCaps();
+    static PRInt32 sDPI;
+
     PRBool  mAllowDownloadableFonts;
-    PRBool  mDownloadableFontsSanitize;
-    PRBool  mSanitizePreserveOTLTables;
 
     // whether to use the HarfBuzz layout engine
     PRInt8  mUseHarfBuzzLevel;
@@ -376,8 +373,8 @@ protected:
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
-    nsRefPtr<gfxASurface> mScreenReferenceSurface;
     nsTArray<PRUint32> mCJKPrefLangs;
+
     nsCOMPtr<nsIObserver> overrideObserver;
 };
 

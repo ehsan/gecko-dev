@@ -20,8 +20,6 @@
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
  *  Myk Melez <myk@mozilla.org>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
- *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,6 +44,7 @@ const Cu = Components.utils;
 
 Cu.import("resource://services-sync/base_records/collection.js");
 Cu.import("resource://services-sync/base_records/crypto.js");
+Cu.import("resource://services-sync/base_records/keys.js");
 Cu.import("resource://services-sync/base_records/wbo.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Observers.js");
@@ -81,11 +80,8 @@ EngineManagerSvc.prototype = {
     }
 
     let engine = this._engines[name];
-    if (!engine) {
+    if (!engine)
       this._log.debug("Could not get engine: " + name);
-      if (Object.keys)
-        this._log.debug("Engines are: " + JSON.stringify(Object.keys(this._engines)));
-    }
     return engine;
   },
   getAll: function EngMgr_getAll() {
@@ -139,7 +135,6 @@ EngineManagerSvc.prototype = {
 function Engine(name) {
   this.Name = name || "Unnamed";
   this.name = name.toLowerCase();
-  this.downloadLimit = null;
 
   this._notify = Utils.notify("weave:engine:");
   this._log = Log4Moz.repository.getLogger("Engine." + this.Name);
@@ -287,6 +282,7 @@ Engine.prototype = {
 
 function SyncEngine(name) {
   Engine.call(this, name || "SyncEngine");
+  this.loadToFetch();
 }
 SyncEngine.prototype = {
   __proto__: Engine.prototype,
@@ -298,7 +294,7 @@ SyncEngine.prototype = {
 
   get engineURL() this.storageURL + this.name,
 
-  get cryptoKeysURL() this.storageURL + "crypto/keys",
+  get cryptoMetaURL() this.storageURL + "crypto/" + this.name,
 
   get metaURL() this.storageURL + "meta/global",
 
@@ -311,9 +307,6 @@ SyncEngine.prototype = {
     Svc.Prefs.set(this.name + ".syncID", value);
   },
 
-  /*
-   * lastSync is a timestamp in server time.
-   */
   get lastSync() {
     return parseFloat(Svc.Prefs.get(this.name + ".lastSync", "0"));
   },
@@ -327,53 +320,66 @@ SyncEngine.prototype = {
     this._log.debug("Resetting " + this.name + " last sync time");
     Svc.Prefs.reset(this.name + ".lastSync");
     Svc.Prefs.set(this.name + ".lastSync", "0");
-    this.lastSyncLocal = 0;
   },
 
-  /*
-   * lastSyncLocal is a timestamp in local time.
-   */
-  get lastSyncLocal() {
-    return parseInt(Svc.Prefs.get(this.name + ".lastSyncLocal", "0"), 10);
-  },
-  set lastSyncLocal(value) {
-    // Store as a string because pref can only store C longs as numbers.
-    Svc.Prefs.set(this.name + ".lastSyncLocal", value.toString());
+  get toFetch() this._toFetch,
+  set toFetch(val) {
+    this._toFetch = val;
+    Utils.jsonSave("toFetch/" + this.name, this, val);
   },
 
-  /*
-   * Returns a mapping of IDs -> changed timestamp. Engine implementations
-   * can override this method to bypass the tracker for certain or all
-   * changed items.
-   */
-  getChangedIDs: function getChangedIDs() {
-    return this._tracker.changedIDs;
+  loadToFetch: function loadToFetch() {
+    // Initialize to empty if there's no file
+    this._toFetch = [];
+    Utils.jsonLoad("toFetch/" + this.name, this, Utils.bind2(this, function(o)
+      this._toFetch = o));
   },
 
   // Create a new record using the store and add in crypto fields
   _createRecord: function SyncEngine__createRecord(id) {
-    let record = this._store.createRecord(id, this.name);
+    let record = this._store.createRecord(id);
     record.id = id;
-    record.collection = this.name;
+    record.encryption = this.cryptoMetaURL;
     return record;
   },
 
   // Any setup that needs to happen at the beginning of each sync.
+  // Makes sure crypto records and keys are all set-up
   _syncStartup: function SyncEngine__syncStartup() {
+    this._log.trace("Ensuring server crypto records are there");
+
+    // Try getting/unwrapping the crypto record
+    let meta = CryptoMetas.get(this.cryptoMetaURL);
+    if (meta) {
+      try {
+        let pubkey = PubKeys.getDefaultKey();
+        let privkey = PrivKeys.get(pubkey.privateKeyUri);
+        meta.getKey(privkey, ID.get("WeaveCryptoID"));
+      }
+      catch(ex) {
+        // Indicate that we don't have a cryptometa to delete and reupload
+        this._log.debug("Purging bad data after failed unwrap crypto: " + ex);
+        meta = null;
+      }
+    }
+    // Don't proceed if we failed to get the crypto meta for reasons not 404
+    else if (CryptoMetas.response.status != 404) {
+      let resp = CryptoMetas.response;
+      resp.failureCode = ENGINE_METARECORD_DOWNLOAD_FAIL;
+      throw resp;
+    }
 
     // Determine if we need to wipe on outdated versions
     let metaGlobal = Records.get(this.metaURL);
     let engines = metaGlobal.payload.engines || {};
     let engineData = engines[this.name] || {};
 
-    let needsWipe = false;
-
     // Assume missing versions are 0 and wipe the server
     if ((engineData.version || 0) < this.version) {
       this._log.debug("Old engine data: " + [engineData.version, this.version]);
 
       // Prepare to clear the server and upload everything
-      needsWipe = true;
+      meta = null;
       this.syncID = "";
 
       // Set the newer version and newly generated syncID
@@ -398,55 +404,59 @@ SyncEngine.prototype = {
       this._resetClient();
     };
 
-    // Delete any existing data and reupload on bad version or missing meta.
-    // No crypto component here...? We could regenerate per-collection keys...
-    if (needsWipe) {
-      this.wipeServer(true);
+    // Delete any existing data and reupload on bad version or missing meta
+    if (meta == null) {
+      new Resource(this.engineURL).delete();
+      this._resetClient();
+
+      // Generate a new crypto record
+      let symkey = Svc.Crypto.generateRandomKey();
+      let pubkey = PubKeys.getDefaultKey();
+      meta = new CryptoMeta(this.cryptoMetaURL);
+      meta.addUnwrappedKey(pubkey, symkey);
+      let res = new Resource(meta.uri);
+      let resp = res.put(meta);
+      if (!resp.success) {
+        this._log.debug("Metarecord upload fail:" + resp);
+        resp.failureCode = ENGINE_METARECORD_UPLOAD_FAIL;
+        throw resp;
+      }
+
+      // Cache the cryto meta that we just put on the server
+      CryptoMetas.set(meta.uri, meta);
     }
 
-    // Save objects that need to be uploaded in this._modified. We also save
-    // the timestamp of this fetch in this.lastSyncLocal. As we successfully
-    // upload objects we remove them from this._modified. If an error occurs
-    // or any objects fail to upload, they will remain in this._modified. At
-    // the end of a sync, or after an error, we add all objects remaining in
-    // this._modified to the tracker.
-    this.lastSyncLocal = Date.now();
-    if (this.lastSync) {
-      this._modified = this.getChangedIDs();
-    } else {
-      // Mark all items to be uploaded, but treat them as changed from long ago
+    // Mark all items to be uploaded, but treat them as changed from long ago
+    if (!this.lastSync) {
       this._log.debug("First sync, uploading all items");
-      this._modified = {};
       for (let id in this._store.getAllIDs())
-        this._modified[id] = 0;
+        this._tracker.addChangedID(id, 0);
     }
-    // Clear the tracker now. If the sync fails we'll add the ones we failed
-    // to upload back.
-    this._tracker.clearChangedIDs();
- 
-    // Array of just the IDs from this._modified. This is what we iterate over
-    // so we can modify this._modified during the iteration.
-    this._modifiedIDs = [id for (id in this._modified)];
-    this._log.info(this._modifiedIDs.length +
-                   " outgoing items pre-reconciliation");
+
+    let outnum = [i for (i in this._tracker.changedIDs)].length;
+    this._log.info(outnum + " outgoing items pre-reconciliation");
 
     // Keep track of what to delete at the end of sync
     this._delete = {};
   },
 
-  // Process incoming records
+  // Generate outgoing records
   _processIncoming: function SyncEngine__processIncoming() {
     this._log.trace("Downloading & applying server changes");
 
     // Figure out how many total items to fetch this sync; do less on mobile.
-    let batchSize = Infinity;
+    // 50 is hardcoded here because of URL length restrictions.
+    // (GUIDs can be up to 64 chars long)
+    let fetchNum = Infinity;
+
     let newitems = new Collection(this.engineURL, this._recordObj);
     if (Svc.Prefs.get("client.type") == "mobile") {
-      batchSize = MOBILE_BATCH_SIZE;
+      fetchNum = 50;
+      newitems.sort = "index";
     }
     newitems.newer = this.lastSync;
     newitems.full = true;
-    newitems.limit = batchSize;
+    newitems.limit = fetchNum;
 
     let count = {applied: 0, reconciled: 0};
     let handled = [];
@@ -455,14 +465,11 @@ SyncEngine.prototype = {
       if (this.lastModified == null || item.modified > this.lastModified)
         this.lastModified = item.modified;
 
-      // Track the collection for the WBO.
-      item.collection = this.name;
-      
       // Remember which records were processed
       handled.push(item.id);
 
       try {
-        item.decrypt();
+        item.decrypt(ID.get("WeaveCryptoID"));
         if (this._reconcile(item)) {
           count.applied++;
           this._tracker.ignoreAll = true;
@@ -477,7 +484,7 @@ SyncEngine.prototype = {
 
         // Upload a new record to replace the bad one if we have it
         if (this._store.itemExists(item.id))
-          this._modified[item.id] = 0;
+          this._tracker.addChangedID(item.id, 0);
       }
       this._tracker.ignoreAll = false;
       Sync.sleep(0);
@@ -490,19 +497,16 @@ SyncEngine.prototype = {
         resp.failureCode = ENGINE_DOWNLOAD_FAIL;
         throw resp;
       }
+
+      // Subtract out the number of items we just got
+      fetchNum -= handled.length;
     }
 
-    // Mobile: check if we got the maximum that we requested; get the rest if so.
-    let toFetch = [];
+    // Check if we got the maximum that we requested; get the rest if so
     if (handled.length == newitems.limit) {
       let guidColl = new Collection(this.engineURL);
-      
-      // Sort and limit so that on mobile we only get the last X records.
-      guidColl.limit = this.downloadLimit;
       guidColl.newer = this.lastSync;
-      
-      // index: Orders by the sortindex descending (highest weight first).
-      guidColl.sort  = "index";
+      guidColl.sort = "index";
 
       let guids = guidColl.get();
       if (!guids.success)
@@ -512,18 +516,20 @@ SyncEngine.prototype = {
       // were already waiting and prepend the new ones
       let extra = Utils.arraySub(guids.obj, handled);
       if (extra.length > 0)
-        toFetch = extra.concat(Utils.arraySub(toFetch, extra));
+        this.toFetch = extra.concat(Utils.arraySub(this.toFetch, extra));
     }
 
-    // Mobile: process any backlog of GUIDs
-    while (toFetch.length) {
+    // Process any backlog of GUIDs if we haven't fetched too many this sync
+    while (this.toFetch.length > 0 && fetchNum > 0) {
       // Reuse the original query, but get rid of the restricting params
       newitems.limit = 0;
       newitems.newer = 0;
 
       // Get the first bunch of records and save the rest for later
-      newitems.ids = toFetch.slice(0, batchSize);
-      toFetch = toFetch.slice(batchSize);
+      let minFetch = Math.min(150, this.toFetch.length, fetchNum);
+      newitems.ids = this.toFetch.slice(0, minFetch);
+      this.toFetch = this.toFetch.slice(minFetch);
+      fetchNum -= minFetch;
 
       // Reuse the existing record handler set earlier
       let resp = newitems.get();
@@ -537,7 +543,7 @@ SyncEngine.prototype = {
       this.lastSync = this.lastModified;
 
     this._log.info(["Records:", count.applied, "applied,", count.reconciled,
-      "reconciled."].join(" "));
+      "reconciled,", this.toFetch.length, "left to fetch"].join(" "));
   },
 
   /**
@@ -598,16 +604,16 @@ SyncEngine.prototype = {
       this._log.trace("Incoming: " + item);
 
     this._log.trace("Reconcile step 1: Check for conflicts");
-    if (item.id in this._modified) {
+    if (item.id in this._tracker.changedIDs) {
       // If the incoming and local changes are the same, skip
       if (this._isEqual(item)) {
-        delete this._modified[item.id];
+        this._tracker.removeChangedID(item.id);
         return false;
       }
 
       // Records differ so figure out which to take
       let recordAge = Resource.serverTime - item.modified;
-      let localAge = Date.now() / 1000 - this._modified[item.id];
+      let localAge = Date.now() / 1000 - this._tracker.changedIDs[item.id];
       this._log.trace("Record age vs local age: " + [recordAge, localAge]);
 
       // Apply the record if the record is newer (server wins)
@@ -633,9 +639,9 @@ SyncEngine.prototype = {
 
   // Upload outgoing records
   _uploadOutgoing: function SyncEngine__uploadOutgoing() {
-    if (this._modifiedIDs.length) {
-      this._log.trace("Preparing " + this._modifiedIDs.length +
-                      " outgoing records");
+    let outnum = [i for (i in this._tracker.changedIDs)].length;
+    if (outnum) {
+      this._log.trace("Preparing " + outnum + " outgoing records");
 
       // collection we'll upload
       let up = new Collection(this.engineURL);
@@ -643,8 +649,7 @@ SyncEngine.prototype = {
 
       // Upload what we've got so far in the collection
       let doUpload = Utils.bind2(this, function(desc) {
-        this._log.info("Uploading " + desc + " of " +
-                       this._modifiedIDs.length + " records");
+        this._log.info("Uploading " + desc + " of " + outnum + " records");
         let resp = up.post();
         if (!resp.success) {
           this._log.debug("Uploading records failed: " + resp);
@@ -652,32 +657,21 @@ SyncEngine.prototype = {
           throw resp;
         }
 
-        // Update server timestamp from the upload.
+        // Record the modified time of the upload
         let modified = resp.headers["x-weave-timestamp"];
         if (modified > this.lastSync)
           this.lastSync = modified;
 
-        let failed_ids = [id for (id in resp.obj.failed)];
-        if (failed_ids.length)
-          this._log.debug("Records that will be uploaded again because "
-                          + "the server couldn't store them: "
-                          + failed_ids.join(", "));
-
-        // Clear successfully uploaded objects.
-        for each (let id in resp.obj.success) {
-          delete this._modified[id];
-        }
-
         up.clearRecords();
       });
 
-      for each (let id in this._modifiedIDs) {
+      for (let id in this._tracker.changedIDs) {
         try {
           let out = this._createRecord(id);
           if (this._log.level <= Log4Moz.Level.Trace)
             this._log.trace("Outgoing: " + out);
 
-          out.encrypt();
+          out.encrypt(ID.get("WeaveCryptoID"));
           up.pushData(out);
         }
         catch(ex) {
@@ -695,6 +689,7 @@ SyncEngine.prototype = {
       if (count % MAX_UPLOAD_RECORDS > 0)
         doUpload(count >= MAX_UPLOAD_RECORDS ? "last batch" : "all");
     }
+    this._tracker.clearChangedIDs();
   },
 
   // Any cleanup necessary.
@@ -726,18 +721,6 @@ SyncEngine.prototype = {
     }
   },
 
-  _syncCleanup: function _syncCleanup() {
-    if (!this._modified)
-      return;
-
-    // Mark failed WBOs as changed again so they are reuploaded next time.
-    for (let [id, when] in Iterator(this._modified)) {
-      this._tracker.addChangedID(id, when);
-    }
-    delete this._modified;
-    delete this._modifiedIDs;
-  },
-
   _sync: function SyncEngine__sync() {
     try {
       this._syncStartup();
@@ -746,12 +729,14 @@ SyncEngine.prototype = {
       Observers.notify("weave:engine:sync:status", "upload-outgoing");
       this._uploadOutgoing();
       this._syncFinish();
-    } finally {
-      this._syncCleanup();
+    }
+    catch (e) {
+      this._log.warn("Sync failed");
+      throw e;
     }
   },
 
-  canDecrypt: function canDecrypt() {
+  _testDecrypt: function _testDecrypt() {
     // Report failure even if there's nothing to decrypt
     let canDecrypt = false;
 
@@ -761,7 +746,7 @@ SyncEngine.prototype = {
     test.sort = "newest";
     test.full = true;
     test.recordHandler = function(record) {
-      record.decrypt();
+      record.decrypt(ID.get("WeaveCryptoID"));
       canDecrypt = true;
     };
 
@@ -779,10 +764,6 @@ SyncEngine.prototype = {
 
   _resetClient: function SyncEngine__resetClient() {
     this.resetLastSync();
-  },
-
-  wipeServer: function wipeServer() {
-    new Resource(this.engineURL).delete();
-    this._resetClient();
+    this.toFetch = [];
   }
 };

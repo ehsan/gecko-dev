@@ -61,7 +61,6 @@ STACK_FAILURE_TESTCASES = \
   StackConditional.cpp \
   StackAggrInit.cpp \
   StackCondBad.cpp \
-  StackFalsePositive.cpp \
   $(NULL)
 
 STACK_PASS_TESTCASES = \
@@ -118,7 +117,6 @@ FLOW_FAILURE_TESTCASES = \
 MUST_OVERRIDE_PASS_TESTCASES = \
   OverrideOK1.cpp \
   OverrideOK2.cpp \
-  OverrideOK3-NamespaceTypedef.cpp \
   $(NULL)
 
 MUST_OVERRIDE_FAILURE_TESTCASES = \
@@ -130,7 +128,6 @@ MUST_OVERRIDE_FAILURE_TESTCASES = \
 
 OVERRIDE_PASS_TESTCASES = \
   override-pass.cpp \
-  override-namespace-typedef.cpp \
   $(NULL)
 
 OVERRIDE_FAILURE_TESTCASES = \
@@ -138,17 +135,6 @@ OVERRIDE_FAILURE_TESTCASES = \
   override-signature.cpp \
   override-static.cpp \
   override-virtual.cpp \
-  $(NULL)
-
-STATIC_INIT_PASS_TESTCASES = \
-  TestStaticInitStructOK.cpp \
-  $(NULL)
-
-STATIC_INIT_WARNING_TESTCASES = \
-  TestStaticInitAttr.cpp \
-  TestStaticInitConstructor.cpp \
-  TestStaticInitGlobal.cpp \
-  TestStaticInitGlobalConst.cpp \
   $(NULL)
 
 STATIC_FAILURE_TESTCASES = \
@@ -161,7 +147,6 @@ STATIC_FAILURE_TESTCASES = \
 STATIC_WARNING_TESTCASES = \
   $(OUTPARAMS_WARNING_TESTCASES) \
   $(STACK_FAILURE_TESTCASES) \
-  $(STATIC_INIT_WARNING_TESTCASES) \
   $(NULL)
 
 STATIC_PASS_TESTCASES = \
@@ -171,7 +156,6 @@ STATIC_PASS_TESTCASES = \
   $(FLOW_PASS_TESTCASES) \
   $(MUST_OVERRIDE_PASS_TESTCASES) \
   $(OVERRIDE_PASS_TESTCASES) \
-  $(STATIC_INIT_PASS_TESTCASES) \
   $(NULL)
 
 

@@ -26,9 +26,6 @@
 
 #include "hb-private.h"
 
-HB_BEGIN_DECLS
-
-
 hb_tag_t
 hb_tag_from_string (const char *s)
 {
@@ -42,6 +39,3 @@ hb_tag_from_string (const char *s)
 
   return HB_TAG_STR (tag);
 }
-
-
-HB_END_DECLS

@@ -51,19 +51,12 @@ CPPSRCS = \
   MozillaRuntimeMain.cpp \
   $(NULL)
 
-ifeq (Android,$(OS_TARGET))
-WRAP_MALLOC_CFLAGS =
-WRAP_MALLOC_LIB =
-CPPSRCS = MozillaRuntimeMainAndroid.cpp
-else
 LIBS += \
   $(XPCOM_LIBS) \
   $(NSPR_LIBS) \
   $(NULL)
-endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 
 ifndef MOZ_WINCONSOLE
 ifdef MOZ_DEBUG
@@ -99,9 +92,7 @@ OS_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 oleaut32 v
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 msimg32)
 endif
 
-ifneq (Android,$(OS_TARGET))
 LIBS += $(JEMALLOC_LIBS)
-endif
 
 include $(topsrcdir)/config/rules.mk
 
@@ -118,10 +109,6 @@ ifeq ($(OS_ARCH),WINNT)
 #
 ifndef GNU_CC
 LDFLAGS += /HEAP:0x40000
-ifeq ($(OS_TEST),x86_64)
-# set stack to 2MB on x64 build.  See bug 582910
-LDFLAGS += -STACK:2097152
-endif
 endif
 endif
 

@@ -40,19 +40,13 @@
 #include "nsFormSubmission.h"
 #include "nsDOMSettableTokenList.h"
 #include "nsStubMutationObserver.h"
-#include "nsIConstraintValidation.h"
-#include "nsIEventStateManager.h"
-#include "mozAutoDocUpdate.h"
 
 
 class nsHTMLOutputElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLOutputElement,
-                            public nsStubMutationObserver,
-                            public nsIConstraintValidation
+                            public nsStubMutationObserver
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOutputElement();
 
@@ -74,16 +68,13 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_OUTPUT; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
-
-  virtual bool IsDisabled() const { return PR_FALSE; }
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                         const nsAString& aValue, nsAttrValue& aResult);
-
-  nsEventStates IntrinsicState() const;
 
   // This function is called when a callback function from nsIMutationObserver
   // has to be used to update the defaultValue attribute.
@@ -135,10 +126,9 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLOutputElement, nsGenericElement)
 DOMCI_NODE_DATA(HTMLOutputElement, nsHTMLOutputElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLOutputElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLOutputElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLOutputElement,
                                    nsIDOMHTMLOutputElement,
-                                   nsIMutationObserver,
-                                   nsIConstraintValidation)
+                                   nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOutputElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOutputElement)
@@ -147,26 +137,6 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLOutputElement)
 
 
 NS_IMPL_STRING_ATTR(nsHTMLOutputElement, Name, name)
-
-// nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(nsHTMLOutputElement)
-
-NS_IMETHODIMP
-nsHTMLOutputElement::SetCustomValidity(const nsAString& aError)
-{
-  nsIConstraintValidation::SetCustomValidity(aError);
-
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID |
-                                            NS_EVENT_STATE_MOZ_UI_INVALID |
-                                            NS_EVENT_STATE_MOZ_UI_VALID);
-  }
-
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsHTMLOutputElement::Reset()
@@ -178,7 +148,8 @@ nsHTMLOutputElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
+nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                       nsIContent* aSubmitElement)
 {
   // The output element is not submittable.
   return NS_OK;
@@ -197,19 +168,6 @@ nsHTMLOutputElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
 
   return nsGenericHTMLFormElement::ParseAttribute(aNamespaceID, aAttribute,
                                                   aValue, aResult);
-}
-
-nsEventStates
-nsHTMLOutputElement::IntrinsicState() const
-{
-  nsEventStates states = nsGenericHTMLFormElement::IntrinsicState();
-
-  // We don't have to call IsCandidateForConstraintValidation()
-  // because <output> can't be barred from constraint validation.
-  states |= IsValid() ? NS_EVENT_STATE_VALID | NS_EVENT_STATE_MOZ_UI_VALID
-                      : NS_EVENT_STATE_INVALID | NS_EVENT_STATE_MOZ_UI_INVALID;
-
-  return states;
 }
 
 NS_IMETHODIMP

@@ -104,8 +104,8 @@ public:
   // nsDOMCSSDeclaration abstract methods which should never be called
   // on a nsComputedDOMStyle object, but must be defined to avoid
   // compile errors.
-  virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool);
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*);
+  virtual nsresult GetCSSDeclaration(mozilla::css::Declaration**, PRBool);
+  virtual nsresult DeclarationChanged();
   virtual nsIDocument* DocToUpdate();
   virtual nsresult GetCSSParsingEnvironment(nsIURI**, nsIURI**, nsIPrincipal**,
                                             mozilla::css::Loader**);
@@ -125,7 +125,6 @@ private:
 
   nsresult GetEllipseRadii(const nsStyleCorners& aRadius,
                            PRUint8 aFullCorner,
-                           PRBool aIsBorder, // else outline
                            nsIDOMCSSValue** aValue);
 
   nsresult GetOffsetWidthFor(mozilla::css::Side aSide, nsIDOMCSSValue** aValue);
@@ -253,10 +252,10 @@ private:
   nsresult DoGetBorderLeftColors(nsIDOMCSSValue** aValue);
   nsresult DoGetBorderRightColors(nsIDOMCSSValue** aValue);
   nsresult DoGetBorderTopColors(nsIDOMCSSValue** aValue);
-  nsresult DoGetBorderBottomLeftRadius(nsIDOMCSSValue** aValue);
-  nsresult DoGetBorderBottomRightRadius(nsIDOMCSSValue** aValue);
-  nsresult DoGetBorderTopLeftRadius(nsIDOMCSSValue** aValue);
-  nsresult DoGetBorderTopRightRadius(nsIDOMCSSValue** aValue);
+  nsresult DoGetBorderRadiusBottomLeft(nsIDOMCSSValue** aValue);
+  nsresult DoGetBorderRadiusBottomRight(nsIDOMCSSValue** aValue);
+  nsresult DoGetBorderRadiusTopLeft(nsIDOMCSSValue** aValue);
+  nsresult DoGetBorderRadiusTopRight(nsIDOMCSSValue** aValue);
   nsresult DoGetFloatEdge(nsIDOMCSSValue** aValue);
   nsresult DoGetBorderImage(nsIDOMCSSValue** aValue);
 
@@ -429,7 +428,6 @@ private:
    */
   void SetValueToCoord(nsROCSSPrimitiveValue* aValue,
                        const nsStyleCoord& aCoord,
-                       PRBool aClampNegativeCalc,
                        PercentageBaseGetter aPercentageBaseGetter = nsnull,
                        const PRInt32 aTable[] = nsnull,
                        nscoord aMinAppUnits = nscoord_MIN,
@@ -443,15 +441,13 @@ private:
    */
   nscoord StyleCoordToNSCoord(const nsStyleCoord& aCoord,
                               PercentageBaseGetter aPercentageBaseGetter,
-                              nscoord aDefaultValue,
-                              PRBool aClampNegativeCalc);
+                              nscoord aDefaultValue);
 
   PRBool GetCBContentWidth(nscoord& aWidth);
   PRBool GetCBContentHeight(nscoord& aWidth);
   PRBool GetFrameBoundsWidthForTransform(nscoord &aWidth);
   PRBool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   PRBool GetFrameBorderRectWidth(nscoord& aWidth);
-  PRBool GetFrameBorderRectHeight(nscoord& aHeight);
 
   struct ComputedStyleMapEntry
   {
@@ -496,6 +492,8 @@ private:
    * otherwise.
    */
   nsIPresShell* mPresShell;
+
+  PRInt32 mAppUnitsPerInch; /* For unit conversions */
 
   PRPackedBool mExposeVisitedStyle;
 

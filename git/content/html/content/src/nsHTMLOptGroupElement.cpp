@@ -82,7 +82,7 @@ public:
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
  
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -138,8 +138,10 @@ nsHTMLOptGroupElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   aVisitor.mCanHandle = PR_FALSE;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
-    return NS_OK;
+  PRBool disabled;
+  nsresult rv = GetDisabled(&disabled);
+  if (NS_FAILED(rv) || disabled) {
+    return rv;
   }
 
   nsIFrame* frame = GetPrimaryFrame();
@@ -175,7 +177,7 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
                                      PRUint32 aIndex,
                                      PRBool aNotify)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, aKid, aIndex, aNotify);
+  nsSafeOptionListMutation safeMutation(GetSelect(), this, aKid, aIndex);
   nsresult rv = nsGenericHTMLElement::InsertChildAt(aKid, aIndex, aNotify);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
@@ -186,7 +188,7 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 nsresult
 nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex, aNotify);
+  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
   nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
@@ -194,12 +196,13 @@ nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMu
   return rv;
 }
 
-nsEventStates
+PRInt32
 nsHTMLOptGroupElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
-
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRInt32 state = nsGenericHTMLElement::IntrinsicState();
+  PRBool disabled;
+  GetBoolAttr(nsGkAtoms::disabled, &disabled);
+  if (disabled) {
     state |= NS_EVENT_STATE_DISABLED;
     state &= ~NS_EVENT_STATE_ENABLED;
   } else {

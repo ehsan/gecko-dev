@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-283477.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 283477;
 var summary = 'a.lastIndexOf(b, c) should return -1 when there is no match';

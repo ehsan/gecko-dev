@@ -185,7 +185,7 @@
 #organizerScopeBar > toolbarbutton {
   -moz-appearance: none;
   border: 1px solid transparent;
-  border-radius: 2px;
+  -moz-border-radius: 2px;
   padding: 0 !important;
   margin: 0 1px;
 }

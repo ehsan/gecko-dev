@@ -44,8 +44,8 @@ const Cu = Components.utils;
 Cu.import("resource://services-sync/base_records/crypto.js");
 Cu.import("resource://services-sync/util.js");
 
-function HistoryRec(collection, id) {
-  CryptoWrapper.call(this, collection, id);
+function HistoryRec(uri) {
+  CryptoWrapper.call(this, uri);
 }
 HistoryRec.prototype = {
   __proto__: CryptoWrapper.prototype,

@@ -46,7 +46,7 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 
 static void
 PaintCheckMark(nsIFrame* aFrame,
@@ -153,7 +153,7 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK; // No need to paint the checkmark. The theme will do it.
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-    nsDisplayGeneric(aBuilder, this,
+    nsDisplayGeneric(this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,
                      "CheckedCheckbox",
@@ -173,7 +173,7 @@ nsGfxCheckboxControlFrame::IsChecked()
 PRBool
 nsGfxCheckboxControlFrame::IsIndeterminate()
 {
-  nsCOMPtr<nsIDOMHTMLInputElement> elem(do_QueryInterface(mContent));
+  nsCOMPtr<nsIDOMNSHTMLInputElement> elem(do_QueryInterface(mContent));
   PRBool retval = PR_FALSE;
   elem->GetIndeterminate(&retval);
   return retval;

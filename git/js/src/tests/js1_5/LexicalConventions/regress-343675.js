@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-343675.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 343675;
 var summary = 'Allow keywords, reserved words as function names';

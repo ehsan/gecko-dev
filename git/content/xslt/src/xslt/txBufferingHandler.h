@@ -51,7 +51,6 @@ class txCharacterTransaction;
 class txResultBuffer
 {
 public:
-    txResultBuffer();
     ~txResultBuffer();
 
     nsresult addTransaction(txOutputTransaction* aTransaction);
@@ -75,7 +74,6 @@ class txBufferingHandler : public txAXMLEventHandler
 {
 public:
     txBufferingHandler();
-    virtual ~txBufferingHandler();
 
     TX_DECL_TXAXMLEVENTHANDLER
 

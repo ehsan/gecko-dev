@@ -15,6 +15,9 @@ div { height: 1px; background: navy; }
 
 Differences between CSS 2.1 and this reference:
 
+1. it incorporates proposal in
+   http://lists.w3.org/Archives/Public/www-style/2008Feb/0224.html
+
 2. it ignores single 'auto' margins (one side only) when they should
    become negative; this is a bug that we should fix:
    https://bugzilla.mozilla.org/show_bug.cgi?id=419100
@@ -51,6 +54,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 70px; width: 177px;"></div>
 <div style="margin-left: 70px; width: 177px;"></div>
 <!-- left and right auto -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 167px; width: 177px;"></div>
 <div style="margin-left: 167px; width: 177px;"></div>
 <div style="margin-left: 454px; width: 177px;"></div>
@@ -87,6 +91,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 53px; width: 177px;"></div>
 <div style="margin-left: 53px; width: 177px;"></div>
 <!-- left and right and margin-left auto (margin-left like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 150px; width: 177px;"></div>
 <div style="margin-left: 150px; width: 177px;"></div>
 <div style="margin-left: 454px; width: 177px;"></div>
@@ -123,6 +128,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 70px; width: 177px;"></div>
 <div style="margin-left: 70px; width: 177px;"></div>
 <!-- left and right and margin-right auto (margin-right like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 167px; width: 177px;"></div>
 <div style="margin-left: 167px; width: 177px;"></div>
 <div style="margin-left: 473px; width: 177px;"></div>
@@ -159,6 +165,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 53px; width: 177px;"></div>
 <div style="margin-left: 53px; width: 177px;"></div>
 <!-- left and right and margin-left and margin-right auto (margin-left and margin-right like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 150px; width: 177px;"></div>
 <div style="margin-left: 150px; width: 177px;"></div>
 <div style="margin-left: 473px; width: 177px;"></div>
@@ -198,6 +205,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 70px; width: 96px;"></div>
 <div style="margin-left: 70px; width: 96px;"></div>
 <!-- left and right auto -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 167px; width: 96px;"></div>
 <div style="margin-left: 167px; width: 96px;"></div>
 <div style="margin-left: 535px; width: 96px;"></div>
@@ -234,6 +242,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 53px; width: 96px;"></div>
 <div style="margin-left: 53px; width: 96px;"></div>
 <!-- left and right and margin-left auto (margin-left like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 150px; width: 96px;"></div>
 <div style="margin-left: 150px; width: 96px;"></div>
 <div style="margin-left: 535px; width: 96px;"></div>
@@ -270,6 +279,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 70px; width: 96px;"></div>
 <div style="margin-left: 70px; width: 96px;"></div>
 <!-- left and right and margin-right auto (margin-right like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 167px; width: 96px;"></div>
 <div style="margin-left: 167px; width: 96px;"></div>
 <div style="margin-left: 554px; width: 96px;"></div>
@@ -306,6 +316,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 53px; width: 96px;"></div>
 <div style="margin-left: 53px; width: 96px;"></div>
 <!-- left and right and margin-left and margin-right auto (margin-left and margin-right like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 150px; width: 96px;"></div>
 <div style="margin-left: 150px; width: 96px;"></div>
 <div style="margin-left: 554px; width: 96px;"></div>
@@ -345,6 +356,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 70px; width: 684px;"></div>
 <div style="margin-left: 70px; width: 684px;"></div>
 <!-- left and right auto -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 167px; width: 684px;"></div>
 <div style="margin-left: 167px; width: 684px;"></div>
 <div style="margin-left: -53px; width: 684px;"></div>
@@ -382,6 +394,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 53px; width: 684px;"></div>
 <div style="margin-left: 53px; width: 684px;"></div>
 <!-- left and right and margin-left auto (margin-left like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 150px; width: 684px;"></div>
 <div style="margin-left: 150px; width: 684px;"></div>
 <div style="margin-left: -53px; width: 684px;"></div>
@@ -419,6 +432,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 70px; width: 684px;"></div>
 <div style="margin-left: 70px; width: 684px;"></div>
 <!-- left and right and margin-right auto (margin-right like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 167px; width: 684px;"></div>
 <div style="margin-left: 167px; width: 684px;"></div>
 <div style="margin-left: -34px; width: 684px;"></div>
@@ -455,6 +469,7 @@ Differences between CSS 2.1 and this reference:
 <div style="margin-left: 53px; width: 684px;"></div>
 <div style="margin-left: 53px; width: 684px;"></div>
 <!-- left and right and margin-left and margin-right auto (margin-left and margin-right like 0) -->
+<!-- THIS SET AFFECTED BY CHANGE (1) FROM CSS 2.1 SPEC -->
 <div style="margin-left: 150px; width: 684px;"></div>
 <div style="margin-left: 150px; width: 684px;"></div>
 <div style="margin-left: -34px; width: 684px;"></div>

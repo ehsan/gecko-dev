@@ -320,8 +320,7 @@ public:
     mFlagsOrSlots(NODE_DOESNT_HAVE_SLOTS),
     mNextSibling(nsnull),
     mPreviousSibling(nsnull),
-    mFirstChild(nsnull),
-    mNodeHasRenderingObservers(false)
+    mFirstChild(nsnull)
   {
   }
 
@@ -738,7 +737,7 @@ public:
     nsSlots* s = GetSlots();
     if (s) {
       NS_ASSERTION(s->mMutationObservers.IndexOf(aMutationObserver) ==
-                   nsTArray<int>::NoIndex,
+                   nsTArray_base::NoIndex,
                    "Observer already in the list");
       s->mMutationObservers.AppendElement(aMutationObserver);
     }
@@ -1148,11 +1147,7 @@ public:
     NS_NOTREACHED("How did we get here?");
   }
 
-  bool HasRenderingObservers() { return mNodeHasRenderingObservers; }
-  void SetHasRenderingObservers(bool aValue)
-    { mNodeHasRenderingObservers = aValue; }
-
-  // Optimized way to get classinfo.
+  // Optimized way to get classinfo. May return null.
   virtual nsXPCClassInfo* GetClassInfo() = 0;
 protected:
 
@@ -1284,9 +1279,6 @@ protected:
   nsIContent* mNextSibling;
   nsIContent* mPreviousSibling;
   nsIContent* mFirstChild;
-
-  // More flags
-  bool mNodeHasRenderingObservers : 1;
 };
 
 

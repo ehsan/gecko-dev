@@ -44,11 +44,16 @@ function create3DContext(canvas, attributes)
         canvas = document.createElement("canvas");
     var context = null;
     try {
-        context = canvas.getContext("webgl", attributes);
+        context = canvas.getContext("experimental-webgl", attributes);
     } catch(e) {}
     if (!context) {
         try {
-            context = canvas.getContext("experimental-webgl", attributes);
+            context = canvas.getContext("webkit-3d", attributes);
+        } catch(e) {}
+    }
+    if (!context) {
+        try {
+            context = canvas.getContext("moz-webgl", attributes);
         } catch(e) {}
     }
     if (!context) {
@@ -97,7 +102,7 @@ function getGLErrorAsString(ctx, err) {
       return name;
     }
   }
-  return "0x" + err.toString(16);
+  return err.toString();
 }
 
 function shouldGenerateGLError(ctx, glError, evalStr) {
@@ -146,55 +151,55 @@ function glErrorShouldBe(gl, glError, opt_msg) {
 //
 function createProgram(gl, vshaders, fshaders, attribs)
 {
-  if (typeof(vshaders) == "string")
-    vshaders = [vshaders];
-  if (typeof(fshaders) == "string")
-    fshaders = [fshaders];
+    if (typeof(vshaders) == "string")
+  vshaders = [vshaders];
+    if (typeof(fshaders) == "string")
+  fshaders = [fshaders];
 
-  var shaders = [];
-  var i;
+    var shaders = [];
+    var i;
 
-  for (i = 0; i < vshaders.length; ++i) {
-    var shader = loadShader(gl, vshaders[i], gl.VERTEX_SHADER);
-    if (!shader)
+    for (i = 0; i < vshaders.length; ++i) {
+  var shader = loadShader(gl, vshaders[i], gl.VERTEX_SHADER);
+  if (!shader)
       return null;
-    shaders.push(shader);
-  }
-
-  for (i = 0; i < fshaders.length; ++i) {
-    var shader = loadShader(gl, fshaders[i], gl.FRAGMENT_SHADER);
-    if (!shader)
-      return null;
-    shaders.push(shader);
-  }
-
-  var prog = gl.createProgram();
-  for (i = 0; i < shaders.length; ++i) {
-    gl.attachShader(prog, shaders[i]);
-  }
-
-  if (attribs) {
-    for (var i in attribs) {
-      gl.bindAttribLocation(prog, parseInt(i), attribs[i]);
+  shaders.push(shader);
     }
+
+    for (i = 0; i < fshaders.length; ++i) {
+  var shader = loadShader(gl, fshaders[i], gl.FRAGMENT_SHADER);
+  if (!shader)
+      return null;
+  shaders.push(shader);
+    }
+
+    var prog = gl.createProgram();
+    for (i = 0; i < shaders.length; ++i) {
+  gl.attachShader(prog, shaders[i]);
+    }
+
+    if (attribs) {
+        for (var i in attribs) {
+            gl.bindAttribLocation (prog, i, attribs[i]);
   }
+    }
 
-  gl.linkProgram(prog);
+    gl.linkProgram(prog);
 
-  // Check the link status
-  var linked = gl.getProgramParameter(prog, gl.LINK_STATUS);
-  if (!linked) {
-    // something went wrong with the link
-    var error = gl.getProgramInfoLog(prog);
-    webglTestLog("Error in program linking:" + error);
+    // Check the link status
+    var linked = gl.getProgramParameter(prog, gl.LINK_STATUS);
+    if (!linked) {
+        // something went wrong with the link
+        var error = gl.getProgramInfoLog(prog);
+        webglTestLog("Error in program linking:" + error);
 
-    gl.deleteProgram(prog);
-    for (i = 0; i < shaders.length; ++i)
+        gl.deleteProgram(prog);
+  for (i = 0; i < shaders.length; ++i)
       gl.deleteShader(shaders[i]);
-    return null;
-  }
+        return null;
+    }
 
-  return prog;
+    return prog;
 }
 
 //

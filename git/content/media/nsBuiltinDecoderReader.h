@@ -89,30 +89,6 @@ public:
   PRPackedBool mHasVideo;
 };
 
-#ifdef MOZ_TREMOR
-#include <ogg/os_types.h>
-typedef ogg_int32_t VorbisPCMValue;
-typedef short SoundDataValue;
-
-#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
-#define MOZ_CLIP_TO_15(x) ((x)<-32768?-32768:(x)<=32767?(x):32767)
-// Convert the output of vorbis_synthesis_pcmout to a SoundDataValue
-#define MOZ_CONVERT_VORBIS_SAMPLE(x) \
- (static_cast<SoundDataValue>(MOZ_CLIP_TO_15((x)>>9)))
-// Convert a SoundDataValue to a float for the Audio API
-#define MOZ_CONVERT_SOUND_SAMPLE(x) ((x)*(1.F/32768))
-
-#else /*MOZ_VORBIS*/
-
-typedef float VorbisPCMValue;
-typedef float SoundDataValue;
-
-#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
-#define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
-#define MOZ_CONVERT_SOUND_SAMPLE(x) (x)
-
-#endif
-
 // Holds chunk a decoded sound samples.
 class SoundData {
 public:
@@ -120,7 +96,7 @@ public:
             PRInt64 aTime,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            SoundDataValue* aData,
+            float* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(aTime),
@@ -135,7 +111,7 @@ public:
   SoundData(PRInt64 aOffset,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            SoundDataValue* aData,
+            float* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(-1),
@@ -164,7 +140,7 @@ public:
   const PRInt64 mDuration; // In ms.
   const PRUint32 mSamples;
   const PRUint32 mChannels;
-  nsAutoArrayPtr<SoundDataValue> mAudioData;
+  nsAutoArrayPtr<float> mAudioData;
 };
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
@@ -354,15 +330,6 @@ template <class T> class MediaQueue : private nsDeque {
     return GetSize() == 0 && mEndOfStream;    
   }
 
-  // Returns PR_TRUE if the media queue has had it last sample added to it.
-  // This happens when the media stream has been completely decoded. Note this
-  // does not mean that the corresponding stream has finished playback.
-  PRBool IsFinished() {
-    MonitorAutoEnter mon(mMonitor);
-    return mEndOfStream;    
-  }
-
-  // Informs the media queue that it won't be receiving any more samples.
   void Finish() {
     MonitorAutoEnter mon(mMonitor);
     mEndOfStream = PR_TRUE;    
@@ -409,7 +376,7 @@ public:
       mTimeEnd(aTimeEnd)
   {}
 
-  PRBool IsNull() const {
+  PRBool IsNull() {
     return mOffsetStart == 0 &&
            mOffsetEnd == 0 &&
            mTimeStart == 0 &&
@@ -435,7 +402,7 @@ public:
 
   // Initializes the reader, returns NS_OK on success, or NS_ERROR_FAILURE
   // on failure.
-  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor) = 0;
+  virtual nsresult Init() = 0;
 
   // Resets all state related to decoding, emptying all buffers etc.
   virtual nsresult ResetDecode();
@@ -460,9 +427,9 @@ public:
   // or NS_ERROR_FAILURE on failure.
   virtual nsresult ReadMetadata() = 0;
 
-  // Stores the presentation time of the first frame/sample we'd be
-  // able to play if we started playback at aOffset, and returns the
-  // first video sample, if we have video.
+
+  // Stores the presentation time of the first sample in the stream in
+  // aOutStartTime, and returns the first video sample, if we have video.
   virtual VideoData* FindStartTime(PRInt64 aOffset,
                                    PRInt64& aOutStartTime);
 
@@ -471,12 +438,8 @@ public:
   virtual PRInt64 FindEndTime(PRInt64 aEndOffset);
 
   // Moves the decode head to aTime milliseconds. aStartTime and aEndTime
-  // denote the start and end times of the media in ms, and aCurrentTime
-  // is the current playback position in ms.
-  virtual nsresult Seek(PRInt64 aTime,
-                        PRInt64 aStartTime,
-                        PRInt64 aEndTime,
-                        PRInt64 aCurrentTime) = 0;
+  // denote the start and end times of the media.
+  virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime) = 0;
 
   // Gets presentation info required for playback.
   const nsVideoInfo& GetInfo() {
@@ -489,22 +452,7 @@ public:
   // Queue of video samples. This queue is threadsafe.
   MediaQueue<VideoData> mVideoQueue;
 
-  // Populates aBuffered with the time ranges which are buffered. aStartTime
-  // must be the presentation time of the first sample/frame in the media, e.g.
-  // the media time corresponding to playback time/position 0. This function
-  // should only be called on the main thread.
-  virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
-                               PRInt64 aStartTime) = 0;
-
-  // Only used by nsWebMReader for now, so stub here rather than in every
-  // reader than inherits from nsBuiltinDecoderReader.
-  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
-
 protected:
-
-  // Pumps the decode until we reach frames/samples required to play at
-  // time aTarget (ms).
-  nsresult DecodeToTarget(PRInt64 aTarget);
 
   // Reader decode function. Matches DecodeVideoFrame() and
   // DecodeAudioData().

@@ -37,7 +37,9 @@ function run_test() {
 
   Services.prefs.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, "theme1/1.0");
   Services.prefs.setBoolPref(PREF_EXTENSIONS_DSS_ENABLED, true);
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("theme1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme1@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -48,9 +50,11 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("theme2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme2@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -60,11 +64,13 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   // We need a default theme for some of these things to work but we have hidden
   // the one in the application directory.
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("default@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "default@tests.mozilla.org",
     version: "1.0",
     name: "Default",
@@ -74,7 +80,7 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   startupManager();
   // Make sure we only register once despite multiple calls
@@ -90,7 +96,7 @@ function run_test() {
     do_check_false(t1.userDisabled);
     do_check_false(t1.appDisabled);
     do_check_true(t1.isActive);
-    do_check_eq(t1.screenshots, null);
+    do_check_eq(t1.screenshots.length, 0);
     do_check_true(isThemeInAddonsList(profileDir, t1.id));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
@@ -99,7 +105,7 @@ function run_test() {
     do_check_true(t2.userDisabled);
     do_check_false(t2.appDisabled);
     do_check_false(t2.isActive);
-    do_check_eq(t2.screenshots, null);
+    do_check_eq(t2.screenshots.length, 0);
     do_check_true(isThemeInAddonsList(profileDir, t2.id));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
@@ -171,7 +177,7 @@ function check_test_1() {
 // case since we don't have the default theme installed)
 function run_test_2() {
   var dest = profileDir.clone();
-  dest.append(do_get_expected_addon_name("theme2@tests.mozilla.org"));
+  dest.append("theme2@tests.mozilla.org");
   dest.remove(true);
 
   restartManager();
@@ -197,7 +203,9 @@ function run_test_2() {
 
 // Installing a lightweight theme should happen instantly and disable the default theme
 function run_test_3() {
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("theme2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme2@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -207,7 +215,7 @@ function run_test_3() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
   restartManager();
 
   prepare_test({
@@ -615,8 +623,7 @@ function run_test_10() {
 
       prepare_test({
         "theme2@tests.mozilla.org": [
-          ["onUninstalling", false],
-          "onUninstalled"
+          "onUninstalling",
         ],
         "default@tests.mozilla.org": [
           ["onEnabling", false],
@@ -653,8 +660,7 @@ function run_test_11() {
 
     prepare_test({
       "theme1@tests.mozilla.org": [
-        ["onInstalling", false],
-        "onInstalled"
+        "onInstalling"
       ]
     }, [
       "onInstallStarted",
@@ -668,9 +674,11 @@ function check_test_11() {
   restartManager();
   AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
     do_check_neq(t1, null);
-    var previewSpec = do_get_addon_root_uri(profileDir, "theme1@tests.mozilla.org") + "preview.png";
+    var preview = profileDir.clone();
+    preview.append("theme1@tests.mozilla.org");
+    preview.append("preview.png");
     do_check_eq(t1.screenshots.length, 1);
-    do_check_eq(t1.screenshots[0], previewSpec);
+    do_check_eq(t1.screenshots[0], NetUtil.newURI(preview).spec);
     do_check_false(gLWThemeChanged);
 
     run_test_12();
@@ -694,8 +702,7 @@ function run_test_12() {
 
     prepare_test({
       "theme1@tests.mozilla.org": [
-        ["onInstalling", false],
-        "onInstalled"
+        "onInstalling"
       ]
     }, [
       "onInstallStarted",

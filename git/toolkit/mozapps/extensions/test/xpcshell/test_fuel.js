@@ -70,7 +70,9 @@ function run_test() {
   const profileDir = gProfD.clone();
   profileDir.append("extensions");
 
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("addon1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
     name: "Test Addon",
@@ -79,7 +81,7 @@ function run_test() {
       minVersion: "1",
       maxVersion: "1"
     }],
-  }, profileDir);
+  }, dest);
 
   startupManager();
 

@@ -1,10 +1,10 @@
 /*
- *  Copyright (c) 2010 The WebM project authors. All Rights Reserved.
+ *  Copyright (c) 2010 The VP8 project authors. All Rights Reserved.
  *
- *  Use of this source code is governed by a BSD-style license
+ *  Use of this source code is governed by a BSD-style license 
  *  that can be found in the LICENSE file in the root of the source
  *  tree. An additional intellectual property rights grant can be found
- *  in the file PATENTS.  All contributing project authors may
+ *  in the file PATENTS.  All contributing project authors may 
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
@@ -12,7 +12,7 @@
 #ifndef VPX_TIMER_H
 #define VPX_TIMER_H
 
-#if defined(_WIN32)
+#if defined(_MSC_VER)
 /*
  * Win32 specific includes
  */
@@ -43,7 +43,7 @@
 
 struct vpx_usec_timer
 {
-#if defined(_WIN32)
+#if defined(_MSC_VER)
     LARGE_INTEGER  begin, end;
 #else
     struct timeval begin, end;
@@ -51,10 +51,10 @@ struct vpx_usec_timer
 };
 
 
-static void
+static INLINE void
 vpx_usec_timer_start(struct vpx_usec_timer *t)
 {
-#if defined(_WIN32)
+#if defined(_MSC_VER)
     QueryPerformanceCounter(&t->begin);
 #else
     gettimeofday(&t->begin, NULL);
@@ -62,10 +62,10 @@ vpx_usec_timer_start(struct vpx_usec_timer *t)
 }
 
 
-static void
+static INLINE void
 vpx_usec_timer_mark(struct vpx_usec_timer *t)
 {
-#if defined(_WIN32)
+#if defined(_MSC_VER)
     QueryPerformanceCounter(&t->end);
 #else
     gettimeofday(&t->end, NULL);
@@ -73,10 +73,10 @@ vpx_usec_timer_mark(struct vpx_usec_timer *t)
 }
 
 
-static long
+static INLINE long
 vpx_usec_timer_elapsed(struct vpx_usec_timer *t)
 {
-#if defined(_WIN32)
+#if defined(_MSC_VER)
     LARGE_INTEGER freq, diff;
 
     diff.QuadPart = t->end.QuadPart - t->begin.QuadPart;

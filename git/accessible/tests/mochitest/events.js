@@ -1,24 +1,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
-const EVENT_ALERT = nsIAccessibleEvent.EVENT_ALERT;
 const EVENT_DOCUMENT_LOAD_COMPLETE = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
 const EVENT_DOCUMENT_RELOAD = nsIAccessibleEvent.EVENT_DOCUMENT_RELOAD;
 const EVENT_DOCUMENT_LOAD_STOPPED = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_STOPPED;
 const EVENT_HIDE = nsIAccessibleEvent.EVENT_HIDE;
 const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
-const EVENT_MENU_START = nsIAccessibleEvent.EVENT_MENU_START;
-const EVENT_MENU_END = nsIAccessibleEvent.EVENT_MENU_END;
-const EVENT_MENUPOPUP_START = nsIAccessibleEvent.EVENT_MENUPOPUP_START;
-const EVENT_MENUPOPUP_END = nsIAccessibleEvent.EVENT_MENUPOPUP_END;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
 const EVENT_SELECTION_ADD = nsIAccessibleEvent.EVENT_SELECTION_ADD;
 const EVENT_SELECTION_WITHIN = nsIAccessibleEvent.EVENT_SELECTION_WITHIN;
 const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
 const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
-const EVENT_TEXT_ATTRIBUTE_CHANGED = nsIAccessibleEvent.EVENT_TEXT_ATTRIBUTE_CHANGED;
 const EVENT_TEXT_CARET_MOVED = nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
 const EVENT_TEXT_INSERTED = nsIAccessibleEvent.EVENT_TEXT_INSERTED;
 const EVENT_TEXT_REMOVED = nsIAccessibleEvent.EVENT_TEXT_REMOVED;
@@ -36,11 +30,6 @@ var gA11yEventDumpID = "";
  * Set up this variable to dump event processing into console.
  */
 var gA11yEventDumpToConsole = false;
-
-/**
- * Set up this variable to dump event processing into error console.
- */
-var gA11yEventDumpToAppConsole = false;
 
 /**
  * Executes the function when requested event is handled.
@@ -277,12 +266,10 @@ function eventQueue(aEventType)
     // Start processing of next invoker.
     invoker = this.getNextInvoker();
 
-    if (gLogger.isEnabled()) {
-      gLogger.logToConsole("Event queue: \n  invoke: " + invoker.getID());
-      gLogger.logToDOM("EQ: invoke: " + invoker.getID(), true);
-    }
-
     this.setEventHandler(invoker);
+
+    if (gA11yEventDumpToConsole)
+      dump("\nEvent queue: \n  invoke: " + invoker.getID() + "\n");
 
     if (invoker.invoke() == INVOKER_ACTION_FAILED) {
       // Invoker failed to prepare action, fail and finish tests.
@@ -328,48 +315,37 @@ function eventQueue(aEventType)
       invoker.debugCheck(aEvent);
 
     // Search through unexpected events to ensure no one of them was handled.
-    var idx = 0;
-    for (; idx < this.mEventSeq.length; idx++) {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
       if (this.mEventSeq[idx].unexpected && this.compareEvents(idx, aEvent))
         invoker.wasCaught[idx] = true;
     }
 
-    // We've handled all expected events, next invoker processing is pending.
-    if (this.mEventSeqIdx == this.mEventSeq.length)
-      return;
+    // Wait for next expected event in an order specified by event sequence.
 
     // Compute next expected event index.
-    for (idx = this.mEventSeqIdx + 1;
-         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected;
-         idx++);
+    for (var idx = this.mEventSeqIdx + 1;
+         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected; idx++);
 
-    // No expected events were registered, proceed to next invoker to ensure
-    // unexpected events for current invoker won't be handled.
     if (idx == this.mEventSeq.length) {
-      this.mEventSeqIdx = idx;
+      // There is no expected events in the sequence.
       this.processNextInvokerInTimeout();
       return;
     }
 
-    // Check if handled event matches expected event.
     var matched = this.compareEvents(idx, aEvent);
     this.dumpEventToDOM(aEvent, idx, matched);
 
     if (matched) {
       this.checkEvent(idx, aEvent);
       invoker.wasCaught[idx] = true;
-      this.mEventSeqIdx = idx;
 
-      // Get next expected event index.
-      while (++idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected);
-
-      // If the last expected event was processed, proceed next invoker in
-      // timeout to ensure unexpected events for current invoker won't be
-      // handled.
-      if (idx == this.mEventSeq.length) {
-        this.mEventSeqIdx = idx;
+      // The last event is expected and was handled, proceed next invoker.
+      if (idx == this.mEventSeq.length - 1) {
         this.processNextInvokerInTimeout();
+        return;
       }
+
+      this.mEventSeqIdx = idx;
     }
   }
 
@@ -411,22 +387,6 @@ function eventQueue(aEventType)
 
       for (var idx = 0; idx < this.mEventSeq.length; idx++) {
         var eventType = this.getEventType(idx);
-
-        if (gLogger.isEnabled()) {
-          var strEventType = (typeof eventType == "string") ? eventType :
-            eventTypeToString(eventType);
-
-          var msg = "registered";
-          if (this.isEventUnexpected(idx))
-            msg += " unexpected";
-
-          msg += ": event type: " + strEventType + ", target: " +
-            prettyName(this.getEventTarget(idx));
-
-          gLogger.logToConsole(msg);
-          gLogger.logToDOM(msg, true);
-        }
-
         if (typeof eventType == "string") {
           // DOM event
           var target = this.getEventTarget(idx);
@@ -491,11 +451,6 @@ function eventQueue(aEventType)
     return invoker.getID();
   }
 
-  this.isEventUnexpected = function eventQueue_isEventUnexpected(aIdx)
-  {
-    return this.mEventSeq[aIdx].unexpected;
-  }
-
   this.compareEvents = function eventQueue_compareEvents(aIdx, aEvent)
   {
     var eventType1 = this.getEventType(aIdx);
@@ -556,7 +511,7 @@ function eventQueue(aEventType)
                                                            aExpectedEventIdx,
                                                            aMatch)
   {
-    if (!gLogger.isEnabled()) // debug stuff
+    if (!gA11yEventDumpID) // debug stuff
       return;
 
     // Dump DOM event information. Skip a11y event since it is dumped by
@@ -564,31 +519,44 @@ function eventQueue(aEventType)
     if (aOrigEvent instanceof nsIDOMEvent) {
       var info = "Event type: " + aOrigEvent.type;
       info += ". Target: " + prettyName(aOrigEvent.originalTarget);
-      gLogger.logToDOM(info);
+      dumpInfoToDOM(info);
     }
 
     var currType = this.getEventType(aExpectedEventIdx);
     var currTarget = this.getEventTarget(aExpectedEventIdx);
 
-    var msg = "EQ: ";
-    var emphText = "";
+    var containerTagName = document instanceof nsIDOMHTMLDocument ?
+      "div" : "description";
+    var inlineTagName = document instanceof nsIDOMHTMLDocument ?
+      "span" : "description";
+
+    var container = document.createElement(containerTagName);
+    container.setAttribute("style", "padding-left: 10px;");
+
+    var text1 = document.createTextNode("EQ: ");
+    container.appendChild(text1);
+
+    var styledNode = document.createElement(inlineTagName);
     if (aMatch) {
-      emphText = "matched ";
+      styledNode.setAttribute("style", "color: blue;");
+      styledNode.textContent = "matched";
 
-      var consoleMsg =
-        "*****\nEQ matched: " + eventTypeToString(currType) + "\n*****";
-      gLogger.logToConsole(consoleMsg);
-
+      // Dump matched events into console.
+      dump("\n*****\nEQ matched: " + eventTypeToString(currType) + "\n*****\n");
     } else {
-      msg += "expected";
+      styledNode.textContent = "expected";
     }
+    container.appendChild(styledNode);
 
-    msg += " event, type: ";
-    msg += (typeof currType == "string") ?
+    var info = " event, type: ";
+    info += (typeof currType == "string") ?
       currType : eventTypeToString(currType);
-    msg += ", target: " + prettyName(currTarget);
+    info += ". Target: " + prettyName(currTarget);
 
-    gLogger.logToDOM(msg, true, emphText);
+    var text1 = document.createTextNode(info);
+    container.appendChild(text1);
+
+    dumpInfoToDOM(container);
   }
 
   this.mDefEventType = aEventType;
@@ -655,12 +623,11 @@ function sequence()
 // Event queue invokers
 
 /**
- * Invokers defined below take a checker object (or array of checker objects)
- * implementing 'check' method which will be called when proper event is
- * handled. Invokers listen default event type registered in event queue object
- * until it is passed explicetly.
+ * Invokers defined below take a checker object implementing 'check' method
+ * which will be called when proper event is handled. Invokers listen default
+ * event type registered in event queue object until it is passed explicetly.
  *
- * Note, checker object or array of checker objects is optional.
+ * Note, checker object is optional.
  * Note, you don't need to initialize 'target' and 'type' members of checker
  * object. The 'target' member will be initialized by invoker object and you are
  * free to use it in 'check' method.
@@ -669,9 +636,9 @@ function sequence()
 /**
  * Click invoker.
  */
-function synthClick(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthClick(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
 
   this.invoke = function synthClick_invoke()
   {
@@ -691,9 +658,9 @@ function synthClick(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Mouse move invoker.
  */
-function synthMouseMove(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthMouseMove(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
 
   this.invoke = function synthMouseMove_invoke()
   {
@@ -710,9 +677,9 @@ function synthMouseMove(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * General key press invoker.
  */
-function synthKey(aNodeOrID, aKey, aArgs, aCheckerOrEventSeq, aEventType)
+function synthKey(aNodeOrID, aKey, aArgs, aChecker, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
 
   this.invoke = function synthKey_invoke()
   {
@@ -731,10 +698,10 @@ function synthKey(aNodeOrID, aKey, aArgs, aCheckerOrEventSeq, aEventType)
 /**
  * Tab key invoker.
  */
-function synthTab(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthTab(aNodeOrID, aChecker, aEventType)
 {
   this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: false },
-                                aCheckerOrEventSeq, aEventType);
+                                aChecker, aEventType);
 
   this.getID = function synthTab_getID() 
   { 
@@ -745,10 +712,10 @@ function synthTab(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Shift tab key invoker.
  */
-function synthShiftTab(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthShiftTab(aNodeOrID, aChecker, aEventType)
 {
   this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: true },
-                                aCheckerOrEventSeq, aEventType);
+                                aChecker, aEventType);
 
   this.getID = function synthTabTest_getID() 
   { 
@@ -759,9 +726,9 @@ function synthShiftTab(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Down arrow key invoker.
  */
-function synthDownKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthDownKey(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", null, aCheckerOrEventSeq,
+  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", null, aChecker,
                                 aEventType);
 
   this.getID = function synthDownKey_getID()
@@ -773,9 +740,9 @@ function synthDownKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Right arrow key invoker.
  */
-function synthRightKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthRightKey(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aCheckerOrEventSeq,
+  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aChecker,
                                 aEventType);
 
   this.getID = function synthRightKey_getID()
@@ -787,9 +754,9 @@ function synthRightKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Home key invoker.
  */
-function synthHomeKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthHomeKey(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_HOME", null, aCheckerOrEventSeq,
+  this.__proto__ = new synthKey(aNodeOrID, "VK_HOME", null, aChecker,
                                 aEventType);
   
   this.getID = function synthHomeKey_getID()
@@ -801,9 +768,9 @@ function synthHomeKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Focus invoker.
  */
-function synthFocus(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthFocus(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
 
   this.invoke = function synthFocus_invoke()
   {
@@ -819,10 +786,10 @@ function synthFocus(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Focus invoker. Focus the HTML body of content document of iframe.
  */
-function synthFocusOnFrame(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthFocusOnFrame(aNodeOrID, aChecker, aEventType)
 {
   this.__proto__ = new synthAction(getNode(aNodeOrID).contentDocument,
-                                   aCheckerOrEventSeq, aEventType);
+                                   aChecker, aEventType);
   
   this.invoke = function synthFocus_invoke()
   {
@@ -838,9 +805,9 @@ function synthFocusOnFrame(aNodeOrID, aCheckerOrEventSeq, aEventType)
 /**
  * Select all invoker.
  */
-function synthSelectAll(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthSelectAll(aNodeOrID, aChecker, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
 
   this.invoke = function synthSelectAll_invoke()
   {
@@ -927,20 +894,17 @@ var gA11yEventObserver =
     var listenersArray = gA11yEventListeners[event.eventType];
 
     var eventFromDumpArea = false;
-    if (gLogger.isEnabled()) { // debug stuff
+    if (gA11yEventDumpID) { // debug stuff
       eventFromDumpArea = true;
 
       var target = event.DOMNode;
-      var dumpElm = gA11yEventDumpID ?
-        document.getElementById(gA11yEventDumpID) : null;
+      var dumpElm = document.getElementById(gA11yEventDumpID);
 
-      if (dumpElm) {
-        var parent = target;
-        while (parent && parent != dumpElm)
-          parent = parent.parentNode;
-      }
+      var parent = target;
+      while (parent && parent != dumpElm)
+        parent = parent.parentNode;
 
-      if (!dumpElm || parent != dumpElm) {
+      if (parent != dumpElm) {
         var type = eventTypeToString(event.eventType);
         var info = "Event type: " + type;
 
@@ -956,7 +920,7 @@ var gA11yEventObserver =
           info += ". Listeners count: " + listenersArray.length;
 
         eventFromDumpArea = false;
-        gLogger.log(info);
+        dumpInfoToDOM(info);
       }
     }
 
@@ -1014,93 +978,35 @@ function removeA11yEventListener(aEventType, aEventHandler)
 }
 
 /**
- * Used to dump debug information.
+ * Dumps message to DOM.
+ *
+ * @param aInfo      [in] the message or DOM node to dump
+ * @param aDumpNode  [in, optional] host DOM node for dumped message, if ommited
+ *                    then global variable gA11yEventDumpID is used
  */
-var gLogger =
+function dumpInfoToDOM(aInfo, aDumpNode)
 {
-  /**
-   * Return true if dump is enabled.
-   */
-  isEnabled: function debugOutput_isEnabled()
-  {
-    return gA11yEventDumpID || gA11yEventDumpToConsole ||
-      gA11yEventDumpToAppConsole;
-  },
+  var dumpID = gA11yEventDumpID ? gA11yEventDumpID : aDumpNode;
+  if (!dumpID)
+    return;
+  
+  var dumpElm = document.getElementById(dumpID);
+  if (!dumpElm) {
+    ok(false, "No dump element '" + dumpID + "' within the document!");
+    return;
+  }
+  
+  var containerTagName = document instanceof nsIDOMHTMLDocument ?
+    "div" : "description";
 
-  /**
-   * Dump information into DOM and console if applicable.
-   */
-  log: function logger_log(aMsg)
-  {
-    this.logToConsole(aMsg);
-    this.logToAppConsole(aMsg);
-    this.logToDOM(aMsg);
-  },
+  var container = document.createElement(containerTagName);
+  if (aInfo instanceof nsIDOMNode)
+    container.appendChild(aInfo);
+  else
+    container.textContent = aInfo;
 
-  /**
-   * Log message to DOM.
-   *
-   * @param aMsg          [in] the primary message
-   * @param aHasIndent    [in, optional] if specified the message has an indent
-   * @param aPreEmphText  [in, optional] the text is colored and appended prior
-   *                        primary message
-   */
-  logToDOM: function logger_logToDOM(aMsg, aHasIndent, aPreEmphText)
-  {
-    if (gA11yEventDumpID == "")
-      return;
-
-    var dumpElm = document.getElementById(gA11yEventDumpID);
-    if (!dumpElm) {
-      ok(false,
-         "No dump element '" + gA11yEventDumpID + "' within the document!");
-      return;
-    }
-
-    var containerTagName = document instanceof nsIDOMHTMLDocument ?
-      "div" : "description";
-
-    var container = document.createElement(containerTagName);
-    if (aHasIndent)
-      container.setAttribute("style", "padding-left: 10px;");
-
-    if (aPreEmphText) {
-      var inlineTagName = document instanceof nsIDOMHTMLDocument ?
-        "span" : "description";
-      var emphElm = document.createElement(inlineTagName);
-      emphElm.setAttribute("style", "color: blue;");
-      emphElm.textContent = aPreEmphText;
-
-      container.appendChild(emphElm);
-    }
-
-    var textNode = document.createTextNode(aMsg);
-    container.appendChild(textNode);
-
-    dumpElm.appendChild(container);
-  },
-
-  /**
-   * Log message to console.
-   */
-  logToConsole: function logger_logToConsole(aMsg)
-  {
-    if (gA11yEventDumpToConsole)
-      dump("\n" + aMsg + "\n");
-  },
-
-  /**
-   * Log message to error console.
-   */
-  logToAppConsole: function logger_logToAppConsole(aMsg)
-  {
-    if (gA11yEventDumpToAppConsole)
-      consoleService.logStringMessage("events: " + aMsg);
-  },
-
-  consoleService: Components.classes["@mozilla.org/consoleservice;1"].
-    getService(Components.interfaces.nsIConsoleService)
-};
+  dumpElm.appendChild(container);
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1147,27 +1053,19 @@ function sequenceItem(aProcessor, aEventType, aTarget, aItemID)
 /**
  * Invoker base class for prepare an action.
  */
-function synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType)
+function synthAction(aNodeOrID, aChecker, aEventType)
 {
   this.DOMNode = getNode(aNodeOrID);
-
-  this.checker = null;
-  if (aCheckerOrEventSeq) {
-    if (aCheckerOrEventSeq instanceof Array) {
-      this.eventSeq = aCheckerOrEventSeq;
-    } else {
-      this.checker = aCheckerOrEventSeq;
-      this.checker.target = this.DOMNode;
-    }
-  }
+  if (aChecker)
+    aChecker.target = this.DOMNode;
 
   if (aEventType)
     this.eventSeq = [ new invokerChecker(aEventType, this.DOMNode) ];
 
   this.check = function synthAction_check(aEvent)
   {
-    if (this.checker)
-      this.checker.check(aEvent);
+    if (aChecker)
+      aChecker.check(aEvent);
   }
 
   this.getID = function synthAction_getID() { return aNodeOrID + " action"; }

@@ -65,7 +65,6 @@
 #include "nsThreadUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsMathUtils.h"
-#include "mozIStorageCompletionCallback.h"
 
 #include "nsNavBookmarks.h"
 #include "nsAnnotationService.h"
@@ -183,8 +182,7 @@ static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 #endif
 #define TOPIC_IDLE_DAILY "idle-daily"
 #define TOPIC_PREF_CHANGED "nsPref:changed"
-#define TOPIC_PROFILE_TEARDOWN "profile-change-teardown"
-#define TOPIC_PROFILE_CHANGE "profile-before-change"
+#define TOPIC_GLOBAL_SHUTDOWN "profile-before-change"
 
 NS_IMPL_THREADSAFE_ADDREF(nsNavHistory)
 NS_IMPL_THREADSAFE_RELEASE(nsNavHistory)
@@ -223,37 +221,6 @@ static PRInt64 GetSimpleBookmarksQueryFolder(
     nsNavHistoryQueryOptions* aOptions);
 static void ParseSearchTermsFromQueries(const nsCOMArray<nsNavHistoryQuery>& aQueries,
                                         nsTArray<nsTArray<nsString>*>* aTerms);
-
-class VacuumDBListener : public AsyncStatementCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  VacuumDBListener(nsIPrefBranch* aBranch)
-    : mPrefBranch(aBranch)
-  {
-  }
-
-  NS_IMETHOD HandleResult(mozIStorageResultSet*)
-  {
-    // 'PRAGMA journal_mode' statements always return a result.  Ignore it.
-    return NS_OK;
-  }
-
-  NS_IMETHOD HandleCompletion(PRUint16 aReason)
-  {
-    if (aReason == REASON_FINISHED && mPrefBranch) {
-      (void)mPrefBranch->SetIntPref(PREF_LAST_VACUUM,
-                                    (PRInt32)(PR_Now() / PR_USEC_PER_SEC));
-    }
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIPrefBranch> mPrefBranch;
-};
-
-NS_IMPL_ISUPPORTS1(VacuumDBListener, mozIStorageStatementCallback)
 
 } // anonymous namespace
 
@@ -343,61 +310,23 @@ protected:
   nsNavHistory& mNavHistory;
 };
 
-
-class PlacesEvent : public nsRunnable
-                  , public mozIStorageCompletionCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  PlacesEvent(const char* aTopic)
-    : mTopic(aTopic)
-    , mDoubleEnqueue(false)
-  {
+class PlacesEvent : public nsRunnable {
+  public:
+  PlacesEvent(const char* aTopic) {
+    mTopic = aTopic;
   }
 
-  PlacesEvent(const char* aTopic,
-              bool aDoubleEnqueue)
-    : mTopic(aTopic)
-    , mDoubleEnqueue(aDoubleEnqueue)
-  {
-  }
+  NS_IMETHOD Run() {
+    nsCOMPtr<nsIObserverService> observerService =
+      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+    if (observerService)
+      (void)observerService->NotifyObservers(nsnull, mTopic, nsnull);
 
-  NS_IMETHODIMP Run()
-  {
-    Notify();
     return NS_OK;
   }
-
-  NS_IMETHODIMP Complete()
-  {
-    Notify();
-    return NS_OK;
-  }
-
-protected:
-  void Notify()
-  {
-    if (mDoubleEnqueue) {
-      mDoubleEnqueue = false;
-      (void)NS_DispatchToMainThread(this);
-    }
-    else {
-      nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-      if (obs)
-        (void)obs->NotifyObservers(nsnull, mTopic, nsnull);
-    }
-  }
-
+  protected:
   const char* mTopic;
-  bool mDoubleEnqueue;
 };
-
-NS_IMPL_ISUPPORTS2(
-  PlacesEvent
-, mozIStorageCompletionCallback
-, nsIRunnable
-)
 
 } // anonymouse namespace
 
@@ -523,8 +452,7 @@ nsNavHistory::Init()
   nsCOMPtr<nsIObserverService> obsSvc =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
   if (obsSvc) {
-    (void)obsSvc->AddObserver(this, TOPIC_PROFILE_TEARDOWN, PR_FALSE);
-    (void)obsSvc->AddObserver(this, TOPIC_PROFILE_CHANGE, PR_FALSE);
+    (void)obsSvc->AddObserver(this, TOPIC_GLOBAL_SHUTDOWN, PR_FALSE);
     (void)obsSvc->AddObserver(this, TOPIC_IDLE_DAILY, PR_FALSE);
     (void)obsSvc->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
 #ifdef MOZ_XUL
@@ -739,9 +667,6 @@ nsNavHistory::InitDB()
   // We are going to initialize tables, so everything from now on should be in
   // a transaction for performances.
   mozStorageTransaction transaction(mDBConn, PR_FALSE);
-
-  // Grow places in 10MB increments
-  mDBConn->SetGrowthIncrement(10 * 1024 * 1024, EmptyCString());
 
   // Initialize the other Places services' database tables before creating our
   // statements. Some of our statements depend on these external tables, such as
@@ -1283,10 +1208,10 @@ nsNavHistory::InitStatements()
 
   // mDBRegisterOpenPage
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "INSERT OR REPLACE INTO moz_openpages_temp (url, open_count) "
-      "VALUES (:page_url, "
+      "INSERT OR REPLACE INTO moz_openpages_temp (place_id, open_count) "
+      "VALUES (:page_id, "
         "IFNULL("
-          "(SELECT open_count + 1 FROM moz_openpages_temp WHERE url = :page_url), "
+          "(SELECT open_count + 1 FROM moz_openpages_temp WHERE place_id = :page_id), "
           "1"
         ")"
       ")"),
@@ -1297,7 +1222,7 @@ nsNavHistory::InitStatements()
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "UPDATE moz_openpages_temp "
       "SET open_count = open_count - 1 "
-      "WHERE url = :page_url"),
+      "WHERE place_id = :page_id"),
     getter_AddRefs(mDBUnregisterOpenPage));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3033,14 +2958,14 @@ nsNavHistory::ExecuteQueries(nsINavHistoryQuery** aQueries, PRUint32 aQueryCount
     queries.AppendObject(query);
   }
 
-  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
   // root node
   nsRefPtr<nsNavHistoryContainerResultNode> rootNode;
   PRInt64 folderId = GetSimpleBookmarksQueryFolder(queries, options);
   if (folderId) {
     // In the simple case where we're just querying children of a single bookmark
     // folder, we can more efficiently generate results.
+    nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
+    NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
     nsRefPtr<nsNavHistoryResultNode> tempRootNode;
     rv = bookmarks->ResultNodeForContainer(folderId, options,
                                            getter_AddRefs(tempRootNode));
@@ -3053,10 +2978,9 @@ nsNavHistory::ExecuteQueries(nsINavHistoryQuery** aQueries, PRUint32 aQueryCount
     NS_ENSURE_TRUE(rootNode, NS_ERROR_OUT_OF_MEMORY);
   }
 
-  // Create the result that will hold nodes.  Inject batching status into it.
+  // result object
   nsRefPtr<nsNavHistoryResult> result;
-  rv = nsNavHistoryResult::NewHistoryResult(aQueries, aQueryCount, options,
-                                            rootNode, isBatching(),
+  rv = nsNavHistoryResult::NewHistoryResult(aQueries, aQueryCount, options, rootNode,
                                             getter_AddRefs(result));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -4341,7 +4265,6 @@ nsNavHistory::GetQueryResults(nsNavHistoryQueryResultNode *aResultNode,
   return NS_OK;
 }
 
-
 // nsNavHistory::AddObserver
 
 NS_IMETHODIMP
@@ -5135,10 +5058,24 @@ nsNavHistory::RegisterOpenPage(nsIURI* aURI)
   if (InPrivateBrowsingMode())
     return NS_OK;
 
-  mozStorageStatementScoper scoper(mDBRegisterOpenPage);
-  nsresult rv = URIBinder::Bind(mDBRegisterOpenPage,
-                                NS_LITERAL_CSTRING("page_url"), aURI);
+  PRBool canAdd = PR_FALSE;
+  nsresult rv = CanAddURI(aURI, &canAdd);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  PRInt64 placeId;
+  // Note: If the URI has never been added to history (but can be added),
+  // this could add an orphan page, until the visit is added.
+  rv = GetUrlIdFor(aURI, &placeId, canAdd);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (placeId == 0)
+    return NS_OK;
+
+  mozStorageStatementScoper scoper(mDBRegisterOpenPage);
+
+  rv = mDBRegisterOpenPage->BindInt64ByName(NS_LITERAL_CSTRING("page_id"),
+                                            placeId);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   rv = mDBRegisterOpenPage->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5158,10 +5095,18 @@ nsNavHistory::UnregisterOpenPage(nsIURI* aURI)
   if (InPrivateBrowsingMode())
     return NS_OK;
 
-  mozStorageStatementScoper scoper(mDBUnregisterOpenPage);
-  nsresult rv = URIBinder::Bind(mDBUnregisterOpenPage,
-                                NS_LITERAL_CSTRING("page_url"), aURI);
+  PRInt64 placeId;
+  nsresult rv = GetUrlIdFor(aURI, &placeId, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (placeId == 0)
+    return NS_OK;
+
+  mozStorageStatementScoper scoper(mDBUnregisterOpenPage);
+
+  rv = mDBUnregisterOpenPage->BindInt64ByName(NS_LITERAL_CSTRING("page_id"),
+                                              placeId);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   rv = mDBUnregisterOpenPage->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5691,72 +5636,6 @@ nsNavHistory::FinalizeInternalStatements()
   return NS_OK;
 }
 
-
-NS_IMETHODIMP
-nsNavHistory::AsyncExecuteLegacyQueries(nsINavHistoryQuery** aQueries,
-                                        PRUint32 aQueryCount,
-                                        nsINavHistoryQueryOptions* aOptions,
-                                        mozIStorageStatementCallback* aCallback,
-                                        mozIStoragePendingStatement** _stmt)
-{
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-  NS_ENSURE_ARG(aQueries);
-  NS_ENSURE_ARG(aOptions);
-  NS_ENSURE_ARG(aCallback);
-  NS_ENSURE_ARG_POINTER(_stmt);
-
-  nsCOMArray<nsNavHistoryQuery> queries;
-  for (PRUint32 i = 0; i < aQueryCount; i ++) {
-    nsCOMPtr<nsNavHistoryQuery> query = do_QueryInterface(aQueries[i]);
-    NS_ENSURE_STATE(query);
-    queries.AppendObject(query);
-  }
-  NS_ENSURE_ARG_MIN(queries.Count(), 1);
-
-  nsCOMPtr<nsNavHistoryQueryOptions> options = do_QueryInterface(aOptions);
-  NS_ENSURE_ARG(options);
-
-  nsCString queryString;
-  PRBool paramsPresent = PR_FALSE;
-  nsNavHistory::StringHash addParams;
-  addParams.Init(HISTORY_DATE_CONT_MAX);
-  nsresult rv = ConstructQueryString(queries, options, queryString,
-                                     paramsPresent, addParams);
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  nsCOMPtr<mozIStorageStatement> statement;
-  rv = mDBConn->CreateStatement(queryString, getter_AddRefs(statement));
-#ifdef DEBUG
-  if (NS_FAILED(rv)) {
-    nsCAutoString lastErrorString;
-    (void)mDBConn->GetLastErrorString(lastErrorString);
-    PRInt32 lastError = 0;
-    (void)mDBConn->GetLastError(&lastError);
-    printf("Places failed to create a statement from this query:\n%s\nStorage error (%d): %s\n",
-           PromiseFlatCString(queryString).get(),
-           lastError,
-           PromiseFlatCString(lastErrorString).get());
-  }
-#endif
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (paramsPresent) {
-    // bind parameters
-    PRInt32 i;
-    for (i = 0; i < queries.Count(); i++) {
-      rv = BindQueryClauseParameters(statement, i, queries[i], options);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-  addParams.EnumerateRead(BindAdditionalParameter, statement.get());
-
-  rv = statement->ExecuteAsync(aCallback, _stmt);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-
 // nsPIPlacesHistoryListenersNotifier ******************************************
 
 NS_IMETHODIMP
@@ -5788,73 +5667,66 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
-  if (strcmp(aTopic, TOPIC_PROFILE_TEARDOWN) == 0) {
+  if (strcmp(aTopic, TOPIC_GLOBAL_SHUTDOWN) == 0) {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     if (!os) {
       NS_WARNING("Unable to shutdown Places: Observer Service unavailable.");
       return NS_OK;
     }
 
-    (void)os->RemoveObserver(this, TOPIC_PROFILE_TEARDOWN);
+    (void)os->RemoveObserver(this, TOPIC_GLOBAL_SHUTDOWN);
     (void)os->RemoveObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC);
     (void)os->RemoveObserver(this, TOPIC_IDLE_DAILY);
 #ifdef MOZ_XUL
     (void)os->RemoveObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING);
 #endif
 
-    // If shutdown happens in the same scope as the service init, we should
-    // immediately notify the places-init topic.  Otherwise, since it's an
-    // enqueued notification and the event loop won't spin, it could be notified
-    // after xpcom-shutdown, when the connection does not exist anymore.
-    nsCOMPtr<nsISimpleEnumerator> e;
-    nsresult rv = os->EnumerateObservers(TOPIC_PLACES_INIT_COMPLETE,
-                                         getter_AddRefs(e));
-    if (NS_SUCCEEDED(rv) && e) {
-      nsCOMPtr<nsIObserver> observer;
-      PRBool loop = PR_TRUE;
-      while(NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop) {
-        e->GetNext(getter_AddRefs(observer));
-        (void)observer->Observe(observer, TOPIC_PLACES_INIT_COMPLETE, nsnull);
-      }
-    }
+    // Notify all Places users that we are about to shutdown.  The notification
+    // is enqueued because there is network work on profile-before-change that
+    // should run before us.
+    nsRefPtr<PlacesEvent> shutdownEvent =
+      new PlacesEvent(TOPIC_PLACES_SHUTDOWN);
+    nsresult rv = NS_DispatchToMainThread(shutdownEvent);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
+                     "Unable to shutdown Places: message dispatch failed.");
 
-    // Notify all Places users that we are about to shutdown.
-    (void)os->NotifyObservers(nsnull, TOPIC_PLACES_SHUTDOWN, nsnull);
+    // Once everybody has been notified, proceed with the real shutdown.
+    (void)os->AddObserver(this, TOPIC_PLACES_TEARDOWN, PR_FALSE);
+    nsRefPtr<PlacesEvent> teardownEvent =
+      new PlacesEvent(TOPIC_PLACES_TEARDOWN);
+    rv = NS_DispatchToMainThread(teardownEvent);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
+                     "Unable to shutdown Places: message dispatch failed.");
   }
 
-  else if (strcmp(aTopic, TOPIC_PROFILE_CHANGE) == 0) {
-    // Fire internal shutdown notifications.
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    if (os) {
-      (void)os->RemoveObserver(this, TOPIC_PROFILE_CHANGE);
-      // Double notification allows to correctly enqueue tasks without the need
-      // to enqueue notification events to the main-thread.  There is no
-      // guarantee that the event loop will spin before xpcom-shutdown indeed,
-      // see bug 580892.
-      (void)os->NotifyObservers(nsnull, TOPIC_PLACES_WILL_CLOSE_CONNECTION, nsnull);
-      (void)os->NotifyObservers(nsnull, TOPIC_PLACES_CONNECTION_CLOSING, nsnull);
-    }
+  else if (strcmp(aTopic, TOPIC_PLACES_TEARDOWN) == 0) {
+    // Don't even try to notify observers from this point on, the category
+    // cache would init services that could not shutdown correctly or try to
+    // use our APIs.
+    mCanNotify = false;
 
     // Operations that are unlikely to create issues to implementers should go
-    // in profile teardown.  Any other thing that must run really late should be
+    // in global shutdown.  Any other thing that must run really late must be
     // here instead.
-
-    // Don't even try to notify observers from this point on, the category
-    // cache would init services that could try to use our APIs.
-    mCanNotify = false;
+    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    if (os)
+      (void)os->RemoveObserver(this, TOPIC_PLACES_TEARDOWN);
 
     // Stop observing preferences changes.
     if (mPrefBranch)
       mPrefBranch->RemoveObserver("", this);
 
+    // Force a preferences save.
+    nsCOMPtr<nsIPrefService> prefService = do_QueryInterface(mPrefBranch);
+    if (prefService)
+      prefService->SavePrefFile(nsnull);
+
     // Finalize all statements.
     nsresult rv = FinalizeInternalStatements();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Finally, close the connection.
-    nsRefPtr<PlacesEvent> closeListener =
-      new PlacesEvent(TOPIC_PLACES_CONNECTION_CLOSED);
-    (void)mDBConn->AsyncClose(closeListener);
+    // NOTE: We don't close the connection because the sync service could still
+    // need it for a final flush.
   }
 
 #ifdef MOZ_XUL
@@ -6025,11 +5897,14 @@ nsNavHistory::VacuumDatabase()
       journalToDefault
     };
     nsCOMPtr<mozIStoragePendingStatement> ps;
-    nsRefPtr<VacuumDBListener> vacuumDBListener =
-      new VacuumDBListener(mPrefBranch);
-    rv = mDBConn->ExecuteAsync(stmts, NS_ARRAY_LENGTH(stmts),
-                               vacuumDBListener, getter_AddRefs(ps));
+    rv = mDBConn->ExecuteAsync(stmts, NS_ARRAY_LENGTH(stmts), nsnull,
+                               getter_AddRefs(ps));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    if (mPrefBranch) {
+      (void)mPrefBranch->SetIntPref(PREF_LAST_VACUUM,
+                                    (PRInt32)(PR_Now() / PR_USEC_PER_SEC));
+    }
   }
 
   return NS_OK;

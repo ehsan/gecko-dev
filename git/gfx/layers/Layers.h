@@ -77,51 +77,11 @@ class ImageLayer;
 class ColorLayer;
 class ImageContainer;
 class CanvasLayer;
-class ShadowLayer;
 class SpecificLayerAttributes;
-
-/**
- * The viewport and displayport metrics for the painted frame at the
- * time of a layer-tree transaction.  These metrics are especially
- * useful for shadow layers, because the metrics values are updated
- * atomically with new pixels.
- */
-struct FrameMetrics {
-  FrameMetrics()
-    : mViewportSize(0, 0)
-    , mViewportScrollOffset(0, 0)
-  {}
-
-  // Default copy ctor and operator= are fine
-
-  PRBool operator==(const FrameMetrics& aOther) const
-  {
-    return (mViewportSize == aOther.mViewportSize &&
-            mViewportScrollOffset == aOther.mViewportScrollOffset &&
-            mDisplayPort == aOther.mDisplayPort);
-  }
-
-  PRBool IsDefault() const
-  {
-    return (FrameMetrics() == *this);
-  }
-
-  nsIntSize mViewportSize;
-  nsIntPoint mViewportScrollOffset;
-  nsIntRect mDisplayPort;
-};
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \
   virtual const char* Name() const { return n; }            \
   virtual LayerType GetType() const { return e; }
-
-/**
- * Base class for userdata objects attached to layers and layer managers.
- */
-class THEBES_API LayerUserData {
-public:
-  virtual ~LayerUserData() {}
-};
 
 /*
  * Motivation: For truly smooth animation and video playback, we need to
@@ -148,61 +108,6 @@ public:
  * efficient implementation in an "immediate mode" style. See the
  * BasicLayerManager for such an implementation.
  */
-
-/**
- * Helper class to manage user data for layers and LayerManagers.
- */
-class THEBES_API LayerUserDataSet {
-public:
-  LayerUserDataSet() : mKey(nsnull) {}
-
-  void Set(void* aKey, LayerUserData* aValue)
-  {
-    NS_ASSERTION(!mKey || mKey == aKey,
-                 "Multiple LayerUserData objects not supported");
-    mKey = aKey;
-    mValue = aValue;
-  }
-  /**
-   * This can be used anytime. Ownership passes to the caller!
-   */
-  LayerUserData* Remove(void* aKey)
-  {
-    if (mKey == aKey) {
-      mKey = nsnull;
-      LayerUserData* d = mValue.forget();
-      return d;
-    }
-    return nsnull;
-  }
-  /**
-   * This getter can be used anytime.
-   */
-  PRBool Has(void* aKey)
-  {
-    return mKey == aKey;
-  }
-  /**
-   * This getter can be used anytime. Ownership is retained by this object.
-   */
-  LayerUserData* Get(void* aKey)
-  {
-    return mKey == aKey ? mValue.get() : nsnull;
-  }
-
-  /**
-   * Clear out current user data.
-   */
-  void Clear()
-  {
-    mKey = nsnull;
-    mValue = nsnull;
-  }
-
-private:
-  void* mKey;
-  nsAutoPtr<LayerUserData> mValue;
-};
 
 /**
  * A LayerManager controls a tree of layers. All layers in the tree
@@ -234,24 +139,14 @@ public:
   enum LayersBackend {
     LAYERS_BASIC = 0,
     LAYERS_OPENGL,
-    LAYERS_D3D9,
-    LAYERS_D3D10
+    LAYERS_D3D9
   };
 
-  LayerManager() : mDestroyed(PR_FALSE), mSnapEffectiveTransforms(PR_TRUE)
+  LayerManager() : mUserData(nsnull)
   {
     InitLog();
   }
   virtual ~LayerManager() {}
-
-  /**
-   * Release layers and resources held by this layer manager, and mark
-   * it as destroyed.  Should do any cleanup necessary in preparation
-   * for its widget going away.  After this call, only user data calls
-   * are valid on the layer manager.
-   */
-  virtual void Destroy() { mDestroyed = PR_TRUE; mUserData.Clear(); }
-  PRBool IsDestroyed() { return mDestroyed; }
 
   /**
    * Start a new transaction. Nested transactions are not allowed so
@@ -309,8 +204,6 @@ public:
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData) = 0;
 
-  PRBool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the root layer.
@@ -364,42 +257,11 @@ public:
    * Layers backend specific functionality is necessary.
    */
   virtual LayersBackend GetBackendType() = 0;
- 
-  /**
-   * Creates a layer which is optimized for inter-operating with this layer
-   * manager.
-   */
-  virtual already_AddRefed<gfxASurface>
-    CreateOptimalSurface(const gfxIntSize &aSize,
-                         gfxASurface::gfxImageFormat imageFormat);
 
-  /**
-   * Return the name of the layer manager's backend.
-   */
-  virtual void GetBackendName(nsAString& aName) = 0;
-
-  /**
-   * This setter can be used anytime. The user data for all keys is
-   * initially null. Ownership pases to the layer manager.
-   */
-  void SetUserData(void* aKey, LayerUserData* aData)
-  { mUserData.Set(aKey, aData); }
-  /**
-   * This can be used anytime. Ownership passes to the caller!
-   */
-  nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
-  { nsAutoPtr<LayerUserData> d(mUserData.Remove(aKey)); return d; }
-  /**
-   * This getter can be used anytime.
-   */
-  PRBool HasUserData(void* aKey)
-  { return mUserData.Has(aKey); }
-  /**
-   * This getter can be used anytime. Ownership is retained by the layer
-   * manager.
-   */
-  LayerUserData* GetUserData(void* aKey)
-  { return mUserData.Get(aKey); }
+  // This setter and getter can be used anytime. The user data is initially
+  // null.
+  void SetUserData(void* aData) { mUserData = aData; }
+  void* GetUserData() { return mUserData; }
 
   // We always declare the following logging symbols, because it's
   // extremely tricky to conditionally declare them.  However, for
@@ -434,9 +296,7 @@ public:
 
 protected:
   nsRefPtr<Layer> mRoot;
-  LayerUserDataSet mUserData;
-  PRPackedBool mDestroyed;
-  PRPackedBool mSnapEffectiveTransforms;
+  void* mUserData;
 
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().
@@ -468,57 +328,29 @@ public:
   virtual ~Layer() {}
 
   /**
-   * Returns the LayerManager this Layer belongs to. Note that the layer
-   * manager might be in a destroyed state, at which point it's only
-   * valid to set/get user data from it.
+   * Returns the LayoutManager this Layer belongs to. Cannot be null.
    */
   LayerManager* Manager() { return mManager; }
 
-  enum {
-    /**
-     * If this is set, the caller is promising that by the end of this
-     * transaction the entire visible region (as specified by
-     * SetVisibleRegion) will be filled with opaque content.
-     */
-    CONTENT_OPAQUE = 0x01,
-    /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text at all. If this is set,
-     * CONTENT_NO_TEXT_OVER_TRANSPARENT will also be set.
-     */
-    CONTENT_NO_TEXT = 0x02,
-    /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text over transparent pixels (any text, if present,
-     * is over fully opaque pixels).
-     */
-    CONTENT_NO_TEXT_OVER_TRANSPARENT = 0x04
-  };
   /**
    * CONSTRUCTION PHASE ONLY
-   * This lets layout make some promises about what will be drawn into the
-   * visible region of the ThebesLayer. This enables internal quality
-   * and performance optimizations.
+   * If this is called with aOpaque set to true, the caller is promising
+   * that by the end of this transaction the entire visible region
+   * (as specified by SetVisibleRegion) will be filled with opaque
+   * content. This enables some internal quality and performance
+   * optimizations.
    */
-  void SetContentFlags(PRUint32 aFlags)
+  void SetIsOpaqueContent(PRBool aOpaque)
   {
-    mContentFlags = aFlags;
+    mIsOpaqueContent = aOpaque;
     Mutated();
   }
   /**
    * CONSTRUCTION PHASE ONLY
-   * Tell this layer which region will be visible. The visible region
-   * is a region which contains all the contents of the layer that can
-   * actually affect the rendering of the window. It can exclude areas
-   * that are covered by opaque contents of other layers, and it can
-   * exclude areas where this layer simply contains no content at all.
-   * (This can be an overapproximation to the "true" visible region.)
-   * 
-   * There is no general guarantee that drawing outside the bounds of the
-   * visible region will be ignored. So if a layer draws outside the bounds
-   * of its visible region, it needs to ensure that what it draws is valid.
+   * Tell this layer which region will be visible. It is the responsibility
+   * of the caller to ensure that content outside this region does not
+   * contribute to the final visible window. This can be an
+   * overapproximation to the true visible region.
    */
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
@@ -555,7 +387,6 @@ public:
     }
     Mutated();
   }
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set a clip rect which will be applied to this layer as it is
@@ -593,13 +424,12 @@ public:
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nsnull; }
-  PRUint32 GetContentFlags() { return mContentFlags; }
+  PRBool IsOpaqueContent() { return mIsOpaqueContent; }
   const nsIntRegion& GetVisibleRegion() { return mVisibleRegion; }
   ContainerLayer* GetParent() { return mParent; }
   Layer* GetNextSibling() { return mNextSibling; }
   Layer* GetPrevSibling() { return mPrevSibling; }
   virtual Layer* GetFirstChild() { return nsnull; }
-  virtual Layer* GetLastChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
 
   /**
@@ -617,84 +447,16 @@ public:
   // quality.
   PRBool CanUseOpaqueSurface();
 
-  /**
-   * This setter can be used anytime. The user data for all keys is
-   * initially null. Ownership pases to the layer manager.
-   */
-  void SetUserData(void* aKey, LayerUserData* aData)
-  { mUserData.Set(aKey, aData); }
-  /**
-   * This can be used anytime. Ownership passes to the caller!
-   */
-  nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
-  { nsAutoPtr<LayerUserData> d(mUserData.Remove(aKey)); return d; }
-  /**
-   * This getter can be used anytime.
-   */
-  PRBool HasUserData(void* aKey)
-  { return mUserData.Has(aKey); }
-  /**
-   * This getter can be used anytime. Ownership is retained by the layer
-   * manager.
-   */
-  LayerUserData* GetUserData(void* aKey)
-  { return mUserData.Get(aKey); }
-
-  /**
-   * |Disconnect()| is used by layers hooked up over IPC.  It may be
-   * called at any time, and may not be called at all.  Using an
-   * IPC-enabled layer after Destroy() (drawing etc.) results in a
-   * safe no-op; no crashy or uaf etc.
-   *
-   * XXX: this interface is essentially LayerManager::Destroy, but at
-   * Layer granularity.  It might be beneficial to unify them.
-   */
-  virtual void Disconnect() {}
+  // This setter and getter can be used anytime. The user data is initially
+  // null.
+  void SetUserData(void* aData) { mUserData = aData; }
+  void* GetUserData() { return mUserData; }
 
   /**
    * Dynamic downcast to a Thebes layer. Returns null if this is not
    * a ThebesLayer.
    */
   virtual ThebesLayer* AsThebesLayer() { return nsnull; }
-
-  /**
-   * Dynamic cast to a ShadowLayer.  Return null if this is not a
-   * ShadowLayer.  Can be used anytime.
-   */
-  virtual ShadowLayer* AsShadowLayer() { return nsnull; }
-
-  // These getters can be used anytime.  They return the effective
-  // values that should be used when drawing this layer to screen,
-  // accounting for this layer possibly being a shadow.
-  const nsIntRect* GetEffectiveClipRect();
-  const nsIntRegion& GetEffectiveVisibleRegion();
-  /**
-   * Returns the product of the opacities of this layer and all ancestors up
-   * to and excluding the nearest ancestor that has UseIntermediateSurface() set.
-   */
-  float GetEffectiveOpacity();
-  /**
-   * This returns the effective transform computed by
-   * ComputeEffectiveTransforms. Typically this is a transform that transforms
-   * this layer all the way to some intermediate surface or destination
-   * surface. For non-BasicLayers this will be a transform to the nearest
-   * ancestor with UseIntermediateSurface() (or to the root, if there is no
-   * such ancestor), but for BasicLayers it's different.
-   */
-  const gfx3DMatrix& GetEffectiveTransform() const { return mEffectiveTransform; }
-
-  /**
-   * @param aTransformToSurface the composition of the transforms
-   * from the parent layer (if any) to the destination pixel grid.
-   *
-   * Computes mEffectiveTransform for this layer and all its descendants.
-   * mEffectiveTransform transforms this layer up to the destination
-   * pixel grid (whatever aTransformToSurface is relative to).
-   * 
-   * We promise that when this is called on a layer, all ancestor layers
-   * have already had ComputeEffectiveTransforms called.
-   */
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) = 0;
 
   virtual const char* Name() const =0;
   virtual LayerType GetType() const =0;
@@ -744,9 +506,10 @@ protected:
     mNextSibling(nsnull),
     mPrevSibling(nsnull),
     mImplData(aImplData),
+    mUserData(nsnull),
     mOpacity(1.0),
-    mContentFlags(0),
-    mUseClipRect(PR_FALSE)
+    mUseClipRect(PR_FALSE),
+    mIsOpaqueContent(PR_FALSE)
     {}
 
   void Mutated() { mManager->Mutated(this); }
@@ -758,40 +521,18 @@ protected:
   // appends additional info to aTo.
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
-  /**
-   * Returns the local transform for this layer: either mTransform or,
-   * for shadow layers, GetShadowTransform()
-   */
-  const gfx3DMatrix& GetLocalTransform();
-
-  /**
-   * Computes a tweaked version of aTransform that snaps a point or a rectangle
-   * to pixel boundaries. Snapping is only performed if this layer's
-   * layer manager has enabled snapping (which is the default).
-   * @param aSnapRect a rectangle whose edges should be snapped to pixel
-   * boundaries in the destination surface. If the rectangle is empty,
-   * then the snapping process should preserve the scale factors of the
-   * transform matrix
-   * @param aResidualTransform a transform to apply before mEffectiveTransform
-   * in order to get the results to completely match aTransform
-   */
-  gfx3DMatrix SnapTransform(const gfx3DMatrix& aTransform,
-                            const gfxRect& aSnapRect,
-                            gfxMatrix* aResidualTransform);
-
   LayerManager* mManager;
   ContainerLayer* mParent;
   Layer* mNextSibling;
   Layer* mPrevSibling;
   void* mImplData;
-  LayerUserDataSet mUserData;
+  void* mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
-  gfx3DMatrix mEffectiveTransform;
   float mOpacity;
   nsIntRect mClipRect;
-  PRUint32 mContentFlags;
   PRPackedBool mUseClipRect;
+  PRPackedBool mIsOpaqueContent;
 };
 
 /**
@@ -818,47 +559,19 @@ public:
   /**
    * Can be used anytime
    */
-  const nsIntRegion& GetValidRegion() const { return mValidRegion; }
-  float GetXResolution() const { return mXResolution; }
-  float GetYResolution() const { return mYResolution; }
+  const nsIntRegion& GetValidRegion() { return mValidRegion; }
 
   virtual ThebesLayer* AsThebesLayer() { return this; }
 
   MOZ_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
 
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // The default implementation just snaps 0,0 to pixels.
-    gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nsnull);
-  }
-
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
-    : Layer(aManager, aImplData)
-    , mValidRegion()
-    , mXResolution(1.0)
-    , mYResolution(1.0)
-  {}
+    : Layer(aManager, aImplData) {}
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   nsIntRegion mValidRegion;
-  // Resolution values tell this to paint its content scaled by
-  // <aXResolution, aYResolution>, into a backing buffer with
-  // dimensions scaled the same.  A non-1.0 resolution also tells this
-  // to set scaling factors that compensate for the re-paint
-  // resolution when rendering itself to render targets
-  //
-  // Resolution doesn't affect the visible region, valid region, or
-  // re-painted regions at all.  It only affects how scalable thebes
-  // content is rasterized to device pixels.
-  //
-  // Setting the resolution isn't part of the public ThebesLayer API
-  // because it's backend-specific, and it doesn't necessarily make
-  // sense for all backends to fully support it.
-  float mXResolution;
-  float mYResolution;
 };
 
 /**
@@ -882,70 +595,18 @@ public:
    */
   virtual void RemoveChild(Layer* aChild) = 0;
 
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Set the (sub)document metrics used to render the Layer subtree
-   * rooted at this.
-   */
-  void SetFrameMetrics(const FrameMetrics& aFrameMetrics)
-  {
-    mFrameMetrics = aFrameMetrics;
-  }
-
-  // These getters can be used anytime.
-
+  // This getter can be used anytime.
   virtual Layer* GetFirstChild() { return mFirstChild; }
-  virtual Layer* GetLastChild() { return mLastChild; }
-  const FrameMetrics& GetFrameMetrics() { return mFrameMetrics; }
 
   MOZ_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
-
-  /**
-   * ContainerLayer backends need to override ComputeEffectiveTransforms
-   * since the decision about whether to use a temporary surface for the
-   * container is backend-specific. ComputeEffectiveTransforms must also set
-   * mUseIntermediateSurface.
-   */
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) = 0;
-
-  /**
-   * Call this only after ComputeEffectiveTransforms has been invoked
-   * on this layer.
-   * Returns true if this will use an intermediate surface. This is largely
-   * backend-dependent, but it affects the operation of GetEffectiveOpacity().
-   */
-  PRBool UseIntermediateSurface() { return mUseIntermediateSurface; }
-
-  /**
-   * Returns true if this container has more than one non-empty child
-   */
-  PRBool HasMultipleChildren();
 
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
-      mFirstChild(nsnull),
-      mLastChild(nsnull),
-      mUseIntermediateSurface(PR_FALSE)
+      mFirstChild(nsnull)
   {}
 
-  /**
-   * A default implementation of ComputeEffectiveTransforms for use by OpenGL
-   * and D3D.
-   */
-  void DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface);
-
-  /**
-   * Loops over the children calling ComputeEffectiveTransforms on them.
-   */
-  void ComputeEffectiveTransformsForChildren(const gfx3DMatrix& aTransformToSurface);
-
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
-
   Layer* mFirstChild;
-  Layer* mLastChild;
-  FrameMetrics mFrameMetrics;
-  PRPackedBool mUseIntermediateSurface;
 };
 
 /**
@@ -968,13 +629,6 @@ public:
   virtual const gfxRGBA& GetColor() { return mColor; }
 
   MOZ_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
-
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // Snap 0,0 to pixel boundaries, no extra internal transform.
-    gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nsnull);
-  }
 
 protected:
   ColorLayer(LayerManager* aManager, void* aImplData)
@@ -1046,28 +700,12 @@ public:
 
   MOZ_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
 
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    // Snap our local transform first, and snap the inherited transform as well.
-    // This makes our snapping equivalent to what would happen if our content
-    // was drawn into a ThebesLayer (gfxContext would snap using the local
-    // transform, then we'd snap again when compositing the ThebesLayer).
-    mEffectiveTransform =
-        SnapTransform(GetLocalTransform(), gfxRect(0, 0, mBounds.width, mBounds.height),
-                      nsnull)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
-  }
-
 protected:
   CanvasLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData), mFilter(gfxPattern::FILTER_GOOD) {}
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
-  /**
-   * 0, 0, canvaswidth, canvasheight
-   */
-  nsIntRect mBounds;
   gfxPattern::GraphicsFilter mFilter;
 };
 

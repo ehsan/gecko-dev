@@ -180,8 +180,7 @@ struct NS_GFX nsRect {
 
   // Scale by aScale, converting coordinates to integers so that the result is
   // the smallest integer-coordinate rectangle containing the unrounded result.
-  nsRect& ScaleRoundOut(float aScale) { return ScaleRoundOut(aScale, aScale); }
-  nsRect& ScaleRoundOut(float aXScale, float aYScale);
+  nsRect& ScaleRoundOut(float aScale);
 
   // Converts this rect from aFromAPP, an appunits per pixel ratio, to aToAPP.
   // In the RoundOut version we make the rect the smallest rect containing the
@@ -336,13 +335,6 @@ struct NS_GFX nsIntRect {
   PRInt32 YMost() const {return y + height;}
 
   inline nsRect ToAppUnits(nscoord aAppUnitsPerPixel) const;
-
-  // Returns a special nsIntRect that's used in some places to signify
-  // "all available space".
-  static const nsIntRect& GetMaxSizedIntRect() { return kMaxSizedIntRect; }
-
-protected:
-  static const nsIntRect kMaxSizedIntRect;
 };
 
 /*

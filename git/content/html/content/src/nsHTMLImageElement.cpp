@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMNSHTMLImageElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsImageLoadingContent.h"
@@ -58,7 +59,6 @@
 #include "nsGUIEvent.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMWindow.h"
-#include "nsFocusManager.h"
 
 #include "imgIContainer.h"
 #include "imgILoader.h"
@@ -76,13 +76,12 @@
 
 #include "nsLayoutUtils.h"
 
-using namespace mozilla::dom;
-
 // XXX nav attrs: suppress
 
 class nsHTMLImageElement : public nsGenericHTMLElement,
                            public nsImageLoadingContent,
                            public nsIDOMHTMLImageElement,
+                           public nsIDOMNSHTMLImageElement,
                            public nsIJSNativeInitializer
 {
 public:
@@ -103,6 +102,9 @@ public:
 
   // nsIDOMHTMLImageElement
   NS_DECL_NSIDOMHTMLIMAGEELEMENT
+
+  // nsIDOMNSHTMLImageElement
+  NS_DECL_NSIDOMNSHTMLIMAGEELEMENT
 
   // override from nsGenericHTMLElement
   NS_IMETHOD GetDraggable(PRBool* aDraggable);
@@ -142,7 +144,7 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
@@ -156,7 +158,7 @@ protected:
 
 nsGenericHTMLElement*
 NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+                       PRUint32 aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
@@ -196,8 +198,9 @@ DOMCI_NODE_DATA(HTMLImageElement, nsHTMLImageElement)
 
 // QueryInterface implementation for nsHTMLImageElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLImageElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLImageElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE6(nsHTMLImageElement,
                                    nsIDOMHTMLImageElement,
+                                   nsIDOMNSHTMLImageElement,
                                    nsIJSNativeInitializer,
                                    imgIDecoderObserver,
                                    nsIImageLoadingContent,
@@ -483,7 +486,7 @@ nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
 
   *aIsFocusable = 
 #ifdef XP_MACOSX
-    (!aWithMouse || nsFocusManager::sMouseFocusesFormControl) &&
+    !aWithMouse &&
 #endif
     (tabIndex >= 0 || HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
 
@@ -585,7 +588,7 @@ nsHTMLImageElement::MaybeLoadImage()
   }
 }
 
-nsEventStates
+PRInt32
 nsHTMLImageElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() |
@@ -603,16 +606,16 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   }
 
   // The first (optional) argument is the width of the image
-  uint32 width;
-  JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
+  int32 width;
+  JSBool ret = JS_ValueToInt32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
   nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<PRInt32>(width));
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
-    uint32 height;
-    ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
+    int32 height;
+    ret = JS_ValueToInt32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
     rv = SetIntAttr(nsGkAtoms::height, static_cast<PRInt32>(height));

@@ -109,7 +109,9 @@ var tests = [
 
       iconsvc.setAndLoadFaviconForPage(this.pageURI, this.favicon.uri, true);
 
-      prefs.setBoolPref("places.history.enabled", true);
+      try {
+        prefs.clearUserPref("places.history.enabled");
+      } catch (ex) {}
     },
     check: function check5() {
       checkAddSucceeded(this.pageURI, this.favicon.mimetype, this.favicon.data);

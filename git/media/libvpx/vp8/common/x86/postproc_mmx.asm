@@ -1,10 +1,10 @@
 ;
-;  Copyright (c) 2010 The WebM project authors. All Rights Reserved.
+;  Copyright (c) 2010 The VP8 project authors. All Rights Reserved.
 ;
-;  Use of this source code is governed by a BSD-style license
+;  Use of this source code is governed by a BSD-style license 
 ;  that can be found in the LICENSE file in the root of the source
 ;  tree. An additional intellectual property rights grant can be found
-;  in the file PATENTS.  All contributing project authors may
+;  in the file PATENTS.  All contributing project authors may 
 ;  be found in the AUTHORS file in the root of the source tree.
 ;
 
@@ -37,16 +37,16 @@ sym(vp8_post_proc_down_and_across_mmx):
 %if ABI_IS_32BIT=1 && CONFIG_PIC=1
     ; move the global rd onto the stack, since we don't have enough registers
     ; to do PIC addressing
-    movq        mm0, [GLOBAL(rd)]
+    movq        mm0, [rd GLOBAL]
     sub         rsp, 8
     movq        [rsp], mm0
 %define RD [rsp]
 %else
-%define RD [GLOBAL(rd)]
+%define RD [rd GLOBAL]
 %endif
 
         push        rbx
-        lea         rbx, [GLOBAL(Blur)]
+        lea         rbx, [Blur GLOBAL]
         movd        mm2, dword ptr arg(6) ;flimit
         punpcklwd   mm2, mm2
         punpckldq   mm2, mm2
@@ -286,7 +286,7 @@ sym(vp8_mbpost_proc_down_mmx):
 %define flimit2 [rsp+128]
 
 %if ABI_IS_32BIT=0
-    lea         r8,       [GLOBAL(sym(vp8_rv))]
+    lea         r8,       [sym(vp8_rv) GLOBAL]
 %endif
 
     ;rows +=8;
@@ -404,7 +404,7 @@ loop_row:
             and         rcx,        127
 %if ABI_IS_32BIT=1 && CONFIG_PIC=1
             push        rax
-            lea         rax,        [GLOBAL(sym(vp8_rv))]
+            lea         rax,        [sym(vp8_rv) GLOBAL]
             movq        mm4,        [rax + rcx*2] ;vp8_rv[rcx*2]
             pop         rax
 %elif ABI_IS_32BIT=0

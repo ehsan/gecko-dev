@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351497.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351497;
 var summary = 'Do not assert for(let (w) x in y)';

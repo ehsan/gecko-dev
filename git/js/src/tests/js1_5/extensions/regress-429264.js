@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-429264.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 429264;
 var summary = 'Do not assert: top < ss->printer->script->depth';
@@ -52,9 +53,8 @@ function test()
   printStatus (summary);
  
   function f() { for(; 1; ) { } }
-  if (typeof trap == 'function' && typeof setDebug == 'function')
+  if (typeof trap == 'function')
   {
-    setDebug(true);
     trap(f, 0, "");
   }
   f + '';

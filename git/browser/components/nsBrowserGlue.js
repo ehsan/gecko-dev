@@ -52,11 +52,6 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  Cu.import("resource://gre/modules/NetUtil.jsm");
-  return NetUtil;
-});
-
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -128,31 +123,6 @@ BrowserGlue.prototype = {
     Services.prefs.savePrefFile(null);
   },
 
-#ifdef MOZ_SERVICES_SYNC
-  _setSyncAutoconnectDelay: function BG__setSyncAutoconnectDelay() {
-    // Assume that a non-zero value for services.sync.autoconnectDelay should override
-    if (Services.prefs.prefHasUserValue("services.sync.autoconnectDelay")) {
-      let prefDelay = Services.prefs.getIntPref("services.sync.autoconnectDelay");
-
-      if (prefDelay > 0)
-        return;
-    }
-
-    // delays are in seconds
-    const MAX_DELAY = 300;
-    let delay = 3;
-    let enum = Services.wm.getEnumerator("navigator:browser");
-    while (enum.hasMoreElements()) {
-      delay += enum.getNext().gBrowser.tabs.length;
-    }
-    delay = delay <= MAX_DELAY ? delay : MAX_DELAY;
-
-    let syncTemp = {};
-    Cu.import("resource://services-sync/service.js", syncTemp);
-    syncTemp.Weave.Service.delayedAutoConnect(delay);
-  },
-#endif
-
   // nsIObserver implementation 
   observe: function BG_observe(subject, topic, data) {
     switch (topic) {
@@ -164,10 +134,6 @@ BrowserGlue.prototype = {
         break;
       case "final-ui-startup":
         this._onProfileStartup();
-        break;
-      case "browser-delayed-startup-finished":
-        this._onFirstWindowLoaded();
-        Services.obs.removeObserver(this, "browser-delayed-startup-finished");
         break;
       case "sessionstore-windows-restored":
         this._onBrowserStartup();
@@ -193,11 +159,6 @@ BrowserGlue.prototype = {
         break;
       case "browser-lastwindow-close-granted":
         this._setPrefToSaveSession();
-        break;
-#endif
-#ifdef MOZ_SERVICES_SYNC
-      case "weave:service:ready":
-        this._setSyncAutoconnectDelay();
         break;
 #endif
       case "session-save":
@@ -229,7 +190,8 @@ BrowserGlue.prototype = {
           Services.obs.removeObserver(this, "places-shutdown");
           this._isPlacesShutdownObserver = false;
         }
-        // places-shutdown is fired when the profile is about to disappear.
+        // places-shutdown is fired on profile-before-change, but before
+        // Places executes the last flush and closes connection.
         this._onProfileShutdown();
         break;
       case "idle":
@@ -264,7 +226,6 @@ BrowserGlue.prototype = {
     os.addObserver(this, "xpcom-shutdown", false);
     os.addObserver(this, "prefservice:after-app-defaults", false);
     os.addObserver(this, "final-ui-startup", false);
-    os.addObserver(this, "browser-delayed-startup-finished", false);
     os.addObserver(this, "sessionstore-windows-restored", false);
     os.addObserver(this, "browser:purge-session-history", false);
     os.addObserver(this, "quit-application-requested", false);
@@ -272,9 +233,6 @@ BrowserGlue.prototype = {
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
     os.addObserver(this, "browser-lastwindow-close-requested", false);
     os.addObserver(this, "browser-lastwindow-close-granted", false);
-#endif
-#ifdef MOZ_SERVICES_SYNC
-    os.addObserver(this, "weave:service:ready", false);
 #endif
     os.addObserver(this, "session-save", false);
     os.addObserver(this, "places-init-complete", false);
@@ -299,9 +257,6 @@ BrowserGlue.prototype = {
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
     os.removeObserver(this, "browser-lastwindow-close-requested");
     os.removeObserver(this, "browser-lastwindow-close-granted");
-#endif
-#ifdef MOZ_SERVICES_SYNC
-    os.removeObserver(this, "weave:service:ready", false);
 #endif
     os.removeObserver(this, "session-save");
     if (this._isIdleObserver)
@@ -350,22 +305,6 @@ BrowserGlue.prototype = {
     }
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
-  },
-
-  // the first browser window has finished initializing
-  _onFirstWindowLoaded: function BG__onFirstWindowLoaded() {
-#ifdef XP_WIN
-#ifndef WINCE
-    // For windows seven, initialize the jump list module.
-    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
-    if (WINTASKBAR_CONTRACTID in Cc &&
-        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
-      let temp = {};
-      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
-      temp.WinTaskbarJumpList.startup();
-    }
-#endif
-#endif
   },
 
   // profile shutdown handler (contains profile cleanup routines)
@@ -429,6 +368,19 @@ BrowserGlue.prototype = {
     // been warned about them yet, open the plugins update page.
     if (Services.prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
       this._showPluginUpdatePage();
+
+#ifdef XP_WIN
+#ifndef WINCE
+    // For windows seven, initialize the jump list module.
+    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
+    if (WINTASKBAR_CONTRACTID in Cc &&
+        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
+      let temp = {};
+      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
+      temp.WinTaskbarJumpList.startup();
+    }
+#endif
+#endif
   },
 
   _onQuitRequest: function BG__onQuitRequest(aCancelQuit, aQuitType) {
@@ -445,7 +397,7 @@ BrowserGlue.prototype = {
       var browser = browserEnum.getNext();
       var tabbrowser = browser.document.getElementById("content");
       if (tabbrowser)
-        pagecount += tabbrowser.browsers.length - tabbrowser._numPinnedTabs;
+        pagecount += tabbrowser.browsers.length;
     }
 
     this._saveSession = false;
@@ -476,7 +428,7 @@ BrowserGlue.prototype = {
                             getService(Ci.nsIPrivateBrowsingService).
                             privateBrowsingEnabled;
     if (!showPrompt || inPrivateBrowsing)
-      return;
+      return false;
 
     var quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
     var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
@@ -597,7 +549,7 @@ BrowserGlue.prototype = {
     var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
     var productName      = brandBundle.GetStringFromName("brandFullName");
     var notifyRightsText = rightsBundle.formatStringFromName("notifyRightsText", [productName], 1);
-
+    
     var buttons = [
                     {
                       label:     buttonLabel,
@@ -865,18 +817,16 @@ BrowserGlue.prototype = {
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
                        getService(Ci.nsIProperties);
 
-      var bookmarksURI = null;
+      var bookmarksFile = null;
       if (restoreDefaultBookmarks) {
         // User wants to restore bookmarks.html file from default profile folder
-        bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
+        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
+        bookmarksFile.append("bookmarks.html");
       }
-      else {
-        var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
-        if (bookmarksFile.exists())
-          bookmarksURI = NetUtil.newURI(bookmarksFile);
-      }
+      else
+        bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
-      if (bookmarksURI) {
+      if (bookmarksFile.exists()) {
         // Add an import observer.  It will ensure that smart bookmarks are
         // created once the operation is complete.
         Services.obs.addObserver(this, "bookmarks-restore-success", false);
@@ -886,7 +836,7 @@ BrowserGlue.prototype = {
         try {
           var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                          getService(Ci.nsIPlacesImportExportService);
-          importer.importHTMLFromURI(bookmarksURI, true /* overwrite existing */);
+          importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
         } catch (err) {
           // Report the error, but ignore it.
           Cu.reportError("Bookmarks.html file could be corrupt. " + err);
@@ -1003,7 +953,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 3;
+    const UI_VERSION = 2;
     let currentUIVersion = 0;
     try {
       currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
@@ -1061,25 +1011,6 @@ BrowserGlue.prototype = {
       }
     }
 
-    if (currentUIVersion < 3) {
-      // This code merges the reload/stop/go button into the url bar.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource("chrome://browser/content/browser.xul#nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
-      // Need to migrate only if toolbar is customized and all 3 elements are found.
-      if (currentset &&
-          currentset.indexOf("reload-button") != -1 &&
-          currentset.indexOf("stop-button") != -1 &&
-          currentset.indexOf("urlbar-container") != -1 &&
-          currentset.indexOf("urlbar-container,reload-button,stop-button") == -1) {
-        currentset = currentset.replace(/(^|,)reload-button($|,)/, "$1$2").
-                                replace(/(^|,)stop-button($|,)/, "$1$2").
-                                replace(/(^|,)urlbar-container($|,)/,
-                                        "$1urlbar-container,reload-button,stop-button$2");
-        this._setPersist(toolbarResource, currentsetResource, currentset);
-      }
-    }
-
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
@@ -1117,7 +1048,7 @@ BrowserGlue.prototype = {
   // ------------------------------
   // public nsIBrowserGlue members
   // ------------------------------
-
+  
   sanitize: function BG_sanitize(aParentWindow) {
     this._sanitizer.sanitize(aParentWindow);
   },
@@ -1256,7 +1187,7 @@ BrowserGlue.prototype = {
                                     SMART_BOOKMARKS_ANNO, smartBookmark.queryId,
                                     0, annosvc.EXPIRE_NEVER);
         }
-
+        
         // If we are creating all Smart Bookmarks from ground up, add a
         // separator below them in the bookmarks menu.
         if (smartBookmarksCurrentVersion == 0 &&
@@ -1331,20 +1262,15 @@ BrowserGlue.prototype = {
   _xpcom_factory: BrowserGlueServiceFactory,
 }
 
-function ContentPermissionPrompt() {}
+function GeolocationPrompt() {}
 
-ContentPermissionPrompt.prototype = {
-  classID:          Components.ID("{d8903bf6-68d5-4e97-bcd1-e4d3012f721a}"),
+GeolocationPrompt.prototype = {
+  classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
 
-  prompt: function CPP_prompt(request) {
-
-    if (request.type != "geolocation") {
-        return;
-    }
-
-    var requestingURI = request.uri;
+  prompt: function GP_prompt(request) {
+    var requestingURI = request.requestingURI;
 
     // Ignore requests from non-nsIStandardURLs
     if (!(requestingURI instanceof Ci.nsIStandardURL))
@@ -1356,7 +1282,7 @@ ContentPermissionPrompt.prototype = {
       request.allow();
       return;
     }
-
+    
     if (result == Ci.nsIPermissionManager.DENY_ACTION) {
       request.cancel();
       return;
@@ -1395,7 +1321,7 @@ ContentPermissionPrompt.prototype = {
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
       message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
-                                                   [requestingURI.path], 1);
+                                                   [request.requestingURI.path], 1);
     } else {
       message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
                                                    [requestingURI.host], 1);
@@ -1425,14 +1351,14 @@ ContentPermissionPrompt.prototype = {
       }
     }
 
-    var requestingWindow = request.window.top;
+    var requestingWindow = request.requestingWindow.top;
     var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
     chromeWin.PopupNotifications.show(browser, "geolocation", message, "geo-notification-icon",
                                       mainAction, secondaryActions);
-  }
+  },
 };
 
-var components = [BrowserGlue, ContentPermissionPrompt];
+var components = [BrowserGlue, GeolocationPrompt];
 var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

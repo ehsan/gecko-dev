@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'array_split_1.js';
 
 /**
    File Name:          array_split_1.js

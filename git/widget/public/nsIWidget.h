@@ -44,7 +44,6 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsRegion.h"
-#include "nsStringGlue.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -53,7 +52,6 @@
 #include "nsNativeWidget.h"
 #include "nsWidgetInitData.h"
 #include "nsTArray.h"
-#include "nsXULAppAPI.h"
 
 // forward declarations
 class   nsIAppShell;
@@ -74,11 +72,6 @@ namespace mozilla {
 namespace layers {
 class LayerManager;
 }
-#ifdef MOZ_IPC
-namespace dom {
-class PBrowserChild;
-}
-#endif
 }
 
 /**
@@ -99,7 +92,6 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
  */
 #define NS_NATIVE_WINDOW      0
 #define NS_NATIVE_GRAPHIC     1
-#define NS_NATIVE_TMP_WINDOW  2
 #define NS_NATIVE_WIDGET      3
 #define NS_NATIVE_DISPLAY     4
 #define NS_NATIVE_REGION      5
@@ -118,15 +110,9 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_TSF_DISPLAY_ATTR_MGR 102
 #endif
 
-// cc443f0b-af39-415d-9c4b-7e06eaa8b13b
 #define NS_IWIDGET_IID \
-  { 0xcc443f0b, 0xaf39, 0x415d, \
-    { 0x9c, 0x4b, 0x7e, 0x06, 0xea, 0xa8, 0xb1, 0x3b } }
-
-// d64532e0-03d6-421c-8e63-da2cff624825
-#define NS_IWIDGET_MOZILLA_2_0_BRANCH_IID \
-  { 0xd64532e0, 0x03d6, 0x421c, \
-    { 0x8e, 0x63, 0xda, 0x2c, 0xff, 0x62, 0x48, 0x25 } }
+{ 0x34b6123e, 0x78d7, 0x4275, \
+  { 0xa2, 0xbf, 0x07, 0xd4, 0xbf, 0x3a, 0x34, 0x45 } }
 
 /*
  * Window shadow styles
@@ -138,13 +124,6 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_STYLE_WINDOW_SHADOW_MENU             2
 #define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
 #define NS_STYLE_WINDOW_SHADOW_SHEET            4
-
-/**
- * nsIWidget::OnIMEFocusChange should be called during blur,
- * but other OnIME*Change methods should not be called
- */
-#define NS_SUCCESS_IME_NO_UPDATES \
-    NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_WIDGET, 1)
 
 /**
  * Cursor types.
@@ -203,61 +182,10 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 
 
 /**
- * Preference for receiving IME updates
- *
- * If mWantUpdates is true, PuppetWidget will forward
- * nsIWidget::OnIMETextChange and nsIWidget::OnIMESelectionChange to the chrome
- * process. This incurs overhead from observers and IPDL. If the IME
- * implementation on a particular platform doesn't care about OnIMETextChange
- * and OnIMESelectionChange from content processes, they should set
- * mWantUpdates to false to avoid these overheads.
- *
- * If mWantHints is true, PuppetWidget will forward the content of text fields
- * to the chrome process to be cached. This way we return the cached content
- * during query events. (see comments in bug 583976). This only makes sense
- * for IME implementations that do use query events, otherwise there's a
- * significant overhead. Platforms that don't use query events should set
- * mWantHints to false.
- */
-struct nsIMEUpdatePreference {
-
-  nsIMEUpdatePreference()
-    : mWantUpdates(PR_FALSE), mWantHints(PR_FALSE)
-  {
-  }
-  nsIMEUpdatePreference(PRBool aWantUpdates, PRBool aWantHints)
-    : mWantUpdates(aWantUpdates), mWantHints(aWantHints)
-  {
-  }
-  PRPackedBool mWantUpdates;
-  PRPackedBool mWantHints;
-};
-
-
-/* 
- * Contains IMEStatus plus information about the current 
- * input context that the IME can use as hints if desired.
- */
-struct IMEContext {
-  PRUint32 mStatus;
-
-  /* The type of the input if the input is a html input field */
-  nsString mHTMLInputType;
-
-  /* A hint for the action that is performed when the input is submitted */
-  nsString mActionHint;
-};
-
-
-/**
  * The base class for all the widgets. It provides the interface for
  * all basic and necessary functionality.
  */
 class nsIWidget : public nsISupports {
-#ifdef MOZ_IPC
-  protected:
-    typedef mozilla::dom::PBrowserChild PBrowserChild;
-#endif
 
   public:
     typedef mozilla::layers::LayerManager LayerManager;
@@ -310,31 +238,6 @@ class nsIWidget : public nsISupports {
                       nsWidgetInitData *aInitData = nsnull) = 0;
 
     /**
-     * Allocate, initialize, and return a widget that is a child of
-     * |this|.  The returned widget (if nonnull) has gone through the
-     * equivalent of CreateInstance(widgetCID) + Create(...).
-     *
-     * |CreateChild()| lets widget backends decide whether to parent
-     * the new child widget to this, nonnatively parent it, or both.
-     * This interface exists to support the PuppetWidget backend,
-     * which is entirely non-native.  All other params are the same as
-     * for |Create()|.
-     *
-     * |aForceUseIWidgetParent| forces |CreateChild()| to only use the
-     * |nsIWidget*| this, not its native widget (if it exists), when
-     * calling |Create()|.  This is a timid hack around poorly
-     * understood code, and shouldn't be used in new code.
-     */
-    virtual already_AddRefed<nsIWidget>
-    CreateChild(const nsIntRect  &aRect,
-                EVENT_CALLBACK   aHandleEventFunction,
-                nsIDeviceContext *aContext,
-                nsIAppShell      *aAppShell = nsnull,
-                nsIToolkit       *aToolkit = nsnull,
-                nsWidgetInitData *aInitData = nsnull,
-                PRBool           aForceUseIWidgetParent = PR_FALSE) = 0;
-
-    /**
      * Attach to a top level widget. 
      *
      * In cases where a top level chrome widget is being used as a content
@@ -382,8 +285,6 @@ class nsIWidget : public nsISupports {
      */
     NS_IMETHOD SetParent(nsIWidget* aNewParent) = 0;
 
-    NS_IMETHOD RegisterTouchWindow() = 0;
-    NS_IMETHOD UnregisterTouchWindow() = 0;
 
     /**
      * Return the parent Widget of this Widget or nsnull if this is a 
@@ -410,20 +311,6 @@ class nsIWidget : public nsISupports {
      *
      */
     virtual nsIWidget* GetSheetWindowParent(void) = 0;
-
-    /**
-     * Return the physical DPI of the screen containing the window ...
-     * the number of device pixels per inch.
-     */
-    virtual float GetDPI() = 0;
-
-    /**
-     * Return the default scale factor for the window. This is the
-     * default number of device pixels per CSS pixel to use. This should
-     * depend on OS/platform settings such as the Mac's "UI scale factor"
-     * or Windows' "font DPI".
-     */
-    virtual double GetDefaultScale() = 0;
 
     /**
      * Return the first child of this widget.  Will return null if
@@ -876,11 +763,35 @@ class nsIWidget : public nsISupports {
     /**
      * Return the widget's LayerManager. The layer tree for that
      * LayerManager is what gets rendered to the widget.
-     *
-     * @param aAllowRetaining an outparam that states whether the returned
-     * layer manager should be used for retained layers
+     * The layer manager is guaranteed to be the same for the lifetime
+     * of the widget.
      */
-    virtual LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull) = 0;
+    virtual LayerManager* GetLayerManager() = 0;
+
+    /**
+     * Scroll a set of rectangles in this widget and (as simultaneously as
+     * possible) modify the specified child widgets.
+     * 
+     * This will invalidate areas of the children that have changed, unless
+     * they have just moved by the scroll amount, but does not need to
+     * invalidate any part of this widget, except where the scroll
+     * operation fails to blit because part of the window is unavailable
+     * (e.g. partially offscreen).
+     * 
+     * The caller guarantees that the rectangles in aDestRects are
+     * non-intersecting.
+     *
+     * @param aDelta amount to scroll (device pixels)
+     * @param aDestRects rectangles to copy into
+     * (device pixels relative to this widget)
+     * @param aReconfigureChildren commands to set the bounds and clip
+     * region of a subset of the children of this widget; these should
+     * be performed simultaneously with the scrolling, as far as possible,
+     * to avoid visual artifacts.
+     */
+    virtual void Scroll(const nsIntPoint& aDelta,
+                        const nsTArray<nsIntRect>& aDestRects,
+                        const nsTArray<Configuration>& aReconfigureChildren) = 0;
 
     /** 
      * Internal methods
@@ -1263,9 +1174,6 @@ class nsIWidget : public nsISupports {
      *
      * If this returns NS_ERROR_*, OnIMETextChange and OnIMESelectionChange
      * and OnIMEFocusChange(PR_FALSE) will be never called.
-     *
-     * If this returns NS_SUCCESS_IME_NO_UPDATES, OnIMEFocusChange(PR_FALSE)
-     * will be called but OnIMETextChange and OnIMESelectionChange will NOT.
      */
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus) = 0;
 
@@ -1283,11 +1191,6 @@ class nsIWidget : public nsISupports {
      * Selection has changed in the focused node
      */
     NS_IMETHOD OnIMESelectionChange(void) = 0;
-
-    /*
-     * Retrieves preference for IME updates
-     */
-    virtual nsIMEUpdatePreference GetIMEUpdatePreference() = 0;
 
     /*
      * Call this method when a dialog is opened which has a default button.
@@ -1318,39 +1221,7 @@ class nsIWidget : public nsISupports {
                                               PRBool aIsHorizontal,
                                               PRInt32 &aOverriddenDelta) = 0;
 
-#ifdef MOZ_IPC
-    /**
-     * Return true if this process shouldn't use platform widgets, and
-     * so should use PuppetWidgets instead.  If this returns true, the
-     * result of creating and using a platform widget is undefined,
-     * and likely to end in crashes or other buggy behavior.
-     */
-    static bool
-    UsePuppetWidgets()
-    { return XRE_GetProcessType() == GeckoProcessType_Content; }
-
-    /**
-     * Allocate and return a "puppet widget" that doesn't directly
-     * correlate to a platform widget; platform events and data must
-     * be fed to it.  Currently used in content processes.  NULL is
-     * returned if puppet widgets aren't supported in this build
-     * config, on this platform, or for this process type.
-     *
-     * This function is called "Create" to match CreateInstance().
-     * The returned widget must still be nsIWidget::Create()d.
-     */
-    static already_AddRefed<nsIWidget>
-    CreatePuppetWidget(PBrowserChild *aTabChild);
-#endif
-
-    /**
-     * Reparent this widget's native widget.
-     * @param aNewParent the native widget of aNewParent is the new native
-     *                   parent widget
-     */
-    NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent) = 0;
 protected:
-
     // keep the list of children.  We also keep track of our siblings.
     // The ownership model is as follows: parent holds a strong ref to
     // the first element of the list, and each element holds a strong
@@ -1364,36 +1235,5 @@ protected:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget, NS_IWIDGET_IID)
-
-class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
-  public:
-    NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)
-
-    typedef mozilla::layers::LayerManager LayerManager;
-
-    /*
-     * Notifies the IME if the input context changes.
-     *
-     * aContext cannot be null.
-     * Set mStatus to 'Enabled' or 'Disabled' or 'Password'.
-     */
-    NS_IMETHOD SetInputMode(const IMEContext& aContext) = 0;
-
-    /*
-     * Get IME is 'Enabled' or 'Disabled' or 'Password' and other input context
-     */
-    NS_IMETHOD GetInputMode(IMEContext& aContext) = 0;
-
-    enum LayerManagerPersistence
-    {
-      LAYER_MANAGER_CURRENT = 0,
-      LAYER_MANAGER_PERSISTENT
-    };
-
-    virtual LayerManager *GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nsnull) = 0;
-};
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget_MOZILLA_2_0_BRANCH, NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)
 
 #endif // nsIWidget_h__

@@ -84,12 +84,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mPlugin(plugin),
     mMIMEType(nsnull),
     mOwner(nsnull),
-    mCurrentPluginEvent(nsnull),
-#if defined(MOZ_X11) || defined(XP_WIN)
-    mUsePluginLayersPref(PR_TRUE)
-#else
-    mUsePluginLayersPref(PR_FALSE)
-#endif
+    mCurrentPluginEvent(nsnull)
 {
   NS_ASSERTION(mPlugin != NULL, "Plugin is required when creating an instance.");
 
@@ -97,14 +92,6 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
 
   mNPP.pdata = NULL;
   mNPP.ndata = this;
-
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefs) {
-    PRBool useLayersPref;
-    nsresult rv = prefs->GetBoolPref("mozilla.plugins.use_layers", &useLayersPref);
-    if (NS_SUCCEEDED(rv))
-      mUsePluginLayersPref = useLayersPref;
-  }
 
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
 }
@@ -195,13 +182,16 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
   OnPluginDestroy(&mNPP);
 
   // clean up open streams
-  while (mPStreamListeners.Length() > 0) {
-    nsRefPtr<nsNPAPIPluginStreamListener> currentListener(mPStreamListeners[0]);
-    currentListener->CleanUpStream(NPRES_USER_BREAK);
-    mPStreamListeners.RemoveElement(currentListener);
+  for (unsigned int i = 0; i < mPStreamListeners.Length(); i++) {
+    mPStreamListeners[i]->CleanUpStream(NPRES_USER_BREAK);
   }
+  mPStreamListeners.Clear();
 
-  if (!mPlugin || !mPlugin->GetLibrary())
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
@@ -210,7 +200,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
   if (pluginFunctions->destroy) {
     NPSavedData *sdata = 0;
 
-    NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->destroy)(&mNPP, &sdata), this);
+    NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->destroy)(&mNPP, &sdata), library, this);
 
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
                    ("NPP Destroy called: this=%p, npp=%p, return=%d\n", this, &mNPP, error));
@@ -447,7 +437,11 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(NPWindow* window)
   }
 #endif
 
-  if (!mPlugin || !mPlugin->GetLibrary())
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
@@ -466,7 +460,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(NPWindow* window)
     NPPAutoPusher nppPusher(&mNPP);
 
     NPError error;
-    NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setwindow)(&mNPP, (NPWindow*)window), this);
+    NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setwindow)(&mNPP, (NPWindow*)window), library, this);
 
     mInPluginInitCall = oldVal;
 
@@ -518,7 +512,11 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(NPPrint* platformPrint)
 
   PluginDestructionGuard guard(this);
 
-  if (!mPlugin || !mPlugin->GetLibrary())
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
@@ -544,7 +542,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(NPPrint* platformPrint)
   }
 
   if (pluginFunctions->print)
-      NS_TRY_SAFE_CALL_VOID((*pluginFunctions->print)(&mNPP, thePrint), this);
+      NS_TRY_SAFE_CALL_VOID((*pluginFunctions->print)(&mNPP, thePrint), library, this);
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("NPP PrintProc called: this=%p, pDC=%p, [x=%d,y=%d,w=%d,h=%d], clip[t=%d,b=%d,l=%d,r=%d]\n",
@@ -572,7 +570,11 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRInt16* result)
 
   PluginDestructionGuard guard(this);
 
-  if (!mPlugin || !mPlugin->GetLibrary())
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
@@ -582,7 +584,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRInt16* result)
   if (pluginFunctions->event) {
     mCurrentPluginEvent = event;
 #if defined(XP_WIN) || defined(XP_OS2)
-    NS_TRY_SAFE_CALL_RETURN(tmpResult, (*pluginFunctions->event)(&mNPP, event), this);
+    NS_TRY_SAFE_CALL_RETURN(tmpResult, (*pluginFunctions->event)(&mNPP, event), library, this);
 #else
     tmpResult = (*pluginFunctions->event)(&mNPP, event);
 #endif
@@ -608,7 +610,11 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValueFromPlugin(NPPVariable variable, vo
     return NS_OK;
   }
 #endif
-  if (!mPlugin || !mPlugin->GetLibrary())
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
@@ -617,7 +623,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValueFromPlugin(NPPVariable variable, vo
   if (pluginFunctions->getvalue && RUNNING == mRunning) {
     PluginDestructionGuard guard(this);
 
-    NS_TRY_SAFE_CALL_RETURN(rv, (*pluginFunctions->getvalue)(&mNPP, variable, value), this);
+    NS_TRY_SAFE_CALL_RETURN(rv, (*pluginFunctions->getvalue)(&mNPP, variable, value), library, this);
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP GetValue called: this=%p, npp=%p, var=%d, value=%d, return=%d\n", 
     this, &mNPP, variable, value, rv));
@@ -658,16 +664,14 @@ NPError nsNPAPIPluginInstance::SetWindowless(PRBool aWindowless)
   mWindowless = aWindowless;
 
   if (mMIMEType) {
-    // bug 558434 - Prior to 3.6.4, we assumed windowless was transparent.
-    // Silverlight apparently relied on this quirk, so we default to
-    // transparent unless they specify otherwise after setting the windowless
-    // property. (Last tested version: sl 4.0).
-    // Changes to this code should be matched with changes in
-    // PluginInstanceChild::InitQuirksMode.
-    NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
-    if (!PL_strncasecmp(mMIMEType, silverlight.get(), silverlight.Length())) {
-      mTransparent = PR_TRUE;
-    }
+      // bug 558434 - Prior to 3.6.4, we assumed windowless was transparent.
+      // Silverlight apparently relied on this quirk, so we default to
+      // transparent unless they specify otherwise after setting the windowless
+      // property. (Last tested version: sl 3.0). 
+      NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
+      if (!PL_strncasecmp(mMIMEType, silverlight.get(), silverlight.Length())) {
+          mTransparent = PR_TRUE;
+      }
   }
 
   return NPERR_NO_ERROR;
@@ -816,71 +820,6 @@ nsNPAPIPluginInstance::IsWindowless(PRBool* isWindowless)
 }
 
 NS_IMETHODIMP
-nsNPAPIPluginInstance::AsyncSetWindow(NPWindow* window)
-{
-  if (RUNNING != mRunning)
-    return NS_OK;
-
-  PluginDestructionGuard guard(this);
-
-  if (!mPlugin)
-    return NS_ERROR_FAILURE;
-
-  PluginLibrary* library = mPlugin->GetLibrary();
-  if (!library)
-    return NS_ERROR_FAILURE;
-
-  return library->AsyncSetWindow(&mNPP, window);
-}
-
-NS_IMETHODIMP
-nsNPAPIPluginInstance::GetSurface(gfxASurface** aSurface)
-{
-  if (RUNNING != mRunning)
-    return NS_OK;
-
-  PluginDestructionGuard guard(this);
-
-  if (!mPlugin)
-    return NS_ERROR_FAILURE;
-
-  PluginLibrary* library = mPlugin->GetLibrary();
-  if (!library)
-    return NS_ERROR_FAILURE;
-
-  return library->GetSurface(&mNPP, aSurface);
-}
-
-
-NS_IMETHODIMP
-nsNPAPIPluginInstance::NotifyPainted(void)
-{
-  NS_NOTREACHED("Dead code, shouldn't be called.");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsNPAPIPluginInstance::UseAsyncPainting(PRBool* aIsAsync)
-{
-  if (!mUsePluginLayersPref) {
-    *aIsAsync = mUsePluginLayersPref;
-    return NS_OK;
-  }
-
-  PluginDestructionGuard guard(this);
-
-  if (!mPlugin)
-    return NS_ERROR_FAILURE;
-
-  PluginLibrary* library = mPlugin->GetLibrary();
-  if (!library)
-    return NS_ERROR_FAILURE;
-
-  *aIsAsync = library->UseAsyncPainting();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsNPAPIPluginInstance::IsTransparent(PRBool* isTransparent)
 {
   *isTransparent = mTransparent;
@@ -975,7 +914,11 @@ nsNPAPIPluginInstance::PrivateModeStateChanged()
 
   PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance informing plugin of private mode state change this=%p\n",this));
 
-  if (!mPlugin || !mPlugin->GetLibrary())
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
@@ -992,7 +935,7 @@ nsNPAPIPluginInstance::PrivateModeStateChanged()
 
       NPError error;
       NPBool value = static_cast<NPBool>(pme);
-      NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setvalue)(&mNPP, NPNVprivateModeBool, &value), this);
+      NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setvalue)(&mNPP, NPNVprivateModeBool, &value), library, this);
       return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
     }
   }
@@ -1226,10 +1169,4 @@ nsNPAPIPluginInstance::InvalidateOwner()
   mOwner = nsnull;
 
   return NS_OK;
-}
-
-nsresult
-nsNPAPIPluginInstance::AsyncSetWindow(NPWindow& window)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }

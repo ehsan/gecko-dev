@@ -227,11 +227,11 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         }
       }
       else if (menuPopupFrame) {
-        nsRect frameRect = menuPopupFrame->GetScreenRectInAppUnits();
+        nsPoint framePoint = menuPopupFrame->GetScreenRectInAppUnits().TopLeft();
         nsIFrame* rootFrame = aPresContext->PresShell()->FrameManager()->GetRootFrame();
         nsRect rootScreenRect = rootFrame->GetScreenRectInAppUnits();
 
-        nsRect screenRect = menuPopupFrame->GetConstraintRect(frameRect, rootScreenRect);
+        nsRect screenRect = menuPopupFrame->GetConstraintRect(framePoint, rootScreenRect);
         // round using ToInsidePixels as it's better to be a pixel too small
         // than be too large. If the popup is too large it could get flipped
         // to the opposite side of the anchor point while resizing.

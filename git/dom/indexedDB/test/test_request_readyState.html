@@ -30,8 +30,16 @@
 
       let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "");
       is(request.readyState, LOADING, "Correct readyState");
+
+      try {
+        request.abort();
+        ok(false, "Can't abort a writing request");
+      }
+      catch (e) {
+        ok(true, "Can't abort a writing request");
+      }
 
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
@@ -39,11 +47,19 @@
 
       is(request.readyState, DONE, "Correct readyState");
 
-      let objectStore = db.createObjectStore("foo", "");
+      let objectStore = event.result;
       let key = 10;
 
       request = objectStore.add({}, key);
       is(request.readyState, LOADING, "Correct readyState");
+
+      try {
+        request.abort();
+        ok(false, "Can't abort a writing request");
+      }
+      catch (e) {
+        ok(true, "Can't abort a writing request");
+      }
 
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
@@ -51,6 +67,20 @@
 
       is(request.readyState, DONE, "Correct readyState");
       is(event.result, key, "Correct key");
+
+      request = objectStore.get(key);
+      request.onerror = function(event) {
+        ok(true, "reading request was aborted");
+        is(request.readyState, DONE, "Correct readyState");
+        testGenerator.next();
+      };
+      request.onsuccess = unexpectedSuccessHandler;
+
+      is(request.readyState, LOADING, "Correct readyState");
+      request.abort();
+      is(request.readyState, DONE, "Correct readyState");
+
+      yield;
 
       request = objectStore.get(key);
       request.onerror = errorHandler;

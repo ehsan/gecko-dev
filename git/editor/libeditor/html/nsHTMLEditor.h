@@ -45,7 +45,6 @@
 #include "nsPlaintextEditor.h"
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
-#include "nsIHTMLEditor_MOZILLA_2_0_BRANCH.h"
 #include "nsITableEditor.h"
 #include "nsIEditorMailSupport.h"
 #include "nsIEditorStyleSheets.h"
@@ -91,7 +90,6 @@ struct PropItem;
  */
 class nsHTMLEditor : public nsPlaintextEditor,
                      public nsIHTMLEditor,
-                     public nsIHTMLEditor_MOZILLA_2_0_BRANCH,
                      public nsIHTMLObjectResizer,
                      public nsIHTMLAbsPosEditor,
                      public nsITableEditor,
@@ -148,9 +146,9 @@ public:
 
   /* ------------ nsPlaintextEditor overrides -------------- */
   NS_IMETHOD GetIsDocumentEditable(PRBool *aIsDocumentEditable);
-  NS_IMETHOD BeginningOfDocument();
+  NS_IMETHODIMP BeginningOfDocument();
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
-  virtual already_AddRefed<nsIContent> GetFocusedContent();
+  virtual PRBool HasFocus();
   virtual PRBool IsActiveInDOMWindow();
   virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
   virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode *aNode);
@@ -167,10 +165,6 @@ public:
   /* ------------ nsIHTMLEditor methods -------------- */
 
   NS_DECL_NSIHTMLEDITOR
-
-  /* ------------ nsIHTMLEditor_MOZILLA_2_0_BRANCH methods -------------- */
-
-  NS_DECL_NSIHTMLEDITOR_MOZILLA_2_0_BRANCH
 
   /* ------------ nsIHTMLObjectResizer methods -------------- */
   /* -------- Implemented in nsHTMLObjectResizer.cpp -------- */
@@ -628,12 +622,10 @@ protected:
                                         nsCOMPtr<nsIDOMNode> *outStartNode,
                                         nsCOMPtr<nsIDOMNode> *outEndNode,
                                         PRInt32 *outStartOffset,
-                                        PRInt32 *outEndOffset,
-                                        PRBool aTrustedInput);
+                                        PRInt32 *outEndOffset);
   nsresult   ParseFragment(const nsAString & aStr, nsTArray<nsString> &aTagStack,
                            nsIDocument* aTargetDoc,
-                           nsCOMPtr<nsIDOMNode> *outNode,
-                           PRBool aTrustedInput);
+                           nsCOMPtr<nsIDOMNode> *outNode);
   nsresult   CreateListOfNodesToPaste(nsIDOMNode  *aFragmentAsNode,
                                       nsCOMArray<nsIDOMNode>& outNodeList,
                                       nsIDOMNode *aStartNode,
@@ -759,34 +751,17 @@ protected:
   // Whether the outer window of the DOM event target has focus or not.
   PRBool   OurWindowHasFocus();
 
-  // This function is used to insert a string of HTML input optionally with some
-  // context information into the editable field.  The HTML input either comes
-  // from a transferable object created as part of a drop/paste operation, or from
-  // the InsertHTML method.  We may want the HTML input to be sanitized (for example,
-  // if it's coming from a transferable object), in which case aTrustedInput should
-  // be set to false, otherwise, the caller should set it to true, which means that
-  // the HTML will be inserted in the DOM verbatim.
-  nsresult DoInsertHTMLWithContext(const nsAString& aInputString,
-                                   const nsAString& aContextStr,
-                                   const nsAString& aInfoStr,
-                                   const nsAString& aFlavor,
-                                   nsIDOMDocument* aSourceDoc,
-                                   nsIDOMNode* aDestNode,
-                                   PRInt32 aDestOffset,
-                                   PRBool aDeleteSelection,
-                                   PRBool aTrustedInput);
-
 // Data members
 protected:
 
   nsCOMArray<nsIContentFilter> mContentFilters;
 
-  nsRefPtr<TypeInState>        mTypeInState;
+  TypeInState*         mTypeInState;
 
   PRPackedBool mCRInParagraphCreatesParagraph;
 
   PRPackedBool mCSSAware;
-  nsAutoPtr<nsHTMLCSSUtils> mHTMLCSSUtils;
+  nsHTMLCSSUtils *mHTMLCSSUtils;
 
   // Used by GetFirstSelectedCell and GetNextSelectedCell
   PRInt32  mSelectedCellIndex;

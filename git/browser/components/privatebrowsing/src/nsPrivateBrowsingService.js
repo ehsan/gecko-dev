@@ -94,9 +94,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "private-browsing", true);
   this._obs.addObserver(this, "command-line-startup", true);
   this._obs.addObserver(this, "sessionstore-browser-state-restored", true);
-
-  // List of nsIXULWindows we are going to be closing during the transition
-  this._windowsToClose = [];
 }
 
 PrivateBrowsingService.prototype = {
@@ -129,8 +126,8 @@ PrivateBrowsingService.prototype = {
   // List of view source window URIs for restoring later
   _viewSrcURLs: [],
 
-  // Whether private browsing has been turned on from the command line
-  _lastChangedByCommandLine: false,
+  // List of nsIXULWindows we are going to be closing during the transition
+  _windowsToClose: [],
 
   // XPCOM registration
   classID: Components.ID("{c31f4883-839b-45f6-82ad-a6a9bc5ad599}"),
@@ -234,9 +231,6 @@ PrivateBrowsingService.prototype = {
       // to be restored, do it now
       if (!this._inPrivateBrowsing) {
         this._currentStatus = STATE_WAITING_FOR_RESTORE;
-        if (!this._getBrowserWindow()) {
-          ss.init(null);
-        }
         ss.setBrowserState(this._savedBrowserState);
         this._savedBrowserState = null;
 
@@ -279,9 +273,6 @@ PrivateBrowsingService.prototype = {
         };
         // Transition into private browsing mode
         this._currentStatus = STATE_WAITING_FOR_RESTORE;
-        if (!this._getBrowserWindow()) {
-          ss.init(null);
-        }
         ss.setBrowserState(JSON.stringify(privateBrowsingState));
       }
     }
@@ -448,10 +439,6 @@ PrivateBrowsingService.prototype = {
         if (aSubject.findFlag("private", false) >= 0) {
           this.privateBrowsingEnabled = true;
           this._autoStarted = true;
-          this._lastChangedByCommandLine = true;
-        }
-        else if (aSubject.findFlag("private-toggle", false) >= 0) {
-          this._lastChangedByCommandLine = true;
         }
         break;
       case "sessionstore-browser-state-restored":
@@ -469,11 +456,8 @@ PrivateBrowsingService.prototype = {
     if (aCmdLine.handleFlag("private", false))
       ; // It has already been handled
     else if (aCmdLine.handleFlag("private-toggle", false)) {
-      if (this._autoStarted) {
-        throw Cr.NS_ERROR_ABORT;
-      }
       this.privateBrowsingEnabled = !this.privateBrowsingEnabled;
-      this._lastChangedByCommandLine = true;
+      this._autoStarted = false;
     }
   },
 
@@ -550,7 +534,6 @@ PrivateBrowsingService.prototype = {
     } finally {
       this._windowsToClose = [];
       this._notifyIfTransitionComplete();
-      this._lastChangedByCommandLine = false;
     }
   },
 
@@ -559,13 +542,6 @@ PrivateBrowsingService.prototype = {
    */
   get autoStarted() {
     return this._inPrivateBrowsing && this._autoStarted;
-  },
-
-  /**
-   * Whether the latest transition was initiated from the command line.
-   */
-  get lastChangedByCommandLine() {
-    return this._lastChangedByCommandLine;
   },
 
   removeDataFromDomain: function PBS_removeDataFromDomain(aDomain)

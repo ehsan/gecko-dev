@@ -39,7 +39,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: ssl3con.c,v 1.142.2.4 2010/09/01 19:47:11 wtc%google.com Exp $ */
+/* $Id: ssl3con.c,v 1.142 2010/06/24 19:53:20 wtc%google.com Exp $ */
 
 #include "cert.h"
 #include "ssl.h"
@@ -2847,11 +2847,7 @@ ssl3_DeriveMasterSecret(sslSocket *ss, PK11SymKey *pms)
     }
 
     if (pms || !pwSpec->master_secret) {
-	if (isDH) {
-	    master_params.pVersion                     = NULL;
-	} else {
-	    master_params.pVersion                     = &pms_version;
-	}
+	master_params.pVersion                     = &pms_version;
 	master_params.RandomInfo.pClientRandom     = cr;
 	master_params.RandomInfo.ulClientRandomLen = SSL3_RANDOM_LENGTH;
 	master_params.RandomInfo.pServerRandom     = sr;
@@ -5306,10 +5302,8 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
     	if (rv != SECSuccess) {
 	    goto loser;		/* malformed. */
 	}
-	if (dh_p.len < 512/8) {
-	    errCode = SSL_ERROR_WEAK_SERVER_EPHEMERAL_DH_KEY;
+	if (dh_p.len < 512/8)
 	    goto alert_loser;
-	}
     	rv = ssl3_ConsumeHandshakeVariable(ss, &dh_g, 2, &b, &length);
     	if (rv != SECSuccess) {
 	    goto loser;		/* malformed. */
@@ -5671,17 +5665,7 @@ ssl3_RestartHandshakeAfterCertReq(sslSocket *         ss,
     return rv;
 }
 
-PRBool
-ssl3_CanFalseStart(sslSocket *ss) {
-    return ss->opt.enableFalseStart &&
-	   !ss->sec.isServer &&
-	   !ss->ssl3.hs.isResuming &&
-	   ss->ssl3.cwSpec &&
-	   ss->ssl3.cwSpec->cipher_def->secret_key_size >= 10 &&
-	   (ss->ssl3.hs.kea_def->exchKeyType == ssl_kea_rsa ||
-	    ss->ssl3.hs.kea_def->exchKeyType == ssl_kea_dh  ||
-	    ss->ssl3.hs.kea_def->exchKeyType == ssl_kea_ecdh);
-}
+
 
 /* Called from ssl3_HandleHandshakeMessage() when it has deciphered a complete
  * ssl3 Server Hello Done message.
@@ -5753,12 +5737,6 @@ ssl3_HandleServerHelloDone(sslSocket *ss)
 	ss->ssl3.hs.ws = wait_new_session_ticket;
     else
 	ss->ssl3.hs.ws = wait_change_cipher;
-
-    /* Do the handshake callback for sslv3 here, if we can false start. */
-    if (ss->handshakeCallback != NULL && ssl3_CanFalseStart(ss)) {
-	(ss->handshakeCallback)(ss->fd, ss->handshakeCallbackData);
-    }
-
     return SECSuccess;
 
 loser:
@@ -8498,8 +8476,8 @@ xmit_loser:
     }
     ss->ssl3.hs.ws = idle_handshake;
 
-    /* Do the handshake callback for sslv3 here, if we cannot false start. */
-    if (ss->handshakeCallback != NULL && !ssl3_CanFalseStart(ss)) {
+    /* Do the handshake callback for sslv3 here. */
+    if (ss->handshakeCallback != NULL) {
 	(ss->handshakeCallback)(ss->fd, ss->handshakeCallbackData);
     }
 

@@ -48,18 +48,13 @@
 #include "nsAutoPtr.h"
 #include "prmon.h"
 
-#include "nsIObserver.h"
-#include "nsITimer.h"
-
 class nsHttpPipeline;
 
 //-----------------------------------------------------------------------------
 
-class nsHttpConnectionMgr : public nsIObserver
+class nsHttpConnectionMgr
 {
 public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
 
     // parameter names
     enum nsParamName {
@@ -91,12 +86,18 @@ public:
     // NOTE: functions below may be called on any thread.
     //-------------------------------------------------------------------------
 
-    // Schedules next pruning of dead connection to happen after
-    // given time.
-    void PruneDeadConnectionsAfter(PRUint32 time);
+    nsrefcnt AddRef()
+    {
+        return PR_AtomicIncrement(&mRef);
+    }
 
-    // Stops timer scheduled for next pruning of dead connections.
-    void StopPruneDeadConnectionsTimer();
+    nsrefcnt Release()
+    {
+        nsrefcnt n = PR_AtomicDecrement(&mRef);
+        if (n == 0)
+            delete this;
+        return n;
+    }
 
     // adds a transaction to the list of managed transactions.
     nsresult AddTransaction(nsHttpTransaction *, PRInt32 priority);
@@ -199,17 +200,15 @@ private:
     PRUint16 mMaxRequestDelay; // in seconds
     PRUint16 mMaxPipelinedRequests;
 
-    PRPackedBool mIsShuttingDown;
-
     //-------------------------------------------------------------------------
     // NOTE: these members are only accessed on the socket transport thread
     //-------------------------------------------------------------------------
 
     static PRIntn ProcessOneTransactionCB(nsHashKey *, void *, void *);
-
+    static PRIntn PurgeOneIdleConnectionCB(nsHashKey *, void *, void *);
     static PRIntn PruneDeadConnectionsCB(nsHashKey *, void *, void *);
     static PRIntn ShutdownPassCB(nsHashKey *, void *, void *);
-    static PRIntn PurgeExcessIdleConnectionsCB(nsHashKey *, void *, void *);
+
     PRBool   ProcessPendingQForEntry(nsConnectionEntry *);
     PRBool   AtActiveConnectionLimit(nsConnectionEntry *, PRUint8 caps);
     void     GetConnection(nsConnectionEntry *, PRUint8 caps, nsHttpConnection **);
@@ -217,7 +216,6 @@ private:
                                  PRUint8 caps, nsHttpConnection *);
     PRBool   BuildPipeline(nsConnectionEntry *, nsAHttpTransaction *, nsHttpPipeline **);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
-    nsresult EnsureSocketThreadTargetIfOnline();
 
     // message handlers have this signature
     typedef void (nsHttpConnectionMgr:: *nsConnEventHandler)(PRInt32, void *);
@@ -276,17 +274,9 @@ private:
     void OnMsgReclaimConnection    (PRInt32, void *);
     void OnMsgUpdateParam          (PRInt32, void *);
 
-    // Total number of active connections in all of the ConnectionEntry objects
-    // that are accessed from mCT connection table.
+    // counters
     PRUint16 mNumActiveConns;
-    // Total number of idle connections in all of the ConnectionEntry objects
-    // that are accessed from mCT connection table.
     PRUint16 mNumIdleConns;
-
-    // Holds time in seconds for next wake-up to prune dead connections. 
-    PRUint64 mTimeOfNextWakeUp;
-    // Timer for next pruning of dead connections.
-    nsCOMPtr<nsITimer> mTimer;
 
     //
     // the connection table

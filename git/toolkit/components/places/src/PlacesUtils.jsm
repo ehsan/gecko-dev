@@ -722,13 +722,8 @@ var PlacesUtils = {
       case this.TYPE_X_MOZ_PLACE:
       case this.TYPE_X_MOZ_PLACE_SEPARATOR:
       case this.TYPE_X_MOZ_PLACE_CONTAINER:
-        var json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
-        // Old profiles (pre-Firefox 4) may contain bookmarks.json files with
-        // trailing commas, which we once accepted but no longer do -- except
-        // when decoded using the legacy decoder.  This can be reverted to
-        // json.decode (better yet, to the ECMA-standard JSON.parse) when we no
-        // longer support upgrades from pre-Firefox 4 profiles.
-        nodes = json.legacyDecode("[" + blob + "]");
+        var JSON = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
+        nodes = JSON.decode("[" + blob + "]");
         break;
       case this.TYPE_X_MOZ_URL:
         var parts = blob.split("\n");
@@ -2049,6 +2044,14 @@ var PlacesUtils = {
     }
 
   },
+
+  /**
+   * Starts the database coherence check and executes update tasks on a timer,
+   * this method is called by browser.js in delayed startup.
+   */
+  startPlacesDBUtils: function PU_startPlacesDBUtils() {
+    Cu.import("resource://gre/modules/PlacesDBUtils.jsm");
+  }
 };
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "history",

@@ -49,7 +49,6 @@ endif
 
 MODULE          = cairo
 LIBRARY_NAME    = mozcairo
-SUPPRESS_FAKELIB = 1 # cairo isn't awesome enough for fakelibs yet
 LIBXUL_LIBRARY = 1
 
 ifdef GNU_CC
@@ -167,6 +166,7 @@ CPPSRCS +=	cairo-d2d-surface.cpp
 endif
 CSRCS	+=	cairo-win32-font.c
 else
+CSRCS	+=	cairo-ddraw-surface.c
 EXPORTS_cairo +=	cairo-ddraw.h
 endif
 
@@ -207,16 +207,9 @@ CSRCS   += $(PSPDF_BASE_CSRCS) $(PDF_CSRCS) $(PS_CSRCS)
 EXPORTS_cairo += $(PDF_EXPORTS) $(PS_EXPORTS)
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-CSRCS   += $(PSPDF_BASE_CSRCS) $(PDF_CSRCS)
-EXPORTS_cairo += $(PDF_EXPORTS)
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CPPSRCS += cairo-qt-surface.cpp
-CSRCS   += $(PSPDF_BASE_CSRCS) $(PDF_CSRCS) 
 EXPORTS_cairo += cairo-qt.h
-EXPORTS_cairo += $(PDF_EXPORTS)
 OS_INCLUDES += $(MOZ_QT_CFLAGS)
 endif
 
@@ -261,13 +254,6 @@ endif
 
 ifdef MOZ_TREE_CAIRO
 DEFINES += -DMOZ_TREE_CAIRO
-endif
-
-ifndef MOZ_TREE_PIXMAN
-CFLAGS += $(MOZ_CAIRO_CFLAGS)
-CXXFLAGS += $(MOZ_CAIRO_CFLAGS)
-else
-DEFINES += -DMOZ_TREE_PIXMAN
 endif
 
 cairo-features.h: $(srcdir)/cairo-features.h.in $(GLOBAL_DEPS)

@@ -1,3 +1,8 @@
+//
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
 /****************************************************************************\
 Copyright (c) 2002, NVIDIA Corporation.
 
@@ -670,7 +675,7 @@ static int CPPextension(yystypepp * yylvalpp)
 {
 
     int token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
-    char extensionName[MAX_SYMBOL_NAME_LEN + 1];
+    char extensionName[80];
 
     if(token=='\n'){
 		DecLineNumber();
@@ -682,8 +687,7 @@ static int CPPextension(yystypepp * yylvalpp)
     if (token != CPP_IDENTIFIER)
         CPPErrorToInfoLog("#extension");
     
-    strncpy(extensionName, GetAtomString(atable, yylvalpp->sc_ident), MAX_SYMBOL_NAME_LEN);
-    extensionName[MAX_SYMBOL_NAME_LEN] = '\0';
+    strcpy(extensionName, GetAtomString(atable, yylvalpp->sc_ident));
 	    
     token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
     if (token != ':') {

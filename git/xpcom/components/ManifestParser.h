@@ -42,13 +42,14 @@
 #include "nsChromeRegistry.h"
 
 class nsILocalFile;
-class nsIZipReader;
 
 void ParseManifest(NSLocationType type, nsILocalFile* file,
                    char* buf, bool aChromeOnly);
 
-void ParseManifest(NSLocationType type, nsIZipReader* reader,
-                   const char* jarPath, char* buf, bool aChromeOnly);
+#ifdef MOZ_OMNIJAR
+void ParseManifest(NSLocationType type, const char* jarPath,
+                   char* buf, bool aChromeOnly);
+#endif
 
 void LogMessage(const char* aMsg, ...);
 

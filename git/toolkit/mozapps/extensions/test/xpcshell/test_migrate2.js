@@ -77,12 +77,24 @@ function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
-  writeInstallRDFForExtension(addon1, profileDir);
-  writeInstallRDFForExtension(addon2, profileDir);
-  writeInstallRDFForExtension(addon3, profileDir);
-  writeInstallRDFForExtension(addon4, profileDir);
-  writeInstallRDFForExtension(addon5, profileDir);
-  writeInstallRDFForExtension(addon6, profileDir);
+  var dest = profileDir.clone();
+  dest.append("addon1@tests.mozilla.org");
+  writeInstallRDFToDir(addon1, dest);
+  dest = profileDir.clone();
+  dest.append("addon2@tests.mozilla.org");
+  writeInstallRDFToDir(addon2, dest);
+  dest = profileDir.clone();
+  dest.append("addon3@tests.mozilla.org");
+  writeInstallRDFToDir(addon3, dest);
+  dest = profileDir.clone();
+  dest.append("addon4@tests.mozilla.org");
+  writeInstallRDFToDir(addon4, dest);
+  dest = profileDir.clone();
+  dest.append("addon5@tests.mozilla.org");
+  writeInstallRDFToDir(addon5, dest);
+  dest = profileDir.clone();
+  dest.append("addon6@tests.mozilla.org");
+  writeInstallRDFToDir(addon6, dest);
 
   // Write out a minimal database
   let dbfile = gProfD.clone();
@@ -134,9 +146,8 @@ function run_test() {
   stmt.execute();
   stmt.finalize();
 
-  db.schemaVersion = 100;
-  Services.prefs.setIntPref("extensions.databaseSchema", 100);
   db.close();
+  Services.prefs.setIntPref("extensions.databaseSchema", 100);
 
   startupManager();
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",

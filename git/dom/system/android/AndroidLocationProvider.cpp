@@ -1,5 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -58,8 +57,6 @@ AndroidLocationProvider::~AndroidLocationProvider()
 NS_IMETHODIMP
 AndroidLocationProvider::Startup()
 {
-    if (!AndroidBridge::Bridge())
-        return NS_ERROR_NOT_IMPLEMENTED;
     AndroidBridge::Bridge()->EnableLocation(true);
     return NS_OK;
 }
@@ -76,8 +73,6 @@ AndroidLocationProvider::Watch(nsIGeolocationUpdate* aCallback)
 NS_IMETHODIMP
 AndroidLocationProvider::Shutdown()
 {
-    if (!AndroidBridge::Bridge())
-        return NS_ERROR_NOT_IMPLEMENTED;
     AndroidBridge::Bridge()->EnableLocation(false);
     return NS_OK;
 }

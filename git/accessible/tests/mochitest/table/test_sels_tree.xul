@@ -12,16 +12,14 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="../treeview.js" />
+          src="chrome://mochikit/content/a11y/accessible/treeview.js" />
 
   <script type="application/javascript"
-          src="../common.js" />
+          src="chrome://mochikit/content/a11y/accessible/common.js" />
   <script type="application/javascript"
-          src="../events.js" />
+          src="chrome://mochikit/content/a11y/accessible/states.js" />
   <script type="application/javascript"
-          src="../states.js" />
-  <script type="application/javascript"
-          src="../table.js" />
+          src="chrome://mochikit/content/a11y/accessible/table.js" />
 
   <script type="application/javascript">
   <![CDATA[
@@ -41,12 +39,14 @@
       gTreeBox = gTree.treeBoxObject;
       gView = new nsTableTreeView(3);
 
-      waitForEvent(EVENT_REORDER, gTree, continueTest);
+      gTree.addEventListener("TreeViewChanged", continueTest, false);
       gTreeBox.view = gView;
     }
 
     function continueTest()
     {
+      gTree.removeEventListener("TreeViewChanged", continueTest, false);
+
       var cellsArray =
       [
         [false, false],

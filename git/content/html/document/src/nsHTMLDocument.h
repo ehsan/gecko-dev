@@ -105,6 +105,10 @@ public:
 
   virtual void EndLoad();
 
+  virtual nsresult AddImageMap(nsIDOMHTMLMapElement* aMap);
+
+  virtual void RemoveImageMap(nsIDOMHTMLMapElement* aMap);
+
   virtual nsIDOMHTMLMapElement *GetImageMap(const nsAString& aMapName);
 
   virtual void SetCompatibilityMode(nsCompatibility aMode);
@@ -285,6 +289,8 @@ protected:
     return kNameSpaceID_XHTML;
   }
 
+  nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
+
   nsCOMPtr<nsIDOMHTMLCollection> mImages;
   nsCOMPtr<nsIDOMHTMLCollection> mApplets;
   nsCOMPtr<nsIDOMHTMLCollection> mEmbeds;
@@ -292,7 +298,6 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
-  nsRefPtr<nsContentList> mImageMaps;
 
   /** # of forms in the document, synchronously set */
   PRInt32 mNumForms;
@@ -309,6 +314,10 @@ protected:
   static PRBool TryCacheCharset(nsICachingChannel* aCachingChannel,
                                 PRInt32& aCharsetSource,
                                 nsACString& aCharset);
+  static PRBool TryBookmarkCharset(nsIDocShell* aDocShell,
+                                   nsIChannel* aChannel,
+                                   PRInt32& aCharsetSource,
+                                   nsACString& aCharset);
   // aParentDocument could be null.
   PRBool TryParentCharset(nsIDocumentCharsetInfo*  aDocInfo,
                           nsIDocument* aParentDocument,
@@ -357,8 +366,6 @@ protected:
 
   PRPackedBool mDisableDocWrite;
 
-  PRPackedBool mWarnedWidthHeight;
-
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 
   /* Midas implementation */
@@ -374,8 +381,8 @@ protected:
   EditingState mEditingState;
 
   nsresult   DoClipboardSecurityCheck(PRBool aPaste);
-  static jsid        sCutCopyInternal_id;
-  static jsid        sPasteInternal_id;
+  static jsval       sCutCopyInternal_id;
+  static jsval       sPasteInternal_id;
 
   // When false, the .cookies property is completely disabled
   PRBool mDisableCookieAccess;

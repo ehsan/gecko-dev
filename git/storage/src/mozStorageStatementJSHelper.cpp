@@ -205,11 +205,11 @@ NS_IMETHODIMP
 StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
                                JSContext *aCtx,
                                JSObject *aScopeObj,
-                               jsid aId,
+                               jsval aId,
                                jsval *_result,
                                PRBool *_retval)
 {
-  if (!JSID_IS_STRING(aId))
+  if (!JSVAL_IS_STRING(aId))
     return NS_OK;
 
 #ifdef DEBUG
@@ -224,11 +224,11 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
     static_cast<mozIStorageStatement *>(aWrapper->Native())
   );
 
-  JSString *str = JSID_TO_STRING(aId);
-  if (::JS_MatchStringAndAscii(str, "row"))
+  const char *propName = ::JS_GetStringBytes(JSVAL_TO_STRING(aId));
+  if (::strcmp(propName, "row") == 0)
     return getRow(stmt, aCtx, aScopeObj, _result);
 
-  if (::JS_MatchStringAndAscii(str, "params"))
+  if (::strcmp(propName, "params") == 0)
     return getParams(stmt, aCtx, aScopeObj, _result);
 
   return NS_OK;
@@ -239,17 +239,18 @@ NS_IMETHODIMP
 StatementJSHelper::NewResolve(nsIXPConnectWrappedNative *aWrapper,
                               JSContext *aCtx,
                               JSObject *aScopeObj,
-                              jsid aId,
+                              jsval aId,
                               PRUint32 aFlags,
                               JSObject **_objp,
                               PRBool *_retval)
 {
-  if (!JSID_IS_STRING(aId))
+  if (!JSVAL_IS_STRING(aId))
     return NS_OK;
 
-  if (::JS_MatchStringAndAscii(JSID_TO_STRING(aId), "step")) {
-    *_retval = ::JS_DefineFunction(aCtx, aScopeObj, "step", stepFunc,
-                                   0, 0) != nsnull;
+  const char *name = ::JS_GetStringBytes(JSVAL_TO_STRING(aId));
+  if (::strcmp(name, "step") == 0) {
+    *_retval = ::JS_DefineFunction(aCtx, aScopeObj, "step", (JSNative)stepFunc,
+                                   0, JSFUN_FAST_NATIVE) != nsnull;
     *_objp = aScopeObj;
     return NS_OK;
   }

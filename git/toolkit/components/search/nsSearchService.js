@@ -375,10 +375,9 @@ loadListener.prototype = {
   },
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
-                                                      aFlags, callback) {
+  onChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
+                                                 aFlags) {
     this._channel = aNewChannel;
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 
   // nsIInterfaceRequestor
@@ -1867,7 +1866,7 @@ Engine.prototype = {
           // Adjust the start index to account for the opening quote
           valueStart = quoteStart + "\"".length;
           // Find the closing quote
-          var valueEnd = lLine.indexOf("\"", valueStart);
+          valueEnd = lLine.indexOf("\"", valueStart);
           // If there is no closing quote, just go to the end of the line
           if (valueEnd == -1)
             valueEnd = aLine.length;
@@ -1879,7 +1878,7 @@ Engine.prototype = {
 
       LOG("_parseAsSherlock::getInputs: Lines:\n" + aLines);
       // Filter out everything but non-inputs
-      let lines = aLines.filter(function (line) {
+      lines = aLines.filter(function (line) {
         return /^\s*<input/i.test(line);
       });
       LOG("_parseAsSherlock::getInputs: Filtered lines:\n" + lines);
@@ -2867,9 +2866,8 @@ SearchService.prototype = {
       let chromeFile;
       try {
         let chromeURI = gChromeReg.convertChromeURL(makeURI(root));
-        let fileURI = chromeURI; // flat packaging
-        if (fileURI instanceof Ci.nsIJARURI)
-          fileURI = fileURI.JARFile; // JAR packaging
+        chromeURI.QueryInterface(Ci.nsIJARURI);
+        let fileURI = chromeURI.JARFile;
         fileURI.QueryInterface(Ci.nsIFileURL);
         chromeFile = fileURI.file;
       } catch (ex) {
@@ -3357,16 +3355,14 @@ SearchService.prototype = {
     }
   },
 
-  get originalDefaultEngine() {
-    const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
-    return this.getEngineByName(getLocalizedPref(defPref, ""));
-  },
-
   get defaultEngine() {
-    let defaultEngine = this.originalDefaultEngine;
-    if (!defaultEngine || defaultEngine.hidden)
-      defaultEngine = this._getSortedEngines(false)[0] || null;
-    return defaultEngine;
+    const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
+    // Get the default engine - this pref should always exist, but the engine
+    // might be hidden
+    this._defaultEngine = this.getEngineByName(getLocalizedPref(defPref, ""));
+    if (!this._defaultEngine || this._defaultEngine.hidden)
+      this._defaultEngine = this._getSortedEngines(false)[0] || null;
+    return this._defaultEngine;
   },
 
   get currentEngine() {

@@ -92,8 +92,6 @@
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
 
-namespace dom = mozilla::dom;
-
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
 {
@@ -730,8 +728,7 @@ nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 void
 nsComboboxControlFrame::ShowDropDown(PRBool aDoDropDown) 
 {
-  nsEventStates eventStates = mContent->IntrinsicState();
-  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
     return;
   }
 
@@ -929,9 +926,7 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
-
-  nsEventStates eventStates = mContent->IntrinsicState();
-  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
     return NS_OK;
   }
 
@@ -1014,13 +1009,15 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // create button which drops the list down
   NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+                    PR_FALSE);
   if (!mButtonContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // make someone to listen to the button. If its pressed by someone like Accessibility
   // then open or close the combo box.
   mButtonListener = new nsComboButtonListener(this);
+  if (!mButtonListener)
+    return NS_ERROR_OUT_OF_MEMORY;
   mButtonContent->AddEventListenerByIID(mButtonListener,
                                         NS_GET_IID(nsIDOMMouseListener));
 
@@ -1037,8 +1034,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsComboboxControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                                 PRUint32 aFilter)
+nsComboboxControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mDisplayContent);
   aElements.MaybeAppendElement(mButtonContent);
@@ -1317,9 +1313,8 @@ nsComboboxControlFrame::UpdateRecentIndex(PRInt32 aIndex)
 
 class nsDisplayComboboxFocus : public nsDisplayItem {
 public:
-  nsDisplayComboboxFocus(nsDisplayListBuilder* aBuilder,
-                         nsComboboxControlFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame) {
+  nsDisplayComboboxFocus(nsComboboxControlFrame* aFrame)
+    : nsDisplayItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayComboboxFocus);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1337,7 +1332,7 @@ void nsDisplayComboboxFocus::Paint(nsDisplayListBuilder* aBuilder,
                                    nsIRenderingContext* aCtx)
 {
   static_cast<nsComboboxControlFrame*>(mFrame)
-    ->PaintFocus(*aCtx, ToReferenceFrame());
+    ->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(mFrame));
 }
 
 NS_IMETHODIMP
@@ -1372,22 +1367,22 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       if ((!IsThemed(disp) ||
            !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
           mDisplayFrame && IsVisibleForPainting(aBuilder)) {
-        nsresult rv = aLists.Content()->AppendNewToTop(
-            new (aBuilder) nsDisplayComboboxFocus(aBuilder, this));
+        nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
+                                                       nsDisplayComboboxFocus(this));
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }
   }
 
-  return DisplaySelectionOverlay(aBuilder, aLists.Content());
+  return DisplaySelectionOverlay(aBuilder, aLists);
 }
 
 void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
                                         nsPoint aPt)
 {
   /* Do we need to do anything? */
-  nsEventStates eventStates = mContent->IntrinsicState();
-  if (eventStates.HasState(NS_EVENT_STATE_DISABLED) || mFocused != this)
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
+      mFocused != this)
     return;
 
   aRenderingContext.PushState();

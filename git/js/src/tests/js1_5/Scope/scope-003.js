@@ -66,6 +66,7 @@
  * This is what we are checking for in this testcase -
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'scope-003.js';
 var UBound = 0;
 var BUGNUMBER = '(none)';
 var summary = 'Testing scope with nested functions';

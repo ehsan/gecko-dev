@@ -210,7 +210,6 @@ ProcessOrDeferMessage(HWND hwnd,
     case WM_PARENTNOTIFY:
     case WM_SETFOCUS:
     case WM_SYSCOMMAND:
-    case WM_DISPLAYCHANGE:
     case WM_SHOWWINDOW: // Intentional fall-through.
     case WM_XP_THEMECHANGED: {
       deferred = new DeferredSendMessage(hwnd, uMsg, wParam, lParam);
@@ -238,6 +237,12 @@ ProcessOrDeferMessage(HWND hwnd,
     case WM_ERASEBKGND: {
       UINT flags = RDW_INVALIDATE | RDW_ERASE | RDW_NOINTERNALPAINT |
                    RDW_NOFRAME | RDW_NOCHILDREN | RDW_ERASENOW;
+      deferred = new DeferredRedrawMessage(hwnd, flags);
+      break;
+    }
+    case WM_NCPAINT: {
+      UINT flags = RDW_INVALIDATE | RDW_FRAME | RDW_NOINTERNALPAINT |
+                   RDW_NOERASE | RDW_NOCHILDREN | RDW_ERASENOW;
       deferred = new DeferredRedrawMessage(hwnd, flags);
       break;
     }
@@ -284,20 +289,14 @@ ProcessOrDeferMessage(HWND hwnd,
     // Messages that are safe to pass to DefWindowProc go here.
     case WM_ENTERIDLE:
     case WM_GETICON:
-    case WM_NCPAINT: // (never trap nc paint events)
     case WM_GETMINMAXINFO:
     case WM_GETTEXT:
     case WM_NCHITTEST:
-    case WM_STYLECHANGING:  // Intentional fall-through.
-    case WM_WINDOWPOSCHANGING: { 
+    case WM_STYLECHANGING:
+    case WM_SYNCPAINT: // Intentional fall-through.
+    case WM_WINDOWPOSCHANGING: {
       return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
-
-    // Just return, prevents DefWindowProc from messaging the window
-    // syncronously with other events, which may be deferred. Prevents 
-    // random shutdown of aero composition on the window. 
-    case WM_SYNCPAINT:
-      return 0;
 
     // Unknown messages only.
     default: {
@@ -335,9 +334,6 @@ ProcessOrDeferMessage(HWND hwnd,
   return res;
 }
 
-} // anonymous namespace
-
-// We need the pointer value of this in PluginInstanceChild.
 LRESULT CALLBACK
 NeuteredWindowProc(HWND hwnd,
                    UINT uMsg,
@@ -355,8 +351,6 @@ NeuteredWindowProc(HWND hwnd,
   // DefWindowProc, or defer it for later.
   return ProcessOrDeferMessage(hwnd, uMsg, wParam, lParam);
 }
-
-namespace {
 
 static bool
 WindowIsDeferredWindow(HWND hWnd)
@@ -465,7 +459,8 @@ RestoreWindowProcedure(HWND hWnd)
 {
   NS_ASSERTION(WindowIsDeferredWindow(hWnd),
                "Not a deferred window, this shouldn't be in our list!");
-  LONG_PTR oldWndProc = (LONG_PTR)GetProp(hWnd, kOldWndProcProp);
+
+  LONG_PTR oldWndProc = (LONG_PTR)RemoveProp(hWnd, kOldWndProcProp);
   if (oldWndProc) {
     NS_ASSERTION(oldWndProc != (LONG_PTR)NeuteredWindowProc,
                  "This shouldn't be possible!");
@@ -475,7 +470,6 @@ RestoreWindowProcedure(HWND hWnd)
     NS_ASSERTION(currentWndProc == (LONG_PTR)NeuteredWindowProc,
                  "This should never be switched out from under us!");
   }
-  RemoveProp(hWnd, kOldWndProcProp);
 }
 
 LRESULT CALLBACK

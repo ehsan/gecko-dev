@@ -76,11 +76,6 @@ typedef struct _nsCocoaWindowList {
 
   // Shadow
   BOOL mScheduledShadowInvalidation;
-
-  // DPI cache. Getting the physical screen size (CGDisplayScreenSize)
-  // is ridiculously slow, so we cache it in the toplevel window for all
-  // descendants to use.
-  float mDPI;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -92,7 +87,6 @@ typedef struct _nsCocoaWindowList {
 
 - (void)deferredInvalidateShadow;
 - (void)invalidateShadow;
-- (float)getDPI;
 
 @end
 
@@ -135,11 +129,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-#if defined( MAC_OS_X_VERSION_10_6 ) && ( MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6 )
-@interface WindowDelegate : NSObject <NSWindowDelegate>
-#else
 @interface WindowDelegate : NSObject
-#endif
 {
   nsCocoaWindow* mGeckoWindow; // [WEAK] (we are owned by the window)
   // Used to avoid duplication when we send NS_ACTIVATE and
@@ -258,8 +248,10 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
     NS_IMETHOD Update();
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nsnull);
+    virtual void Scroll(const nsIntPoint& aDelta,
+                        const nsTArray<nsIntRect>& aDestRects,
+                        const nsTArray<Configuration>& aConfigurations);
+    virtual LayerManager* GetLayerManager();
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
                                    PRBool aDoCapture, PRBool aConsumeRollupEvent);
@@ -282,6 +274,11 @@ public:
     // be notified that a some form of drag event needs to go into Gecko
     virtual PRBool DragEvent(unsigned int aMessage, Point aMouseGlobal, UInt16 aKeyModifiers);
 
+    // Helpers to prevent recursive resizing during live-resize
+    PRBool IsResizing () const { return mIsResizing; }
+    void StartResizing () { mIsResizing = PR_TRUE; }
+    void StopResizing () { mIsResizing = PR_FALSE; }
+
     PRBool HasModalDescendents() { return mNumModalDescendents > 0; }
     NSWindow *GetCocoaWindow() { return mWindow; }
 
@@ -298,10 +295,6 @@ public:
 
     void SetPopupWindowLevel();
 
-    PRBool IsChildInFailingLeftClickThrough(NSView *aChild);
-    PRBool ShouldFocusPlugin();
-
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   nsresult             CreateNativeWindow(const NSRect &aRect,
@@ -317,14 +310,6 @@ protected:
   void                 SetUpWindowFilter();
   void                 CleanUpWindowFilter();
 
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
-
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   BaseWindow*          mWindow;         // our cocoa window [STRONG]
   WindowDelegate*      mDelegate;       // our delegate for processing window msgs [STRONG]
@@ -334,6 +319,7 @@ protected:
   PRInt32              mShadowStyle;
   NSUInteger           mWindowFilter;
 
+  PRPackedBool         mIsResizing;     // we originated the resize, prevent infinite recursion
   PRPackedBool         mWindowMadeHere; // true if we created the window, false for embedding
   PRPackedBool         mSheetNeedsShow; // if this is a sheet, are we waiting to be shown?
                                         // this is used for sibling sheet contention only

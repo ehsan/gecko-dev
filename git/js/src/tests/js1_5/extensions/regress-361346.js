@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-361346.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 361346;
 var summary = 'Crash with setter, watch, GC';

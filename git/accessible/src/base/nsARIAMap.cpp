@@ -38,12 +38,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsARIAMap.h"
-
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
-
-#include "nsAccessibilityAtoms.h"
-#include "nsIContent.h"
 
 /**
  *  This list of WAI-defined roles are currently hardcoded.
@@ -717,7 +713,6 @@ nsAttributeCharacteristics nsARIAMap::gWAIUnivAttrMap[] = {
   {&nsAccessibilityAtoms::aria_grabbed,                            ATTR_VALTOKEN },
   {&nsAccessibilityAtoms::aria_haspopup,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
   {&nsAccessibilityAtoms::aria_invalid,           ATTR_BYPASSOBJ | ATTR_VALTOKEN },
-  {&nsAccessibilityAtoms::aria_label,             ATTR_BYPASSOBJ                 },
   {&nsAccessibilityAtoms::aria_labelledby,        ATTR_BYPASSOBJ                 },
   {&nsAccessibilityAtoms::aria_level,             ATTR_BYPASSOBJ                 }, /* handled via groupPosition */
   {&nsAccessibilityAtoms::aria_live,                               ATTR_VALTOKEN },

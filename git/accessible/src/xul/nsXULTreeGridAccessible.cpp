@@ -41,7 +41,6 @@
 #include "nsAccCache.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsDocAccessible.h"
 #include "nsEventShell.h"
 
 #include "nsITreeSelection.h"
@@ -576,22 +575,21 @@ nsXULTreeGridAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible: nsAccessible implementation
 
-PRUint32
-nsXULTreeGridAccessible::NativeRole()
+nsresult
+nsXULTreeGridAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsITreeColumns> treeColumns;
   mTree->GetColumns(getter_AddRefs(treeColumns));
-  if (!treeColumns) {
-    NS_ERROR("No treecolumns object for tree!");
-    return nsIAccessibleRole::ROLE_NOTHING;
-  }
+  NS_ENSURE_STATE(treeColumns);
 
   nsCOMPtr<nsITreeColumn> primaryColumn;
   treeColumns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
 
-  return primaryColumn ?
-    static_cast<PRUint32>(nsIAccessibleRole::ROLE_TREE_TABLE) :
-    static_cast<PRUint32>(nsIAccessibleRole::ROLE_TABLE);
+  *aRole = primaryColumn ?
+    nsIAccessibleRole::ROLE_TREE_TABLE :
+    nsIAccessibleRole::ROLE_TABLE;
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -658,10 +656,11 @@ nsXULTreeGridRowAccessible::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridRowAccessible: nsAccessible implementation
 
-PRUint32
-nsXULTreeGridRowAccessible::NativeRole()
+nsresult
+nsXULTreeGridRowAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_ROW;
+  *aRole = nsIAccessibleRole::ROLE_ROW;
+  return NS_OK;
 }
 
 nsresult
@@ -730,23 +729,25 @@ nsXULTreeGridRowAccessible::GetCellAccessible(nsITreeColumn* aColumn)
   NS_PRECONDITION(aColumn, "No tree column!");
 
   void* key = static_cast<void*>(aColumn);
-  nsAccessible* cachedCell = mAccessibleCache.GetWeak(key);
-  if (cachedCell)
-    return cachedCell;
+  nsRefPtr<nsAccessible> accessible = mAccessibleCache.GetWeak(key);
 
-  nsRefPtr<nsAccessible> cell =
-    new nsXULTreeGridCellAccessibleWrap(mContent, mWeakShell, this, mTree,
-                                        mTreeView, mRow, aColumn);
-  if (cell) {
-    if (mAccessibleCache.Put(key, cell)) {
-      if (GetDocAccessible()->BindToDocument(cell, nsnull))
-        return cell;
+  if (!accessible) {
+    accessible =
+      new nsXULTreeGridCellAccessibleWrap(mContent, mWeakShell, this, mTree,
+                                          mTreeView, mRow, aColumn);
+    if (!accessible)
+      return nsnull;
 
-      mAccessibleCache.Remove(key);
+    if (!accessible->Init()) {
+      accessible->Shutdown();
+      return nsnull;
     }
+
+    if (!mAccessibleCache.Put(key, accessible))
+      return nsnull;
   }
 
-  return nsnull;
+  return accessible;
 }
 
 void
@@ -802,6 +803,18 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsXULTreeGridCellAccessible,
                              nsLeafAccessible,
                              nsIAccessibleTableCell,
                              nsXULTreeGridCellAccessible)
+
+////////////////////////////////////////////////////////////////////////////////
+// nsXULTreeGridCellAccessible: nsIAccessNode implementation
+
+NS_IMETHODIMP
+nsXULTreeGridCellAccessible::GetUniqueID(void **aUniqueID)
+{
+  NS_ENSURE_ARG_POINTER(aUniqueID);
+  *aUniqueID = static_cast<void*>(this);
+
+  return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridCellAccessible: nsIAccessible implementation
@@ -1111,12 +1124,6 @@ nsXULTreeGridCellAccessible::Init()
   return PR_TRUE;
 }
 
-bool
-nsXULTreeGridCellAccessible::IsPrimaryForNode() const
-{
-  return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridCellAccessible: nsAccessible public implementation
 
@@ -1157,10 +1164,11 @@ nsXULTreeGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
   return NS_OK;
 }
 
-PRUint32
-nsXULTreeGridCellAccessible::NativeRole()
+nsresult
+nsXULTreeGridCellAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GRID_CELL;
+  *aRole = nsIAccessibleRole::ROLE_GRID_CELL;
+  return NS_OK;
 }
 
 nsresult
@@ -1230,9 +1238,9 @@ nsXULTreeGridCellAccessible::CellInvalidated()
     mTreeView->GetCellValue(mRow, mColumn, textEquiv);
     if (mCachedTextEquiv != textEquiv) {
       PRBool isEnabled = textEquiv.EqualsLiteral("true");
-      nsRefPtr<AccEvent> accEvent =
-        new AccStateChangeEvent(this, nsIAccessibleStates::STATE_CHECKED,
-                                PR_FALSE, isEnabled);
+      nsRefPtr<nsAccEvent> accEvent =
+        new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_CHECKED,
+                                  PR_FALSE, isEnabled);
       nsEventShell::FireEvent(accEvent);
 
       mCachedTextEquiv = textEquiv;

@@ -54,11 +54,11 @@ public:
   CanvasLayerD3D9(LayerManagerD3D9 *aManager)
     : CanvasLayer(aManager, NULL),
       LayerD3D9(aManager),
-      mDataIsPremultiplied(PR_FALSE),
+      mTexture(0),
+      mGLBufferIsPremultiplied(PR_FALSE),
       mNeedsYFlip(PR_FALSE)
   {
       mImplData = static_cast<LayerD3D9*>(this);
-      aManager->deviceManager()->mLayersWithResources.AppendElement(this);
   }
 
   ~CanvasLayerD3D9();
@@ -70,24 +70,20 @@ public:
   // LayerD3D9 implementation
   virtual Layer* GetLayer();
   virtual void RenderLayer();
-  virtual void CleanResources();
-  virtual void LayerManagerDestroyed();
-
-  void CreateTexture();
 
 protected:
   typedef mozilla::gl::GLContext GLContext;
 
   nsRefPtr<gfxASurface> mSurface;
   nsRefPtr<GLContext> mGLContext;
-  nsRefPtr<IDirect3DTexture9> mTexture;
 
   PRUint32 mCanvasFramebuffer;
 
-  // Indicates whether our texture was obtained through D2D interop.
-  bool mIsInteropTexture;
+  nsRefPtr<IDirect3DTexture9> mTexture;
 
-  PRPackedBool mDataIsPremultiplied;
+  nsIntRect mBounds;
+
+  PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
 };
 

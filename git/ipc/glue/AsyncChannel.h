@@ -57,7 +57,6 @@ struct HasResultCodes
 {
     enum Result {
         MsgProcessed,
-        MsgDropped,
         MsgNotKnown,
         MsgNotAllowed,
         MsgPayloadError,
@@ -94,8 +93,6 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
-        virtual void OnProcessingError(Result aError) = 0;
-        virtual void OnChannelConnected(int32 peer_pid) {};
     };
 
 public:
@@ -117,9 +114,6 @@ public:
 
     // Asynchronously send a message to the other side of the channel
     virtual bool Send(Message* msg);
-
-    // Send OnChannelConnected notification to listeners.
-    void DispatchOnChannelConnected(int32 peer_pid);
 
     //
     // These methods are called on the "IO" thread

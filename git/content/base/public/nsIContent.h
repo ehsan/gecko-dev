@@ -71,8 +71,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x71afb9e6, 0xe8a7, 0x475d, \
-  { 0x89, 0xc4, 0xe4, 0x62, 0x21, 0xeb, 0xe1, 0xa4 } }
+{ 0xdd254504, 0xe273, 0x4923, \
+  { 0x9e, 0xc1, 0xd8, 0x42, 0x1a, 0x66, 0x35, 0xf1 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -175,18 +175,12 @@ public:
      *   3. native anonymous nodes
      *   4. :after generated node
      */
-    eAllButXBL = 1,
-
-    /**
-     * Skip native anonymous content created for placeholder of HTML input,
-     * used in conjunction with eAllChildren or eAllButXBL.
-     */
-    eSkipPlaceholderContent = 2
+    eAllButXBL = 1
   };
 
   /**
    * Return either the XBL explicit children of the node or the XBL flattened
-   * tree children of the node, depending on the filter, as well as
+   * tree children of the node, depending on the child type, as well as any
    * native anonymous children.
    *
    * @note calling this method with eAllButXBL will return children that are
@@ -194,7 +188,7 @@ public:
    *  of this node in the tree, but those other nodes cannot be reached from the
    *  eAllButXBL child list.
    */
-  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter) = 0;
+  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType) = 0;
 
   /**
    * Get whether this content is C++-generated anonymous content
@@ -308,10 +302,6 @@ public:
 
   inline PRBool IsHTML() const {
     return IsInNamespace(kNameSpaceID_XHTML);
-  }
-
-  inline PRBool IsHTML(nsIAtom* aTag) const {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_XHTML);
   }
 
   inline PRBool IsSVG() const {
@@ -787,7 +777,9 @@ public:
    * content state, use nsIEventStateManager.  Also see nsIEventStateManager
    * for the possible bits that could be set here.
    */
-  virtual nsEventStates IntrinsicState() const;
+  // XXXbz this is PRInt32 because all the ESM content state APIs use
+  // PRInt32.  We should really use PRUint32 instead.
+  virtual PRInt32 IntrinsicState() const;
 
   /**
    * Get the ID of this content node (the atom corresponding to the
@@ -899,7 +891,7 @@ public:
    *
    * The CALLER OWNS the result and is responsible for deleting it.
    */
-  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName) = 0;
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName) = 0;
 
    /**
     * Get the SMIL override style for this content node.  This is a style

@@ -41,6 +41,7 @@
 #include "nsTextControlFrame.h"
 #include "nsIDocument.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIFormControl.h"
 #include "nsIServiceManager.h"
 #include "nsFrameSelection.h"
@@ -299,8 +300,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
     // been reflowed yet, so we can't get its used padding, but it shouldn't be
     // using percentage padding anyway.
     nsMargin childPadding;
-    nsIFrame* firstChild = GetFirstChild(nsnull);
-    if (firstChild && firstChild->GetStylePadding()->GetPadding(childPadding)) {
+    if (GetFirstChild(nsnull)->GetStylePadding()->GetPadding(childPadding)) {
       aIntrinsicSize.width += childPadding.LeftRight();
     } else {
       NS_ERROR("Percentage padding on value div?");
@@ -329,14 +329,12 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
     nsIScrollableFrame *scrollableFrame = do_QueryFrame(first);
     NS_ASSERTION(scrollableFrame, "Child must be scrollable");
 
-    if (scrollableFrame) {
-      nsMargin scrollbarSizes =
+    nsMargin scrollbarSizes =
       scrollableFrame->GetDesiredScrollbarSizes(PresContext(), aRenderingContext);
 
-      aIntrinsicSize.width  += scrollbarSizes.LeftRight();
-
-      aIntrinsicSize.height += scrollbarSizes.TopBottom();;
-    }
+    aIntrinsicSize.width  += scrollbarSizes.LeftRight();
+    
+    aIntrinsicSize.height += scrollbarSizes.TopBottom();;
   }
 
   return NS_OK;
@@ -422,8 +420,6 @@ nsTextControlFrame::EnsureEditorInitialized()
 nsresult
 nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
-  NS_ASSERTION(mContent, "We should have a content!");
-
   mState |= NS_FRAME_INDEPENDENT_SELECTION;
 
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
@@ -439,21 +435,11 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!aElements.AppendElement(rootNode))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Do we need a placeholder node?
-  nsAutoString placeholderTxt;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::placeholder,
-                    placeholderTxt);
-  nsContentUtils::RemoveNewlines(placeholderTxt);
-  mUsePlaceholder = !placeholderTxt.IsEmpty();
+  nsIContent* placeholderNode = txtCtrl->GetPlaceholderNode();
+  NS_ENSURE_TRUE(placeholderNode, NS_ERROR_OUT_OF_MEMORY);
 
-  // Create the placeholder anonymous content if needed.
-  if (mUsePlaceholder) {
-    nsIContent* placeholderNode = txtCtrl->CreatePlaceholderNode();
-    NS_ENSURE_TRUE(placeholderNode, NS_ERROR_OUT_OF_MEMORY);
-
-    if (!aElements.AppendElement(placeholderNode))
-      return NS_ERROR_OUT_OF_MEMORY;
-  }
+  if (!aElements.AppendElement(placeholderNode))
+    return NS_ERROR_OUT_OF_MEMORY;
 
   rv = UpdateValueDisplay(PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -481,15 +467,13 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                             PRUint32 aFilter)
+nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
 
   aElements.MaybeAppendElement(txtCtrl->GetRootEditorNode());
-  if (!(aFilter & nsIContent::eSkipPlaceholderContent))
-    aElements.MaybeAppendElement(txtCtrl->GetPlaceholderNode());
+  aElements.MaybeAppendElement(txtCtrl->GetPlaceholderNode());
 }
 
 nscoord
@@ -655,7 +639,7 @@ nsTextControlFrame::ScrollOnFocusEvent::Run()
       mFrame->mScrollEvent.Forget();
       selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
                                       nsISelectionController::SELECTION_FOCUS_REGION,
-                                      nsISelectionController::SCROLL_SYNCHRONOUS);
+                                      PR_TRUE);
     }
   }
   return NS_OK;
@@ -671,19 +655,17 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   mScrollEvent.Revoke();
 
   if (!aOn) {
-    if (mUsePlaceholder) {
-      PRInt32 textLength;
-      GetTextLength(&textLength);
+    nsWeakFrame weakFrame(this);
 
-      if (!textLength) {
-        nsWeakFrame weakFrame(this);
+    PRInt32 length;
+    nsresult rv = GetTextLength(&length);
+    NS_ENSURE_SUCCESS(rv, );
+    if (!length)
+      txtCtrl->SetPlaceholderClass(PR_TRUE, PR_TRUE);
 
-        txtCtrl->SetPlaceholderClass(PR_TRUE, PR_TRUE);
-
-        if (!weakFrame.IsAlive()) {
-          return;
-        }
-      }
+    if (!weakFrame.IsAlive())
+    {
+      return;
     }
 
     MaybeEndSecureKeyboardInput();
@@ -694,14 +676,13 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   if (!selCon)
     return;
 
-  if (mUsePlaceholder) {
-    nsWeakFrame weakFrame(this);
+  nsWeakFrame weakFrame(this);
 
-    txtCtrl->SetPlaceholderClass(PR_FALSE, PR_TRUE);
+  txtCtrl->SetPlaceholderClass(PR_FALSE, PR_TRUE);
 
-    if (!weakFrame.IsAlive()) {
-      return;
-    }
+  if (!weakFrame.IsAlive())
+  {
+    return;
   }
 
   if (NS_SUCCEEDED(InitFocusedValue()))
@@ -720,21 +701,10 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   nsISelection *caretSelection = caret->GetCaretDOMSelection();
   const PRBool isFocusedRightNow = ourSel == caretSelection;
   if (!isFocusedRightNow) {
-    // Don't scroll the current selection if we've been focused using the mouse.
-    PRUint32 lastFocusMethod = 0;
-    nsIDocument* doc = GetContent()->GetCurrentDoc();
-    if (doc) {
-      nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-      if (fm) {
-        fm->GetLastFocusMethod(doc->GetWindow(), &lastFocusMethod);
-      }
-    }
-    if (!(lastFocusMethod & nsIFocusManager::FLAG_BYMOUSE)) {
-      nsRefPtr<ScrollOnFocusEvent> event = new ScrollOnFocusEvent(this);
-      nsresult rv = NS_DispatchToCurrentThread(event);
-      if (NS_SUCCEEDED(rv)) {
-        mScrollEvent = event;
-      }
+    nsRefPtr<ScrollOnFocusEvent> event = new ScrollOnFocusEvent(this);
+    nsresult rv = NS_DispatchToCurrentThread(event);
+    if (NS_SUCCEEDED(rv)) {
+      mScrollEvent = event;
     }
   }
 
@@ -856,7 +826,7 @@ nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
   // Scroll the selection into view (see bug 231389)
   return selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
                                          nsISelectionController::SELECTION_FOCUS_REGION,
-                                         nsISelectionController::SCROLL_FIRST_ANCESTOR_ONLY);
+                                         PR_FALSE);
 }
 
 nsresult
@@ -881,9 +851,6 @@ nsTextControlFrame::SelectAllOrCollapseToEndOfText(PRBool aSelect)
 
   nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootElement);
   nsCOMPtr<nsIDOMNode> rootNode(do_QueryInterface(rootElement));
-
-  NS_ENSURE_TRUE(rootNode && rootContent, NS_ERROR_FAILURE);
-
   PRInt32 numChildren = rootContent->GetChildCount();
 
   if (numChildren > 0) {
@@ -1029,27 +996,51 @@ nsTextControlFrame::DOMPointToOffset(nsIDOMNode* aNode,
   if (!length || aNodeOffset < 0)
     return NS_OK;
 
-  NS_ASSERTION(length <= 2, "We should have one text node and one mozBR at most");
+  PRInt32 i, textOffset = 0;
+  PRInt32 lastIndex = (PRInt32)length - 1;
 
-  nsCOMPtr<nsIDOMNode> firstNode;
-  rv = nodeList->Item(0, getter_AddRefs(firstNode));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDOMText> textNode = do_QueryInterface(firstNode);
+  for (i = 0; i < (PRInt32)length; i++) {
+    if (rootNode == aNode && i == aNodeOffset) {
+      *aResult = textOffset;
+      return NS_OK;
+    }
 
-  nsCOMPtr<nsIDOMText> nodeAsText = do_QueryInterface(aNode);
-  if (nodeAsText || (aNode == rootNode && aNodeOffset == 0)) {
-    // Selection is somewhere inside the text node; the offset is aNodeOffset
-    *aResult = aNodeOffset;
-  } else {
-    // Selection is on the mozBR node, so offset should be set to the length
-    // of the text node.
-    if (textNode) {
-      rv = textNode->GetLength(&length);
+    nsCOMPtr<nsIDOMNode> item;
+    rv = nodeList->Item(i, getter_AddRefs(item));
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsIDOMText> domText(do_QueryInterface(item));
+
+    if (domText) {
+      PRUint32 textLength = 0;
+
+      rv = domText->GetLength(&textLength);
       NS_ENSURE_SUCCESS(rv, rv);
-      *aResult = PRInt32(length);
+
+      if (item == aNode) {
+        NS_ASSERTION((aNodeOffset >= 0 && aNodeOffset <= (PRInt32)textLength),
+                     "Invalid aNodeOffset!");
+        *aResult = textOffset + aNodeOffset;
+        return NS_OK;
+      }
+
+      textOffset += textLength;
+    }
+    else {
+      // Must be a BR node. If it's not the last BR node
+      // under the root, count it as a newline.
+
+      if (i != lastIndex)
+        ++textOffset;
     }
   }
 
+  NS_ASSERTION((aNode == rootNode && aNodeOffset == (PRInt32)length),
+               "Invalid node offset!");
+
+  *aResult = textOffset;
+  
   return NS_OK;
 }
 
@@ -1081,25 +1072,71 @@ nsTextControlFrame::OffsetToDOMPoint(PRInt32 aOffset,
   rv = nodeList->GetLength(&length);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_ASSERTION(length <= 2, "We should have one text node and one mozBR at most");
-
-  nsCOMPtr<nsIDOMNode> firstNode;
-  rv = nodeList->Item(0, getter_AddRefs(firstNode));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDOMText> textNode = do_QueryInterface(firstNode);
-
-  if (length == 0 || aOffset < 0) {
-    NS_IF_ADDREF(*aResult = rootNode);
+  if (!length || aOffset < 0) {
     *aPosition = 0;
-  } else if (textNode) {
-    NS_IF_ADDREF(*aResult = firstNode);
-    *aPosition = aOffset;
-  } else {
-    NS_IF_ADDREF(*aResult = rootNode);
-    *aPosition = 0;
+    *aResult = rootNode;
+    NS_ADDREF(*aResult);
+    return NS_OK;
   }
 
-  return NS_OK;
+  PRInt32 textOffset = 0;
+  PRUint32 lastIndex = length - 1;
+
+  for (PRUint32 i=0; i<length; i++) {
+    nsCOMPtr<nsIDOMNode> item;
+    rv = nodeList->Item(i, getter_AddRefs(item));
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsIDOMText> domText(do_QueryInterface(item));
+
+    if (domText) {
+      PRUint32 textLength = 0;
+
+      rv = domText->GetLength(&textLength);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // Check if aOffset falls within this range.
+      if (aOffset >= textOffset && aOffset <= textOffset+(PRInt32)textLength) {
+        *aPosition = aOffset - textOffset;
+        *aResult = item;
+        NS_ADDREF(*aResult);
+        return NS_OK;
+      }
+
+      textOffset += textLength;
+
+      // If there aren't any more siblings after this text node,
+      // return the point at the end of this text node!
+
+      if (i == lastIndex) {
+        *aPosition = textLength;
+        *aResult = item;
+        NS_ADDREF(*aResult);
+        return NS_OK;
+      }
+    }
+    else {
+      // Must be a BR node, count it as a newline.
+
+      if (aOffset == textOffset || i == lastIndex) {
+        // We've found the correct position, or aOffset takes us
+        // beyond the last child under rootNode, just return the point
+        // under rootNode that is in front of this br.
+
+        *aPosition = i;
+        *aResult = rootNode;
+        NS_ADDREF(*aResult);
+        return NS_OK;
+      }
+
+      ++textOffset;
+    }
+  }
+
+  NS_ERROR("We should never get here!");
+
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -1173,6 +1210,17 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      nsIAtom*        aAttribute,
                                      PRInt32         aModType)
 {
+  // First, check for the placeholder attribute, because it doesn't
+  // depend on the editor being present.
+  if (nsGkAtoms::placeholder == aAttribute)
+  {
+    nsWeakFrame weakFrame(this);
+    nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
+    NS_ASSERTION(txtCtrl, "Content not a text control element");
+    txtCtrl->UpdatePlaceholderText(PR_TRUE);
+    NS_ENSURE_STATE(weakFrame.IsAlive());
+  }
+
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
   nsISelectionController* selCon = txtCtrl->GetSelectionController();
@@ -1242,9 +1290,6 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
     { // unset disabled
       flags &= ~(nsIPlaintextEditor::eEditorDisabledMask);
       selCon->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);
-      if (nsContentUtils::IsFocusedContent(mContent)) {
-        selCon->SetCaretEnabled(PR_TRUE);
-      }
     }
     editor->SetFlags(flags);
   }
@@ -1371,13 +1416,11 @@ nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
   // Mark the scroll frame as being a reflow root. This will allow
   // incremental reflows to be initiated at the scroll frame, rather
   // than descending from the root frame of the frame hierarchy.
-  if (first) {
-    first->AddStateBits(NS_FRAME_REFLOW_ROOT);
+  first->AddStateBits(NS_FRAME_REFLOW_ROOT);
 
-    nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-    NS_ASSERTION(txtCtrl, "Content not a text control element");
-    txtCtrl->InitializeKeyboardEventListeners();
-  }
+  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
+  NS_ASSERTION(txtCtrl, "Content not a text control element");
+  txtCtrl->InitializeKeyboardEventListeners();
   return rv;
 }
 
@@ -1411,8 +1454,7 @@ nsTextControlFrame::UpdateValueDisplay(PRBool aNotify,
   NS_PRECONDITION(rootNode, "Must have a div content\n");
   NS_PRECONDITION(!mUseEditor,
                   "Do not call this after editor has been initialized");
-  NS_ASSERTION(!mUsePlaceholder || txtCtrl->GetPlaceholderNode(),
-               "A placeholder div must exist");
+  NS_ASSERTION(txtCtrl->GetPlaceholderNode(), "A placeholder div must exist");
 
   nsIContent *textContent = rootNode->GetChildAt(0);
   if (!textContent) {
@@ -1441,7 +1483,7 @@ nsTextControlFrame::UpdateValueDisplay(PRBool aNotify,
   // Update the display of the placeholder value if needed.
   // We don't need to do this if we're about to initialize the
   // editor, since EnsureEditorInitialized takes care of this.
-  if (mUsePlaceholder && !aBeforeEditorInit)
+  if (!aBeforeEditorInit)
   {
     nsWeakFrame weakFrame(this);
     txtCtrl->SetPlaceholderClass(value.IsEmpty(), aNotify);

@@ -39,12 +39,8 @@
 #define GFX_UTILS_H
 
 #include "gfxTypes.h"
-#include "gfxPattern.h"
-#include "gfxImageSurface.h"
 
-class gfxDrawable;
-class nsIntRegion;
-class nsIntRect;
+class gfxImageSurface;
 
 class THEBES_API gfxUtils {
 public:
@@ -62,51 +58,6 @@ public:
                                         gfxImageSurface *aDestSurface = nsnull);
     static void UnpremultiplyImageSurface(gfxImageSurface *aSurface,
                                           gfxImageSurface *aDestSurface = nsnull);
-
-    /**
-     * Draw something drawable while working around limitations like bad support
-     * for EXTEND_PAD, lack of source-clipping, or cairo / pixman bugs with
-     * extreme user-space-to-image-space transforms.
-     *
-     * The input parameters here usually come from the output of our image
-     * snapping algorithm in nsLayoutUtils.cpp.
-     * This method is split from nsLayoutUtils::DrawPixelSnapped to allow for
-     * adjusting the parameters. For example, certain images with transparent
-     * margins only have a drawable subimage. For those images, imgFrame::Draw
-     * will tweak the rects and transforms that it gets from the pixel snapping
-     * algorithm before passing them on to this method.
-     */
-    static void DrawPixelSnapped(gfxContext*      aContext,
-                                 gfxDrawable*     aDrawable,
-                                 const gfxMatrix& aUserSpaceToImageSpace,
-                                 const gfxRect&   aSubimage,
-                                 const gfxRect&   aSourceRect,
-                                 const gfxRect&   aImageRect,
-                                 const gfxRect&   aFill,
-                                 const gfxImageSurface::gfxImageFormat aFormat,
-                                 const gfxPattern::GraphicsFilter& aFilter);
-
-    /**
-     * Clip aContext to the region aRegion.
-     */
-    static void ClipToRegion(gfxContext* aContext, const nsIntRegion& aRegion);
-
-    /**
-     * Clip aContext to the region aRegion, snapping the rectangles.
-     */
-    static void ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion);
-
-    /*
-     * Convert image format to depth value
-     */
-    static int ImageFormatToDepth(gfxASurface::gfxImageFormat aFormat);
-
-    /**
-     * If aIn can be represented exactly using an nsIntRect (i.e.
-     * integer-aligned edges and coordinates in the PRInt32 range) then we
-     * set aOut to that rectangle, otherwise return failure.
-    */
-    static PRBool GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 };
 
 #endif

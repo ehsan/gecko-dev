@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465567-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465567;
 var summary = 'TM: Do not assert: JSVAL_TAG(v) == JSVAL_OBJECT';

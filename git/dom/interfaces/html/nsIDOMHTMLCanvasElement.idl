@@ -37,11 +37,6 @@
 
 #include "nsIDOMHTMLElement.idl"
 
-%{C++
-// for jsval
-#include "jsapi.h"
-%}
-
 /**
  * The nsIDOMHTMLCanvasElement interface is the interface to a HTML
  * <canvas> element.
@@ -52,17 +47,14 @@
  * @status UNDER_DEVELOPMENT
  */
 
-interface nsIDOMFile;
-
-[scriptable, uuid(53ad994a-3cd0-48fa-8ffb-7f3d8cd19c50)]
+[scriptable, uuid(56cee121-df62-49b6-b76d-71189441c98e)]
 interface nsIDOMHTMLCanvasElement : nsIDOMHTMLElement
 {
   attribute long width;
   attribute long height;
   attribute boolean mozOpaque;
 
-  nsISupports getContext(in DOMString contextId,
-                         [optional] in jsval contextOptions);
+  nsISupports getContext(in DOMString contextId);
 
 
   // Valid calls are:
@@ -78,13 +70,6 @@ interface nsIDOMHTMLCanvasElement : nsIDOMHTMLElement
   // the options string that it supports. Separate multiple options with
   // semicolons.
   [noscript] DOMString toDataURLAs(in DOMString mimeType, in DOMString encoderOptions);
-
- 
-  // Valid calls are
-  // mozGetAsFile(name);              -- defaults to image/png
-  // mozGetAsFile(name, type);        -- uses given type
-  [optional_argc] nsIDOMFile mozGetAsFile(in DOMString name,
-                                          [optional] in DOMString type);
 
   // A Mozilla-only extension to get a canvas context backed by double-buffered
   // shared memory. Only privileged callers can call this.

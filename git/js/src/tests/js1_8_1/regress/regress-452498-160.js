@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452498-160.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452498;
 var summary = 'TM: upvar2 regression tests';
@@ -64,7 +65,7 @@ function test()
   reportCompare(expect, actual, summary + ': 2');
 
 // Assertion failure: JOF_OPTYPE(op) == JOF_ATOM, at ../jsemit.cpp:5916
-  ({ set z(v){},  set y(v)--x, set w(v)--w });
+  ({ set z(){},  set y()--x, set w()--w });
   reportCompare(expect, actual, summary + ': 3');
 
   exitFunc ('test');

@@ -4,7 +4,7 @@
 <!-- Firefox tabbrowser -->
 <?xml-stylesheet href="chrome://browser/content/browser.css"
                  type="text/css"?>
-<!-- SeaMonkey tabbrowser -->
+<!-- Seamonkey tabbrowser -->
 <?xml-stylesheet href="chrome://navigator/content/navigator.css"
                  type="text/css"?>
 
@@ -26,13 +26,6 @@
 
     function is(aExpected, aActual, aMsg) {
       gOpenerWnd.SimpleTest.is(aExpected, aActual, aMsg);
-    }
-
-    function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
-                        aAbsentExtraState)
-    {
-      gOpenerWnd.testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
-                            aAbsentExtraState);
     }
 
     var invokerChecker = gOpenerWnd.invokerChecker;
@@ -98,9 +91,6 @@
         is(event.state, STATE_BUSY, "Wrong state of statechange event.");
         is(event.isEnabled(), aIsEnabled,
            "Wrong value of state of statechange event");
-
-        testStates(event.accessible, (aIsEnabled ? STATE_BUSY : 0), 0,
-                   (aIsEnabled ? 0 : STATE_BUSY), 0);
       }
     }
 

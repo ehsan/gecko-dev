@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-446386.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 446386;
 var summary = 'Do not crash throwing error without compiler pseudo-frame';

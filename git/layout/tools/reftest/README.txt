@@ -64,16 +64,6 @@ must be one of the following:
       random-if(condition) The results of the test are random if a given
                            condition is met.
 
-      silentfail This test may fail silently, and if that happens it should
-                 count as if the test passed. This is useful for cases where
-                 silent failure is the intended behavior (for example, in
-                 an out of memory situation in JavaScript, we stop running
-                 the script silently and immediately, in hopes of reclaiming
-                 enough memory to keep the browser functioning).
-
-      silentfail-if(condition) This test may fail silently if the condition
-                               is met.
-
       skip  This test should not be run. This is useful when a test fails in a
             catastrophic way, such as crashing or hanging the browser. Using
             'skip' is preferred to simply commenting out the test because we
@@ -83,17 +73,6 @@ must be one of the following:
                          useful if, for example, the test crashes only on a
                          particular platform (i.e. it allows us to get test
                          coverage on the other platforms).
-
-      slow  The test may take a long time to run, so run it if slow tests are
-            either enabled or not disabled (test manifest interpreters may
-            choose whether or not to run such tests by default).
-
-      slow-if(condition) If the condition is met, the test is treated as if
-                         'slow' had been specified.  This is useful for tests
-                         which are slow only on particular platforms (e.g. a
-                         test which exercised out-of-memory behavior might be
-                         fast on a 32-bit system but inordinately slow on a
-                         64-bit system).
 
       asserts(count)
           Loading the test and reference is known to assert exactly
@@ -126,7 +105,7 @@ must be one of the following:
 
       Examples of using conditions:
           fails-if(winWidget) == test reference
-          asserts-if(cocoaWidget,2) load crashtest
+          asserts-if(2,cocoaWidget) load crashtest
 
    b. <http>, if present, is one of the strings (sans quotes) "HTTP" or
       "HTTP(..)" or "HTTP(../..)" or "HTTP(../../..)", etc. , indicating that

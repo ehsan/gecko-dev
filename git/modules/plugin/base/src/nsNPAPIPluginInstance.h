@@ -138,8 +138,6 @@ public:
   // Returns the array of browser-initiated streams.
   nsTArray<nsPluginStreamListenerPeer*> *BStreamListeners();
 
-  nsresult AsyncSetWindow(NPWindow& window);
-
 protected:
   nsresult InitializePlugin();
 
@@ -177,8 +175,6 @@ public:
   // True while creating the plugin, or calling NPP_SetWindow() on it.
   PRPackedBool mInPluginInitCall;
 
-  nsXPIDLCString mFakeURL;
-
 private:
   nsNPAPIPlugin* mPlugin;
 
@@ -206,8 +202,6 @@ private:
   mozilla::TimeStamp mStopTime;
 
   nsCOMPtr<nsIURI> mURI;
-
-  PRPackedBool mUsePluginLayersPref;
 };
 
 #endif // nsNPAPIPluginInstance_h_

@@ -55,9 +55,10 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs* pFuncs)
   if(pFuncs == NULL)
     return NPERR_INVALID_FUNCTABLE_ERROR;
 
-  if(pFuncs->size < (offsetof(NPPluginFuncs, setvalue) + sizeof(void*)))
+  if(pFuncs->size < sizeof(NPPluginFuncs))
     return NPERR_INVALID_FUNCTABLE_ERROR;
 
+  pFuncs->version       = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
   pFuncs->newp          = NPP_New;
   pFuncs->destroy       = NPP_Destroy;
   pFuncs->setwindow     = NPP_SetWindow;
@@ -71,6 +72,7 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs* pFuncs)
   pFuncs->urlnotify     = NPP_URLNotify;
   pFuncs->getvalue      = NPP_GetValue;
   pFuncs->setvalue      = NPP_SetValue;
+  pFuncs->javaClass     = NULL;
 
   return NPERR_NO_ERROR;
 }

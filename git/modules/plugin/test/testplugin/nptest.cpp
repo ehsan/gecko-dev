@@ -36,8 +36,6 @@
 #include "nptest_utils.h"
 #include "nptest_platform.h"
 
-#include "mozilla/IntentionalCrash.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -55,7 +53,7 @@
 #include <pthread.h>
 #endif
 
-using namespace std;
+ using namespace std;
 
 #define PLUGIN_NAME        "Test Plug-in"
 #define PLUGIN_DESCRIPTION "Plug-in for testing purposes."
@@ -75,6 +73,26 @@ static char sPluginVersion[] = PLUGIN_VERSION;
 
 int gCrashCount = 0;
 
+void
+NoteIntentionalCrash()
+{
+  char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
+  if (bloatLog) {
+    char* logExt = strstr(bloatLog, ".log");
+    if (logExt) {
+      bloatLog[strlen(bloatLog) - strlen(logExt)] = '\0';
+    }
+    ostringstream bloatName;
+    bloatName << bloatLog << "_plugin_pid" << getpid();
+    if (logExt) {
+      bloatName << ".log";
+    }
+    FILE* processfd = fopen(bloatName.str().c_str(), "a");
+    fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
+    fclose(processfd);
+  }
+}
+
 static void Crash()
 {
   int *pi = NULL;
@@ -85,7 +103,7 @@ static void Crash()
 static void
 IntentionalCrash()
 {
-  mozilla::NoteIntentionalCrash("plugin");
+  NoteIntentionalCrash();
   Crash();
 }
 
@@ -151,7 +169,6 @@ static bool getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t ar
 static bool callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool destroySharedGfxStuff(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getTopLevelWindowActivationState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -159,9 +176,6 @@ static bool getFocusState(NPObject* npobj, const NPVariant* args, uint32_t argCo
 static bool getFocusEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool isVisible(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getWindowPosition(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool constructObject(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -206,17 +220,13 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "callOnDestroy",
   "reinitWidget",
   "crashInNestedLoop",
-  "destroySharedGfxStuff",
   "propertyAndMethod",
   "getTopLevelWindowActivationState",
   "getTopLevelWindowActivationEventCount",
   "getFocusState",
   "getFocusEventCount",
   "getEventModel",
-  "getReflector",
-  "isVisible",
-  "getWindowPosition",
-  "constructObject"
+  "getReflector"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[] = {
@@ -262,17 +272,13 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   callOnDestroy,
   reinitWidget,
   crashPluginInNestedLoop,
-  destroySharedGfxStuff,
   propertyAndMethod,
   getTopLevelWindowActivationState,
   getTopLevelWindowActivationEventCount,
   getFocusState,
   getFocusEventCount,
   getEventModel,
-  getReflector,
-  isVisible,
-  getWindowPosition,
-  constructObject
+  getReflector
 };
 
 STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
@@ -569,13 +575,10 @@ NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
 }
 #endif
 
-static bool fillPluginFunctionTable(NPPluginFuncs* pFuncs)
+static void fillPluginFunctionTable(NPPluginFuncs* pFuncs)
 {
-  // Check the size of the provided structure based on the offset of the
-  // last member we need.
-  if (pFuncs->size < (offsetof(NPPluginFuncs, setvalue) + sizeof(void*)))
-    return false;
-
+  pFuncs->version = 11;
+  pFuncs->size = sizeof(*pFuncs);
   pFuncs->newp = NPP_New;
   pFuncs->destroy = NPP_Destroy;
   pFuncs->setwindow = NPP_SetWindow;
@@ -589,8 +592,6 @@ static bool fillPluginFunctionTable(NPPluginFuncs* pFuncs)
   pFuncs->urlnotify = testplugin_URLNotify;
   pFuncs->getvalue = NPP_GetValue;
   pFuncs->setvalue = NPP_SetValue;
-
-  return true;
 }
 
 #if defined(XP_MACOSX)
@@ -625,9 +626,7 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
   sNPClass.construct =      (NPConstructFunctionPtr)scriptableConstruct;
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-  if (!fillPluginFunctionTable(pFuncs)) {
-    return NPERR_INVALID_FUNCTABLE_ERROR;
-  }
+  fillPluginFunctionTable(pFuncs);
 #endif
 
   return NPERR_NO_ERROR;
@@ -640,10 +639,7 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs* pFuncs)
 #endif
 #if defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
 {
-  if (!fillPluginFunctionTable(pFuncs)) {
-    return NPERR_INVALID_FUNCTABLE_ERROR;
-  }
-
+  fillPluginFunctionTable(pFuncs);
   return NPERR_NO_ERROR;
 }
 #endif
@@ -697,7 +693,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->fileBuf = NULL;
   instanceData->fileBufSize = 0;
   instanceData->throwOnNextInvoke = false;
-  instanceData->runScriptOnPaint = false;
   instanceData->testrange = NULL;
   instanceData->hasWidget = false;
   instanceData->npnNewStream = false;
@@ -748,7 +743,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
         requestWindow = true;
       }
     }
-    if (strcmp(argn[i], "streammode") == 0) {
+	  if (strcmp(argn[i], "streammode") == 0) {
       if (strcmp(argv[i], "normal") == 0) {
         instanceData->streamMode = NP_NORMAL;
       }
@@ -762,7 +757,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
       else if (strcmp(argv[i], "seek") == 0) {
         instanceData->streamMode = NP_SEEK;
       }
-    }
+	  }
     if (strcmp(argn[i], "streamchunksize") == 0) {
       instanceData->streamChunkSize = atoi(argv[i]);
     }
@@ -815,9 +810,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
     }
     if (strcmp(argn[i], "newcrash") == 0) {
       IntentionalCrash();
-    }
-    if (strcmp(argn[i], "paintscript") == 0) {
-      instanceData->runScriptOnPaint = true;
     }
     // "cleanupwidget" is only used with nptest_gtk, defaulting to true.  It
     // indicates whether the plugin should destroy its window in response to
@@ -947,17 +939,6 @@ NPError
 NPP_SetWindow(NPP instance, NPWindow* window)
 {
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
-
-  if (instanceData->scriptableObject->drawMode == DM_DEFAULT &&
-      (instanceData->window.width != window->width ||
-       instanceData->window.height != window->height)) {
-    NPRect r;
-    r.left = r.top = 0;
-    r.right = window->width;
-    r.bottom = window->height;
-    NPN_InvalidateRect(instance, &r);
-  }
-
   void* oldWindow = instanceData->window.window;
   pluginDoSetWindow(instanceData, window);
   if (instanceData->hasWidget && oldWindow != instanceData->window.window) {
@@ -1385,13 +1366,6 @@ bool
 NPN_InvokeDefault(NPP npp, NPObject* obj, const NPVariant *args, uint32_t argCount, NPVariant *result)
 {
   return sBrowserFuncs->invokeDefault(npp, obj, args, argCount, result);
-}
-
-bool
-NPN_Construct(NPP npp, NPObject* npobj, const NPVariant* args,
-	      uint32_t argCount, NPVariant* result)
-{
-  return sBrowserFuncs->construct(npp, npobj, args, argCount, result);
 }
 
 const char*
@@ -2405,33 +2379,6 @@ void notifyDidPaint(InstanceData* instanceData)
     r.bottom = instanceData->window.height;
     NPN_InvalidateRect(instanceData->npp, &r);
   }
-
-  if (instanceData->runScriptOnPaint) {
-    NPObject* o = NULL;
-    NPN_GetValue(instanceData->npp, NPNVPluginElementNPObject, &o);
-    if (o) {
-      NPVariant param;
-      STRINGZ_TO_NPVARIANT("paintscript", param);
-      NPVariant result;
-      NPN_Invoke(instanceData->npp, o, NPN_GetStringIdentifier("getAttribute"),
-                 &param, 1, &result);
-
-      if (NPVARIANT_IS_STRING(result)) {
-        NPObject* windowObject;
-        NPN_GetValue(instanceData->npp, NPNVWindowNPObject, &windowObject);
-        if (windowObject) {
-          NPVariant evalResult;
-          NPN_Evaluate(instanceData->npp, windowObject,
-                       (NPString*)&NPVARIANT_TO_STRING(result), &evalResult);
-          NPN_ReleaseVariantValue(&evalResult);
-          NPN_ReleaseObject(windowObject);
-        }
-      }
-
-      NPN_ReleaseVariantValue(&result);
-      NPN_ReleaseObject(o);
-    }
-  }
 }
 
 static const NPClass kTestSharedNPClass = {
@@ -2835,7 +2782,7 @@ bool
 hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
            NPVariant* result)
 {
-  mozilla::NoteIntentionalCrash("plugin");
+  NoteIntentionalCrash();
 
 #ifdef XP_WIN
   Sleep(100000000);
@@ -2881,15 +2828,6 @@ crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args,
   return pluginCrashInNestedLoop(id);
 }
 
-bool
-destroySharedGfxStuff(NPObject* npobj, const NPVariant* args,
-                        uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  return pluginDestroySharedGfxStuff(id);
-}
-
 #else
 bool
 getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
@@ -2901,14 +2839,6 @@ getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 
 bool
 crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args,
-                        uint32_t argCount, NPVariant* result)
-{
-  // XXX Not implemented!
-  return false;
-}
-
-bool
-destroySharedGfxStuff(NPObject* npobj, const NPVariant* args,
                         uint32_t argCount, NPVariant* result)
 {
   // XXX Not implemented!
@@ -3116,67 +3046,4 @@ getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVarian
 		     const_cast<NPClass*>(&kReflectorNPClass)); // retains
   OBJECT_TO_NPVARIANT(reflector, *result);
   return true;
-}
-
-bool isVisible(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  BOOLEAN_TO_NPVARIANT(id->window.clipRect.top != 0 ||
-		       id->window.clipRect.left != 0 ||
-		       id->window.clipRect.bottom != 0 ||
-		       id->window.clipRect.right != 0, *result);
-  return true;
-}
-
-bool getWindowPosition(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  NPObject* window = NULL;
-  NPError err = NPN_GetValue(npp, NPNVWindowNPObject, &window);
-  if (NPERR_NO_ERROR != err || !window)
-    return false;
-
-  NPIdentifier arrayID = NPN_GetStringIdentifier("Array");
-  NPVariant arrayFunctionV;
-  bool ok = NPN_GetProperty(npp, window, arrayID, &arrayFunctionV);
-
-  NPN_ReleaseObject(window);
-
-  if (!ok)
-    return false;
-
-  if (!NPVARIANT_IS_OBJECT(arrayFunctionV)) {
-    NPN_ReleaseVariantValue(&arrayFunctionV);
-    return false;
-  }
-  NPObject* arrayFunction = NPVARIANT_TO_OBJECT(arrayFunctionV);
-
-  NPVariant elements[4];
-  INT32_TO_NPVARIANT(id->window.x, elements[0]);
-  INT32_TO_NPVARIANT(id->window.y, elements[1]);
-  INT32_TO_NPVARIANT(id->window.width, elements[2]);
-  INT32_TO_NPVARIANT(id->window.height, elements[3]);
-
-  NPObject* resultArray = NULL;
-  ok = NPN_InvokeDefault(npp, arrayFunction, elements, 4, result);
-
-  NPN_ReleaseObject(arrayFunction);
-
-  return ok;
-}
-
-bool constructObject(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount == 0 || !NPVARIANT_IS_OBJECT(args[0]))
-    return false;
-
-  NPObject* ctor = NPVARIANT_TO_OBJECT(args[0]);
-  
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  return NPN_Construct(npp, ctor, args + 1, argCount - 1, result);
 }

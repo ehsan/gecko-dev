@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -525,16 +525,8 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
         *aUVSTableOffset = nsnull;
     }
 
-    if (!aBuf || aBufLength < SizeOfHeader) {
-        // cmap table is missing, or too small to contain header fields!
-        return 0;
-    }
-
     // PRUint16 version = ReadShortAt(aBuf, OffsetVersion); // Unused: self-documenting.
     PRUint16 numTables = ReadShortAt(aBuf, OffsetNumTables);
-    if (aBufLength < PRUint32(SizeOfHeader + numTables * SizeOfTable)) {
-        return 0;
-    }
 
     // save the format we want here
     PRUint32 keepFormat = 0;
@@ -547,10 +539,8 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
 
         const PRUint16 encodingID = ReadShortAt(table, TableOffsetEncodingID);
         const PRUint32 offset = ReadLongAt(table, TableOffsetOffset);
-        if (aBufLength - 2 < offset) {
-            // this subtable is not valid - beyond end of buffer
-            return 0;
-        }
+
+        NS_ENSURE_TRUE(offset < aBufLength, NS_ERROR_GFX_CMAP_MALFORMED);
 
         const PRUint8 *subtable = aBuf + offset;
         const PRUint16 format = ReadShortAt(subtable, SubtableOffsetFormat);
@@ -921,6 +911,21 @@ nsresult gfxFontUtils::MakeUniqueUserFontName(nsAString& aName)
 // need byte aligned structs
 #pragma pack(1)
 
+struct SFNTHeader {
+    AutoSwap_PRUint32    sfntVersion;            // Fixed, 0x00010000 for version 1.0.
+    AutoSwap_PRUint16    numTables;              // Number of tables.
+    AutoSwap_PRUint16    searchRange;            // (Maximum power of 2 <= numTables) x 16.
+    AutoSwap_PRUint16    entrySelector;          // Log2(maximum power of 2 <= numTables).
+    AutoSwap_PRUint16    rangeShift;             // NumTables x 16-searchRange.        
+};
+
+struct TableDirEntry {
+    AutoSwap_PRUint32    tag;                    // 4 -byte identifier.
+    AutoSwap_PRUint32    checkSum;               // CheckSum for this table.
+    AutoSwap_PRUint32    offset;                 // Offset from beginning of TrueType font file.
+    AutoSwap_PRUint32    length;                 // Length of this table.        
+};
+
 // name table stores set of name record structures, followed by
 // large block containing all the strings.  name record offset and length
 // indicates the offset and length within that block.
@@ -1084,9 +1089,8 @@ gfxFontUtils::ValidateSFNTHeaders(const PRUint8 *aFontData,
     PRBool foundHead = PR_FALSE, foundOS2 = PR_FALSE, foundName = PR_FALSE;
     PRBool foundGlyphs = PR_FALSE, foundCFF = PR_FALSE, foundKern = PR_FALSE;
     PRBool foundLoca = PR_FALSE, foundMaxp = PR_FALSE;
-    PRUint32 headOffset = 0, headLen, nameOffset = 0, nameLen, kernOffset = 0,
-        kernLen = 0, glyfLen = 0, locaOffset = 0, locaLen = 0,
-        maxpOffset = 0, maxpLen;
+    PRUint32 headOffset, headLen, nameOffset, nameLen, kernOffset, kernLen,
+             glyfLen, locaOffset, locaLen, maxpOffset, maxpLen;
     PRUint32 i, numTables;
 
     numTables = sfntHeader->numTables;
@@ -1197,11 +1201,6 @@ gfxFontUtils::ValidateSFNTHeaders(const PRUint8 *aFontData,
 
     // -- head table data
     const HeadTable *headData = reinterpret_cast<const HeadTable*>(aFontData + headOffset);
-
-    if (headData->tableVersionNumber != HeadTable::HEAD_VERSION) {
-        NS_WARNING("invalid font (head table version)");
-        return PR_FALSE;
-    }
 
     if (headData->magicNumber != HeadTable::HEAD_MAGIC_NUMBER) {
         NS_WARNING("invalid font (head magic number)");
@@ -1655,7 +1654,7 @@ gfxFontUtils::DecodeFontName(const PRUint8 *aNameData, PRInt32 aByteLen,
     }
 
     nsCOMPtr<nsIUnicodeDecoder> decoder;
-    rv = ccm->GetUnicodeDecoderRawInternal(csName, getter_AddRefs(decoder));
+    rv = ccm->GetUnicodeDecoderRaw(csName, getter_AddRefs(decoder));
     if (NS_FAILED(rv)) {
         NS_WARNING("failed to get the decoder for a font name string");
         return PR_FALSE;
@@ -1971,10 +1970,8 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
     // -- head table data
     const HeadTable  *headData = reinterpret_cast<const HeadTable*>(aFontData + headOffset);
 
-    if (headData->tableVersionNumber != HeadTable::HEAD_VERSION ||
-        headData->magicNumber != HeadTable::HEAD_MAGIC_NUMBER) {
+    if (headData->magicNumber != HeadTable::HEAD_MAGIC_NUMBER)
         return NS_ERROR_FAILURE;
-    }
 
     eotHeader->checkSumAdjustment = headData->checkSumAdjustment;
 

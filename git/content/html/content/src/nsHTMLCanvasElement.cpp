@@ -40,8 +40,6 @@
 #include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
-#include "nsDOMFile.h"
-#include "CheckedInt.h"
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
@@ -51,20 +49,16 @@
 #include "nsDisplayList.h"
 #include "ImageLayers.h"
 #include "BasicLayers.h"
-#include "imgIEncoder.h"
-
-#include "nsIWritablePropertyBag2.h"
 
 #define DEFAULT_CANVAS_WIDTH 300
 #define DEFAULT_CANVAS_HEIGHT 150
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 nsGenericHTMLElement*
 NS_NewHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        FromParser aFromParser)
+                        PRUint32 aFromParser)
 {
   return new nsHTMLCanvasElement(aNodeInfo);
 }
@@ -154,7 +148,7 @@ nsHTMLCanvasElement::CopyInnerTo(nsGenericElement* aDest) const
   if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     nsHTMLCanvasElement* dest = static_cast<nsHTMLCanvasElement*>(aDest);
     nsCOMPtr<nsISupports> cxt;
-    dest->GetContext(NS_LITERAL_STRING("2d"), JSVAL_VOID, getter_AddRefs(cxt));
+    dest->GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(cxt));
     nsCOMPtr<nsIDOMCanvasRenderingContext2D> context2d = do_QueryInterface(cxt);
     if (context2d) {
       context2d->DrawImage(const_cast<nsHTMLCanvasElement*>(this),
@@ -227,118 +221,67 @@ nsHTMLCanvasElement::ToDataURLAs(const nsAString& aMimeType,
 }
 
 nsresult
-nsHTMLCanvasElement::ExtractData(const nsAString& aType,
-                                 const nsAString& aOptions,
-                                 char*& aResult,
-                                 PRUint32& aSize,
-                                 bool& aFellBackToPNG)
-{
-  // note that if we don't have a current context, the spec says we're
-  // supposed to just return transparent black pixels of the canvas
-  // dimensions.
-  nsRefPtr<gfxImageSurface> emptyCanvas;
-  nsIntSize size = GetWidthHeight();
-  if (!mCurrentContext) {
-    emptyCanvas = new gfxImageSurface(gfxIntSize(size.width, size.height), gfxASurface::ImageFormatARGB32);
-  }
-
-  nsresult rv;
-
-  // get image bytes
-  nsCOMPtr<nsIInputStream> imgStream;
-  nsCAutoString encoderType;
-  encoderType.Assign(NS_ConvertUTF16toUTF8(aType));
-
- try_again:
-  if (mCurrentContext) {
-    rv = mCurrentContext->GetInputStream(nsPromiseFlatCString(encoderType).get(),
-                                         nsPromiseFlatString(aOptions).get(),
-                                         getter_AddRefs(imgStream));
-  } else {
-    // no context, so we have to encode the empty image we created above
-    nsCString enccid("@mozilla.org/image/encoder;2?type=");
-    enccid += encoderType;
-
-    nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(nsPromiseFlatCString(enccid).get(), &rv);
-    if (NS_SUCCEEDED(rv) && encoder) {
-      rv = encoder->InitFromData(emptyCanvas->Data(),
-                                 size.width * size.height * 4,
-                                 size.width,
-                                 size.height,
-                                 size.width * 4,
-                                 imgIEncoder::INPUT_FORMAT_HOSTARGB,
-                                 aOptions);
-      if (NS_SUCCEEDED(rv)) {
-        imgStream = do_QueryInterface(encoder);
-      }
-    } else {
-      rv = NS_ERROR_FAILURE;
-    }
-  }
-
-  if (NS_FAILED(rv) && !aFellBackToPNG) {
-    // Try image/png instead.
-    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
-    aFellBackToPNG = true;
-    encoderType.AssignLiteral("image/png");
-    goto try_again;
-  }
-
-  // at this point, we either need to succeed or bail.
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Generally, there will be only one chunk of data, and it will be available
-  // for us to read right away, so optimize this case.
-  PRUint32 bufSize;
-  rv = imgStream->Available(&bufSize);
-  CheckedUint32 safeBufSize(bufSize);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // ...leave a little extra room so we can call read again and make sure we
-  // got everything. 16 bytes for better padding (maybe)
-  safeBufSize += 16;
-  NS_ENSURE_TRUE(safeBufSize.valid(), NS_ERROR_FAILURE);
-  aSize = 0;
-  aResult = (char*)PR_Malloc(safeBufSize.value());
-  if (!aResult)
-    return NS_ERROR_OUT_OF_MEMORY;
-  PRUint32 numReadThisTime = 0;
-  while ((rv = imgStream->Read(&aResult[aSize], safeBufSize.value() - aSize,
-                               &numReadThisTime)) == NS_OK &&
-         numReadThisTime > 0) {
-    aSize += numReadThisTime;
-    if (aSize == safeBufSize.value()) {
-      // need a bigger buffer, just double
-      safeBufSize *= 2;
-      if (!safeBufSize.valid()) {
-        PR_Free(aResult);
-        return NS_ERROR_FAILURE;
-      }
-      char* newImgData = (char*)PR_Realloc(aResult, safeBufSize.value());
-      if (! newImgData) {
-        PR_Free(aResult);
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      aResult = newImgData;
-    }
-  }
-
-  return NS_OK;
-}
-
-nsresult
 nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
                                    const nsAString& aEncoderOptions,
                                    nsAString& aDataURL)
 {
   bool fallbackToPNG = false;
-
-  PRUint32 imgSize = 0;
-  char* imgData;
-
-  nsresult rv = ExtractData(aMimeType, aEncoderOptions, imgData,
-                            imgSize, fallbackToPNG);
+  
+  // We get an input stream from the context. If more than one context type
+  // is supported in the future, this will have to be changed to do the right
+  // thing. For now, just assume that the 2D context has all the goods.
+  nsCOMPtr<nsICanvasRenderingContextInternal> context;
+  nsresult rv = GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(context));
   NS_ENSURE_SUCCESS(rv, rv);
+  if (!context) {
+    // XXX bug 578349
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  // get image bytes
+  nsCOMPtr<nsIInputStream> imgStream;
+  NS_ConvertUTF16toUTF8 aMimeType8(aMimeType);
+  rv = context->GetInputStream(nsPromiseFlatCString(aMimeType8).get(),
+                               nsPromiseFlatString(aEncoderOptions).get(),
+                               getter_AddRefs(imgStream));
+  if (NS_FAILED(rv)) {
+    // Use image/png instead.
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
+    fallbackToPNG = true;
+    rv = context->GetInputStream("image/png",
+                                 nsPromiseFlatString(aEncoderOptions).get(),
+                                 getter_AddRefs(imgStream));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  // Generally, there will be only one chunk of data, and it will be available
+  // for us to read right away, so optimize this case.
+  PRUint32 bufSize;
+  rv = imgStream->Available(&bufSize);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // ...leave a little extra room so we can call read again and make sure we
+  // got everything. 16 bytes for better padding (maybe)
+  bufSize += 16;
+  PRUint32 imgSize = 0;
+  char* imgData = (char*)PR_Malloc(bufSize);
+  if (! imgData)
+    return NS_ERROR_OUT_OF_MEMORY;
+  PRUint32 numReadThisTime = 0;
+  while ((rv = imgStream->Read(&imgData[imgSize], bufSize - imgSize,
+                         &numReadThisTime)) == NS_OK && numReadThisTime > 0) {
+    imgSize += numReadThisTime;
+    if (imgSize == bufSize) {
+      // need a bigger buffer, just double
+      bufSize *= 2;
+      char* newImgData = (char*)PR_Realloc(imgData, bufSize);
+      if (! newImgData) {
+        PR_Free(imgData);
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      imgData = newImgData;
+    }
+  }
 
   // base 64, result will be NULL terminated
   char* encodedImg = PL_Base64Encode(imgData, imgSize, nsnull);
@@ -359,53 +302,14 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLCanvasElement::MozGetAsFile(const nsAString& aName,
-                                  const nsAString& aType,
-                                  PRUint8 optional_argc,
-                                  nsIDOMFile** aResult)
-{
-  // do a trust check if this is a write-only canvas
-  if ((mWriteOnly) &&
-      !nsContentUtils::IsCallerTrustedForRead()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  return MozGetAsFileImpl(aName, aType, aResult);
-}
-
-nsresult
-nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
-                                      const nsAString& aType,
-                                      nsIDOMFile** aResult)
-{
-  bool fallbackToPNG = false;
-  PRUint32 imgSize = 0;
-  char* imgData;
-
-  nsresult rv = ExtractData(aType, EmptyString(), imgData,
-                            imgSize, fallbackToPNG);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString type(aType);
-  if (fallbackToPNG) {
-    type.AssignLiteral("image/png");
-  }
-
-  // The DOMFile takes ownership of the buffer
-  nsRefPtr<nsDOMMemoryFile> file =
-    new nsDOMMemoryFile((void*)imgData, imgSize, aName, type);
-
-  return CallQueryInterface(file, aResult);
-}
-
 nsresult
 nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
                                       nsICanvasRenderingContextInternal **aContext)
 {
   NS_ENSURE_ARG(aContext);
 
-  NS_LossyConvertUTF16toASCII ctxId(aContextId);
+  nsCString ctxId;
+  ctxId.Assign(NS_LossyConvertUTF16toASCII(aContextId));
 
   // check that ctxId is clamped to A-Za-z0-9_-
   for (PRUint32 i = 0; i < ctxId.Length(); i++) {
@@ -449,7 +353,6 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
 
 NS_IMETHODIMP
 nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
-                                const jsval& aContextOptions,
                                 nsISupports **aContext)
 {
   nsresult rv;
@@ -476,52 +379,7 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
       return rv;
     }
 
-    nsCOMPtr<nsIPropertyBag> contextProps;
-    if (!JSVAL_IS_NULL(aContextOptions) &&
-        !JSVAL_IS_VOID(aContextOptions))
-    {
-      JSContext *cx = nsContentUtils::GetCurrentJSContext();
-
-      nsCOMPtr<nsIWritablePropertyBag2> newProps;
-
-      // note: if any contexts end up supporting something other
-      // than objects, e.g. plain strings, then we'll need to expand
-      // this to know how to create nsISupportsStrings etc.
-      if (JSVAL_IS_OBJECT(aContextOptions)) {
-        newProps = do_CreateInstance("@mozilla.org/hash-property-bag;1");
-
-        JSObject *opts = JSVAL_TO_OBJECT(aContextOptions);
-        JSIdArray *props = JS_Enumerate(cx, opts);
-        for (int i = 0; props && i < props->length; ++i) {
-          jsid propid = props->vector[i];
-          jsval propname, propval;
-          if (!JS_IdToValue(cx, propid, &propname) ||
-              !JS_GetPropertyById(cx, opts, propid, &propval))
-          {
-            continue;
-          }
-
-          JSString *propnameString = JS_ValueToString(cx, propname);
-
-          nsDependentString pstr(JS_GetStringChars(propnameString), JS_GetStringLength(propnameString));
-
-          if (JSVAL_IS_BOOLEAN(propval)) {
-            newProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? PR_TRUE : PR_FALSE);
-          } else if (JSVAL_IS_INT(propval)) {
-            newProps->SetPropertyAsInt32(pstr, JSVAL_TO_INT(propval));
-          } else if (JSVAL_IS_DOUBLE(propval)) {
-            newProps->SetPropertyAsDouble(pstr, JSVAL_TO_DOUBLE(propval));
-          } else if (JSVAL_IS_STRING(propval)) {
-            newProps->SetPropertyAsAString(pstr, nsDependentString(JS_GetStringChars(JS_ValueToString(cx, propval)),
-                                                                   JS_GetStringLength(JS_ValueToString(cx, propval))));
-          }
-        }
-      }
-
-      contextProps = newProps;
-    }
-
-    rv = UpdateContext(contextProps);
+    rv = UpdateContext();
     if (NS_FAILED(rv)) {
       mCurrentContext = nsnull;
       return rv;
@@ -582,25 +440,14 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
 }
 
 nsresult
-nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
+nsHTMLCanvasElement::UpdateContext()
 {
-  if (!mCurrentContext)
-    return NS_OK;
-
   nsresult rv = NS_OK;
-
-  rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
-  if (NS_FAILED(rv))
-    return rv;
-
-  rv = mCurrentContext->SetContextOptions(aNewContextOptions);
-  if (NS_FAILED(rv))
-    return rv;
-
-  nsIntSize sz = GetWidthHeight();
-  rv = mCurrentContext->SetDimensions(sz.width, sz.height);
-  if (NS_FAILED(rv))
-    return rv;
+  if (mCurrentContext) {
+    nsIntSize sz = GetWidthHeight();
+    rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
+    rv = mCurrentContext->SetDimensions(sz.width, sz.height);
+  }
 
   return rv;
 }

@@ -62,13 +62,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsRecentBadCertsService,
 nsRecentBadCertsService::nsRecentBadCertsService()
 :mNextStorePosition(0)
 {
-  monitor = nsAutoMonitor::NewMonitor("security.recentBadCertsMonitor");
+  monitor = PR_NewMonitor();
 }
 
 nsRecentBadCertsService::~nsRecentBadCertsService()
 {
   if (monitor)
-    nsAutoMonitor::DestroyMonitor(monitor);
+    PR_DestroyMonitor(monitor);
 }
 
 nsresult
@@ -128,7 +128,7 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
     if (!nssCert)
       return NS_ERROR_FAILURE;
 
-    status->mServerCert = nsNSSCertificate::Create(nssCert);
+    status->mServerCert = new nsNSSCertificate(nssCert);
     CERT_DestroyCertificate(nssCert);
 
     status->mHaveCertErrorBits = PR_TRUE;

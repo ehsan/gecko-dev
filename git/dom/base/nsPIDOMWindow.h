@@ -77,8 +77,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x8d8be7db, 0xffaa, 0x4962, \
-  { 0xa7, 0x27, 0xb7, 0x0f, 0xc9, 0xfa, 0xd3, 0x0e } }
+{ 0x4beac1da, 0x513e, 0x4a8b, \
+  { 0x96, 0x94, 0x1c, 0xf6, 0x4f, 0xba, 0xa8, 0x1c } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -166,9 +166,6 @@ public:
 
     win->mMutationBits |= aType;
   }
-
-  virtual void MaybeUpdateTouchState() {}
-  virtual void UpdateTouchState() {}
 
   // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
   nsIDOMDocument* GetExtantDocument() const
@@ -316,7 +313,7 @@ public:
 
   nsPIDOMWindow *GetOuterWindow()
   {
-    return mIsInnerWindow ? mOuterWindow.get() : this;
+    return mIsInnerWindow ? mOuterWindow : this;
   }
 
   nsPIDOMWindow *GetCurrentInnerWindow() const
@@ -373,8 +370,7 @@ public:
    * created.
    */
   virtual nsresult SetNewDocument(nsIDocument *aDocument,
-                                  nsISupports *aState,
-                                  PRBool aForceReuseInnerWindow) = 0;
+                                  nsISupports *aState) = 0;
 
   /**
    * Set the opener window.  aOriginalOpener is true if and only if this is the
@@ -397,6 +393,11 @@ public:
 
   virtual PRBool CanClose() = 0;
   virtual nsresult ForceClose() = 0;
+
+  void SetModalContentWindow(PRBool aIsModalContentWindow)
+  {
+    mIsModalContentWindow = aIsModalContentWindow;
+  }
 
   PRBool IsModalContentWindow() const
   {
@@ -421,34 +422,6 @@ public:
     return mMayHavePaintEventListener;
   }
   
-  /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a touch event listener.
-   */
-  void SetHasTouchEventListeners()
-  {
-    mMayHaveTouchEventListener = PR_TRUE;
-    MaybeUpdateTouchState();
-  }
-
-  /**
-   * Call this to check whether some node (this window, its document,
-   * or content in that document) has a MozAudioAvailable event listener.
-   */
-  PRBool HasAudioAvailableEventListeners()
-  {
-    return mMayHaveAudioAvailableEventListener;
-  }
-
-  /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a MozAudioAvailable event listener.
-   */
-  void SetHasAudioAvailableEventListeners()
-  {
-    mMayHaveAudioAvailableEventListener = PR_TRUE;
-  }
-
   /**
    * Initialize window.java and window.Packages.
    */
@@ -524,10 +497,9 @@ public:
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
+   * Instructs this window to synchronously dispatch a hashchange event.
    */
-  virtual nsresult DispatchAsyncHashchange() = 0;
+  virtual nsresult DispatchSyncHashchange() = 0;
 
   /**
    * Instructs this window to synchronously dispatch a popState event.
@@ -547,18 +519,6 @@ public:
    * as appropriate for that language.
    */
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin) = 0;
-
-  /**
-   * NOTE! This function *will* be called on multiple threads so the
-   * implementation must not do any AddRef/Release or other actions that will
-   * mutate internal state.
-   */
-  virtual PRUint32 GetSerial() = 0;
-
-  /**
-   * Return the window id of this window
-   */
-  PRUint64 WindowID() const { return mWindowID; }
 
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
@@ -600,8 +560,6 @@ protected:
   PRPackedBool           mIsHandlingResizeEvent;
   PRPackedBool           mIsInnerWindow;
   PRPackedBool           mMayHavePaintEventListener;
-  PRPackedBool           mMayHaveTouchEventListener;
-  PRPackedBool           mMayHaveAudioAvailableEventListener;
 
   // This variable is used on both inner and outer windows (and they
   // should match).
@@ -612,19 +570,11 @@ protected:
 
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;
-  nsCOMPtr<nsPIDOMWindow> mOuterWindow;
+  nsPIDOMWindow         *mOuterWindow;
 
   // the element within the document that is currently focused when this
   // window is active
   nsCOMPtr<nsIContent> mFocusedNode;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
-
-  // This is only used by the inner window. Set to true once we've sent
-  // the (chrome|content)-document-global-created notification.
-  PRPackedBool mHasNotifiedGlobalCreated;
 };
 
 

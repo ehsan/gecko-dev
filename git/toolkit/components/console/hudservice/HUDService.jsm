@@ -25,8 +25,6 @@
  *   Rob Campbell <rcampbell@mozilla.com>
  *   Johnathan Nightingale <jnightingale@mozilla.com>
  *   Patrick Walton <pcwalton@mozilla.com>
- *   Julian Viereck <jviereck@mozilla.com>
- *   Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,13 +44,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const CONSOLEAPI_CLASS_ID = "{b49c18f8-3379-4fc0-8c90-d7772c1a9ff3}";
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/NetworkHelper.jsm");
 
-var EXPORTED_SYMBOLS = ["HUDService", "ConsoleUtils"];
+var EXPORTED_SYMBOLS = ["HUDService"];
 
 XPCOMUtils.defineLazyServiceGetter(this, "scriptError",
                                    "@mozilla.org/scripterror;1",
@@ -62,31 +57,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "activityDistributor",
                                    "@mozilla.org/network/http-activity-distributor;1",
                                    "nsIHttpActivityDistributor");
 
-XPCOMUtils.defineLazyServiceGetter(this, "mimeService",
-                                   "@mozilla.org/mime;1",
-                                   "nsIMIMEService");
-
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
-  var obj = {};
-  Cu.import("resource://gre/modules/NetUtil.jsm", obj);
-  return obj.NetUtil;
-});
-
-XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
-  var obj = {};
-  try {
-    Cu.import("resource:///modules/PropertyPanel.jsm", obj);
-  } catch (err) {
-    Cu.reportError(err);
-  }
-  return obj.PropertyPanel;
-});
-
-XPCOMUtils.defineLazyGetter(this, "namesAndValuesOf", function () {
-  var obj = {};
-  Cu.import("resource:///modules/PropertyPanel.jsm", obj);
-  return obj.namesAndValuesOf;
-});
+XPCOMUtils.defineLazyServiceGetter(this, "sss",
+                                   "@mozilla.org/content/style-sheet-service;1",
+                                   "nsIStyleSheetService");
 
 function LogFactory(aMessagePrefix)
 {
@@ -99,45 +72,14 @@ function LogFactory(aMessagePrefix)
 
 let log = LogFactory("*** HUDService:");
 
+const ELEMENT_NS_URI = "http://www.w3.org/1999/xhtml";
+const ELEMENT_NS = "html:";
+const HUD_STYLESHEET_URI = "chrome://global/skin/headsUpDisplay.css";
 const HUD_STRINGS_URI = "chrome://global/locale/headsUpDisplay.properties";
 
 XPCOMUtils.defineLazyGetter(this, "stringBundle", function () {
   return Services.strings.createBundle(HUD_STRINGS_URI);
 });
-
-// The amount of time in milliseconds that must pass between messages to
-// trigger the display of a new group.
-const NEW_GROUP_DELAY = 5000;
-
-// The amount of time in milliseconds that we wait before performing a live
-// search.
-const SEARCH_DELAY = 200;
-
-// The number of lines that are displayed in the console output by default.
-// The user can change this number by adjusting the hidden
-// "devtools.hud.loglimit" preference.
-const DEFAULT_LOG_LIMIT = 200;
-
-// Possible directions that can be passed to HUDService.animate().
-const ANIMATE_OUT = 0;
-const ANIMATE_IN = 1;
-
-// Constants used for defining the direction of JSTerm input history navigation.
-const HISTORY_BACK = -1;
-const HISTORY_FORWARD = 1;
-
-// The maximum number of bytes a Network ResponseListener can hold.
-const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
-
-// Minimum console height, in pixels.
-const MINIMUM_CONSOLE_HEIGHT = 150;
-
-// Minimum page height, in pixels. This prevents the Web Console from
-// remembering a height that covers the whole page.
-const MINIMUM_PAGE_HEIGHT = 50;
-
-// The default console height, as a ratio from the content window inner height.
-const DEFAULT_CONSOLE_HEIGHT = 0.33;
 
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
@@ -145,900 +87,6 @@ const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  MISSING_ARGS: "Missing arguments",
                  LOG_OUTPUT_FAILED: "Log Failure: Could not append messageNode to outputNode",
 };
-
-/**
- * Implements the nsIStreamListener and nsIRequestObserver interface. Used
- * within the HS_httpObserverFactory function to get the response body of
- * requests.
- *
- * The code is mostly based on code listings from:
- *
- *   http://www.softwareishard.com/blog/firebug/
- *      nsitraceablechannel-intercept-http-traffic/
- *
- * @param object aHttpActivity
- *        HttpActivity object associated with this request (see
- *        HS_httpObserverFactory). As the response is done, the response header,
- *        body and status is stored on aHttpActivity.
- */
-function ResponseListener(aHttpActivity) {
-  this.receivedData = "";
-  this.httpActivity = aHttpActivity;
-}
-
-ResponseListener.prototype =
-{
-  /**
-   * The original listener for this request.
-   */
-  originalListener: null,
-
-  /**
-   * The HttpActivity object associated with this response.
-   */
-  httpActivity: null,
-
-  /**
-   * Stores the received data as a string.
-   */
-  receivedData: null,
-
-  /**
-   * Sets the httpActivity object's response header if it isn't set already.
-   *
-   * @param nsIRequest aRequest
-   */
-  setResponseHeader: function RL_setResponseHeader(aRequest)
-  {
-    let httpActivity = this.httpActivity;
-    // Check if the header isn't set yet.
-    if (!httpActivity.response.header) {
-      if (aRequest instanceof Ci.nsIHttpChannel) {
-      httpActivity.response.header = {};
-        try {
-        aRequest.visitResponseHeaders({
-          visitHeader: function(aName, aValue) {
-            httpActivity.response.header[aName] = aValue;
-          }
-        });
-      }
-        // Accessing the response header can throw an NS_ERROR_NOT_AVAILABLE
-        // exception. Catch it and stop it to make it not show up in the.
-        // This can happen if the response is not finished yet and the user
-        // reloades the page.
-        catch (ex) {
-          delete httpActivity.response.header;
-        }
-      }
-    }
-  },
-
-  /**
-   * See documention at
-   * https://developer.mozilla.org/en/XPCOM_Interface_Reference/nsIStreamListener
-   *
-   * Grabs a copy of the original data and passes it on to the original listener.
-   *
-   * @param nsIRequest aRequest
-   * @param nsISupports aContext
-   * @param nsIInputStream aInputStream
-   * @param unsigned long aOffset
-   * @param unsigned long aCount
-   */
-  onDataAvailable: function RL_onDataAvailable(aRequest, aContext, aInputStream,
-                                                aOffset, aCount)
-  {
-    this.setResponseHeader(aRequest);
-
-    let StorageStream = Components.Constructor("@mozilla.org/storagestream;1",
-                                                "nsIStorageStream",
-                                                "init");
-    let BinaryOutputStream = Components.Constructor("@mozilla.org/binaryoutputstream;1",
-                                                      "nsIBinaryOutputStream",
-                                                      "setOutputStream");
-
-    storageStream = new StorageStream(8192, aCount, null);
-    binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
-
-    let data = NetUtil.readInputStreamToString(aInputStream, aCount);
-
-    if (HUDService.saveRequestAndResponseBodies &&
-        this.receivedData.length < RESPONSE_BODY_LIMIT) {
-      this.receivedData += NetworkHelper.
-                           convertToUnicode(data, aRequest.contentCharset);
-    }
-
-    binaryOutputStream.writeBytes(data, aCount);
-
-    let newInputStream = storageStream.newInputStream(0);
-    try {
-    this.originalListener.onDataAvailable(aRequest, aContext,
-        newInputStream, aOffset, aCount);
-    }
-    catch(ex) {
-      aRequest.cancel(ex);
-    }
-  },
-
-  /**
-   * See documentation at
-   * https://developer.mozilla.org/En/NsIRequestObserver
-   *
-   * @param nsIRequest aRequest
-   * @param nsISupports aContext
-   */
-  onStartRequest: function RL_onStartRequest(aRequest, aContext)
-  {
-    try {
-    this.originalListener.onStartRequest(aRequest, aContext);
-    }
-    catch(ex) {
-      aRequest.cancel(ex);
-    }
-  },
-
-  /**
-   * See documentation at
-   * https://developer.mozilla.org/En/NsIRequestObserver
-   *
-   * If aRequest is an nsIHttpChannel then the response header is stored on the
-   * httpActivity object. Also, the response body is set on the httpActivity
-   * object (if the user has turned on response content logging) and the
-   * HUDService.lastFinishedRequestCallback is called if there is one.
-   *
-   * @param nsIRequest aRequest
-   * @param nsISupports aContext
-   * @param nsresult aStatusCode
-   */
-  onStopRequest: function RL_onStopRequest(aRequest, aContext, aStatusCode)
-  {
-    try {
-    this.originalListener.onStopRequest(aRequest, aContext, aStatusCode);
-    }
-    catch (ex) { }
-
-    this.setResponseHeader(aRequest);
-
-    if (HUDService.saveRequestAndResponseBodies) {
-      this.httpActivity.response.body = this.receivedData;
-    }
-    else {
-      this.httpActivity.response.bodyDiscarded = true;
-    }
-
-    if (HUDService.lastFinishedRequestCallback) {
-      HUDService.lastFinishedRequestCallback(this.httpActivity);
-    }
-
-    // Call update on all panels.
-    this.httpActivity.panels.forEach(function(weakRef) {
-      let panel = weakRef.get();
-      if (panel) {
-        panel.update();
-      }
-    });
-    this.httpActivity.response.isDone = true;
-    this.httpActivity.response.listener = null;
-    this.httpActivity = null;
-    this.receivedData = "";
-  },
-
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIStreamListener,
-    Ci.nsISupports
-  ])
-}
-
-///////////////////////////////////////////////////////////////////////////
-//// Helper for creating the network panel.
-
-/**
- * Creates a DOMNode and sets all the attributes of aAttributes on the created
- * element.
- *
- * @param nsIDOMDocument aDocument
- *        Document to create the new DOMNode.
- * @param string aTag
- *        Name of the tag for the DOMNode.
- * @param object aAttributes
- *        Attributes set on the created DOMNode.
- *
- * @returns nsIDOMNode
- */
-function createElement(aDocument, aTag, aAttributes)
-{
-  let node = aDocument.createElement(aTag);
-  for (var attr in aAttributes) {
-    node.setAttribute(attr, aAttributes[attr]);
-  }
-  return node;
-}
-
-/**
- * Creates a new DOMNode and appends it to aParent.
- *
- * @param nsIDOMNode aParent
- *        A parent node to append the created element.
- * @param string aTag
- *        Name of the tag for the DOMNode.
- * @param object aAttributes
- *        Attributes set on the created DOMNode.
- *
- * @returns nsIDOMNode
- */
-function createAndAppendElement(aParent, aTag, aAttributes)
-{
-  let node = createElement(aParent.ownerDocument, aTag, aAttributes);
-  aParent.appendChild(node);
-  return node;
-}
-
-/**
- * Convenience function to unwrap a wrapped object.
- *
- * @param aObject the object to unwrap
- */
-
-function unwrap(aObject)
-{
-  try {
-    return XPCNativeWrapper.unwrap(aObject);
-  } catch(e) {
-    return aObject;
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////
-//// NetworkPanel
-
-/**
- * Creates a new NetworkPanel.
- *
- * @param nsIDOMNode aParent
- *        Parent node to append the created panel to.
- * @param object aHttpActivity
- *        HttpActivity to display in the panel.
- */
-function NetworkPanel(aParent, aHttpActivity)
-{
-  let doc = aParent.ownerDocument;
-  this.httpActivity = aHttpActivity;
-
-  // Create the underlaying panel
-  this.panel = createElement(doc, "panel", {
-    label: HUDService.getStr("NetworkPanel.label"),
-    titlebar: "normal",
-    noautofocus: "true",
-    noautohide: "true",
-    close: "true"
-  });
-
-  // Create the iframe that displays the NetworkPanel XHTML.
-  this.iframe = createAndAppendElement(this.panel, "iframe", {
-    src: "chrome://browser/content/NetworkPanel.xhtml",
-    type: "content",
-    flex: "1"
-  });
-
-  let self = this;
-
-  // Destroy the panel when it's closed.
-  this.panel.addEventListener("popuphidden", function onPopupHide() {
-    self.panel.removeEventListener("popuphidden", onPopupHide, false);
-    self.panel.parentNode.removeChild(self.panel);
-    self.panel = null;
-    self.iframe = null;
-    self.document = null;
-    self.httpActivity = null;
-
-    if (self.linkNode) {
-      self.linkNode._panelOpen = false;
-      self.linkNode = null;
-    }
-  }, false);
-
-  // Set the document object and update the content once the panel is loaded.
-  this.panel.addEventListener("load", function onLoad() {
-    self.panel.removeEventListener("load", onLoad, true);
-    self.document = self.iframe.contentWindow.document;
-    self.update();
-  }, true);
-
-  // Create the footer.
-  let footer = createElement(doc, "hbox", { align: "end" });
-  createAndAppendElement(footer, "spacer", { flex: 1 });
-
-  createAndAppendElement(footer, "resizer", { dir: "bottomend" });
-  this.panel.appendChild(footer);
-
-  aParent.appendChild(this.panel);
-}
-
-NetworkPanel.prototype =
-{
-  /**
-   * Callback is called once the NetworkPanel is processed completly. Used by
-   * unit tests.
-   */
-  isDoneCallback: null,
-
-  /**
-   * The current state of the output.
-   */
-  _state: 0,
-
-  /**
-   * State variables.
-   */
-  _INIT: 0,
-  _DISPLAYED_REQUEST_HEADER: 1,
-  _DISPLAYED_REQUEST_BODY: 2,
-  _DISPLAYED_RESPONSE_HEADER: 3,
-  _TRANSITION_CLOSED: 4,
-
-  _fromDataRegExp: /Content-Type\:\s*application\/x-www-form-urlencoded/,
-
-  /**
-   * Small helper function that is nearly equal to  HUDService.getFormatStr
-   * except that it prefixes aName with "NetworkPanel.".
-   *
-   * @param string aName
-   *        The name of an i10n string to format. This string is prefixed with
-   *        "NetworkPanel." before calling the HUDService.getFormatStr function.
-   * @param array aArray
-   *        Values used as placeholder for the i10n string.
-   * @returns string
-   *          The i10n formated string.
-   */
-  _format: function NP_format(aName, aArray)
-  {
-    return HUDService.getFormatStr("NetworkPanel." + aName, aArray);
-  },
-
-  /**
-   * Returns the content type of the response body. This is based on the
-   * response.header["Content-Type"] info. If this value is not available, then
-   * the content type is tried to be estimated by the url file ending.
-   *
-   * @returns string or null
-   *          Content type or null if no content type could be figured out.
-   */
-  get _contentType()
-  {
-    let response = this.httpActivity.response;
-    let contentTypeValue = null;
-
-    if (response.header && response.header["Content-Type"]) {
-      let types = response.header["Content-Type"].split(/,|;/);
-      for (let i = 0; i < types.length; i++) {
-        let type = NetworkHelper.mimeCategoryMap[types[i]];
-        if (type) {
-          return types[i];
-        }
-      }
-    }
-
-    // Try to get the content type from the request file extension.
-    let uri = NetUtil.newURI(this.httpActivity.url);
-    let mimeType = null;
-    if ((uri instanceof Ci.nsIURL) && uri.fileExtension) {
-      try {
-        mimeType = mimeService.getTypeFromExtension(uri.fileExtension);
-      } catch(e) {
-        // Added to prevent failures on OS X 64. No Flash?
-        Cu.reportError(e);
-        // Return empty string to pass unittests.
-        return "";
-      }
-    }
-    return mimeType;
-  },
-
-  /**
-   *
-   * @returns boolean
-   *          True if the response is an image, false otherwise.
-   */
-  get _responseIsImage()
-  {
-    return NetworkHelper.mimeCategoryMap[this._contentType] == "image";
-  },
-
-  /**
-   *
-   * @returns boolean
-   *          True if the response body contains text, false otherwise.
-   */
-  get _isResponseBodyTextData()
-  {
-    let contentType = this._contentType;
-
-    if (!contentType)
-      return false;
-
-    if (contentType.indexOf("text/") == 0) {
-      return true;
-    }
-
-    switch (NetworkHelper.mimeCategoryMap[contentType]) {
-      case "txt":
-      case "js":
-      case "json":
-      case "css":
-      case "html":
-      case "svg":
-      case "xml":
-        return true;
-
-      default:
-        return false;
-    }
-  },
-
-  /**
-   *
-   * @returns boolean
-   *          Returns true if the server responded that the request is already
-   *          in the browser's cache, false otherwise.
-   */
-  get _isResponseCached()
-  {
-    return this.httpActivity.response.status.indexOf("304") != -1;
-  },
-
-  /**
-   *
-   * @returns boolean
-   *          Returns true if the posted body contains form data.
-   */
-  get _isRequestBodyFormData()
-  {
-    let requestBody = this.httpActivity.request.body;
-    return this._fromDataRegExp.test(requestBody);
-  },
-
-  /**
-   * Appends the node with id=aId by the text aValue.
-   *
-   * @param string aId
-   * @param string aValue
-   * @returns void
-   */
-  _appendTextNode: function NP_appendTextNode(aId, aValue)
-  {
-    let textNode = this.document.createTextNode(aValue);
-    this.document.getElementById(aId).appendChild(textNode);
-  },
-
-  /**
-   * Generates some HTML to display the key-value pair of the aList data. The
-   * generated HTML is added to node with id=aParentId.
-   *
-   * @param string aParentId
-   *        Id of the parent node to append the list to.
-   * @oaram object aList
-   *        Object that holds the key-value information to display in aParentId.
-   * @param boolean aIgnoreCookie
-   *        If true, the key-value named "Cookie" is not added to the list.
-   * @returns void
-   */
-  _appendList: function NP_appendList(aParentId, aList, aIgnoreCookie)
-  {
-    let parent = this.document.getElementById(aParentId);
-    let doc = this.document;
-
-    let sortedList = {};
-    Object.keys(aList).sort().forEach(function(aKey) {
-      sortedList[aKey] = aList[aKey];
-    });
-
-    for (let key in sortedList) {
-      if (aIgnoreCookie && key == "Cookie") {
-        continue;
-      }
-
-      /**
-       * The following code creates the HTML:
-       *
-       * <span class="property-name">${line}:</span>
-       * <span class="property-value">${aList[line]}</span><br>
-       *
-       * and adds it to parent.
-       */
-      let textNode = doc.createTextNode(key + ":");
-      let span = doc.createElement("span");
-      span.setAttribute("class", "property-name");
-      span.appendChild(textNode);
-      parent.appendChild(span);
-
-      textNode = doc.createTextNode(sortedList[key]);
-      span = doc.createElement("span");
-      span.setAttribute("class", "property-value");
-      span.appendChild(textNode);
-      parent.appendChild(span);
-
-      parent.appendChild(doc.createElement("br"));
-    }
-  },
-
-  /**
-   * Displays the node with id=aId.
-   *
-   * @param string aId
-   * @returns void
-   */
-  _displayNode: function NP_displayNode(aId)
-  {
-    this.document.getElementById(aId).style.display = "block";
-  },
-
-  /**
-   * Sets the request URL, request method, the timing information when the
-   * request started and the request header content on the NetworkPanel.
-   * If the request header contains cookie data, a list of sent cookies is
-   * generated and a special sent cookie section is displayed + the cookie list
-   * added to it.
-   *
-   * @returns void
-   */
-  _displayRequestHeader: function NP_displayRequestHeader()
-  {
-    let timing = this.httpActivity.timing;
-    let request = this.httpActivity.request;
-
-    this._appendTextNode("headUrl", this.httpActivity.url);
-    this._appendTextNode("headMethod", this.httpActivity.method);
-
-    this._appendTextNode("requestHeadersInfo",
-      ConsoleUtils.timestampString(timing.REQUEST_HEADER/1000));
-
-    this._appendList("requestHeadersContent", request.header, true);
-
-    if ("Cookie" in request.header) {
-      this._displayNode("requestCookie");
-
-      let cookies = request.header.Cookie.split(";");
-      let cookieList = {};
-      let cookieListSorted = {};
-      cookies.forEach(function(cookie) {
-        let name, value;
-        [name, value] = cookie.trim().split("=");
-        cookieList[name] = value;
-      });
-      this._appendList("requestCookieContent", cookieList);
-    }
-  },
-
-  /**
-   * Displays the request body section of the NetworkPanel and set the request
-   * body content on the NetworkPanel.
-   *
-   * @returns void
-   */
-  _displayRequestBody: function NP_displayRequestBody() {
-    this._displayNode("requestBody");
-    this._appendTextNode("requestBodyContent", this.httpActivity.request.body);
-  },
-
-  /*
-   * Displays the `sent form data` section. Parses the request header for the
-   * submitted form data displays it inside of the `sent form data` section.
-   *
-   * @returns void
-   */
-  _displayRequestForm: function NP_processRequestForm() {
-    let requestBodyLines = this.httpActivity.request.body.split("\n");
-    let formData = requestBodyLines[requestBodyLines.length - 1].
-                      replace(/\+/g, " ").split("&");
-
-    function unescapeText(aText)
-    {
-      try {
-        return decodeURIComponent(aText);
-      }
-      catch (ex) {
-        return decodeURIComponent(unescape(aText));
-      }
-    }
-
-    let formDataObj = {};
-    for (let i = 0; i < formData.length; i++) {
-      let data = formData[i];
-      let idx = data.indexOf("=");
-      let key = data.substring(0, idx);
-      let value = data.substring(idx + 1);
-      formDataObj[unescapeText(key)] = unescapeText(value);
-    }
-
-    this._appendList("requestFormDataContent", formDataObj);
-    this._displayNode("requestFormData");
-  },
-
-  /**
-   * Displays the response section of the NetworkPanel, sets the response status,
-   * the duration between the start of the request and the receiving of the
-   * response header as well as the response header content on the the NetworkPanel.
-   *
-   * @returns void
-   */
-  _displayResponseHeader: function NP_displayResponseHeader()
-  {
-    let timing = this.httpActivity.timing;
-    let response = this.httpActivity.response;
-
-    this._appendTextNode("headStatus", response.status);
-
-    let deltaDuration =
-      Math.round((timing.RESPONSE_HEADER - timing.REQUEST_HEADER) / 1000);
-    this._appendTextNode("responseHeadersInfo",
-      this._format("durationMS", [deltaDuration]));
-
-    this._displayNode("responseContainer");
-    this._appendList("responseHeadersContent", response.header);
-  },
-
-  /**
-   * Displays the respones image section, sets the source of the image displayed
-   * in the image response section to the request URL and the duration between
-   * the receiving of the response header and the end of the request. Once the
-   * image is loaded, the size of the requested image is set.
-   *
-   * @returns void
-   */
-  _displayResponseImage: function NP_displayResponseImage()
-  {
-    let self = this;
-    let timing = this.httpActivity.timing;
-    let response = this.httpActivity.response;
-    let cached = "";
-
-    if (this._isResponseCached) {
-      cached = "Cached";
-    }
-
-    let imageNode = this.document.getElementById("responseImage" + cached +"Node");
-    imageNode.setAttribute("src", this.httpActivity.url);
-
-    // This function is called to set the imageInfo.
-    function setImageInfo() {
-      let deltaDuration =
-        Math.round((timing.RESPONSE_COMPLETE - timing.RESPONSE_HEADER) / 1000);
-      self._appendTextNode("responseImage" + cached + "Info",
-        self._format("imageSizeDeltaDurationMS", [
-          imageNode.width, imageNode.height, deltaDuration
-        ]
-      ));
-    }
-
-    // Check if the image is already loaded.
-    if (imageNode.width != 0) {
-      setImageInfo();
-    }
-    else {
-      // Image is not loaded yet therefore add a load event.
-      imageNode.addEventListener("load", function imageNodeLoad() {
-        imageNode.removeEventListener("load", imageNodeLoad, false);
-        setImageInfo();
-      }, false);
-    }
-
-    this._displayNode("responseImage" + cached);
-  },
-
-  /**
-   * Displays the response body section, sets the the duration between
-   * the receiving of the response header and the end of the request as well as
-   * the content of the response body on the NetworkPanel.
-   *
-   * @param [optional] string aCachedContent
-   *        Cached content for this request. If this argument is set, the
-   *        responseBodyCached section is displayed.
-   * @returns void
-   */
-  _displayResponseBody: function NP_displayResponseBody(aCachedContent)
-  {
-    let timing = this.httpActivity.timing;
-    let response = this.httpActivity.response;
-    let cached =  "";
-    if (aCachedContent) {
-      cached = "Cached";
-    }
-
-    let deltaDuration =
-      Math.round((timing.RESPONSE_COMPLETE - timing.RESPONSE_HEADER) / 1000);
-    this._appendTextNode("responseBody" + cached + "Info",
-      this._format("durationMS", [deltaDuration]));
-
-    this._displayNode("responseBody" + cached);
-    this._appendTextNode("responseBody" + cached + "Content",
-                            aCachedContent || response.body);
-  },
-
-  /**
-   * Displays the `Unknown Content-Type hint` and sets the duration between the
-   * receiving of the response header on the NetworkPanel.
-   *
-   * @returns void
-   */
-  _displayResponseBodyUnknownType: function NP_displayResponseBodyUnknownType()
-  {
-    let timing = this.httpActivity.timing;
-
-    this._displayNode("responseBodyUnknownType");
-    let deltaDuration =
-      Math.round((timing.RESPONSE_COMPLETE - timing.RESPONSE_HEADER) / 1000);
-    this._appendTextNode("responseBodyUnknownTypeInfo",
-      this._format("durationMS", [deltaDuration]));
-
-    this._appendTextNode("responseBodyUnknownTypeContent",
-      this._format("responseBodyUnableToDisplay.content", [this._contentType]));
-  },
-
-  /**
-   * Displays the `no response body` section and sets the the duration between
-   * the receiving of the response header and the end of the request.
-   *
-   * @returns void
-   */
-  _displayNoResponseBody: function NP_displayNoResponseBody()
-  {
-    let timing = this.httpActivity.timing;
-
-    this._displayNode("responseNoBody");
-    let deltaDuration =
-      Math.round((timing.RESPONSE_COMPLETE - timing.RESPONSE_HEADER) / 1000);
-    this._appendTextNode("responseNoBodyInfo",
-      this._format("durationMS", [deltaDuration]));
-  },
-
-  /*
-   * Calls the isDoneCallback function if one is specified.
-   */
-  _callIsDone: function() {
-    if (this.isDoneCallback) {
-      this.isDoneCallback();
-    }
-  },
-
-  /**
-   * Updates the content of the NetworkPanel's iframe.
-   *
-   * @returns void
-   */
-  update: function NP_update()
-  {
-    /**
-     * After the iframe's contentWindow is ready, the document object is set.
-     * If the document object isn't set yet, then the page is loaded and nothing
-     * can be updated.
-     */
-    if (!this.document) {
-      return;
-    }
-
-    let timing = this.httpActivity.timing;
-    let request = this.httpActivity.request;
-    let response = this.httpActivity.response;
-
-    switch (this._state) {
-      case this._INIT:
-        this._displayRequestHeader();
-        this._state = this._DISPLAYED_REQUEST_HEADER;
-        // FALL THROUGH
-
-      case this._DISPLAYED_REQUEST_HEADER:
-        // Process the request body if there is one.
-        if (!request.bodyDiscarded && request.body) {
-          // Check if we send some form data. If so, display the form data special.
-          if (this._isRequestBodyFormData) {
-            this._displayRequestForm();
-          }
-          else {
-            this._displayRequestBody();
-          }
-          this._state = this._DISPLAYED_REQUEST_BODY;
-        }
-        // FALL THROUGH
-
-      case this._DISPLAYED_REQUEST_BODY:
-        // There is always a response header. Therefore we can skip here if
-        // we don't have a response header yet and don't have to try updating
-        // anything else in the NetworkPanel.
-        if (!response.header) {
-          break
-        }
-        this._displayResponseHeader();
-        this._state = this._DISPLAYED_RESPONSE_HEADER;
-        // FALL THROUGH
-
-      case this._DISPLAYED_RESPONSE_HEADER:
-        // Check if the transition is done.
-        if (timing.TRANSACTION_CLOSE && response.isDone) {
-          if (response.bodyDiscarded) {
-            this._callIsDone();
-          }
-          else if (this._responseIsImage) {
-            this._displayResponseImage();
-            this._callIsDone();
-          }
-          else if (!this._isResponseBodyTextData) {
-            this._displayResponseBodyUnknownType();
-            this._callIsDone();
-          }
-          else if (response.body) {
-            this._displayResponseBody();
-            this._callIsDone();
-          }
-          else if (this._isResponseCached) {
-            let self = this;
-            NetworkHelper.loadFromCache(this.httpActivity.url,
-                                        this.httpActivity.charset,
-                                        function(aContent) {
-              // If some content could be loaded from the cache, then display
-              // the body.
-              if (aContent) {
-                self._displayResponseBody(aContent);
-                self._callIsDone();
-              }
-              // Otherwise, show the "There is no response body" hint.
-              else {
-                self._displayNoResponseBody();
-                self._callIsDone();
-              }
-            });
-          }
-          else {
-            this._displayNoResponseBody();
-            this._callIsDone();
-          }
-          this._state = this._TRANSITION_CLOSED;
-        }
-        break;
-    }
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////
-//// Private utility functions for the HUD service
-
-/**
- * Destroys lines of output if more lines than the allowed log limit are
- * present.
- *
- * @param nsIDOMNode aConsoleNode
- *        The DOM node that holds the output of the console.
- * @returns void
- */
-function pruneConsoleOutputIfNecessary(aConsoleNode)
-{
-  let logLimit;
-  try {
-    let prefBranch = Services.prefs.getBranch("devtools.hud.");
-    logLimit = prefBranch.getIntPref("loglimit");
-  } catch (e) {
-    logLimit = DEFAULT_LOG_LIMIT;
-  }
-
-  let messageNodes = aConsoleNode.querySelectorAll(".hud-msg-node");
-  for (let i = 0; i < messageNodes.length - logLimit; i++) {
-    let messageNode = messageNodes[i];
-    let groupNode = messageNode.parentNode;
-    if (!groupNode.classList.contains("hud-group")) {
-      throw new Error("pruneConsoleOutputIfNecessary: message node not in a " +
-                      "HUD group");
-    }
-
-    groupNode.removeChild(messageNode);
-
-    // If there are no more children, then remove the group itself.
-    if (!groupNode.querySelector(".hud-msg-node")) {
-      groupNode.parentNode.removeChild(groupNode);
-    }
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////
-//// The HUD service
 
 function HUD_SERVICE()
 {
@@ -1051,14 +99,16 @@ function HUD_SERVICE()
   }
 
   this.mixins = mixins;
+  this.storage = new ConsoleStorage();
+  this.defaultFilterPrefs = this.storage.defaultDisplayPrefs;
+  this.defaultGlobalConsolePrefs = this.storage.defaultGlobalConsolePrefs;
 
-  // These methods access the "this" object, but they're registered as
-  // event listeners. So we hammer in the "this" binding.
-  this.onTabClose = this.onTabClose.bind(this);
-  this.onWindowUnload = this.onWindowUnload.bind(this);
+  // load stylesheet with StyleSheetService
+  var uri = Services.io.newURI(HUD_STYLESHEET_URI, null, null);
+  sss.loadAndRegisterSheet(uri, sss.AGENT_SHEET);
 
-  // Remembers the last console height, in pixels.
-  this.lastConsoleHeight = Services.prefs.getIntPref("devtools.hud.height");
+  // begin observing HTTP traffic
+  this.startHTTPObservation();
 };
 
 HUD_SERVICE.prototype =
@@ -1111,14 +161,14 @@ HUD_SERVICE.prototype =
   displayRegistry: {},
 
   /**
-   * Mapping of HUDIds to contentWindows.
-   */
-  windowRegistry: {},
-
-  /**
    * Mapping of URISpecs to HUDIds
    */
   uriRegistry: {},
+
+  /**
+   * The nsILoadGroups being tracked
+   */
+  loadGroups: {},
 
   /**
    * The sequencer is a generator (after initialization) that returns unique
@@ -1132,35 +182,34 @@ HUD_SERVICE.prototype =
   filterPrefs: {},
 
   /**
-   * Gets the ID of the outer window of this DOM window
+   * Event handler to get window errors
+   * TODO: a bit of a hack but is able to associate
+   * errors thrown in a window's scope we do not know
+   * about because of the nsIConsoleMessages not having a
+   * window reference.
+   * see bug 567165
    *
    * @param nsIDOMWindow aWindow
-   * @returns integer
+   * @returns boolean
    */
-  getWindowId: function HS_getWindowId(aWindow)
-  {
-    return aWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+  setOnErrorHandler: function HS_setOnErrorHandler(aWindow) {
+    var self = this;
+    var window = aWindow.wrappedJSObject;
+    var console = window.console;
+    var origOnerrorFunc = window.onerror;
+    window.onerror = function windowOnError(aErrorMsg, aURL, aLineNumber)
+    {
+      var lineNum = "";
+      if (aLineNumber) {
+        lineNum = self.getFormatStr("errLine", [aLineNumber]);
+      }
+      console.error(aErrorMsg + " @ " + aURL + " " + lineNum);
+      if (origOnerrorFunc) {
+        origOnerrorFunc(aErrorMsg, aURL, aLineNumber);
+      }
+      return false;
+    };
   },
-
-  /**
-   * Gets the top level content window that has an outer window with
-   * the given ID or returns null if no such content window exists
-   *
-   * @param integer aId
-   * @returns nsIDOMWindow
-   */
-  getWindowByWindowId: function HS_getWindowByWindowId(aId)
-  {
-    let someWindow = Services.wm.getMostRecentWindow(null);
-    let windowUtils = someWindow.getInterface(Ci.nsIDOMWindowUtils);
-    return windowUtils.getOuterWindowWithId(aId);
-  },
-
-  /**
-   * Whether to save the bodies of network requests and responses. Disabled by
-   * default to save memory.
-   */
-  saveRequestAndResponseBodies: false,
 
   /**
    * Tell the HUDService that a HeadsUpDisplay can be activated
@@ -1216,73 +265,54 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Activate a HeadsUpDisplay for the given tab context.
+   * Activate a HeadsUpDisplay for the current window
    *
-   * @param Element aContext the tab element.
-   * @param boolean aAnimated animate opening the Web Console?
+   * @param nsIDOMWindow aContext
    * @returns void
    */
-  activateHUDForContext: function HS_activateHUDForContext(aContext, aAnimated)
+  activateHUDForContext: function HS_activateHUDForContext(aContext)
   {
-    this.wakeup();
-
     var window = aContext.linkedBrowser.contentWindow;
-    var id = aContext.linkedBrowser.parentNode.parentNode.getAttribute("id");
+    var id = aContext.linkedBrowser.parentNode.getAttribute("id");
     this.registerActiveContext(id);
-    this.windowInitializer(window);
-
-    if (!aAnimated) {
-      this.disableAnimation("hud_" + id);
-    }
+    HUDService.windowInitializer(window);
   },
 
   /**
-   * Deactivate a HeadsUpDisplay for the given tab context.
+   * Deactivate a HeadsUpDisplay for the current window
    *
    * @param nsIDOMWindow aContext
-   * @param aAnimated animate closing the web console?
    * @returns void
    */
-  deactivateHUDForContext: function HS_deactivateHUDForContext(aContext, aAnimated)
+  deactivateHUDForContext: function HS_deactivateHUDForContext(aContext)
   {
-    let window = aContext.linkedBrowser.contentWindow;
-    let nBox = aContext.ownerDocument.defaultView.
-      getNotificationBox(window);
-    let hudId = "hud_" + nBox.id;
-    let displayNode = nBox.querySelector("#" + hudId);
+    var gBrowser = HUDService.currentContext().gBrowser;
+    var window = aContext.linkedBrowser.contentWindow;
+    var browser = gBrowser.getBrowserForDocument(window.top.document);
+    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
+    var hudId = "hud_" + tabId;
+    var displayNode = this.getHeadsUpDisplay(hudId);
 
-    if (hudId in this.displayRegistry && displayNode) {
-      if (!aAnimated) {
-        this.storeHeight(hudId);
-      }
+    this.unregisterActiveContext(hudId);
+    this.unregisterDisplay(hudId);
+    window.wrappedJSObject.console = null;
 
-      this.unregisterActiveContext(hudId);
-      this.unregisterDisplay(displayNode);
-      window.focus();
-    }
   },
 
   /**
    * Clear the specified HeadsUpDisplay
    *
-   * @param string|nsIDOMNode aHUD
-   *        Either the ID of a HUD or the DOM node corresponding to an outer
-   *        HUD box.
+   * @param string aId
    * @returns void
    */
-  clearDisplay: function HS_clearDisplay(aHUD)
+  clearDisplay: function HS_clearDisplay(aId)
   {
-    if (typeof(aHUD) === "string") {
-      aHUD = this.getOutputNodeById(aHUD);
-    }
-
-    var outputNode = aHUD.querySelector(".hud-output-node");
+    var displayNode = this.getOutputNodeById(aId);
+    var outputNode = displayNode.querySelectorAll(".hud-output-node")[0];
 
     while (outputNode.firstChild) {
       outputNode.removeChild(outputNode.firstChild);
     }
-
-    aHUD.lastTimestamp = 0;
   },
 
   /**
@@ -1350,225 +380,25 @@ HUD_SERVICE.prototype =
   setFilterState: function HS_setFilterState(aHUDId, aToggleType, aState)
   {
     this.filterPrefs[aHUDId][aToggleType] = aState;
-    this.adjustVisibilityForMessageType(aHUDId, aToggleType, aState);
   },
 
   /**
-   * Temporarily lifts the subtree rooted at the given node out of the DOM for
-   * the duration of the supplied callback. This allows DOM mutations performed
-   * inside the callback to avoid triggering reflows.
+   * Keeps a weak reference for each HeadsUpDisplay that is created
    *
-   * @param nsIDOMNode aNode
-   *        The node to remove from the tree.
-   * @param function aCallback
-   *        The callback, which should take no parameters. The return value of
-   *        the callback, if any, is ignored.
-   * @returns void
    */
-  liftNode: function(aNode, aCallback) {
-    let parentNode = aNode.parentNode;
-    let siblingNode = aNode.nextSibling;
-    parentNode.removeChild(aNode);
-    aCallback();
-    parentNode.insertBefore(aNode, siblingNode);
-  },
+  hudWeakReferences: {},
 
   /**
-   * Turns the display of log nodes on and off appropriately to reflect the
-   * adjustment of the message type filter named by @aMessageType.
+   * Register a weak reference of each HeadsUpDisplay that is created
    *
+   * @param object aHUDRef
    * @param string aHUDId
-   *        The ID of the HUD to alter.
-   * @param string aMessageType
-   *        The message type being filtered ("network", "css", etc.)
-   * @param boolean aState
-   *        True if the filter named by @aMessageType is being turned on; false
-   *        otherwise.
    * @returns void
    */
-  adjustVisibilityForMessageType:
-  function HS_adjustVisibilityForMessageType(aHUDId, aMessageType, aState)
+  registerHUDWeakReference:
+  function HS_registerHUDWeakReference(aHUDRef, aHUDId)
   {
-    let displayNode = this.getOutputNodeById(aHUDId);
-    let outputNode = displayNode.querySelector(".hud-output-node");
-    let doc = outputNode.ownerDocument;
-
-    this.maintainScrollPosition(outputNode, function() {
-      this.liftNode(outputNode, function() {
-        let xpath = ".//*[contains(@class, 'hud-msg-node') and " +
-          "contains(@class, 'hud-" + aMessageType + "')]";
-        let result = doc.evaluate(xpath, outputNode, null,
-          Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
-        for (let i = 0; i < result.snapshotLength; i++) {
-          if (aState) {
-            result.snapshotItem(i).classList.remove("hud-filtered-by-type");
-          }
-          else {
-            result.snapshotItem(i).classList.add("hud-filtered-by-type");
-          }
-        }
-      });
-    });
-  },
-
-  /**
-   * Maintain the scroll position after the execution of a callback function.
-   *
-   * @param nsIDOMNode aOutputNode
-   *        The outputNode for which the scroll position is rememebered.
-   * @param function aCallback
-   *        The callback function you want to execute.
-   * @returns void
-   */
-  maintainScrollPosition:
-  function HS_maintainScrollPosition(aOutputNode, aCallback)
-  {
-    let oldScrollTop = aOutputNode.scrollTop;
-    let scrolledToBottom = oldScrollTop +
-      aOutputNode.clientHeight == aOutputNode.scrollHeight;
-
-    aCallback.call(this);
-
-    // Scroll to the bottom if the scroll was at the bottom.
-    if (scrolledToBottom) {
-      aOutputNode.scrollTop = aOutputNode.scrollHeight -
-        aOutputNode.clientHeight;
-    }
-    else {
-      // Remember the scroll position.
-      aOutputNode.scrollTop = oldScrollTop;
-    }
-  },
-
-  /**
-   * Returns the source code of the XPath contains() function necessary to
-   * match the given query string.
-   *
-   * @param string The query string to convert.
-   * @returns string
-   */
-  buildXPathFunctionForString: function HS_buildXPathFunctionForString(aStr)
-  {
-    let words = aStr.split(/\s+/), results = [];
-    for (let i = 0; i < words.length; i++) {
-      let word = words[i];
-      if (word === "") {
-        continue;
-      }
-
-      let result;
-      if (word.indexOf('"') === -1) {
-        result = '"' + word + '"';
-      }
-      else if (word.indexOf("'") === -1) {
-        result = "'" + word + "'";
-      }
-      else {
-        result = 'concat("' + word.replace(/"/g, "\", '\"', \"") + '")';
-      }
-
-      results.push("contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), " + result.toLowerCase() + ")");
-    }
-
-    return (results.length === 0) ? "true()" : results.join(" and ");
-  },
-
-  /**
-   * Turns the display of log nodes on and off appropriately to reflect the
-   * adjustment of the search string.
-   *
-   * @param string aHUDId
-   *        The ID of the HUD to alter.
-   * @param string aSearchString
-   *        The new search string.
-   * @returns void
-   */
-  adjustVisibilityOnSearchStringChange:
-  function HS_adjustVisibilityOnSearchStringChange(aHUDId, aSearchString)
-  {
-    let fn = this.buildXPathFunctionForString(aSearchString);
-    let displayNode = this.getOutputNodeById(aHUDId);
-    let outputNode = displayNode.querySelector(".hud-output-node");
-    let doc = outputNode.ownerDocument;
-
-    this.maintainScrollPosition(outputNode, function() {
-      this.liftNode(outputNode, function() {
-        let xpath = './/*[contains(@class, "hud-msg-node") and ' +
-          'not(contains(@class, "hud-filtered-by-string")) and not(' + fn + ')]';
-        let result = doc.evaluate(xpath, outputNode, null,
-          Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
-        for (let i = 0; i < result.snapshotLength; i++) {
-          result.snapshotItem(i).classList.add("hud-filtered-by-string");
-        }
-
-        xpath = './/*[contains(@class, "hud-msg-node") and contains(@class, ' +
-          '"hud-filtered-by-string") and ' + fn + ']';
-        result = doc.evaluate(xpath, outputNode, null,
-          Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
-        for (let i = 0; i < result.snapshotLength; i++) {
-          result.snapshotItem(i).classList.remove("hud-filtered-by-string");
-        }
-      });
-    });
-  },
-
-  /**
-   * Makes a newly-inserted node invisible if the user has filtered it out.
-   *
-   * @param string aHUDId
-   *        The ID of the HUD to alter.
-   * @param nsIDOMNode aNewNode
-   *        The newly-inserted console message.
-   * @returns boolean
-   *          True if the new node was hidden (filtered out) or false otherwise.
-   */
-  adjustVisibilityForNewlyInsertedNode:
-  function HS_adjustVisibilityForNewlyInsertedNode(aHUDId, aNewNode) {
-    // Filter on the search string.
-    let searchString = this.getFilterStringByHUDId(aHUDId);
-    let xpath = ".[" + this.buildXPathFunctionForString(searchString) + "]";
-    let doc = aNewNode.ownerDocument;
-    let result = doc.evaluate(xpath, aNewNode, null,
-      Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
-    let hidden = false;
-
-    if (result.snapshotLength === 0) {
-      // The string filter didn't match, so the node is filtered.
-      aNewNode.classList.add("hud-filtered-by-string");
-      hidden = true;
-    }
-
-    // Filter by the message type.
-    let classes = aNewNode.classList;
-    let msgType = null;
-    for (let i = 0; i < classes.length; i++) {
-      let klass = classes.item(i);
-      if (klass !== "hud-msg-node" && klass.indexOf("hud-") === 0) {
-        msgType = klass.substring(4);   // Strip off "hud-".
-        break;
-      }
-    }
-    if (msgType !== null && !this.getFilterState(aHUDId, msgType)) {
-      // The node is filtered by type.
-      aNewNode.classList.add("hud-filtered-by-type");
-      hidden = true;
-    }
-
-    return hidden;
-  },
-
-  /**
-   * Keeps a reference for each HeadsUpDisplay that is created
-   */
-  hudReferences: {},
-
-  /**
-   * Register a reference of each HeadsUpDisplay that is created
-   */
-  registerHUDReference:
-  function HS_registerHUDReference(aHUD)
-  {
-    this.hudReferences[aHUD.hudId] = aHUD;
+    this.hudWeakReferences[aHUDId] = aHUDRef;
   },
 
   /**
@@ -1579,33 +409,31 @@ HUD_SERVICE.prototype =
    */
   deleteHeadsUpDisplay: function HS_deleteHeadsUpDisplay(aHUDId)
   {
-    delete this.hudReferences[aHUDId];
+    delete this.hudWeakReferences[aHUDId].get();
   },
 
   /**
    * Register a new Heads Up Display
    *
-   * @param nsIDOMWindow aContentWindow
+   * @param string aHUDId
+   * @param string aURISpec
    * @returns void
    */
-  registerDisplay: function HS_registerDisplay(aHUDId, aContentWindow)
+  registerDisplay: function HS_registerDisplay(aHUDId, aURISpec)
   {
     // register a display DOM node Id and HUD uriSpec with the service
 
-    if (!aHUDId || !aContentWindow){
+    if (!aHUDId || !aURISpec){
       throw new Error(ERRORS.MISSING_ARGS);
     }
-    var URISpec = aContentWindow.document.location.href;
     this.filterPrefs[aHUDId] = this.defaultFilterPrefs;
-    this.displayRegistry[aHUDId] = URISpec;
-
-    this._headsUpDisplays[aHUDId] = { id: aHUDId };
-
+    this.displayRegistry[aHUDId] = aURISpec;
+    this._headsUpDisplays[aHUDId] = { id: aHUDId, };
     this.registerActiveContext(aHUDId);
     // init storage objects:
     this.storage.createDisplay(aHUDId);
 
-    var huds = this.uriRegistry[URISpec];
+    var huds = this.uriRegistry[aURISpec];
     var foundHUDId = false;
 
     if (huds) {
@@ -1617,49 +445,25 @@ HUD_SERVICE.prototype =
         }
       }
       if (!foundHUDId) {
-        this.uriRegistry[URISpec].push(aHUDId);
+        this.uriRegistry[aURISpec].push(aHUDId);
       }
     }
     else {
-      this.uriRegistry[URISpec] = [aHUDId];
-    }
-
-    var windows = this.windowRegistry[aHUDId];
-    if (!windows) {
-      this.windowRegistry[aHUDId] = [aContentWindow];
-    }
-    else {
-      windows.push(aContentWindow);
+      this.uriRegistry[aURISpec] = [aHUDId];
     }
   },
 
   /**
    * When a display is being destroyed, unregister it first
    *
-   * @param string|nsIDOMNode aHUD
-   *        Either the ID of a HUD or the DOM node corresponding to an outer
-   *        HUD box.
+   * @param string aId
    * @returns void
    */
-  unregisterDisplay: function HS_unregisterDisplay(aHUD)
+  unregisterDisplay: function HS_unregisterDisplay(aId)
   {
-    // Remove children from the output. If the output is not cleared, there can
-    // be leaks as some nodes has node.onclick = function; set and GC can't
-    // remove the nodes then.
-    HUDService.clearDisplay(aHUD);
-
-    var id, outputNode;
-    if (typeof(aHUD) === "string") {
-      id = aHUD;
-      outputNode = this.mixins.getOutputNodeById(aHUD);
-    }
-    else {
-      id = aHUD.getAttribute("id");
-      outputNode = aHUD;
-    }
-
     // remove HUD DOM node and
     // remove display references from local registries get the outputNode
+    var outputNode = this.mixins.getOutputNodeById(aId);
     var parent = outputNode.parentNode;
     var splitters = parent.querySelectorAll("splitter");
     var len = splitters.length;
@@ -1671,76 +475,24 @@ HUD_SERVICE.prototype =
     }
     // remove the DOM Nodes
     parent.removeChild(outputNode);
-
     // remove our record of the DOM Nodes from the registry
-    delete this._headsUpDisplays[id];
+    delete this._headsUpDisplays[aId];
     // remove the HeadsUpDisplay object from memory
-    this.deleteHeadsUpDisplay(id);
+    this.deleteHeadsUpDisplay(aId);
     // remove the related storage object
-    this.storage.removeDisplay(id);
-    // remove the related window objects
-    delete this.windowRegistry[id];
-
+    this.storage.removeDisplay(aId);
     let displays = this.displays();
 
-    var uri  = this.displayRegistry[id];
+    var uri  = this.displayRegistry[aId];
+    var specHudArr = this.uriRegistry[uri];
 
-    if (this.uriRegistry[uri]) {
-      this.uriRegistry[uri] = this.uriRegistry[uri].filter(function(e) e != id);
+    for (var i = 0; i < specHudArr.length; i++) {
+      if (specHudArr[i] == aId) {
+        specHudArr.splice(i, 1);
+      }
     }
-
-    delete displays[id];
-    delete this.displayRegistry[id];
-    delete this.uriRegistry[uri];
-
-    if (Object.keys(this._headsUpDisplays).length == 0) {
-      this.suspend();
-    }
-  },
-
-  /**
-   * "Wake up" the Web Console activity. This is called when the first Web
-   * Console is open. This method initializes the various observers we have.
-   *
-   * @returns void
-   */
-  wakeup: function HS_wakeup()
-  {
-    if (Object.keys(this._headsUpDisplays).length > 0) {
-      return;
-    }
-
-    this.storage = new ConsoleStorage();
-    this.defaultFilterPrefs = this.storage.defaultDisplayPrefs;
-    this.defaultGlobalConsolePrefs = this.storage.defaultGlobalConsolePrefs;
-
-    // begin observing HTTP traffic
-    this.startHTTPObservation();
-
-    HUDWindowObserver.init();
-    HUDConsoleObserver.init();
-    ConsoleAPIObserver.init();
-  },
-
-  /**
-   * Suspend Web Console activity. This is called when all Web Consoles are
-   * closed.
-   *
-   * @returns void
-   */
-  suspend: function HS_suspend()
-  {
-    activityDistributor.removeObserver(this.httpObserver);
-    delete this.httpObserver;
-
-    // delete the storage as it holds onto channels
-    delete this.storage;
-    delete this.defaultFilterPrefs;
-    delete this.defaultGlobalConsolePrefs;
-
-    HUDWindowObserver.uninit();
-    HUDConsoleObserver.uninit();
-    ConsoleAPIObserver.shutdown();
+    delete displays[aId];
+    delete this.displayRegistry[aId];
   },
 
   /**
@@ -1753,51 +505,40 @@ HUD_SERVICE.prototype =
     for (var displayId in this._headsUpDisplays) {
       this.unregisterDisplay(displayId);
     }
+    // delete the storage as it holds onto channels
+    delete this.storage;
+
+     var xulWindow = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+       .getInterface(Ci.nsIWebNavigation)
+       .QueryInterface(Ci.nsIDocShellTreeItem)
+       .rootTreeItem
+       .QueryInterface(Ci.nsIInterfaceRequestor)
+       .getInterface(Ci.nsIDOMWindow);
+
+    xulWindow = XPCNativeWrapper.unwrap(xulWindow);
+    var gBrowser = xulWindow.gBrowser;
+    gBrowser.tabContainer.removeEventListener("TabClose", this.onTabClose, false);
   },
 
   /**
-   * Returns the hudId that is corresponding to the hud activated for the
-   * passed aContentWindow. If there is no matching hudId null is returned.
+   * get the nsIDOMNode outputNode via a nsIURI.spec
    *
-   * @param nsIDOMWindow aContentWindow
-   * @returns string or null
+   * @param string aURISpec
+   * @returns nsIDOMNode
    */
-  getHudIdByWindow: function HS_getHudIdByWindow(aContentWindow)
+  getDisplayByURISpec: function HS_getDisplayByURISpec(aURISpec)
   {
-    // Fast path: check the cached window registry.
-    for (let hudId in this.windowRegistry) {
-      if (this.windowRegistry[hudId] &&
-          this.windowRegistry[hudId].indexOf(aContentWindow) != -1) {
-        return hudId;
-      }
+    // TODO: what about data:uris? see bug 568626
+    var hudIds = this.uriRegistry[aURISpec];
+    if (hudIds.length == 1) {
+      // only one HUD connected to this URISpec
+      return this.getHeadsUpDisplay(hudIds[0]);
     }
-
-    // As a fallback, do a little pointer chasing to try to find the Web
-    // Console. This fallback approach occurs when opening the Console on a
-    // page with subframes.
-    let [ , tabBrowser, browser ] = ConsoleUtils.getParents(aContentWindow);
-    if (!tabBrowser) {
-      return null;
+    else {
+      // TODO: how to determine more fully the origination of this activity?
+      // see bug 567165
+      return this.getHeadsUpDisplay(hudIds[0]);
     }
-
-    let notificationBox = tabBrowser.getNotificationBox(browser);
-    let hudBox = notificationBox.querySelector(".hud-box");
-    if (!hudBox) {
-      return null;
-    }
-
-    // Cache it!
-    let hudId = hudBox.id;
-    this.windowRegistry[hudId].push(aContentWindow);
-
-    let uri = aContentWindow.document.location.href;
-    if (!this.uriRegistry[uri]) {
-      this.uriRegistry[uri] = [ hudId ];
-    } else {
-      this.uriRegistry[uri].push(hudId);
-    }
-
-    return hudId;
   },
 
   /**
@@ -1832,6 +573,20 @@ HUD_SERVICE.prototype =
   },
 
   /**
+   * Get an array of HUDIds that match a uri.spec
+   *
+   * @param string aURISpec
+   * @returns array
+   */
+  getHUDIdsForURISpec: function HS_getHUDIdsForURISpec(aURISpec)
+  {
+    if (this.uriRegistry[aURISpec]) {
+      return this.uriRegistry[aURISpec];
+    }
+    return [];
+  },
+
+  /**
    * Gets an array that contains active DOM Node Ids for all HUDs
    * @returns array
    */
@@ -1853,8 +608,14 @@ HUD_SERVICE.prototype =
   getFilterStringByHUDId: function HS_getFilterStringbyHUDId(aHUDId) {
     var hud = this.getHeadsUpDisplay(aHUDId);
     var filterStr = hud.querySelectorAll(".hud-filter-box")[0].value;
-    return filterStr;
+    return filterStr || null;
   },
+
+  /**
+   * The filter strings per HeadsUpDisplay
+   *
+   */
+  hudFilterStrings: {},
 
   /**
    * Update the filter text in the internal tracking object for all
@@ -1865,8 +626,41 @@ HUD_SERVICE.prototype =
    */
   updateFilterText: function HS_updateFiltertext(aTextBoxNode)
   {
-    var hudId = aTextBoxNode.getAttribute("hudId");
-    this.adjustVisibilityOnSearchStringChange(hudId, aTextBoxNode.value);
+    var hudId = aTextBoxNode.getAttribute(hudId);
+    this.hudFilterStrings[hudId] = aTextBoxNode.value || null;
+  },
+
+  /**
+   * Filter each message being logged into the console
+   *
+   * @param string aFilterString
+   * @param nsIDOMNode aMessageNode
+   * @returns JS Object
+   */
+  filterLogMessage:
+  function HS_filterLogMessage(aFilterString, aMessageNode)
+  {
+    aFilterString = aFilterString.toLowerCase();
+    var messageText = aMessageNode.innerHTML.toLowerCase();
+    var idx = messageText.indexOf(aFilterString);
+    if (idx > -1) {
+      return { strLength: aFilterString.length, strIndex: idx };
+    }
+    else {
+      return null;
+    }
+  },
+
+  /**
+   * Get the filter textbox from a HeadsUpDisplay
+   *
+   * @param string aHUDId
+   * @returns nsIDOMNode
+   */
+  getFilterTextBox: function HS_getFilterTextBox(aHUDId)
+  {
+    var hud = this.getHeadsUpDisplay(aHUDId);
+    return hud.querySelectorAll(".hud-filter-box")[0];
   },
 
   /**
@@ -1882,53 +676,63 @@ HUD_SERVICE.prototype =
    */
   logHUDMessage: function HS_logHUDMessage(aMessage,
                                            aConsoleNode,
-                                           aMessageNode)
+                                           aMessageNode,
+                                           aFilterState,
+                                           aFilterString)
   {
+    if (!aFilterState) {
+      // do not log anything
+      return;
+    }
+
     if (!aMessage) {
       throw new Error(ERRORS.MISSING_ARGS);
     }
 
-    let lastGroupNode = this.appendGroupIfNecessary(aConsoleNode,
-                                                    aMessage.timestamp);
-
-    lastGroupNode.appendChild(aMessageNode);
-
+    if (aFilterString) {
+      var filtered = this.filterLogMessage(aFilterString, aMessageNode);
+      if (filtered) {
+        // we have successfully filtered a message, we need to log it
+        aConsoleNode.appendChild(aMessageNode);
+        aMessageNode.scrollIntoView(false);
+      }
+      else {
+        // we need to ignore this message by changing its css class - we are
+        // still logging this, it is just hidden
+        var hiddenMessage = ConsoleUtils.hideLogMessage(aMessageNode);
+        aConsoleNode.appendChild(hiddenMessage);
+      }
+    }
+    else {
+      // log everything
+      aConsoleNode.appendChild(aMessageNode);
+      aMessageNode.scrollIntoView(false);
+    }
     // store this message in the storage module:
     this.storage.recordEntry(aMessage.hudId, aMessage);
-
-    pruneConsoleOutputIfNecessary(aConsoleNode);
   },
 
   /**
-   * Logs a message to the Heads Up Display that originates
-   * from the window.console API
+   * logs a message to the Heads Up Display that originates
+   * in the nsIConsoleService
    *
-   * @param aHudId
-   * @param string aLevel one of log/info/warn/error
-   * @param string aArguments
+   * @param nsIConsoleMessage aMessage
+   * @param nsIDOMNode aConsoleNode
+   * @param nsIDOMNode aMessageNode
+   * @returns void
    */
-  logConsoleAPIMessage: function HS_logConsoleAPIMessage(aHudId,
-                                                         aLevel,
-                                                         aArguments)
+  logConsoleMessage: function HS_logConsoleMessage(aMessage,
+                                                   aConsoleNode,
+                                                   aMessageNode,
+                                                   aFilterState,
+                                                   aFilterString)
   {
-    let hud = this.hudReferences[aHudId];
-    let messageNode = hud.makeXULNode("label");
-    let klass = "hud-msg-node hud-" + aLevel;
-    messageNode.setAttribute("class", klass);
-
-    let message = Array.join(aArguments, " ") + "\n";
-    let ts = ConsoleUtils.timestamp();
-    let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " + message;
-    messageNode.appendChild(hud.chromeDocument.createTextNode(timestampedMessage));
-
-    let messageObject = {
-      logLevel: aLevel,
-      hudId: aHudId,
-      message: message,
-      timestamp: ts,
-      origin: "WebConsole"
-    };
-    this.logMessage(messageObject, hud.outputNode, messageNode);
+    if (aFilterState){
+      aConsoleNode.appendChild(aMessageNode);
+      aMessageNode.scrollIntoView(false);
+    }
+    // store this message in the storage module:
+    this.storage.recordEntry(aMessage.hudId, aMessage);
   },
 
   /**
@@ -1947,11 +751,16 @@ HUD_SERVICE.prototype =
       throw new Error(ERRORS.MISSING_ARGS);
     }
 
+    var hud = this.getHeadsUpDisplay(aMessage.hudId);
+    // check filter before logging to the outputNode
+    var filterState = this.getFilterState(aMessage.hudId, aMessage.logLevel);
+    var filterString = this.getFilterStringByHUDId(aMessage.hudId);
+
     switch (aMessage.origin) {
       case "network":
-      case "WebConsole":
+      case "HUDConsole":
       case "console-listener":
-        this.logHUDMessage(aMessage, aConsoleNode, aMessageNode);
+        this.logHUDMessage(aMessage, aConsoleNode, aMessageNode, filterState, filterString);
         break;
       default:
         // noop
@@ -1960,42 +769,47 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Get OutputNode by Id
-   *
-   * @param string aId
-   * @returns nsIDOMNode
+   * report consoleMessages recieved via the HUDConsoleObserver service
+   * @param nsIConsoleMessage aConsoleMessage
+   * @returns void
    */
-  getConsoleOutputNode: function HS_getConsoleOutputNode(aId)
+  reportConsoleServiceMessage:
+  function HS_reportConsoleServiceMessage(aConsoleMessage)
   {
-    let displayNode = this.getHeadsUpDisplay(aId);
-    return displayNode.querySelector(".hud-output-node");
+    this.logActivity("console-listener", null, aConsoleMessage);
   },
 
   /**
-   * Inform user that the Web Console API has been replaced by a script
-   * in a content page.
-   *
-   * @param string aHUDId
+   * report scriptErrors recieved via the HUDConsoleObserver service
+   * @param nsIScriptError aScriptError
    * @returns void
    */
-  logWarningAboutReplacedAPI:
-  function HS_logWarningAboutReplacedAPI(aHUDId)
+  reportConsoleServiceContentScriptError:
+  function HS_reportConsoleServiceContentScriptError(aScriptError)
   {
-    let domId = "hud-log-node-" + this.sequenceId();
-    let outputNode = this.getConsoleOutputNode(aHUDId);
+    try {
+      var uri = Services.io.newURI(aScriptError.sourceName, null, null);
+    }
+    catch(ex) {
+      var uri = { spec: "" };
+    }
+    this.logActivity("console-listener", uri, aScriptError);
+  },
 
-    let msgFormat = {
-      logLevel: "error",
-      activityObject: {},
-      hudId: aHUDId,
-      origin: "console-listener",
-      domId: domId,
-      message: this.getStr("ConsoleAPIDisabled"),
-    };
-
-    let messageObject =
-    this.messageFactory(msgFormat, "error", outputNode, msgFormat.activityObject);
-    this.logMessage(messageObject.messageObject, outputNode, messageObject.messageNode);
+  /**
+   * generates an nsIScriptError
+   *
+   * @param object aMessage
+   * @param integer flag
+   * @returns nsIScriptError
+   */
+  generateConsoleMessage:
+  function HS_generateConsoleMessage(aMessage, flag)
+  {
+    let message = scriptError; // nsIScriptError
+    message.init(aMessage.message, null, null, 0, 0, flag,
+                 "HUDConsole");
+    return message;
   },
 
   /**
@@ -2022,6 +836,51 @@ HUD_SERVICE.prototype =
    */
   applicationHooks: null,
 
+  /**
+   * Given an nsIChannel, return the corresponding nsILoadContext
+   *
+   * @param nsIChannel aChannel
+   * @returns nsILoadContext
+   */
+  getLoadContext: function HS_getLoadContext(aChannel)
+  {
+    if (!aChannel) {
+      return null;
+    }
+    var loadContext;
+    var callbacks = aChannel.notificationCallbacks;
+
+    loadContext =
+      aChannel.notificationCallbacks.getInterface(Ci.nsILoadContext);
+    if (!loadContext) {
+      loadContext =
+        aChannel.QueryInterface(Ci.nsIRequest).loadGroup.notificationCallbacks.getInterface(Ci.nsILoadContext);
+    }
+    return loadContext;
+  },
+
+  /**
+   * Given an nsILoadContext, return the corresponding nsIDOMWindow
+   *
+   * @param nsILoadContext aLoadContext
+   * @returns nsIDOMWindow
+   */
+  getWindowFromContext: function HS_getWindowFromContext(aLoadContext)
+  {
+    if (!aLoadContext) {
+      throw new Error("loadContext is null");
+    }
+    if (aLoadContext.isContent) {
+      if (aLoadContext.associatedWindow) {
+        return aLoadContext.associatedWindow;
+      }
+      else if (aLoadContext.topWindow) {
+        return aLoadContext.topWindow;
+      }
+    }
+    throw new Error("Cannot get window from " + aLoadContext);
+  },
+
   getChromeWindowFromContentWindow:
   function HS_getChromeWindowFromContentWindow(aContentWindow)
   {
@@ -2040,38 +899,60 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Requests that haven't finished yet.
-   */
-  openRequests: {},
-
-  /**
-   * Assign a function to this property to listen for finished httpRequests.
-   * Used by unit tests.
-   */
-  lastFinishedRequestCallback: null,
-
-  /**
-   * Opens a NetworkPanel.
+   * get the outputNode from the window object
    *
-   * @param nsIDOMNode aNode
-   *        DOMNode to display the panel next to.
-   * @param object aHttpActivity
-   *        httpActivity object. The data of this object is displayed in the
-   *        NetworkPanel.
-   * @returns NetworkPanel
+   * @param nsIDOMWindow aWindow
+   * @returns nsIDOMNode
    */
-  openNetworkPanel: function HS_openNetworkPanel(aNode, aHttpActivity)
+  getOutputNodeFromWindow:
+  function HS_getOutputNodeFromWindow(aWindow)
   {
-    let doc = aNode.ownerDocument;
-    let parent = doc.getElementById("mainPopupSet");
-    let netPanel = new NetworkPanel(parent, aHttpActivity);
-    netPanel.linkNode = aNode;
+    var browser = gBrowser.getBrowserForDocument(aWindow.top.document);
+    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
+    var hudId = "hud_" + tabId;
+    var displayNode = this.getHeadsUpDisplay(hudId);
+    return displayNode.querySelectorAll(".hud-output-node")[0];
+  },
 
-    let panel = netPanel.panel;
-    panel.openPopup(aNode, "after_pointer", 0, 0, false, false);
-    panel.sizeTo(350, 400);
-    aHttpActivity.panels.push(Cu.getWeakReference(netPanel));
-    return netPanel;
+  /**
+   * Try to get the outputNode via the nsIRequest
+   * TODO: get node via request, see bug 552140
+   * @param nsIRequest aRequest
+   * @returns nsIDOMNode
+   */
+  getOutputNodeFromRequest: function HS_getOutputNodeFromRequest(aRequest)
+  {
+    var context = this.getLoadContext(aRequest);
+    var window = this.getWindowFromContext(context);
+    return this.getOutputNodeFromWindow(window);
+  },
+
+  getLoadContextFromChannel: function HS_getLoadContextFromChannel(aChannel)
+  {
+    try {
+      return aChannel.QueryInterface(Ci.nsIChannel).notificationCallbacks.getInterface(Ci.nsILoadContext);
+    }
+    catch (ex) {
+      // noop, keep this output quiet. see bug 552140
+    }
+    try {
+      return aChannel.QueryInterface(Ci.nsIChannel).loadGroup.notificationCallbacks.getInterface(Ci.nsILoadContext);
+    }
+    catch (ex) {
+      // noop, keep this output quiet. see bug 552140
+    }
+    return null;
+  },
+
+  getWindowFromLoadContext:
+  function HS_getWindowFromLoadContext(aLoadContext)
+  {
+    if (aLoadContext.topWindow) {
+      return aLoadContext.topWindow;
+    }
+    else {
+      return aLoadContext.associatedWindow;
+    }
   },
 
   /**
@@ -2085,234 +966,61 @@ HUD_SERVICE.prototype =
     var self = this;
     var httpObserver = {
       observeActivity :
-      function HS_SHO_observeActivity(aChannel,
-                                      aActivityType,
-                                      aActivitySubtype,
-                                      aTimestamp,
-                                      aExtraSizeData,
-                                      aExtraStringData)
+      function (aChannel, aActivityType, aActivitySubtype,
+                aTimestamp, aExtraSizeData, aExtraStringData)
       {
+        var loadGroup;
         if (aActivityType ==
-              activityDistributor.ACTIVITY_TYPE_HTTP_TRANSACTION ||
-            aActivityType ==
-              activityDistributor.ACTIVITY_TYPE_SOCKET_TRANSPORT) {
+            activityDistributor.ACTIVITY_TYPE_HTTP_TRANSACTION) {
+          try {
+            var loadContext = self.getLoadContextFromChannel(aChannel);
+            // TODO: get image request data from the channel
+            // see bug 552140
+            var window = self.getWindowFromLoadContext(loadContext);
+            window = XPCNativeWrapper.unwrap(window);
+            var chromeWin = self.getChromeWindowFromContentWindow(window);
+            var vboxes =
+              chromeWin.document.getElementsByTagName("vbox");
+            var hudId;
+            for (var i = 0; i < vboxes.length; i++) {
+              if (vboxes[i].getAttribute("class") == "hud-box") {
+                hudId = vboxes[i].getAttribute("id");
+              }
+            }
+            loadGroup = self.getLoadGroup(hudId);
+          }
+          catch (ex) {
+            loadGroup = aChannel.QueryInterface(Ci.nsIChannel)
+                        .QueryInterface(Ci.nsIRequest).loadGroup;
+          }
+
+          if (!loadGroup) {
+              return;
+          }
 
           aChannel = aChannel.QueryInterface(Ci.nsIHttpChannel);
 
-          let transCodes = this.httpTransactionCodes;
-          let hudId;
+          var transCodes = this.httpTransactionCodes;
 
+          var httpActivity = {
+            channel: aChannel,
+            loadGroup: loadGroup,
+            type: aActivityType,
+            subType: aActivitySubtype,
+            timestamp: aTimestamp,
+            extraSizeData: aExtraSizeData,
+            extraStringData: aExtraStringData,
+            stage: transCodes[aActivitySubtype],
+          };
           if (aActivitySubtype ==
               activityDistributor.ACTIVITY_SUBTYPE_REQUEST_HEADER ) {
-            // Try to get the source window of the request.
-            let win = NetworkHelper.getWindowForRequest(aChannel);
-            if (!win) {
-              return;
-            }
-
-            // Try to get the hudId that is associated to the window.
-            hudId = self.getHudIdByWindow(win);
-            if (!hudId) {
-              return;
-            }
-
-            // The httpActivity object will hold all information concerning
-            // this request and later response.
-
-            let httpActivity = {
-              id: self.sequenceId(),
-              hudId: hudId,
-              url: aChannel.URI.spec,
-              method: aChannel.requestMethod,
-              channel: aChannel,
-              charset: win.document.characterSet,
-
-              panels: [],
-              request: {
-                header: { }
-              },
-              response: {
-                header: null
-              },
-              timing: {
-                "REQUEST_HEADER": aTimestamp
-              }
-            };
-
-            // Add a new output entry.
-            let loggedNode = self.logActivity("network", hudId, httpActivity);
-
-            // In some cases loggedNode can be undefined (e.g. if an image was
-            // requested). Don't continue in such a case.
-            if (!loggedNode) {
-              return;
-            }
-
-            // Add listener for the response body.
-            let newListener = new ResponseListener(httpActivity);
-            aChannel.QueryInterface(Ci.nsITraceableChannel);
-            newListener.originalListener = aChannel.setNewListener(newListener);
-            httpActivity.response.listener = newListener;
-
-            // Copy the request header data.
-            aChannel.visitRequestHeaders({
-              visitHeader: function(aName, aValue) {
-                httpActivity.request.header[aName] = aValue;
-              }
-            });
-
-            // Store the loggedNode and the httpActivity object for later reuse.
-            httpActivity.messageObject = loggedNode;
-            self.openRequests[httpActivity.id] = httpActivity;
-
-            // Make the network span clickable.
-            let linkNode = loggedNode.messageNode;
-            linkNode.setAttribute("aria-haspopup", "true");
-            linkNode.addEventListener("mousedown", function(aEvent) {
-              this._startX = aEvent.clientX;
-              this._startY = aEvent.clientY;
-            }, false);
-
-            linkNode.addEventListener("click", function(aEvent) {
-              if (aEvent.detail != 1 || aEvent.button != 0 ||
-                  (this._startX != aEvent.clientX &&
-                   this._startY != aEvent.clientY)) {
-                return;
-              }
-
-              if (!this._panelOpen) {
-                self.openNetworkPanel(this, httpActivity);
-                this._panelOpen = true;
-              }
-            }, false);
-          }
-          else {
-            // Iterate over all currently ongoing requests. If aChannel can't
-            // be found within them, then exit this function.
-            let httpActivity = null;
-            for each (var item in self.openRequests) {
-              if (item.channel !== aChannel) {
-                continue;
-              }
-              httpActivity = item;
-              break;
-            }
-
-            if (!httpActivity) {
-              return;
-            }
-
-            hudId = httpActivity.hudId;
-            let msgObject = httpActivity.messageObject;
-
-            let updatePanel = false;
-            let data, textNode;
-            // Store the time information for this activity subtype.
-            httpActivity.timing[transCodes[aActivitySubtype]] = aTimestamp;
-
-            switch (aActivitySubtype) {
-              case activityDistributor.ACTIVITY_SUBTYPE_REQUEST_BODY_SENT:
-                if (!self.saveRequestAndResponseBodies) {
-                  httpActivity.request.bodyDiscarded = true;
-                  break;
-                }
-
-                let gBrowser = msgObject.messageNode.ownerDocument.
-                               defaultView.gBrowser;
-                let HUD = HUDService.hudReferences[hudId];
-                let browser = gBrowser.
-                              getBrowserForDocument(HUD.contentDocument);
-
-                let sentBody = NetworkHelper.
-                               readPostTextFromRequest(aChannel, browser);
-                if (!sentBody) {
-                  // If the request URL is the same as the current page url, then
-                  // we can try to get the posted text from the page directly.
-                  // This check is necessary as otherwise the
-                  //   NetworkHelper.readPostTextFromPage
-                  // function is called for image requests as well but these
-                  // are not web pages and as such don't store the posted text
-                  // in the cache of the webpage.
-                  if (httpActivity.url == browser.contentWindow.location.href) {
-                    sentBody = NetworkHelper.readPostTextFromPage(browser);
-                  }
-                  if (!sentBody) {
-                    sentBody = "";
-                  }
-                }
-                httpActivity.request.body = sentBody;
-                break;
-
-              case activityDistributor.ACTIVITY_SUBTYPE_RESPONSE_HEADER:
-                // aExtraStringData contains the response header. The first line
-                // contains the response status (e.g. HTTP/1.1 200 OK).
-                //
-                // Note: The response header is not saved here. Calling the
-                //       aChannel.visitResponseHeaders at this point sometimes
-                //       causes an NS_ERROR_NOT_AVAILABLE exception. Therefore,
-                //       the response header and response body is stored on the
-                //       httpActivity object within the RL_onStopRequest function.
-                httpActivity.response.status =
-                  aExtraStringData.split(/\r\n|\n|\r/)[0];
-
-                // Remove the textNode from the messageNode and add a new one
-                // that contains the respond http status.
-                textNode = msgObject.messageNode.firstChild;
-                textNode.parentNode.removeChild(textNode);
-
-                data = [ httpActivity.url,
-                         httpActivity.response.status ];
-
-                msgObject.messageNode.appendChild(
-                  msgObject.textFactory(
-                    msgObject.prefix +
-                    self.getFormatStr("networkUrlWithStatus", data) + "\n"));
-
-                let status = parseInt(httpActivity.response.status.
-                  replace(/^HTTP\/\d\.\d (\d+).+$/, "$1"));
-
-                if (status) {
-                  msgObject.messageNode.classList.
-                    add((status >= 400 && status < 600) ?
-                      "hud-error" : "hud-info");
-                }
-
-                break;
-
-              case activityDistributor.ACTIVITY_SUBTYPE_TRANSACTION_CLOSE:
-                let timing = httpActivity.timing;
-                let requestDuration =
-                  Math.round((timing.RESPONSE_COMPLETE -
-                                timing.REQUEST_HEADER) / 1000);
-
-                // Remove the textNode from the messageNode and add a new one
-                // that contains the request duration.
-                textNode = msgObject.messageNode.firstChild;
-                textNode.parentNode.removeChild(textNode);
-
-                data = [ httpActivity.url,
-                         httpActivity.response.status,
-                         requestDuration ];
-
-                msgObject.messageNode.appendChild(
-                  msgObject.textFactory(
-                    msgObject.prefix +
-                    self.getFormatStr("networkUrlWithStatusAndDuration",
-                                      data) + "\n"));
-
-                delete self.openRequests[item.id];
-                updatePanel = true;
-                break;
-            }
-
-            if (updatePanel) {
-              httpActivity.panels.forEach(function(weakRef) {
-                let panel = weakRef.get();
-                if (panel) {
-                  panel.update();
-                }
-              });
-            }
+                // create a unique ID to track this transaction and be able to
+                // update the logged node with subsequent http transactions
+                httpActivity.httpId = self.sequenceId();
+                let loggedNode =
+                  self.logActivity("network", aChannel.URI, httpActivity);
+                self.httpTransactions[aChannel] =
+                  new Number(httpActivity.httpId);
           }
         }
       },
@@ -2324,37 +1032,46 @@ HUD_SERVICE.prototype =
         0x5004: "RESPONSE_HEADER",
         0x5005: "RESPONSE_COMPLETE",
         0x5006: "TRANSACTION_CLOSE",
-
-        0x804b0003: "STATUS_RESOLVING",
-        0x804b0007: "STATUS_CONNECTING_TO",
-        0x804b0004: "STATUS_CONNECTED_TO",
-        0x804b0005: "STATUS_SENDING_TO",
-        0x804b000a: "STATUS_WAITING_FOR",
-        0x804b0006: "STATUS_RECEIVING_FROM"
       }
     };
-
-    this.httpObserver = httpObserver;
 
     activityDistributor.addObserver(httpObserver);
   },
 
+  // keep tracked of trasactions where the request header was logged
+  // update logged transactions thereafter.
+  httpTransactions: {},
+
   /**
-   * Logs network activity.
+   * Logs network activity
    *
-   * @param string aType
-   *        The severity of the message.
+   * @param nsIURI aURI
    * @param object aActivityObject
-   *        The activity to log.
    * @returns void
    */
-  logNetActivity: function HS_logNetActivity(aType, aActivityObject)
+  logNetActivity: function HS_logNetActivity(aType, aURI, aActivityObject)
   {
-    var outputNode, hudId;
+    var displayNode, outputNode, hudId;
     try {
-      hudId = aActivityObject.hudId;
-      outputNode = this.getHeadsUpDisplay(hudId).
-                                  querySelector(".hud-output-node");
+      displayNode =
+      this.getDisplayByLoadGroup(aActivityObject.loadGroup,
+                                 {URI: aURI}, aActivityObject);
+      if (!displayNode) {
+        return;
+      }
+      outputNode = displayNode.querySelectorAll(".hud-output-node")[0];
+      hudId = displayNode.getAttribute("id");
+
+      if (!outputNode) {
+        outputNode = this.getOutputNodeFromRequest(aActivityObject.request);
+        hudId = outputNode.ownerDocument.querySelectorAll(".hud-box")[0].
+                getAttribute("id");
+      }
+
+      // check if network activity logging is "on":
+      if (!this.getFilterState(hudId, "network")) {
+        return;
+      }
 
       // get an id to attach to the dom node for lookup of node
       // when updating the log entry with additional http transactions
@@ -2368,23 +1085,13 @@ HUD_SERVICE.prototype =
                     };
       var msgType = this.getStr("typeNetwork");
       var msg = msgType + " " +
-        aActivityObject.method +
+        aActivityObject.channel.requestMethod +
         " " +
-        aActivityObject.url;
+        aURI.spec;
       message.message = msg;
-
       var messageObject =
-        this.messageFactory(message, aType, outputNode, aActivityObject);
-
-      var timestampedMessage = messageObject.timestampedMessage;
-      var urlIdx = timestampedMessage.indexOf(aActivityObject.url);
-      messageObject.prefix = timestampedMessage.substring(0, urlIdx);
-
-      messageObject.messageNode.classList.add("hud-clickable");
-      messageObject.messageNode.setAttribute("crop", "end");
-
+      this.messageFactory(message, aType, outputNode, aActivityObject);
       this.logMessage(messageObject.messageObject, outputNode, messageObject.messageNode);
-      return messageObject;
     }
     catch (ex) {
       Cu.reportError(ex);
@@ -2392,16 +1099,28 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Logs console listener activity.
+   * Logs console listener activity
    *
-   * @param string aHUDId
-   *        The ID of the HUD to which to send the message.
+   * @param nsIURI aURI
    * @param object aActivityObject
-   *        The message to log.
    * @returns void
    */
-  logConsoleActivity: function HS_logConsoleActivity(aHUDId, aActivityObject)
+  logConsoleActivity: function HS_logConsoleActivity(aURI, aActivityObject)
   {
+    var displayNode, outputNode, hudId;
+    try {
+        var hudIds = this.uriRegistry[aURI.spec];
+        hudId = hudIds[0];
+    }
+    catch (ex) {
+      // TODO: uri spec is not tracked becasue the net request is
+      // using a different loadGroup
+      // see bug 568034
+      if (!displayNode) {
+        return;
+      }
+    }
+
     var _msgLogLevel = this.scriptMsgLogLevel[aActivityObject.flags];
     var msgLogLevel = this.getStr(_msgLogLevel);
 
@@ -2411,16 +1130,24 @@ HUD_SERVICE.prototype =
       logLevel = this.scriptErrorFlags[aActivityObject.flags];
     }
 
+    // check if we should be logging this message:
+    var filterState = this.getFilterState(hudId, logLevel);
+
+    if (!filterState) {
+      // Ignore log message
+      return;
+    }
+
     // in this case, the "activity object" is the
     // nsIScriptError or nsIConsoleMessage
     var message = {
       activity: aActivityObject,
       origin: "console-listener",
-      hudId: aHUDId,
+      hudId: hudId,
     };
 
-    var lineColSubs = [aActivityObject.lineNumber,
-                       aActivityObject.columnNumber];
+    var lineColSubs = [aActivityObject.columnNumber,
+                       aActivityObject.lineNumber];
     var lineCol = this.getFormatStr("errLineCol", lineColSubs);
 
     var errFileSubs = [aActivityObject.sourceName];
@@ -2437,7 +1164,8 @@ HUD_SERVICE.prototype =
                       lineCol + " " +
                       msgCategory + " " + aActivityObject.category;
 
-    let outputNode = this.hudReferences[aHUDId].outputNode;
+    displayNode = this.getHeadsUpDisplay(hudId);
+    outputNode = displayNode.querySelectorAll(".hud-output-node")[0];
 
     var messageObject =
     this.messageFactory(message, message.level, outputNode, aActivityObject);
@@ -2446,65 +1174,127 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Calls logNetActivity() or logConsoleActivity() as appropriate to log the
-   * given message to the appropriate console.
+   * Parse log messages for origin or listener type
+   * Get the correct outputNode if it exists
+   * Finally, call logMessage to write this message to
+   * storage and optionally, a DOM output node
    *
    * @param string aType
-   *        The type of message; one of "network" or "console-listener".
-   * @param string aHUDId
-   *        The ID of the console to which to send the message.
+   * @param nsIURI aURI
    * @param object (or nsIScriptError) aActivityObj
-   *        The message to send.
    * @returns void
    */
-  logActivity: function HS_logActivity(aType, aHUDId, aActivityObject)
+  logActivity: function HS_logActivity(aType, aURI, aActivityObject)
   {
+    var displayNode, outputNode, hudId;
+
     if (aType == "network") {
-      return this.logNetActivity(aType, aActivityObject);
+      var result = this.logNetActivity(aType, aURI, aActivityObject);
     }
     else if (aType == "console-listener") {
-      this.logConsoleActivity(aHUDId, aActivityObject);
+      this.logConsoleActivity(aURI, aActivityObject);
     }
   },
 
   /**
-   * Builds and appends a group to the console if enough time has passed since
-   * the last message.
+   * update loadgroup when the window object is re-created
    *
-   * @param nsIDOMNode aConsoleNode
-   *        The DOM node that holds the output of the console (NB: not the HUD
-   *        node itself).
-   * @param number aTimestamp
-   *        The timestamp of the newest message in milliseconds.
-   * @returns nsIDOMNode
-   *          The group into which the next message should be written.
+   * @param string aId
+   * @param nsILoadGroup aLoadGroup
+   * @returns void
    */
-  appendGroupIfNecessary:
-  function HS_appendGroupIfNecessary(aConsoleNode, aTimestamp)
+  updateLoadGroup: function HS_updateLoadGroup(aId, aLoadGroup)
   {
-    let hudBox = aConsoleNode;
-    while (hudBox && !hudBox.classList.contains("hud-box")) {
-      hudBox = hudBox.parentNode;
+    if (this.loadGroups[aId] == undefined) {
+      this.loadGroups[aId] = { id: aId,
+                               loadGroup: Cu.getWeakReference(aLoadGroup) };
     }
+    else {
+      this.loadGroups[aId].loadGroup = Cu.getWeakReference(aLoadGroup);
+    }
+  },
 
-    let lastTimestamp = hudBox.lastTimestamp;
-    let delta = aTimestamp - lastTimestamp;
-    hudBox.lastTimestamp = aTimestamp;
-    if (delta < NEW_GROUP_DELAY) {
-      // No new group needed. Return the most recently-added group, if there is
-      // one.
-      let lastGroupNode = aConsoleNode.querySelector(".hud-group:last-child");
-      if (lastGroupNode != null) {
-        return lastGroupNode;
+  /**
+   * gets the load group that corresponds to a HUDId
+   *
+   * @param string aId
+   * @returns nsILoadGroup
+   */
+  getLoadGroup: function HS_getLoadGroup(aId)
+  {
+    try {
+      return this.loadGroups[aId].loadGroup.get();
+    }
+    catch (ex) {
+      return null;
+    }
+  },
+
+  /**
+   * gets outputNode for a specific heads up display by loadGroup
+   *
+   * @param nsILoadGroup aLoadGroup
+   * @returns nsIDOMNode
+   */
+  getDisplayByLoadGroup:
+  function HS_getDisplayByLoadGroup(aLoadGroup, aChannel, aActivityObject)
+  {
+    if (!aLoadGroup) {
+      return null;
+    }
+    var trackedLoadGroups = this.getAllLoadGroups();
+    var len = trackedLoadGroups.length;
+    for (var i = 0; i < len; i++) {
+      try {
+        var unwrappedLoadGroup =
+        XPCNativeWrapper.unwrap(trackedLoadGroups[i].loadGroup);
+        if (aLoadGroup == unwrappedLoadGroup) {
+          return this.getOutputNodeById(trackedLoadGroups[i].hudId);
+        }
+      }
+      catch (ex) {
+        // noop
       }
     }
+    // TODO: also need to check parent loadGroup(s) incase of iframe activity?;
+    // see bug 568643
+    return null;
+  },
 
-    let chromeDocument = aConsoleNode.ownerDocument;
-    let groupNode = chromeDocument.createElement("vbox");
-    groupNode.setAttribute("class", "hud-group");
+  /**
+   * gets all nsILoadGroups that are being tracked by this service
+   * the loadgroups are matched to HUDIds in an object and an array is returned
+   * @returns array
+   */
+  getAllLoadGroups: function HS_getAllLoadGroups()
+  {
+    var loadGroups = [];
+    for (var hudId in this.loadGroups) {
+      let loadGroupObj = { loadGroup: this.loadGroups[hudId].loadGroup.get(),
+                           hudId: this.loadGroups[hudId].id,
+                         };
+      loadGroups.push(loadGroupObj);
+    }
+    return loadGroups;
+  },
 
-    aConsoleNode.appendChild(groupNode);
-    return groupNode;
+  /**
+   * gets the DOM Node that maps back to what context/tab that
+   * activity originated via the URI
+   *
+   * @param nsIURI aURI
+   * @returns nsIDOMNode
+   */
+  getActivityOutputNode: function HS_getActivityOutputNode(aURI)
+  {
+    // determine which outputNode activity tied to aURI should be logged to.
+    var display = this.getDisplayByURISpec(aURI.spec);
+    if (display) {
+      return this.getOutputNodeById(display);
+    }
+    else {
+      throw new Error("Cannot get outputNode by hudId");
+    }
   },
 
   /**
@@ -2524,24 +1314,18 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Initialize the JSTerm object to create a JS Workspace by attaching the UI
-   * into the given parent node, using the mixin.
+   * Initialize the JSTerm object to create a JS Workspace
    *
-   * @param nsIDOMWindow aContext the context used for evaluating user input
-   * @param nsIDOMNode aParentNode where to attach the JSTerm
-   * @param object aConsole
-   *        Console object used within the JSTerm instance to report errors
-   *        and log data (by calling console.error(), console.log(), etc).
+   * @param nsIDOMWindow aContext
+   * @param nsIDOMNode aParentNode
+   * @returns void
    */
-  initializeJSTerm: function HS_initializeJSTerm(aContext, aParentNode, aConsole)
+  initializeJSTerm: function HS_initializeJSTerm(aContext, aParentNode)
   {
     // create Initial JS Workspace:
     var context = Cu.getWeakReference(aContext);
-
-    // Attach the UI into the target parent node using the mixin.
     var firefoxMixin = new JSTermFirefoxMixin(context, aParentNode);
-    var jsTerm = new JSTerm(context, aParentNode, firefoxMixin, aConsole);
-
+    var jsTerm = new JSTerm(context, aParentNode, firefoxMixin);
     // TODO: injection of additional functionality needs re-thinking/api
     // see bug 559748
   },
@@ -2558,12 +1342,8 @@ HUD_SERVICE.prototype =
     var nodes = hud.parentNode.childNodes;
 
     for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-
-      if (node.localName == "stack" &&
-          node.firstChild &&
-          node.firstChild.contentWindow) {
-        return node.firstChild.contentWindow;
+      if (nodes[i].contentWindow) {
+        return nodes[i].contentWindow;
       }
     }
     throw new Error("HS_getContentWindowFromHUD: Cannot get contentWindow");
@@ -2591,8 +1371,7 @@ HUD_SERVICE.prototype =
     0: "error",
     1: "warn",
     2: "exception",
-    4: "error", // strict error
-    5: "warn", // strict warning
+    4: "strict"
   },
 
   /**
@@ -2602,29 +1381,7 @@ HUD_SERVICE.prototype =
     0: "typeError",
     1: "typeWarning",
     2: "typeException",
-    4: "typeError", // strict error
-    5: "typeStrict", // strict warning
-  },
-
-  /**
-   * Closes the Console, if any, that resides on the given tab.
-   *
-   * @param nsIDOMNode aTab
-   *        The tab on which to close the console.
-   * @returns void
-   */
-  closeConsoleOnTab: function HS_closeConsoleOnTab(aTab)
-  {
-    let xulDocument = aTab.ownerDocument;
-    let xulWindow = xulDocument.defaultView;
-    let gBrowser = xulWindow.gBrowser;
-    let linkedBrowser = aTab.linkedBrowser;
-    let notificationBox = gBrowser.getNotificationBox(linkedBrowser);
-    let hudId = "hud_" + notificationBox.getAttribute("id");
-    let outputNode = xulDocument.getElementById(hudId);
-    if (outputNode != null) {
-      this.unregisterDisplay(outputNode);
-    }
+    4: "typeStrict",
   },
 
   /**
@@ -2635,27 +1392,10 @@ HUD_SERVICE.prototype =
    */
   onTabClose: function HS_onTabClose(aEvent)
   {
-    this.closeConsoleOnTab(aEvent.target);
-  },
-
-  /**
-   * Called whenever a browser window closes. Cleans up any consoles still
-   * around.
-   *
-   * @param nsIDOMEvent aEvent
-   *        The dispatched event.
-   * @returns void
-   */
-  onWindowUnload: function HS_onWindowUnload(aEvent)
-  {
-    let gBrowser = aEvent.target.defaultView.gBrowser;
-    let tabContainer = gBrowser.tabContainer;
-
-    let tab = tabContainer.firstChild;
-    while (tab != null) {
-      this.closeConsoleOnTab(tab);
-      tab = tab.nextSibling;
-    }
+    var browser = aEvent.target;
+    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
+    var hudId = "hud_" + tabId;
+    this.unregisterDisplay(hudId);
   },
 
   /**
@@ -2668,28 +1408,31 @@ HUD_SERVICE.prototype =
   {
     var xulWindow = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIWebNavigation)
-                      .QueryInterface(Ci.nsIDocShell)
-                      .chromeEventHandler.ownerDocument.defaultView;
+      .QueryInterface(Ci.nsIDocShellTreeItem)
+      .rootTreeItem
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindow);
 
-    let xulWindow = unwrap(xulWindow);
-
-    let docElem = xulWindow.document.documentElement;
-    if (!docElem || docElem.getAttribute("windowtype") != "navigator:browser" ||
-        !xulWindow.gBrowser) {
-      // Do not do anything unless we have a browser window.
-      // This may be a view-source window or other type of non-browser window.
+    if (aContentWindow.document.location.href == "about:blank" &&
+        HUDWindowObserver.initialConsoleCreated == false) {
+      // TODO: need to make this work with about:blank in the future
+      // see bug 568661
       return;
     }
 
-    xulWindow.addEventListener("unload", this.onWindowUnload, false);
-
+    let xulWindow = XPCNativeWrapper.unwrap(xulWindow);
     let gBrowser = xulWindow.gBrowser;
 
-    let container = gBrowser.tabContainer;
+
+    var container = gBrowser.tabContainer;
     container.addEventListener("TabClose", this.onTabClose, false);
 
-    let _browser = gBrowser.
-      getBrowserForDocument(aContentWindow.top.document);
+    if (gBrowser && !HUDWindowObserver.initialConsoleCreated) {
+      HUDWindowObserver.initialConsoleCreated = true;
+    }
+
+    let _browser =
+      gBrowser.getBrowserForDocument(aContentWindow.document.wrappedJSObject);
     let nBox = gBrowser.getNotificationBox(_browser);
     let nBoxId = nBox.getAttribute("id");
     let hudId = "hud_" + nBoxId;
@@ -2698,173 +1441,52 @@ HUD_SERVICE.prototype =
       return;
     }
 
-    this.registerDisplay(hudId, aContentWindow);
+    this.registerDisplay(hudId, aContentWindow.document.location.href);
 
-    let hudNode;
-    let childNodes = nBox.childNodes;
+    // check if aContentWindow has a console Object
+    let _console = aContentWindow.wrappedJSObject.console;
+    if (!_console) {
+      // no console exists. does the HUD exist?
+      let hudNode;
+      let childNodes = nBox.childNodes;
 
-    for (let i = 0; i < childNodes.length; i++) {
-      let id = childNodes[i].getAttribute("id");
-      // `id` is a string with the format "hud_<number>".
-      if (id.split("_")[0] == "hud") {
-        hudNode = childNodes[i];
-        break;
+      for (var i = 0; i < childNodes.length; i++) {
+        let id = childNodes[i].getAttribute("id");
+        if (id.split("_")[0] == "hud") {
+          hudNode = childNodes[i];
+          break;
+        }
+      }
+
+      if (!hudNode) {
+        // get nBox object and call new HUD
+        let config = { parentNode: nBox,
+                       contentWindow: aContentWindow
+                     };
+
+        let _hud = new HeadsUpDisplay(config);
+
+        let hudWeakRef = Cu.getWeakReference(_hud);
+        HUDService.registerHUDWeakReference(hudWeakRef, hudId);
+      }
+      else {
+        // only need to attach a console object to the window object
+        let config = { hudNode: hudNode,
+                       consoleOnly: true,
+                       contentWindow: aContentWindow
+                     };
+
+        let _hud = new HeadsUpDisplay(config);
+
+        let hudWeakRef = Cu.getWeakReference(_hud);
+        HUDService.registerHUDWeakReference(hudWeakRef, hudId);
+
+        aContentWindow.wrappedJSObject.console = _hud.console;
       }
     }
-
-    let hud;
-    // If there is no HUD for this tab create a new one.
-    if (!hudNode) {
-      // get nBox object and call new HUD
-      let config = { parentNode: nBox,
-                     contentWindow: aContentWindow
-                   };
-
-      hud = new HeadsUpDisplay(config);
-
-      HUDService.registerHUDReference(hud);
-    }
-    else {
-      hud = this.hudReferences[hudId];
-      if (aContentWindow == aContentWindow.top) {
-        // TODO: name change?? doesn't actually re-attach the console
-        hud.reattachConsole(aContentWindow);
-      }
-    }
-
-    // need to detect that the console component has been paved over
-    // TODO: change how we detect our console: bug 612405
-    let consoleObject = aContentWindow.wrappedJSObject.console;
-    if (consoleObject && consoleObject.classID != CONSOLEAPI_CLASS_ID) {
-      this.logWarningAboutReplacedAPI(hudId);
-    }
-
-    // register the controller to handle "select all" properly
-    this.createController(xulWindow);
-  },
-
-  /**
-   * Adds the command controller to the XUL window if it's not already present.
-   *
-   * @param nsIDOMWindow aWindow
-   *        The browser XUL window.
-   * @returns void
-   */
-  createController: function HUD_createController(aWindow)
-  {
-    if (aWindow.commandController == null) {
-      aWindow.commandController = new CommandController(aWindow);
-      aWindow.controllers.insertControllerAt(0, aWindow.commandController);
-    }
-  },
-
-  /**
-   * Animates the Console appropriately.
-   *
-   * @param string aHUDId The ID of the console.
-   * @param string aDirection Whether to animate the console appearing
-   *        (ANIMATE_IN) or disappearing (ANIMATE_OUT).
-   * @param function aCallback An optional callback, which will be called with
-   *        the "transitionend" event passed as a parameter once the animation
-   *        finishes.
-   */
-  animate: function HS_animate(aHUDId, aDirection, aCallback)
-  {
-    let hudBox = this.getOutputNodeById(aHUDId);
-    if (!hudBox.classList.contains("animated")) {
-      if (aCallback) {
-        aCallback();
-      }
-      return;
-    }
-
-    switch (aDirection) {
-      case ANIMATE_OUT:
-        hudBox.style.height = 0;
-        break;
-      case ANIMATE_IN:
-        this.resetHeight(aHUDId);
-        break;
-    }
-
-    if (aCallback) {
-      hudBox.addEventListener("transitionend", aCallback, false);
-    }
-  },
-
-  /**
-   * Disables all animation for a console, for unit testing. After this call,
-   * the console will instantly take on a reasonable height, and the close
-   * animation will not occur.
-   *
-   * @param string aHUDId The ID of the console.
-   */
-  disableAnimation: function HS_disableAnimation(aHUDId)
-  {
-    let hudBox = HUDService.hudReferences[aHUDId].HUDBox;
-    if (hudBox.classList.contains("animated")) {
-      hudBox.classList.remove("animated");
-      this.resetHeight(aHUDId);
-    }
-  },
-
-  /**
-   * Reset the height of the Web Console.
-   *
-   * @param string aHUDId The ID of the Web Console.
-   */
-  resetHeight: function HS_resetHeight(aHUDId)
-  {
-    let HUD = this.hudReferences[aHUDId];
-
-    let innerHeight = HUD.contentWindow.innerHeight;
-    let splitter = HUD.HUDBox.parentNode.querySelector(".hud-splitter");
-    let chromeWindow = splitter.ownerDocument.defaultView;
-
-    let splitterStyle = chromeWindow.getComputedStyle(splitter, null);
-    innerHeight += parseInt(splitterStyle.height) +
-                   parseInt(splitterStyle.borderTopWidth) +
-                   parseInt(splitterStyle.borderBottomWidth);
-
-    let boxStyle = chromeWindow.getComputedStyle(HUD.HUDBox, null);
-    innerHeight += parseInt(boxStyle.height) +
-                   parseInt(boxStyle.borderTopWidth) +
-                   parseInt(boxStyle.borderBottomWidth);
-
-    let height = this.lastConsoleHeight > 0 ? this.lastConsoleHeight :
-      Math.ceil(innerHeight * DEFAULT_CONSOLE_HEIGHT);
-
-    if ((innerHeight - height) < MINIMUM_PAGE_HEIGHT) {
-      height = innerHeight - MINIMUM_PAGE_HEIGHT;
-    }
-    else if (height < MINIMUM_CONSOLE_HEIGHT) {
-      height = MINIMUM_CONSOLE_HEIGHT;
-    }
-
-    HUD.HUDBox.style.height = height + "px";
-  },
-
-  /**
-   * Remember the height of the given Web Console, such that it can later be
-   * reused when other Web Consoles are open.
-   *
-   * @param string aHUDId The ID of the Web Console.
-   */
-  storeHeight: function HS_storeHeight(aHUDId)
-  {
-    let hudBox = this.hudReferences[aHUDId].HUDBox;
-    let window = hudBox.ownerDocument.defaultView;
-    let style = window.getComputedStyle(hudBox, null);
-    let height = parseInt(style.height);
-    height += parseInt(style.borderTopWidth);
-    height += parseInt(style.borderBottomWidth);
-    this.lastConsoleHeight = height;
-
-    let pref = Services.prefs.getIntPref("devtools.hud.height");
-    if (pref > -1) {
-      Services.prefs.setIntPref("devtools.hud.height", height);
-    }
-  },
+    // capture JS Errors
+    this.setOnErrorHandler(aContentWindow);
+  }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -2887,6 +1509,23 @@ function HeadsUpDisplay(aConfig)
   //                  placement: "insertBefore",
   //                  placementChildNodeIndex: 0,
   //                }
+  //
+  // or, just create a new console - as there is already a HUD in place
+  // config: { hudNode: existingHUDDOMNode,
+  //           consoleOnly: true,
+  //           contentWindow: aWindow
+  //         }
+
+  if (aConfig.consoleOnly) {
+    this.HUDBox = aConfig.hudNode;
+    this.parentNode = aConfig.hudNode.parentNode;
+    this.notificationBox = this.parentNode;
+    this.contentWindow = aConfig.contentWindow;
+    this.uriSpec = aConfig.contentWindow.location.href;
+    this.reattachConsole();
+    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
+    return;
+  }
 
   this.HUDBox = null;
 
@@ -2959,22 +1598,34 @@ function HeadsUpDisplay(aConfig)
     }
     this.parentNode = parentNode;
   }
+  // create XUL, HTML and textNode Factories:
+  try  {
+    this.HTMLFactory = NodeFactory("html", "html", this.chromeDocument);
+  }
+  catch(ex) {
+    Cu.reportError(ex);
+  }
 
-  // create textNode Factory:
+  this.XULFactory = NodeFactory("xul", "xul", this.chromeDocument);
   this.textFactory = NodeFactory("text", "xul", this.chromeDocument);
-
-  this.chromeWindow = HUDService.getChromeWindowFromContentWindow(this.contentWindow);
 
   // create a panel dynamically and attach to the parentNode
   let hudBox = this.createHUD();
 
   let splitter = this.chromeDocument.createElement("splitter");
+  splitter.setAttribute("collapse", "before");
+  splitter.setAttribute("resizeafter", "flex");
   splitter.setAttribute("class", "hud-splitter");
 
+  let grippy = this.chromeDocument.createElement("grippy");
   this.notificationBox.insertBefore(splitter,
                                     this.notificationBox.childNodes[1]);
+  splitter.appendChild(grippy);
 
-  this.HUDBox.lastTimestamp = 0;
+  let console = this.createConsole();
+
+  this.contentWindow.wrappedJSObject.console = console;
+
   // create the JSTerm input element
   try {
     this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
@@ -2986,7 +1637,6 @@ function HeadsUpDisplay(aConfig)
 }
 
 HeadsUpDisplay.prototype = {
-
   /**
    * L10N shortcut function
    *
@@ -3028,9 +1678,9 @@ HeadsUpDisplay.prototype = {
     var context = Cu.getWeakReference(aWindow);
 
     if (appName() == "FIREFOX") {
-      let outputCSSClassOverride = "hud-msg-node";
+      let outputCSSClassOverride = "hud-msg-node hud-console";
       let mixin = new JSTermFirefoxMixin(context, aParentNode, aExistingConsole, outputCSSClassOverride);
-      this.jsterm = new JSTerm(context, aParentNode, mixin, this.console);
+      this.jsterm = new JSTerm(context, aParentNode, mixin);
     }
     else {
       throw new Error("Unsupported Gecko Application");
@@ -3040,23 +1690,62 @@ HeadsUpDisplay.prototype = {
   /**
    * Re-attaches a console when the contentWindow is recreated
    *
-   * @param nsIDOMWindow aContentWindow
    * @returns void
    */
-  reattachConsole: function HUD_reattachConsole(aContentWindow)
+  reattachConsole: function HUD_reattachConsole()
   {
-    this.contentWindow = aContentWindow;
-    this.contentDocument = this.contentWindow.document;
-    this.uriSpec = this.contentWindow.location.href;
+    this.hudId = this.HUDBox.getAttribute("id");
 
-    if (!this.jsterm) {
-      this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
+    // set outputNode
+    this.outputNode = this.HUDBox.querySelectorAll(".hud-output-node")[0];
+
+    this.chromeDocument = this.HUDBox.ownerDocument;
+
+    if (this.outputNode) {
+      // createConsole
+      this.createConsole();
     }
     else {
-      this.jsterm.context = Cu.getWeakReference(this.contentWindow);
-      this.jsterm.console = this.console;
-      this.jsterm.createSandbox();
+      throw new Error("Cannot get output node");
     }
+  },
+
+  /**
+   * Gets the loadGroup for the contentWindow
+   *
+   * @returns nsILoadGroup
+   */
+  get loadGroup()
+  {
+    var loadGroup = this.contentWindow
+                    .QueryInterface(Ci.nsIInterfaceRequestor)
+                    .getInterface(Ci.nsIWebNavigation)
+                    .QueryInterface(Ci.nsIDocumentLoader).loadGroup;
+    return loadGroup;
+  },
+
+  /**
+   * Shortcut to make HTML nodes
+   *
+   * @param string aTag
+   * @returns nsIDOMNode
+   */
+  makeHTMLNode:
+  function HUD_makeHTMLNode(aTag)
+  {
+    var element;
+
+    if (this.HTMLFactory) {
+      element = this.HTMLFactory(aTag);
+    }
+    else {
+      var ns = ELEMENT_NS;
+      var nsUri = ELEMENT_NS_URI;
+      var tag = ns + aTag;
+      element = this.chromeDocument.createElementNS(nsUri, tag);
+    }
+
+    return element;
   },
 
   /**
@@ -3068,7 +1757,19 @@ HeadsUpDisplay.prototype = {
   makeXULNode:
   function HUD_makeXULNode(aTag)
   {
-    return this.chromeDocument.createElement(aTag);
+    return this.XULFactory(aTag);
+  },
+
+  /**
+   * Clears the HeadsUpDisplay output node of any log messages
+   *
+   * @returns void
+   */
+  clearConsoleOutput: function HUD_clearConsoleOutput()
+  {
+    for each (var node in this.outputNode.childNodes) {
+      this.outputNode.removeChild(node);
+    }
   },
 
   /**
@@ -3081,8 +1782,11 @@ HeadsUpDisplay.prototype = {
     let self = this;
     this.HUDBox = this.makeXULNode("vbox");
     this.HUDBox.setAttribute("id", this.hudId);
-    this.HUDBox.setAttribute("class", "hud-box animated");
-    this.HUDBox.style.height = 0;
+    this.HUDBox.setAttribute("class", "hud-box");
+
+    var height = Math.ceil((this.contentWindow.innerHeight * .33)) + "px";
+    var style = "height: " + height + ";";
+    this.HUDBox.setAttribute("style", style);
 
     let outerWrap = this.makeXULNode("vbox");
     outerWrap.setAttribute("class", "hud-outer-wrapper");
@@ -3096,42 +1800,29 @@ HeadsUpDisplay.prototype = {
     consoleWrap.setAttribute("class", "hud-console-wrapper");
     consoleWrap.setAttribute("flex", "1");
 
-    this.outputNode = this.makeXULNode("scrollbox");
+    this.outputNode = this.makeXULNode("vbox");
     this.outputNode.setAttribute("class", "hud-output-node");
     this.outputNode.setAttribute("flex", "1");
-    this.outputNode.setAttribute("orient", "vertical");
-    this.outputNode.setAttribute("context", this.hudId + "-output-contextmenu");
-    this.outputNode.setAttribute("style", "direction: ltr;");
-
-    this.outputNode.addEventListener("DOMNodeInserted", function(ev) {
-      // DOMNodeInserted is also called when the output node is being *itself*
-      // (re)inserted into the DOM (which happens during a search, for
-      // example). For this reason, we need to ensure that we only check
-      // message nodes.
-      let node = ev.target;
-      if (node.nodeType === node.ELEMENT_NODE &&
-          node.classList.contains("hud-msg-node")) {
-        let hidden = HUDService.
-          adjustVisibilityForNewlyInsertedNode(self.hudId, ev.target);
-
-        if (!hidden) {
-          ConsoleUtils.scrollToVisible(node);
-        }
-      }
-    }, false);
-
-    this.filterSpacer = this.makeXULNode("spacer");
-    this.filterSpacer.setAttribute("flex", "1");
 
     this.filterBox = this.makeXULNode("textbox");
-    this.filterBox.setAttribute("class", "compact hud-filter-box");
+    this.filterBox.setAttribute("class", "hud-filter-box");
     this.filterBox.setAttribute("hudId", this.hudId);
     this.filterBox.setAttribute("placeholder", this.getStr("stringFilter"));
-    this.filterBox.setAttribute("type", "search");
+
+    this.filterClearButton = this.makeXULNode("button");
+    this.filterClearButton.setAttribute("class", "hud-filter-clear");
+    this.filterClearButton.setAttribute("label", this.getStr("stringFilterClear"));
+    this.filterClearButton.setAttribute("hudId", this.hudId);
 
     this.setFilterTextBoxEvents();
 
-    this.createConsoleMenu(this.consoleWrap);
+    this.consoleClearButton = this.makeXULNode("button");
+    this.consoleClearButton.setAttribute("class", "hud-console-clear");
+    this.consoleClearButton.setAttribute("label", this.getStr("btnClear"));
+    this.consoleClearButton.setAttribute("buttonType", "clear");
+    this.consoleClearButton.setAttribute("hudId", this.hudId);
+    var command = "HUDConsoleUI.command(this)";
+    this.consoleClearButton.setAttribute("oncommand", command);
 
     this.filterPrefs = HUDService.getDefaultFilterPrefs(this.hudId);
 
@@ -3141,10 +1832,7 @@ HeadsUpDisplay.prototype = {
     consoleWrap.appendChild(consoleFilterToolbar);
 
     consoleWrap.appendChild(this.outputNode);
-
     outerWrap.appendChild(consoleWrap);
-
-    this.HUDBox.lastTimestamp = 0;
 
     this.jsTermParentNode = outerWrap;
     this.HUDBox.appendChild(outerWrap);
@@ -3159,31 +1847,17 @@ HeadsUpDisplay.prototype = {
    */
   setFilterTextBoxEvents: function HUD_setFilterTextBoxEvents()
   {
-    var filterBox = this.filterBox;
-    function onChange()
+    var self = this;
+    function keyPress(aEvent)
     {
-      // To improve responsiveness, we let the user finish typing before we
-      // perform the search.
-
-      if (this.timer == null) {
-        let timerClass = Cc["@mozilla.org/timer;1"];
-        this.timer = timerClass.createInstance(Ci.nsITimer);
-      } else {
-        this.timer.cancel();
-      }
-
-      let timerEvent = {
-        notify: function setFilterTextBoxEvents_timerEvent_notify() {
-          HUDService.updateFilterText(filterBox);
-        }
-      };
-
-      this.timer.initWithCallback(timerEvent, SEARCH_DELAY,
-        Ci.nsITimer.TYPE_ONE_SHOT);
+      HUDService.updateFilterText(aEvent.target);
     }
+    this.filterBox.addEventListener("keydown", keyPress, false);
 
-    filterBox.addEventListener("command", onChange, false);
-    filterBox.addEventListener("input", onChange, false);
+    function filterClick(aEvent) {
+      self.filterBox.value = "";
+    }
+    this.filterClearButton.addEventListener("click", filterClick, false);
   },
 
   /**
@@ -3193,202 +1867,59 @@ HeadsUpDisplay.prototype = {
    */
   makeFilterToolbar: function HUD_makeFilterToolbar()
   {
-    const BUTTONS = [
-      {
-        name: "PageNet",
-        category: "net",
-        severities: [
-          { name: "ConsoleErrors", prefKey: "network" },
-          { name: "ConsoleLog", prefKey: "networkinfo" }
-        ]
-      },
-      {
-        name: "PageCSS",
-        category: "css",
-        severities: [
-          { name: "ConsoleErrors", prefKey: "csserror" },
-          { name: "ConsoleWarnings", prefKey: "cssparser" }
-        ]
-      },
-      {
-        name: "PageJS",
-        category: "js",
-        severities: [
-          { name: "ConsoleErrors", prefKey: "exception" },
-          { name: "ConsoleWarnings", prefKey: "jswarn" }
-        ]
-      },
-      {
-        name: "PageWebDeveloper",
-        category: "webdev",
-        severities: [
-          { name: "ConsoleErrors", prefKey: "error" },
-          { name: "ConsoleWarnings", prefKey: "warn" },
-          { name: "ConsoleInfo", prefKey: "info" },
-          { name: "ConsoleLog", prefKey: "log" }
-        ]
-      }
-    ];
+    let buttons = ["Network", "CSSParser", "Exception", "Error",
+                   "Info", "Warn", "Log",];
 
     let toolbar = this.makeXULNode("toolbar");
     toolbar.setAttribute("class", "hud-console-filter-toolbar");
-    toolbar.setAttribute("mode", "full");
+    toolbar.setAttribute("mode", "text");
 
-    this.makeCloseButton(toolbar);
-
-    for (let i = 0; i < BUTTONS.length; i++) {
-      this.makeFilterButton(toolbar, BUTTONS[i]);
+    toolbar.appendChild(this.consoleClearButton);
+    let btn;
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i] == "Clear") {
+        btn = this.makeButton(buttons[i], "plain");
+      }
+      else {
+        btn = this.makeButton(buttons[i], "checkbox");
+      }
+      toolbar.appendChild(btn);
     }
-
-    toolbar.appendChild(this.filterSpacer);
     toolbar.appendChild(this.filterBox);
-    this.makeClearConsoleButton(toolbar);
-
+    toolbar.appendChild(this.filterClearButton);
     return toolbar;
   },
 
-  /**
-   * Creates the context menu on the console.
-   *
-   * @param nsIDOMNode aOutputNode
-   *        The console output DOM node.
-   * @returns void
-   */
-  createConsoleMenu: function HUD_createConsoleMenu(aConsoleWrapper) {
-    let menuPopup = this.makeXULNode("menupopup");
-    let id = this.hudId + "-output-contextmenu";
-    menuPopup.setAttribute("id", id);
-
-    let saveBodiesItem = this.makeXULNode("menuitem");
-    saveBodiesItem.setAttribute("label", this.getStr("saveBodies.label"));
-    saveBodiesItem.setAttribute("accesskey",
-                                 this.getStr("saveBodies.accesskey"));
-    saveBodiesItem.setAttribute("type", "checkbox");
-    saveBodiesItem.setAttribute("buttonType", "saveBodies");
-    saveBodiesItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
-    menuPopup.appendChild(saveBodiesItem);
-
-    menuPopup.appendChild(this.makeXULNode("menuseparator"));
-
-    let copyItem = this.makeXULNode("menuitem");
-    copyItem.setAttribute("label", this.getStr("copyCmd.label"));
-    copyItem.setAttribute("accesskey", this.getStr("copyCmd.accesskey"));
-    copyItem.setAttribute("key", "key_copy");
-    copyItem.setAttribute("command", "cmd_copy");
-    menuPopup.appendChild(copyItem);
-
-    let selectAllItem = this.makeXULNode("menuitem");
-    selectAllItem.setAttribute("label", this.getStr("selectAllCmd.label"));
-    selectAllItem.setAttribute("accesskey",
-                               this.getStr("selectAllCmd.accesskey"));
-    selectAllItem.setAttribute("hudId", this.hudId);
-    selectAllItem.setAttribute("buttonType", "selectAll");
-    selectAllItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
-    menuPopup.appendChild(selectAllItem);
-
-    aConsoleWrapper.appendChild(menuPopup);
-    aConsoleWrapper.setAttribute("context", id);
-  },
-
-  /**
-   * Creates one of the filter buttons on the toolbar.
-   *
-   * @param nsIDOMNode aParent
-   *        The node to which the filter button should be appended.
-   * @param object aDescriptor
-   *        A descriptor that contains info about the button. Contains "name",
-   *        "category", and "prefKey" properties, and optionally a "severities"
-   *        property.
-   * @return void
-   */
-  makeFilterButton: function HUD_makeFilterButton(aParent, aDescriptor)
+  makeButton: function HUD_makeButton(aName, aType)
   {
-    let toolbarButton = this.makeXULNode("toolbarbutton");
-    aParent.appendChild(toolbarButton);
+    var self = this;
+    let prefKey = aName.toLowerCase();
+    let btn = this.makeXULNode("toolbarbutton");
 
-    let toggleFilter = HeadsUpDisplayUICommands.toggleFilter;
-    toolbarButton.addEventListener("click", toggleFilter, false);
-
-    let name = aDescriptor.name;
-    toolbarButton.setAttribute("type", "menu-button");
-    toolbarButton.setAttribute("label", this.getStr("btn" + name));
-    toolbarButton.setAttribute("tooltip", this.getStr("tip" + name));
-    toolbarButton.setAttribute("category", aDescriptor.category);
-    toolbarButton.setAttribute("hudId", this.hudId);
-    toolbarButton.classList.add("webconsole-filter-button");
-
-    let menuPopup = this.makeXULNode("menupopup");
-    toolbarButton.appendChild(menuPopup);
-
-    let allChecked = true;
-    for (let i = 0; i < aDescriptor.severities.length; i++) {
-      let severity = aDescriptor.severities[i];
-      let menuItem = this.makeXULNode("menuitem");
-      menuItem.setAttribute("label", this.getStr("btn" + severity.name));
-      menuItem.setAttribute("type", "checkbox");
-      menuItem.setAttribute("autocheck", "false");
-      menuItem.setAttribute("hudId", this.hudId);
-
-      let prefKey = severity.prefKey;
-      menuItem.setAttribute("prefKey", prefKey);
-
-      let checked = this.filterPrefs[prefKey];
-      menuItem.setAttribute("checked", checked);
-      if (!checked) {
-        allChecked = false;
-      }
-
-      menuItem.addEventListener("command", toggleFilter, false);
-
-      menuPopup.appendChild(menuItem);
+    if (aType == "checkbox") {
+      btn.setAttribute("type", aType);
     }
+    btn.setAttribute("hudId", this.hudId);
+    btn.setAttribute("buttonType", prefKey);
+    btn.setAttribute("class", "hud-filter-btn");
+    let key = "btn" + aName;
+    btn.setAttribute("label", this.getStr(key));
+    key = "tip" + aName;
+    btn.setAttribute("tooltip", this.getStr(key));
 
-    toolbarButton.setAttribute("checked", allChecked);
-  },
+    if (aType == "checkbox") {
+      btn.setAttribute("checked", this.filterPrefs[prefKey]);
+      function toggle(btn) {
+        self.consoleFilterCommands.toggle(btn);
+      };
 
-  /**
-   * Creates the close button on the toolbar.
-   *
-   * @param nsIDOMNode aParent
-   *        The toolbar to attach the close button to.
-   * @return void
-   */
-  makeCloseButton: function HUD_makeCloseButton(aToolbar)
-  {
-    function HUD_closeButton_onCommand() {
-      let tab = this.ownerDocument.defaultView.gBrowser.selectedTab;
-      HUDService.deactivateHUDForContext(tab);
+      btn.setAttribute("oncommand", "HUDConsoleUI.toggleFilter(this);");
     }
-
-    let closeButton = this.makeXULNode("toolbarbutton");
-    closeButton.classList.add("webconsole-close-button");
-    closeButton.addEventListener("command", HUD_closeButton_onCommand, false);
-
-    aToolbar.appendChild(closeButton);
-  },
-
-  /**
-   * Creates the "Clear Console" button.
-   *
-   * @param nsIDOMNode aParent
-   *        The toolbar to attach the "Clear Console" button to.
-   * @param string aHUDId
-   *        The ID of the console.
-   * @return void
-   */
-  makeClearConsoleButton: function HUD_makeClearConsoleButton(aToolbar)
-  {
-    let hudId = this.hudId;
-    function HUD_clearButton_onCommand() {
-      HUDService.clearDisplay(hudId);
+    else {
+      var command = "HUDConsoleUI.command(this)";
+      btn.setAttribute("oncommand", command);
     }
-
-    let clearButton = this.makeXULNode("toolbarbutton");
-    clearButton.setAttribute("label", this.getStr("btnClear"));
-    clearButton.classList.add("webconsole-clear-console-button");
-    clearButton.addEventListener("command", HUD_clearButton_onCommand, false);
-
-    aToolbar.appendChild(clearButton);
+    return btn;
   },
 
   createHUD: function HUD_createHUD()
@@ -3407,7 +1938,7 @@ HeadsUpDisplay.prototype = {
     }
   },
 
-  get console() { return this.contentWindow.wrappedJSObject.console; },
+  get console() { return this._console || this.createConsole(); },
 
   getLogCount: function HUD_getLogCount()
   {
@@ -3419,6 +1950,18 @@ HeadsUpDisplay.prototype = {
     return this.outputNode.childNodes;
   },
 
+  /**
+   * This console will accept a message, get the tab's meta-data and send
+   * properly-formatted message object to the service identifying
+   * where it came from, etc...
+   *
+   * @returns console
+   */
+  createConsole: function HUD_createConsole()
+  {
+    return new HUDConsole(this);
+  },
+
   ERRORS: {
     HUD_BOX_DOES_NOT_EXIST: "Heads Up Display does not exist",
     TAB_ID_REQUIRED: "Tab DOM ID is required",
@@ -3428,72 +1971,129 @@ HeadsUpDisplay.prototype = {
 
 
 //////////////////////////////////////////////////////////////////////////////
-// ConsoleAPIObserver
+// HUDConsole factory function
 //////////////////////////////////////////////////////////////////////////////
 
-let ConsoleAPIObserver = {
+/**
+ * The console object that is attached to each contentWindow
+ *
+ * @param object aHeadsUpDisplay
+ * @returns object
+ */
+function HUDConsole(aHeadsUpDisplay)
+{
+  let hud = aHeadsUpDisplay;
+  let hudId = hud.hudId;
+  let outputNode = hud.outputNode;
+  let chromeDocument = hud.chromeDocument;
+  let makeHTMLNode = hud.makeHTMLNode;
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
+  aHeadsUpDisplay._console = this;
 
-  init: function CAO_init()
+  HUDService.updateLoadGroup(hudId, hud.loadGroup);
+
+  let sendToHUDService = function console_send(aLevel, aArguments)
   {
-    Services.obs.addObserver(this, "quit-application-granted", false);
-    Services.obs.addObserver(this, "console-api-log-event", false);
+    // check to see if logging is on for this level before logging!
+    var filterState = HUDService.getFilterState(hudId, aLevel);
+
+    if (!filterState) {
+      // Ignoring log message
+      return;
+    }
+
+    let ts = ConsoleUtils.timestamp();
+    let messageNode = hud.makeHTMLNode("div");
+
+    let klass = "hud-msg-node hud-" + aLevel;
+
+    messageNode.setAttribute("class", klass);
+
+    let argumentArray = [];
+    for (var i = 0; i < aArguments.length; i++) {
+      argumentArray.push(aArguments[i]);
+    }
+
+    let message = argumentArray.join(' ');
+    let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
+      message;
+
+    messageNode.appendChild(chromeDocument.createTextNode(timestampedMessage));
+
+    // need a constructor here to properly set all attrs
+    let messageObject = {
+      logLevel: aLevel,
+      hudId: hud.hudId,
+      message: message,
+      timestamp: ts,
+      origin: "HUDConsole",
+    };
+
+    HUDService.logMessage(messageObject, hud.outputNode, messageNode);
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Console API.
+  this.log = function console_log()
+  {
+    sendToHUDService("log", arguments);
   },
 
-  observe: function CAO_observe(aMessage, aTopic, aData)
+  this.info = function console_info()
   {
-    if (aTopic == "console-api-log-event") {
-      aMessage = aMessage.wrappedJSObject;
-      let windowId = parseInt(aData);
-      let win = HUDService.getWindowByWindowId(windowId);
-      if (!win)
-        return;
-
-      // Find the HUD ID for the topmost window
-      let hudId = HUDService.getHudIdByWindow(win.top);
-      if (!hudId)
-        return;
-
-      HUDService.logConsoleAPIMessage(hudId, aMessage.level, aMessage.arguments);
-    }
-    else if (aTopic == "quit-application-granted") {
-      this.shutdown();
-    }
+    sendToHUDService("info", arguments);
   },
 
-  shutdown: function CAO_shutdown()
+  this.warn = function console_warn()
   {
-    Services.obs.removeObserver(this, "quit-application-granted");
-    Services.obs.removeObserver(this, "console-api-log-event");
+    sendToHUDService("warn", arguments);
+  },
+
+  this.error = function console_error()
+  {
+    sendToHUDService("error", arguments);
+  },
+
+  this.exception = function console_exception()
+  {
+    sendToHUDService("exception", arguments);
   }
 };
 
 /**
- * Creates a DOM Node factory for XUL nodes - as well as textNodes
- * @param aFactoryType "xul" or "text"
- * @param ignored This parameter is currently ignored, and will be removed
- * See bug 594304
- * @param aDocument The document, the factory is to generate nodes from
- * @return DOM Node Factory function
+ * Creates a DOM Node factory for either XUL nodes or HTML nodes - as
+ * well as textNodes
+ * @param   aFactoryType
+ *          "xul" or "html"
+ * @returns DOM Node Factory function
  */
-function NodeFactory(aFactoryType, ignored, aDocument)
+function NodeFactory(aFactoryType, aNameSpace, aDocument)
 {
   // aDocument is presumed to be a XULDocument
+  const ELEMENT_NS_URI = "http://www.w3.org/1999/xhtml";
+
   if (aFactoryType == "text") {
-    return function factory(aText)
-    {
+    function factory(aText) {
       return aDocument.createTextNode(aText);
     }
-  }
-  else if (aFactoryType == "xul") {
-    return function factory(aTag)
-    {
-      return aDocument.createElement(aTag);
-    }
+    return factory;
   }
   else {
-    throw new Error('NodeFactory: Unknown factory type: ' + aFactoryType);
+    if (aNameSpace == "xul") {
+      function factory(aTag)
+      {
+        return aDocument.createElement(aTag);
+      }
+      return factory;
+    }
+    else {
+      function factory(aTag)
+      {
+        var tag = "html:" + aTag;
+        return aDocument.createElementNS(ELEMENT_NS_URI, tag);
+      }
+      return factory;
+    }
   }
 }
 
@@ -3566,7 +2166,7 @@ function findCompletionBeginning(aStr)
         }
         else if (CLOSE_BODY.indexOf(c) != -1) {
           var last = bodyStack.pop();
-          if (!last || OPEN_CLOSE_BODY[last.token] != c) {
+          if (OPEN_CLOSE_BODY[last.token] != c) {
             return {
               err: "syntax error"
             };
@@ -3640,7 +2240,7 @@ function findCompletionBeginning(aStr)
  */
 function JSPropertyProvider(aScope, aInputValue)
 {
-  let obj = unwrap(aScope);
+  let obj = aScope;
 
   // Analyse the aInputValue and find the beginning of the last part that
   // should be completed.
@@ -3716,175 +2316,6 @@ function JSPropertyProvider(aScope, aInputValue)
 //////////////////////////////////////////////////////////////////////////
 
 /**
- * JSTermHelper
- *
- * Defines a set of functions ("helper functions") that are available from the
- * WebConsole but not from the webpage.
- * A list of helper functions used by Firebug can be found here:
- *   http://getfirebug.com/wiki/index.php/Command_Line_API
- */
-function JSTermHelper(aJSTerm)
-{
-  /**
-   * Returns the result of document.getElementById(aId).
-   *
-   * @param string aId
-   *        A string that is passed to window.document.getElementById.
-   * @returns nsIDOMNode or null
-   */
-  aJSTerm.sandbox.$ = function JSTH_$(aId)
-  {
-    try {
-      return aJSTerm._window.document.getElementById(aId);
-    }
-    catch (ex) {
-      aJSTerm.console.error(ex.message);
-    }
-  };
-
-  /**
-   * Returns the result of document.querySelectorAll(aSelector).
-   *
-   * @param string aSelector
-   *        A string that is passed to window.document.querySelectorAll.
-   * @returns array of nsIDOMNode
-   */
-  aJSTerm.sandbox.$$ = function JSTH_$$(aSelector)
-  {
-    try {
-      return aJSTerm._window.document.querySelectorAll(aSelector);
-    }
-    catch (ex) {
-      aJSTerm.console.error(ex.message);
-    }
-  };
-
-  /**
-   * Runs a xPath query and returns all matched nodes.
-   *
-   * @param string aXPath
-   *        xPath search query to execute.
-   * @param [optional] nsIDOMNode aContext
-   *        Context to run the xPath query on. Uses window.document if not set.
-   * @returns array of nsIDOMNode
-   */
-  aJSTerm.sandbox.$x = function JSTH_$x(aXPath, aContext)
-  {
-    let nodes = [];
-    let doc = aJSTerm._window.document;
-    let aContext = aContext || doc;
-
-    try {
-      let results = doc.evaluate(aXPath, aContext, null,
-                                  Ci.nsIDOMXPathResult.ANY_TYPE, null);
-
-      let node;
-      while (node = results.iterateNext()) {
-        nodes.push(node);
-      }
-    }
-    catch (ex) {
-      aJSTerm.console.error(ex.message);
-    }
-
-    return nodes;
-  };
-
-  /**
-   * Clears the output of the JSTerm.
-   */
-  aJSTerm.sandbox.clear = function JSTH_clear()
-  {
-    aJSTerm.clearOutput();
-  };
-
-  /**
-   * Returns the result of Object.keys(aObject).
-   *
-   * @param object aObject
-   *        Object to return the property names from.
-   * @returns array of string
-   */
-  aJSTerm.sandbox.keys = function JSTH_keys(aObject)
-  {
-    try {
-      return Object.keys(unwrap(aObject));
-    }
-    catch (ex) {
-      aJSTerm.console.error(ex.message);
-    }
-  };
-
-  /**
-   * Returns the values of all properties on aObject.
-   *
-   * @param object aObject
-   *        Object to display the values from.
-   * @returns array of string
-   */
-  aJSTerm.sandbox.values = function JSTH_values(aObject)
-  {
-    let arrValues = [];
-    let obj = unwrap(aObject);
-
-    try {
-      for (let prop in obj) {
-        arrValues.push(obj[prop]);
-      }
-    }
-    catch (ex) {
-      aJSTerm.console.error(ex.message);
-    }
-    return arrValues;
-  };
-
-  /**
-   * Opens a help window in MDC
-   */
-  aJSTerm.sandbox.help = function JSTH_help()
-  {
-    aJSTerm._window.open(
-        "https://developer.mozilla.org/AppLinks/WebConsoleHelp?locale=" +
-        aJSTerm._window.navigator.language, "help", "");
-  };
-
-  /**
-   * Inspects the passed aObject. This is done by opening the PropertyPanel.
-   *
-   * @param object aObject
-   *        Object to inspect.
-   * @returns void
-   */
-  aJSTerm.sandbox.inspect = function JSTH_inspect(aObject)
-  {
-    aJSTerm.openPropertyPanel(null, unwrap(aObject));
-  };
-
-  /**
-   * Prints aObject to the output.
-   *
-   * @param object aObject
-   *        Object to print to the output.
-   * @returns void
-   */
-  aJSTerm.sandbox.pprint = function JSTH_pprint(aObject)
-  {
-    if (aObject === null || aObject === undefined || aObject === true || aObject === false) {
-      aJSTerm.console.error(HUDService.getStr("helperFuncUnsupportedTypeError"));
-      return;
-    }
-    let output = [];
-    let pairs = namesAndValuesOf(unwrap(aObject));
-
-    pairs.forEach(function(pair) {
-      output.push("  " + pair.display);
-    });
-
-    aJSTerm.writeOutput(output.join("\n"));
-  };
-}
-
-/**
  * JSTerm
  *
  * JavaScript Terminal: creates input nodes for console code interpretation
@@ -3892,18 +2323,18 @@ function JSTermHelper(aJSTerm)
  */
 
 /**
- * Create a JSTerminal or attach a JSTerm input node to an existing output node,
- * given by the parent node.
+ * Create a JSTerminal or attach a JSTerm input node to an existing output node
+ *
+ *
  *
  * @param object aContext
  *        Usually nsIDOMWindow, but doesn't have to be
- * @param nsIDOMNode aParentNode where to attach the JSTerm
+ * @param nsIDOMNode aParentNode
  * @param object aMixin
  *        Gecko-app (or Jetpack) specific utility object
- * @param object aConsole
- *        Console object to use within the JSTerm.
+ * @returns void
  */
-function JSTerm(aContext, aParentNode, aMixin, aConsole)
+function JSTerm(aContext, aParentNode, aMixin)
 {
   // set the context, attach the UI by appending to aParentNode
 
@@ -3911,7 +2342,9 @@ function JSTerm(aContext, aParentNode, aMixin, aConsole)
   this.context = aContext;
   this.parentNode = aParentNode;
   this.mixins = aMixin;
-  this.console = aConsole;
+
+  this.elementFactory =
+    NodeFactory("html", "html", aParentNode.ownerDocument);
 
   this.xulElementFactory =
     NodeFactory("xul", "xul", aParentNode.ownerDocument);
@@ -3938,10 +2371,9 @@ JSTerm.prototype = {
   {
     this.createSandbox();
     this.inputNode = this.mixins.inputNode;
-    let eventHandlerKeyDown = this.keyDown();
-    this.inputNode.addEventListener('keypress', eventHandlerKeyDown, false);
-    let eventHandlerInput = this.inputEventHandler();
-    this.inputNode.addEventListener('input', eventHandlerInput, false);
+    this.scrollToNode = this.mixins.scrollToNode;
+    let eventHandler = this.keyDown();
+    this.inputNode.addEventListener('keypress', eventHandler, false);
     this.outputNode = this.mixins.outputNode;
     if (this.mixins.cssClassOverride) {
       this.cssClassOverride = this.mixins.cssClassOverride;
@@ -3968,10 +2400,12 @@ JSTerm.prototype = {
   createSandbox: function JST_setupSandbox()
   {
     // create a JS Sandbox out of this.context
-    this.sandbox = new Cu.Sandbox(this._window,
-      { sandboxPrototype: this._window, wantXrays: false });
+    this._window.wrappedJSObject.jsterm = {};
+    this.console = this._window.wrappedJSObject.console;
+    this.sandbox = new Cu.Sandbox(this._window);
+    this.sandbox.window = this._window;
     this.sandbox.console = this.console;
-    JSTermHelper(this);
+    this.sandbox.__proto__ = this._window.wrappedJSObject;
   },
 
   get _window()
@@ -3979,41 +2413,24 @@ JSTerm.prototype = {
     return this.context.get().QueryInterface(Ci.nsIDOMWindowInternal);
   },
 
-  /**
-   * Evaluates a string in the sandbox. The string is currently wrapped by a
-   * with(window) { aString } construct, see bug 574033.
-   *
-   * @param string aString
-   *        String to evaluate in the sandbox.
-   * @returns something
-   *          The result of the evaluation.
-   */
-  evalInSandbox: function JST_evalInSandbox(aString)
-  {
-    // The help function needs to be easy to guess, so we make the () optional
-    if (aString.trim() === "help" || aString.trim() === "?") {
-      aString = "help()";
-    }
-    return Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
-  },
-
-
   execute: function JST_execute(aExecuteString)
   {
     // attempt to execute the content of the inputNode
-    aExecuteString = aExecuteString || this.inputNode.value;
-    if (!aExecuteString) {
-      this.writeOutput("no value to execute");
+    var str = aExecuteString || this.inputNode.value;
+    if (!str) {
+      this.console.log("no value to execute");
       return;
     }
 
-    this.writeOutput(aExecuteString, true);
+    this.writeOutput(str, true);
 
     try {
-      var result = this.evalInSandbox(aExecuteString);
+      var execStr = "with(window) {" + str + "}";
+      var result =
+        Cu.evalInSandbox(execStr,  this.sandbox, "default", "HUD Console", 1);
 
-      if (result || result === false) {
-        this.writeOutputJS(aExecuteString, result);
+      if (result || result === false || result === " ") {
+        this.writeOutput(result, false);
       }
       else if (result === undefined) {
         this.writeOutput("undefined", false);
@@ -4023,135 +2440,15 @@ JSTerm.prototype = {
       }
     }
     catch (ex) {
-      this.writeOutput(ex);
+      if (ex) {
+        this.console.error(ex);
+      }
     }
 
-    this.history.push(aExecuteString);
+    this.history.push(str);
     this.historyIndex++;
     this.historyPlaceHolder = this.history.length;
-    this.setInputValue("");
-  },
-
-  /**
-   * Opens a new PropertyPanel. The panel has two buttons: "Update" reexecutes
-   * the passed aEvalString and places the result inside of the tree. The other
-   * button closes the panel.
-   *
-   * @param string aEvalString
-   *        String that was used to eval the aOutputObject. Used as title
-   *        and to update the tree content.
-   * @param object aOutputObject
-   *        Object to display/inspect inside of the tree.
-   * @param nsIDOMNode aAnchor
-   *        A node to popup the panel next to (using "after_pointer").
-   * @returns object the created and opened propertyPanel.
-   */
-  openPropertyPanel: function JST_openPropertyPanel(aEvalString, aOutputObject,
-                                                    aAnchor)
-  {
-    let self = this;
-    let propPanel;
-    // The property panel has two buttons:
-    // 1. `Update`: reexecutes the string executed on the command line. The
-    //    result will be inspected by this panel.
-    // 2. `Close`: destroys the panel.
-    let buttons = [];
-
-    // If there is a evalString passed to this function, then add a `Update`
-    // button to the panel so that the evalString can be reexecuted to update
-    // the content of the panel.
-    if (aEvalString !== null) {
-      buttons.push({
-        label: HUDService.getStr("update.button"),
-        accesskey: HUDService.getStr("update.accesskey"),
-        oncommand: function () {
-          try {
-            var result = self.evalInSandbox(aEvalString);
-
-            if (result !== undefined) {
-              // TODO: This updates the value of the tree.
-              // However, the states of opened nodes is not saved.
-              // See bug 586246.
-              propPanel.treeView.data = result;
-            }
-          }
-          catch (ex) {
-            self.console.error(ex);
-          }
-        }
-      });
-    }
-
-    buttons.push({
-      label: HUDService.getStr("close.button"),
-      accesskey: HUDService.getStr("close.accesskey"),
-      class: "jsPropertyPanelCloseButton",
-      oncommand: function () {
-        propPanel.destroy();
-        aAnchor._panelOpen = false;
-      }
-    });
-
-    let doc = self.parentNode.ownerDocument;
-    let parent = doc.getElementById("mainPopupSet");
-    let title = (aEvalString
-        ? HUDService.getFormatStr("jsPropertyInspectTitle", [aEvalString])
-        : HUDService.getStr("jsPropertyTitle"));
-    propPanel = new PropertyPanel(parent, doc, title, aOutputObject, buttons);
-
-    let panel = propPanel.panel;
-    panel.openPopup(aAnchor, "after_pointer", 0, 0, false, false);
-    panel.sizeTo(200, 400);
-    return propPanel;
-  },
-
-  /**
-   * Writes a JS object to the JSTerm outputNode. If the user clicks on the
-   * written object, openPropertyPanel is called to open up a panel to inspect
-   * the object.
-   *
-   * @param string aEvalString
-   *        String that was evaluated to get the aOutputObject.
-   * @param object aOutputObject
-   *        Object to be written to the outputNode.
-   */
-  writeOutputJS: function JST_writeOutputJS(aEvalString, aOutputObject)
-  {
-    let lastGroupNode = HUDService.appendGroupIfNecessary(this.outputNode,
-                                                      Date.now());
-
-    var self = this;
-    var node = this.xulElementFactory("label");
-    node.setAttribute("class", "jsterm-output-line hud-clickable");
-    node.setAttribute("aria-haspopup", "true");
-    node.setAttribute("crop", "end");
-
-    node.addEventListener("mousedown", function(aEvent) {
-      this._startX = aEvent.clientX;
-      this._startY = aEvent.clientY;
-    }, false);
-
-    node.addEventListener("click", function(aEvent) {
-      if (aEvent.detail != 1 || aEvent.button != 0 ||
-          (this._startX != aEvent.clientX &&
-           this._startY != aEvent.clientY)) {
-        return;
-      }
-
-      if (!this._panelOpen) {
-        self.openPropertyPanel(aEvalString, aOutputObject, this);
-        this._panelOpen = true;
-      }
-    }, false);
-
-    // TODO: format the aOutputObject and don't just use the
-    // aOuputObject.toString() function: [object object] -> Object {prop, ...}
-    // See bug 586249.
-    let textNode = this.textFactory(aOutputObject + "\n");
-    node.appendChild(textNode);
-
-    lastGroupNode.appendChild(node);
-    pruneConsoleOutputIfNecessary(this.outputNode);
+    this.inputNode.value = "";
   },
 
   /**
@@ -4167,10 +2464,7 @@ JSTerm.prototype = {
    */
   writeOutput: function JST_writeOutput(aOutputMessage, aIsInput)
   {
-    let lastGroupNode = HUDService.appendGroupIfNecessary(this.outputNode,
-                                                          Date.now());
-
-    var node = this.xulElementFactory("label");
+    var node = this.elementFactory("div");
     if (aIsInput) {
       node.setAttribute("class", "jsterm-input-line");
       aOutputMessage = "> " + aOutputMessage;
@@ -4186,10 +2480,10 @@ JSTerm.prototype = {
       }
     }
 
-    var textNode = this.textFactory(aOutputMessage + "\n");
+    var textNode = this.textFactory(aOutputMessage);
     node.appendChild(textNode);
-    lastGroupNode.appendChild(node);
-    pruneConsoleOutputIfNecessary(this.outputNode);
+    this.outputNode.appendChild(node);
+    node.scrollIntoView(false);
   },
 
   clearOutput: function JST_clearOutput()
@@ -4199,56 +2493,6 @@ JSTerm.prototype = {
     while (outputNode.firstChild) {
       outputNode.removeChild(outputNode.firstChild);
     }
-
-    let hudBox = outputNode;
-    while (!hudBox.classList.contains("hud-box")) {
-      hudBox = hudBox.parentNode;
-    }
-    hudBox.lastTimestamp = 0;
-  },
-
-  /**
-   * Updates the size of the input field (command line) to fit its contents.
-   *
-   * @returns void
-   */
-  resizeInput: function JST_resizeInput()
-  {
-    let inputNode = this.inputNode;
-
-    // Reset the height so that scrollHeight will reflect the natural height of
-    // the contents of the input field.
-    inputNode.style.height = "auto";
-
-    // Now resize the input field to fit its contents.
-    let scrollHeight = inputNode.inputField.scrollHeight;
-    if (scrollHeight > 0) {
-      inputNode.style.height = scrollHeight + "px";
-    }
-  },
-
-  /**
-   * Sets the value of the input field (command line), and resizes the field to
-   * fit its contents. This method is preferred over setting "inputNode.value"
-   * directly, because it correctly resizes the field.
-   *
-   * @param string aNewValue
-   *        The new value to set.
-   * @returns void
-   */
-  setInputValue: function JST_setInputValue(aNewValue)
-  {
-    this.inputNode.value = aNewValue;
-    this.resizeInput();
-  },
-
-  inputEventHandler: function JSTF_inputEventHandler()
-  {
-    var self = this;
-    function handleInputEvent(aEvent) {
-      self.resizeInput();
-    }
-    return handleInputEvent;
   },
 
   keyDown: function JSTF_keyDown(aEvent)
@@ -4266,16 +2510,17 @@ JSTerm.prototype = {
             // control-a
             tmp = self.codeInputString;
             setTimeout(function() {
-              self.setInputValue(tmp);
+              self.inputNode.value = tmp;
               self.inputNode.setSelectionRange(0, 0);
             }, 0);
             break;
           case 101:
             // control-e
             tmp = self.codeInputString;
-            self.setInputValue("");
+            self.inputNode.value = "";
             setTimeout(function(){
-              self.setInputValue(tmp);
+              var endPos = tmp.length + 1;
+              self.inputNode.value = tmp;
             }, 0);
             break;
           default:
@@ -4293,23 +2538,23 @@ JSTerm.prototype = {
           case 13:
             // return
             self.execute();
-            aEvent.preventDefault();
             break;
           case 38:
             // up arrow: history previous
-            if (self.caretAtStartOfInput()) {
-              let updated = self.historyPeruse(HISTORY_BACK);
-              if (updated && aEvent.cancelable) {
-                self.inputNode.setSelectionRange(0, 0);
+            if (self.caretInFirstLine()){
+              self.historyPeruse(true);
+              if (aEvent.cancelable) {
+                let inputEnd = self.inputNode.value.length;
+                self.inputNode.setSelectionRange(inputEnd, inputEnd);
                 aEvent.preventDefault();
               }
             }
             break;
           case 40:
             // down arrow: history next
-            if (self.caretAtEndOfInput()) {
-              let updated = self.historyPeruse(HISTORY_FORWARD);
-              if (updated && aEvent.cancelable) {
+            if (self.caretInLastLine()){
+              self.historyPeruse(false);
+              if (aEvent.cancelable) {
                 let inputEnd = self.inputNode.value.length;
                 self.inputNode.setSelectionRange(inputEnd, inputEnd);
                 aEvent.preventDefault();
@@ -4321,19 +2566,20 @@ JSTerm.prototype = {
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
-            var completionResult;
             if (aEvent.shiftKey) {
-              completionResult = self.complete(self.COMPLETE_BACKWARD);
+              self.complete(self.COMPLETE_BACKWARD);
             }
             else {
-              completionResult = self.complete(self.COMPLETE_FORWARD);
+              self.complete(self.COMPLETE_FORWARD);
             }
-            if (completionResult) {
-              if (aEvent.cancelable) {
+            var bool = aEvent.cancelable;
+            if (bool) {
               aEvent.preventDefault();
             }
-            aEvent.target.focus();
+            else {
+              // noop
             }
+            aEvent.target.focus();
             break;
           case 8:
             // backspace key
@@ -4361,53 +2607,39 @@ JSTerm.prototype = {
     return handleKeyDown;
   },
 
-  /**
-   * Go up/down the history stack of input values.
-   *
-   * @param number aDirection
-   *        History navigation direction: HISTORY_BACK or HISTORY_FORWARD.
-   *
-   * @returns boolean
-   *          True if the input value changed, false otherwise.
-   */
-  historyPeruse: function JST_historyPeruse(aDirection)
-  {
+  historyPeruse: function JST_historyPeruse(aFlag) {
     if (!this.history.length) {
-      return false;
+      return;
     }
 
     // Up Arrow key
-    if (aDirection == HISTORY_BACK) {
+    if (aFlag) {
       if (this.historyPlaceHolder <= 0) {
-        return false;
+        return;
       }
 
       let inputVal = this.history[--this.historyPlaceHolder];
       if (inputVal){
-        this.setInputValue(inputVal);
+        this.inputNode.value = inputVal;
       }
     }
     // Down Arrow key
-    else if (aDirection == HISTORY_FORWARD) {
+    else {
       if (this.historyPlaceHolder == this.history.length - 1) {
         this.historyPlaceHolder ++;
-        this.setInputValue("");
+        this.inputNode.value = "";
+        return;
       }
       else if (this.historyPlaceHolder >= (this.history.length)) {
-        return false;
+        return;
       }
       else {
         let inputVal = this.history[++this.historyPlaceHolder];
         if (inputVal){
-          this.setInputValue(inputVal);
+          this.inputNode.value = inputVal;
         }
       }
     }
-    else {
-      throw new Error("Invalid argument 0");
-    }
-
-    return true;
   },
 
   refocus: function JSTF_refocus()
@@ -4416,28 +2648,17 @@ JSTerm.prototype = {
     this.inputNode.focus();
   },
 
-  /**
-   * Check if the caret is at the start of the input.
-   *
-   * @returns boolean
-   *          True if the caret is at the start of the input.
-   */
-  caretAtStartOfInput: function JST_caretAtStartOfInput()
+  caretInFirstLine: function JSTF_caretInFirstLine()
   {
-    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
-        this.inputNode.selectionStart == 0;
+    var firstLineBreak = this.codeInputString.indexOf("\n");
+    return ((firstLineBreak == -1) ||
+            (this.codeInputString.selectionStart <= firstLineBreak));
   },
 
-  /**
-   * Check if the caret is at the end of the input.
-   *
-   * @returns boolean
-   *          True if the caret is at the end of the input, or false otherwise.
-   */
-  caretAtEndOfInput: function JST_caretAtEndOfInput()
+  caretInLastLine: function JSTF_caretInLastLine()
   {
-    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
-        this.inputNode.selectionStart == this.inputNode.value.length;
+    var lastLineBreak = this.codeInputString.lastIndexOf("\n");
+    return (this.inputNode.selectionEnd > lastLineBreak);
   },
 
   history: [],
@@ -4469,17 +2690,12 @@ JSTerm.prototype = {
    *          the inputNode.value is set to this value and the selection is set
    *          from the current cursor position to the end of the completed text.
    *
-   * @returns boolean true if there existed a completion for the current input,
-   *          or false otherwise.
+   * @returns void
    */
   complete: function JSTF_complete(type)
   {
     let inputNode = this.inputNode;
     let inputValue = inputNode.value;
-    // If the inputNode has no value, then don't try to complete on it.
-    if (!inputValue) {
-      return false;
-    }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
     // 'Normalize' the selection so that end is always after start.
@@ -4492,7 +2708,7 @@ JSTerm.prototype = {
     // Only complete if the selection is at the end of the input.
     if (selEnd != inputValue.length) {
       this.lastCompletion = null;
-      return false;
+      return;
     }
 
     // Remove the selected text from the inputValue.
@@ -4520,11 +2736,11 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
-        return false;
+        return;
       }
       matches = completion.matches;
       matchIndexToUse = 0;
-      matchOffset = completion.matchProp.length;
+      matchOffset = completion.matchProp.length
       // Store this match;
       this.lastCompletion = {
         index: 0,
@@ -4547,7 +2763,7 @@ JSTerm.prototype = {
       }
 
       completionStr = matches[matchIndexToUse].substring(matchOffset);
-      this.setInputValue(inputValue + completionStr);
+      this.inputNode.value = inputValue +  completionStr;
 
       selEnd = inputValue.length + completionStr.length;
 
@@ -4560,11 +2776,7 @@ JSTerm.prototype = {
       else {
         inputNode.setSelectionRange(selEnd, selEnd);
       }
-
-      return completionStr ? true : false;
     }
-
-    return false;
   }
 };
 
@@ -4590,6 +2802,9 @@ JSTermFirefoxMixin(aContext,
   this.setTimeout = aParentNode.ownerDocument.defaultView.setTimeout;
 
   if (aParentNode.ownerDocument) {
+    this.elementFactory =
+      NodeFactory("html", "html", aParentNode.ownerDocument);
+
     this.xulElementFactory =
       NodeFactory("xul", "xul", aParentNode.ownerDocument);
 
@@ -4611,37 +2826,34 @@ JSTermFirefoxMixin.prototype = {
    */
   generateUI: function JSTF_generateUI()
   {
-    let inputContainer = this.xulElementFactory("hbox");
-    inputContainer.setAttribute("class", "jsterm-input-container");
-    inputContainer.setAttribute("style", "direction: ltr;");
-
     let inputNode = this.xulElementFactory("textbox");
     inputNode.setAttribute("class", "jsterm-input-node");
-    inputNode.setAttribute("flex", "1");
-    inputNode.setAttribute("multiline", "true");
-    inputNode.setAttribute("rows", "1");
-    inputContainer.appendChild(inputNode);
 
     if (this.existingConsoleNode == undefined) {
       // create elements
-      let term = this.xulElementFactory("vbox");
+      let term = this.elementFactory("div");
       term.setAttribute("class", "jsterm-wrapper-node");
       term.setAttribute("flex", "1");
 
-      let outputNode = this.xulElementFactory("vbox");
+      let outputNode = this.elementFactory("div");
       outputNode.setAttribute("class", "jsterm-output-node");
 
+      let scrollToNode = this.elementFactory("div");
+      scrollToNode.setAttribute("class", "jsterm-scroll-to-node");
+
       // construction
+      outputNode.appendChild(scrollToNode);
       term.appendChild(outputNode);
       term.appendChild(inputNode);
 
+      this.scrollToNode = scrollToNode;
       this.outputNode = outputNode;
       this.inputNode = inputNode;
       this.term = term;
     }
     else {
       this.inputNode = inputNode;
-      this.term = inputContainer;
+      this.term = inputNode;
       this.outputNode = this.existingConsoleNode;
     }
   },
@@ -4679,6 +2891,9 @@ function LogMessage(aMessage, aLevel, aOutputNode, aActivityObject)
   this.level = aLevel;
   this.origin = aMessage.origin;
 
+  this.elementFactory =
+  NodeFactory("html", "html", aOutputNode.ownerDocument);
+
   this.xulElementFactory =
   NodeFactory("xul", "xul", aOutputNode.ownerDocument);
 
@@ -4696,22 +2911,17 @@ LogMessage.prototype = {
    */
   createLogNode: function LM_createLogNode()
   {
-    this.messageNode = this.xulElementFactory("label");
+    this.messageNode = this.elementFactory("div");
 
     var ts = ConsoleUtils.timestamp();
-    this.timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
+    var timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
       this.message.message;
-    var messageTxtNode = this.textFactory(this.timestampedMessage + "\n");
+    var messageTxtNode = this.textFactory(timestampedMessage);
 
     this.messageNode.appendChild(messageTxtNode);
 
-    this.messageNode.classList.add("hud-msg-node");
-    this.messageNode.classList.add("hud-" + this.level);
-
-
-    if (this.activityObject.category == "CSS Parser") {
-      this.messageNode.classList.add("hud-cssparser");
-    }
+    var klass = "hud-msg-node hud-" + this.level;
+    this.messageNode.setAttribute("class", klass);
 
     var self = this;
 
@@ -4809,111 +3019,80 @@ ConsoleUtils = {
   /**
    * Generates a formatted timestamp string for displaying in console messages.
    *
-   * @param integer [ms] Optional, allows you to specify the timestamp in
+   * @param integer [ms] Optional, allows you to specify the timestamp in 
    * milliseconds since the UNIX epoch.
    * @returns string The timestamp formatted for display.
    */
   timestampString: function ConsoleUtils_timestampString(ms)
   {
+    // TODO: L10N see bug 568656
     var d = new Date(ms ? ms : null);
-    let hours = d.getHours(), minutes = d.getMinutes();
-    let seconds = d.getSeconds(), milliseconds = d.getMilliseconds();
-    let parameters = [ hours, minutes, seconds, milliseconds ];
-    return HUDService.getFormatStr("timestampFormat", parameters);
-  },
 
-  /**
-   * Scrolls a node so that it's visible in its containing XUL "scrollbox"
-   * element.
-   *
-   * @param nsIDOMNode aNode
-   *        The node to make visible.
-   * @returns void
-   */
-  scrollToVisible: function ConsoleUtils_scrollToVisible(aNode) {
-    let scrollBoxNode = aNode.parentNode;
-    while (scrollBoxNode.tagName !== "scrollbox") {
-      scrollBoxNode = scrollBoxNode.parentNode;
-    }
-
-    let boxObject = scrollBoxNode.boxObject;
-    let nsIScrollBoxObject = boxObject.QueryInterface(Ci.nsIScrollBoxObject);
-    nsIScrollBoxObject.ensureElementIsVisible(aNode);
-  },
-
-  /**
-   * Given an instance of nsIScriptError, attempts to work out the IDs of HUDs
-   * to which the script should be sent.
-   *
-   * @param nsIScriptError aScriptError
-   *        The script error that was received.
-   * @returns Array<string>
-   */
-  getHUDIdsForScriptError:
-  function ConsoleUtils_getHUDIdsForScriptError(aScriptError) {
-    if (aScriptError instanceof Ci.nsIScriptError2) {
-      let windowID = aScriptError.outerWindowID;
-      if (windowID) {
-        // We just need some arbitrary window here so that we can GI to
-        // nsIDOMWindowUtils...
-        let someWindow = Services.wm.getMostRecentWindow(null);
-        if (someWindow) {
-          let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                      .getInterface(Ci.nsIDOMWindowUtils);
-
-          // In the future (post-Electrolysis), getOuterWindowWithId() could
-          // return null, because the originating window could have gone away
-          // while we were in the process of receiving and/or processing a
-          // message. For future-proofing purposes, we do a null check here.
-          let content = windowUtils.getOuterWindowWithId(windowID);
-          if (content) {
-            let hudId = HUDService.getHudIdByWindow(content);
-            if (hudId) {
-              return [ hudId ];
-            }
-          }
-        }
+    function pad(n, mil)
+    {
+      if (mil) {
+        return n < 100 ? "0" + n : n;
+      }
+      else {
+        return n < 10 ? "0" + n : n;
       }
     }
 
-    // The error had no window ID. As a less precise fallback, see whether we
-    // can find some consoles to send to via the URI.
-    let hudIds = HUDService.uriRegistry[aScriptError.sourceName];
-    return hudIds ? hudIds : [];
+    return pad(d.getHours()) + ":"
+      + pad(d.getMinutes()) + ":"
+      + pad(d.getSeconds()) + ":"
+      + pad(d.getMilliseconds(), true);
   },
 
   /**
-   * Returns the chrome window, the tab browser, and the browser that
-   * contain the given content window.
+   * Hides a log message by changing its class
    *
-   * NB: This function only works in Firefox.
-   *
-   * @param nsIDOMWindow aContentWindow
-   *        The content window to query. If this parameter is not a content
-   *        window, then [ null, null, null ] will be returned.
+   * @param nsIDOMNode aMessageNode
+   * @returns nsIDOMNode
    */
-  getParents: function ConsoleUtils_getParents(aContentWindow) {
-    let chromeEventHandler =
-      aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIWebNavigation)
-                    .QueryInterface(Ci.nsIDocShell)
-                    .chromeEventHandler;
-    if (!chromeEventHandler) {
-      return [ null, null, null ];
-    }
-
-    let chromeWindow = chromeEventHandler.ownerDocument.defaultView;
-    let gBrowser = XPCNativeWrapper.unwrap(chromeWindow).gBrowser;
-    let documentElement = chromeWindow.document.documentElement;
-    if (!documentElement || !gBrowser ||
-        documentElement.getAttribute("windowtype") !== "navigator:browser") {
-      // Not a browser window.
-      return [ chromeWindow, null, null ];
-    }
-
-    return [ chromeWindow, gBrowser, chromeEventHandler ];
+  hideLogMessage: function ConsoleUtils_hideLogMessage(aMessageNode) {
+    var klass = aMessageNode.getAttribute("class");
+    klass += " hud-hidden";
+    aMessageNode.setAttribute("class", klass);
+    return aMessageNode;
   }
 };
+
+/**
+ * Creates a DOM Node factory for either XUL nodes or HTML nodes - as
+ * well as textNodes
+ * @param   aFactoryType
+ *          "xul", "html" or "text"
+ * @returns DOM Node Factory function
+ */
+function NodeFactory(aFactoryType, aNameSpace, aDocument)
+{
+  // aDocument is presumed to be a XULDocument
+  const ELEMENT_NS_URI = "http://www.w3.org/1999/xhtml";
+
+  if (aFactoryType == "text") {
+    function factory(aText) {
+      return aDocument.createTextNode(aText);
+    }
+    return factory;
+  }
+  else {
+    if (aNameSpace == "xul") {
+      function factory(aTag) {
+        return aDocument.createElement(aTag);
+      }
+      return factory;
+    }
+    else {
+      function factory(aTag) {
+        var tag = "html:" + aTag;
+        return aDocument.createElementNS(ELEMENT_NS_URI, tag);
+      }
+      return factory;
+    }
+  }
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 // HeadsUpDisplayUICommands
@@ -4926,116 +3105,34 @@ HeadsUpDisplayUICommands = {
     var linkedBrowser = gBrowser.selectedTab.linkedBrowser;
     var tabId = gBrowser.getNotificationBox(linkedBrowser).getAttribute("id");
     var hudId = "hud_" + tabId;
-    var ownerDocument = gBrowser.selectedTab.ownerDocument;
-    var hud = ownerDocument.getElementById(hudId);
+    var hud = gBrowser.selectedTab.ownerDocument.getElementById(hudId);
     if (hud) {
-      HUDService.storeHeight(hudId);
-
-      HUDService.animate(hudId, ANIMATE_OUT, function() {
-        // If the user closes the console while the console is animating away,
-        // then these callbacks will queue up, but all the callbacks after the
-        // first will have no console to operate on. This test handles this
-        // case gracefully.
-        if (ownerDocument.getElementById(hudId)) {
-          HUDService.deactivateHUDForContext(gBrowser.selectedTab, true);
-        }
-      });
+      HUDService.deactivateHUDForContext(gBrowser.selectedTab);
     }
     else {
-      HUDService.activateHUDForContext(gBrowser.selectedTab, true);
-      HUDService.animate(hudId, ANIMATE_IN);
+      HUDService.activateHUDForContext(gBrowser.selectedTab);
     }
   },
 
-  /**
-   * The event handler that is called whenever a user switches a filter on or
-   * off.
-   *
-   * @param nsIDOMEvent aEvent
-   *        The event that triggered the filter change.
-   * @return boolean
-   */
-  toggleFilter: function UIC_toggleFilter(aEvent) {
-    let hudId = this.getAttribute("hudId");
-    switch (this.tagName) {
-      case "toolbarbutton": {
-        let originalTarget = aEvent.originalTarget;
-        let classes = originalTarget.classList;
-
-        if (originalTarget.localName !== "toolbarbutton") {
-          // Oddly enough, the click event is sent to the menu button when
-          // selecting a menu item with the mouse. Detect this case and bail
-          // out.
-          break;
-        }
-
-        if (!classes.contains("toolbarbutton-menubutton-button") &&
-            originalTarget.getAttribute("type") === "menu-button") {
-          // This is a filter button with a drop-down. The user clicked the
-          // drop-down, so do nothing. (The menu will automatically appear
-          // without our intervention.)
-          break;
-        }
-
-        let state = this.getAttribute("checked") !== "true";
-        this.setAttribute("checked", state);
-
-        // This is a filter button with a drop-down, and the user clicked the
-        // main part of the button. Go through all the severities and toggle
-        // their associated filters.
-        let menuItems = this.querySelectorAll("menuitem");
-        for (let i = 0; i < menuItems.length; i++) {
-          menuItems[i].setAttribute("checked", state);
-          let prefKey = menuItems[i].getAttribute("prefKey");
-          HUDService.setFilterState(hudId, prefKey, state);
-        }
-        break;
-      }
-
-      case "menuitem": {
-        let state = this.getAttribute("checked") !== "true";
-        this.setAttribute("checked", state);
-
-        let prefKey = this.getAttribute("prefKey");
-        HUDService.setFilterState(hudId, prefKey, state);
-
-        // Adjust the state of the button appropriately.
-        let menuPopup = this.parentNode;
-
-        let allChecked = true;
-        let menuItem = menuPopup.firstChild;
-        while (menuItem) {
-          if (menuItem.getAttribute("checked") !== "true") {
-            allChecked = false;
-            break;
-          }
-          menuItem = menuItem.nextSibling;
-        }
-
-        let toolbarButton = menuPopup.parentNode;
-        toolbarButton.setAttribute("checked", allChecked);
-        break;
-      }
+  toggleFilter: function UIC_toggleFilter(aButton) {
+    var filter = aButton.getAttribute("buttonType");
+    var hudId = aButton.getAttribute("hudId");
+    var state = HUDService.getFilterState(hudId, filter);
+    if (state) {
+      HUDService.setFilterState(hudId, filter, false);
+      aButton.setAttribute("checked", false);
     }
-
-    return true;
+    else {
+      HUDService.setFilterState(hudId, filter, true);
+      aButton.setAttribute("checked", true);
+    }
   },
 
   command: function UIC_command(aButton) {
     var filter = aButton.getAttribute("buttonType");
     var hudId = aButton.getAttribute("hudId");
-    switch (filter) {
-      case "selectAll":
-        let outputNode = HUDService.getOutputNodeById(hudId);
-        let chromeWindow = outputNode.ownerDocument.defaultView;
-        let commandController = chromeWindow.commandController;
-        commandController.selectAll(outputNode);
-        break;
-      case "saveBodies": {
-        let checked = aButton.getAttribute("checked") === "true";
-        HUDService.saveRequestAndResponseBodies = checked;
-        break;
-      }
+    if (filter == "clear") {
+      HUDService.clearDisplay(hudId);
     }
   },
 
@@ -5051,11 +3148,8 @@ const GLOBAL_STORAGE_INDEX_ID = "GLOBAL_CONSOLE";
 const PREFS_BRANCH_PREF = "devtools.hud.display.filter";
 const PREFS_PREFIX = "devtools.hud.display.filter.";
 const PREFS = { network: PREFS_PREFIX + "network",
-                networkinfo: PREFS_PREFIX + "networkinfo",
-                csserror: PREFS_PREFIX + "csserror",
                 cssparser: PREFS_PREFIX + "cssparser",
                 exception: PREFS_PREFIX + "exception",
-                jswarn: PREFS_PREFIX + "jswarn",
                 error: PREFS_PREFIX + "error",
                 info: PREFS_PREFIX + "info",
                 warn: PREFS_PREFIX + "warn",
@@ -5096,11 +3190,8 @@ function ConsoleStorage()
   if (filterPrefs) {
     defaultDisplayPrefs = {
       network: (prefs.getBoolPref(PREFS.network) ? true: false),
-      networkinfo: (prefs.getBoolPref(PREFS.networkinfo) ? true: false),
-      csserror: (prefs.getBoolPref(PREFS.csserror) ? true: false),
       cssparser: (prefs.getBoolPref(PREFS.cssparser) ? true: false),
       exception: (prefs.getBoolPref(PREFS.exception) ? true: false),
-      jswarn: (prefs.getBoolPref(PREFS.jswarn) ? true: false),
       error: (prefs.getBoolPref(PREFS.error) ? true: false),
       info: (prefs.getBoolPref(PREFS.info) ? true: false),
       warn: (prefs.getBoolPref(PREFS.warn) ? true: false),
@@ -5112,11 +3203,8 @@ function ConsoleStorage()
     prefs.setBoolPref(PREFS_BRANCH_PREF, false);
     // default prefs for each HeadsUpDisplay
     prefs.setBoolPref(PREFS.network, true);
-    prefs.setBoolPref(PREFS.networkinfo, true);
-    prefs.setBoolPref(PREFS.csserror, true);
     prefs.setBoolPref(PREFS.cssparser, true);
     prefs.setBoolPref(PREFS.exception, true);
-    prefs.setBoolPref(PREFS.jswarn, true);
     prefs.setBoolPref(PREFS.error, true);
     prefs.setBoolPref(PREFS.info, true);
     prefs.setBoolPref(PREFS.warn, true);
@@ -5125,11 +3213,8 @@ function ConsoleStorage()
 
     defaultDisplayPrefs = {
       network: prefs.getBoolPref(PREFS.network),
-      networkinfo: prefs.getBoolPref(PREFS.networkinfo),
-      csserror: prefs.getBoolPref(PREFS.csserror),
       cssparser: prefs.getBoolPref(PREFS.cssparser),
       exception: prefs.getBoolPref(PREFS.exception),
-      jswarn: prefs.getBoolPref(PREFS.jswarn),
       error: prefs.getBoolPref(PREFS.error),
       info: prefs.getBoolPref(PREFS.info),
       warn: prefs.getBoolPref(PREFS.warn),
@@ -5145,12 +3230,8 @@ ConsoleStorage.prototype = {
   updateDefaultDisplayPrefs:
   function CS_updateDefaultDisplayPrefs(aPrefsObject) {
     prefs.setBoolPref(PREFS.network, (aPrefsObject.network ? true : false));
-    prefs.setBoolPref(PREFS.networkinfo,
-                      (aPrefsObject.networkinfo ? true : false));
-    prefs.setBoolPref(PREFS.csserror, (aPrefsObject.csserror ? true : false));
     prefs.setBoolPref(PREFS.cssparser, (aPrefsObject.cssparser ? true : false));
     prefs.setBoolPref(PREFS.exception, (aPrefsObject.exception ? true : false));
-    prefs.setBoolPref(PREFS.jswarn, (aPrefsObject.jswarn ? true : false));
     prefs.setBoolPref(PREFS.error, (aPrefsObject.error ? true : false));
     prefs.setBoolPref(PREFS.info, (aPrefsObject.info ? true : false));
     prefs.setBoolPref(PREFS.warn, (aPrefsObject.warn ? true : false));
@@ -5346,70 +3427,13 @@ HUDWindowObserver = {
   {
     Services.obs.removeObserver(this, "content-document-global-created");
     HUDService.shutdown();
-    this.initialConsoleCreated = false;
-  },
-
-};
-
-///////////////////////////////////////////////////////////////////////////////
-// CommandController
-///////////////////////////////////////////////////////////////////////////////
-
-/**
- * A controller (an instance of nsIController) that makes editing actions
- * behave appropriately in the context of the Web Console.
- */
-function CommandController(aWindow) {
-  this.window = aWindow;
-}
-
-CommandController.prototype = {
-  /**
-   * Returns the HUD output node that currently has the focus, or null if the
-   * currently-focused element isn't inside the output node.
-   *
-   * @returns nsIDOMNode
-   *          The currently-focused output node.
-   */
-  _getFocusedOutputNode: function CommandController_getFocusedOutputNode()
-  {
-    let anchorNode = this.window.getSelection().anchorNode;
-    while (!(anchorNode.nodeType === anchorNode.ELEMENT_NODE &&
-             anchorNode.classList.contains("hud-output-node"))) {
-      anchorNode = anchorNode.parentNode;
-    }
-    return anchorNode;
   },
 
   /**
-   * Selects all the text in the HUD output.
-   *
-   * @param nsIDOMNode aOutputNode
-   *        The HUD output node.
-   * @returns void
+   * once an initial console is created set this to true so we don't
+   * over initialize
    */
-  selectAll: function CommandController_selectAll(aOutputNode)
-  {
-    let selection = this.window.getSelection();
-    selection.removeAllRanges();
-    selection.selectAllChildren(aOutputNode);
-  },
-
-  supportsCommand: function CommandController_supportsCommand(aCommand)
-  {
-    return aCommand === "cmd_selectAll" &&
-           this._getFocusedOutputNode() != null;
-  },
-
-  isCommandEnabled: function CommandController_isCommandEnabled(aCommand)
-  {
-    return aCommand === "cmd_selectAll";
-  },
-
-  doCommand: function CommandController_doCommand(aCommand)
-  {
-    this.selectAll(this._getFocusedOutputNode());
-  }
+  initialConsoleCreated: false,
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5433,42 +3457,29 @@ HUDConsoleObserver = {
     Services.obs.addObserver(this, "xpcom-shutdown", false);
   },
 
-  uninit: function HCO_uninit()
-  {
-    Services.console.unregisterListener(this);
-    Services.obs.removeObserver(this, "xpcom-shutdown");
-  },
-
   observe: function HCO_observe(aSubject, aTopic, aData)
   {
     if (aTopic == "xpcom-shutdown") {
-      this.uninit();
-      return;
+      Services.console.unregisterListener(this);
     }
 
-    if (!(aSubject instanceof Ci.nsIScriptError))
-      return;
-
-    switch (aSubject.category) {
-      // We ignore chrome-originating errors as we only
-      // care about content.
-      case "XPConnect JavaScript":
-      case "component javascript":
-      case "chrome javascript":
-      case "chrome registration":
-      case "XBL":
-      case "XBL Prototype Handler":
-      case "XBL Content Sink":
-      case "xbl javascript":
-      case "FrameConstructor":
-        return;
-
-      default:
-        let hudIds = ConsoleUtils.getHUDIdsForScriptError(aSubject);
-        for (let i = 0; i < hudIds.length; i++) {
-          HUDService.logActivity("console-listener", hudIds[i], aSubject);
-        }
-        return;
+    if (aSubject instanceof Ci.nsIScriptError) {
+      switch (aSubject.category) {
+        case "XPConnect JavaScript":
+        case "component javascript":
+        case "chrome javascript":
+          // we ignore these CHROME-originating errors as we only
+          // care about content
+          return;
+        case "HUDConsole":
+        case "CSS Parser":
+        case "content javascript":
+          HUDService.reportConsoleServiceContentScriptError(aSubject);
+          return;
+        default:
+          HUDService.reportConsoleServiceMessage(aSubject);
+          return;
+      }
     }
   }
 };
@@ -5510,6 +3521,8 @@ try {
   // This is in a try block because we want to kill everything if
   // *any* of this fails
   var HUDService = new HUD_SERVICE();
+  HUDWindowObserver.init();
+  HUDConsoleObserver.init();
 }
 catch (ex) {
   Cu.reportError("HUDService failed initialization.\n" + ex);

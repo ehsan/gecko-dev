@@ -46,22 +46,9 @@
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
 #include "mozilla/unused.h"
-#include "gfxASurface.h"
-#include "gfxContext.h"
-#include "gfxPlatform.h"
-#include "gfxSharedImageSurface.h"
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
-#include "gfxContext.h"
-#include "gfxColor.h"
-#include "gfxUtils.h"
 
 #if defined(OS_WIN)
 #include <windowsx.h>
-#include "mozilla/gfx/SharedDIBSurface.h"
-
-using mozilla::gfx::SharedDIBSurface;
 
 // Plugin focus event for widget.
 extern const PRUnichar* kOOPPPluginFocusEventId;
@@ -172,19 +159,6 @@ PluginInstanceParent::ActorDestroy(ActorDestroyReason why)
         UnsubclassPluginWindow();
     }
 #endif
-    // After this method, the data backing the remote surface may no
-    // longer be calid. The X surface may be destroyed, or the shared
-    // memory backing this surface may no longer be valid. The right
-    // way to inform the nsObjectFrame that the surface is no longer
-    // valid is with an invalidate call.
-    if (mFrontSurface) {
-        mFrontSurface = NULL;
-        const NPRect rect = {0, 0, 0, 0};
-        RecvNPN_InvalidateRect(rect);
-#ifdef MOZ_X11
-        XSync(DefaultXDisplay(), False);
-#endif
-    }
 }
 
 NPError
@@ -486,86 +460,6 @@ PluginInstanceParent::RecvNPN_InvalidateRect(const NPRect& rect)
     return true;
 }
 
-bool
-PluginInstanceParent::RecvShow(const NPRect& updatedRect,
-                               const SurfaceDescriptor& newSurface,
-                               SurfaceDescriptor* prevSurface)
-{
-    nsRefPtr<gfxASurface> surface;
-    if (newSurface.type() == SurfaceDescriptor::TShmem) {
-        if (!newSurface.get_Shmem().IsReadable()) {
-            NS_WARNING("back surface not readable");
-            return false;
-        }
-        surface = new gfxSharedImageSurface(newSurface.get_Shmem());
-    }
-#ifdef MOZ_X11
-    else if (newSurface.type() == SurfaceDescriptor::TSurfaceDescriptorX11) {
-        SurfaceDescriptorX11 xdesc = newSurface.get_SurfaceDescriptorX11();
-        XRenderPictFormat pf;
-        pf.id = xdesc.xrenderPictID();
-        XRenderPictFormat *incFormat =
-            XRenderFindFormat(DefaultXDisplay(), PictFormatID, &pf, 0);
-        surface =
-            new gfxXlibSurface(DefaultScreenOfDisplay(DefaultXDisplay()),
-                               xdesc.XID(), incFormat, xdesc.size());
-    }
-#endif
-#ifdef XP_WIN
-    else if (newSurface.type() == SurfaceDescriptor::TSurfaceDescriptorWin) {
-        SurfaceDescriptorWin windesc = newSurface.get_SurfaceDescriptorWin();
-        SharedDIBSurface* dibsurf = new SharedDIBSurface();
-        if (dibsurf->Attach(windesc.handle(), windesc.size().width, windesc.size().height, windesc.transparent()))
-            surface = dibsurf;
-    }
-#endif
-
-#ifdef MOZ_X11
-    if (mFrontSurface &&
-        mFrontSurface->GetType() == gfxASurface::SurfaceTypeXlib)
-        XSync(DefaultXDisplay(), False);
-#endif
-
-    if (mFrontSurface && gfxSharedImageSurface::IsSharedImage(mFrontSurface))
-        *prevSurface = static_cast<gfxSharedImageSurface*>(mFrontSurface.get())->GetShmem();
-    else
-        *prevSurface = null_t();
-
-    mFrontSurface = surface;
-    RecvNPN_InvalidateRect(updatedRect);
-
-    return true;
-}
-
-nsresult
-PluginInstanceParent::AsyncSetWindow(NPWindow* aWindow)
-{
-    NPRemoteWindow window;
-    mWindowType = aWindow->type;
-    window.window = reinterpret_cast<unsigned long>(aWindow->window);
-    window.x = aWindow->x;
-    window.y = aWindow->y;
-    window.width = aWindow->width;
-    window.height = aWindow->height;
-    window.clipRect = aWindow->clipRect;
-    window.type = aWindow->type;
-    if (!SendAsyncSetWindow(gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType(),
-                            window))
-        return NS_ERROR_FAILURE;
-
-    return NS_OK;
-}
-
-nsresult
-PluginInstanceParent::GetSurface(gfxASurface** aSurface)
-{
-    if (mFrontSurface) {
-      NS_ADDREF(*aSurface = mFrontSurface);
-      return NS_OK;
-    }
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
 NPError
 PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
 {
@@ -744,12 +638,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 
 #if defined(OS_WIN)
     if (mWindowType == NPWindowTypeDrawable) {
-        if (DoublePassRenderingEvent() == npevent->event) {
-            CallPaint(npremoteevent, &handled);
-            return handled;
-        }
-
-        switch (npevent->event) {
+        switch(npevent->event) {
             case WM_PAINT:
             {
                 RECT rect;
@@ -1317,8 +1206,8 @@ PluginInstanceParent::SharedSurfaceSetWindow(const NPWindow* aWindow,
                                              NPRemoteWindow& aRemoteWindow)
 {
     aRemoteWindow.window = nsnull;
-    aRemoteWindow.x      = aWindow->x;
-    aRemoteWindow.y      = aWindow->y;
+    aRemoteWindow.x      = 0;
+    aRemoteWindow.y      = 0;
     aRemoteWindow.width  = aWindow->width;
     aRemoteWindow.height = aWindow->height;
     aRemoteWindow.type   = aWindow->type;
@@ -1341,7 +1230,7 @@ PluginInstanceParent::SharedSurfaceSetWindow(const NPWindow* aWindow,
     // allocate a new shared surface
     SharedSurfaceRelease();
     if (NS_FAILED(mSharedSurfaceDib.Create(reinterpret_cast<HDC>(aWindow->window),
-                                           newPort.width, newPort.height, false)))
+                                           newPort.width, newPort.height, 32)))
       return false;
 
     // save the new shared surface size we just allocated
@@ -1431,7 +1320,7 @@ PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
 void
 PluginInstanceParent::Invalidate()
 {
-    NPRect windowRect = {0, 0, mShHeight, mShWidth};
+    NPRect windowRect = {0, 0, mShWidth, mShHeight};
     RecvNPN_InvalidateRect(windowRect);
 }
 #endif

@@ -57,19 +57,13 @@
 #include "nsIFormControl.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIDOMDocumentType.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
 #include "nsIMutationObserver.h"
 #include "nsIFormProcessor.h"
 #include "nsIServiceManager.h"
-#include "nsEscape.h"
-#include "mozilla/dom/Element.h"
 
 #ifdef MOZ_SVG
 #include "nsHtml5SVGLoadDispatcher.h"
 #endif
-
-namespace dom = mozilla::dom;
 
 static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
@@ -229,23 +223,6 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
   return rv;
 }
 
-class nsDocElementCreatedNotificationRunner : public nsRunnable
-{
-public:
-  nsDocElementCreatedNotificationRunner(nsIDocument* aDoc)
-    : mDoc(aDoc)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    nsContentSink::NotifyDocElementCreated(mDoc);
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDocument> mDoc;
-};
-
 nsresult
 nsHtml5TreeOperation::AppendToDocument(nsIContent* aNode,
                                        nsHtml5TreeOpExecutor* aBuilder)
@@ -257,12 +234,6 @@ nsHtml5TreeOperation::AppendToDocument(nsIContent* aNode,
   rv = doc->AppendChildTo(aNode, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
   nsNodeUtils::ContentInserted(doc, aNode, childCount);
-
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-               "Someone forgot to block scripts");
-  nsContentUtils::AddScriptRunner(
-    new nsDocElementCreatedNotificationRunner(doc));
-
   return rv;
 }
 
@@ -341,7 +312,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return AppendToDocument(node, aBuilder);
     }
     case eTreeOpAddAttributes: {
-      dom::Element* node = (*(mOne.node))->AsElement();
+      nsIContent* node = *(mOne.node);
       nsHtml5HtmlAttributes* attributes = mTwo.attributes;
 
       nsHtml5OtherDocUpdate update(node->GetOwnerDoc(),
@@ -360,7 +331,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
 
           // the manual notification code is based on nsGenericElement
           
-          nsEventStates stateMask = node->IntrinsicState();
+          PRUint32 stateMask = PRUint32(node->IntrinsicState());
           nsNodeUtils::AttributeWillChange(node, 
                                            nsuri,
                                            localName,
@@ -382,8 +353,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
             }
           }
           
-          stateMask ^= node->IntrinsicState();
-          if (!stateMask.IsEmpty() && document) {
+          stateMask ^= PRUint32(node->IntrinsicState());
+          if (stateMask && document) {
             MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
             document->ContentStatesChanged(node, nsnull, stateMask);
           }
@@ -414,10 +385,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       NS_NewElement(getter_AddRefs(newContent),
                     ns, nodeInfo.forget(),
                     (mOpCode == eTreeOpCreateElementNetwork ?
-                     dom::FROM_PARSER_NETWORK
+                     NS_FROM_PARSER_NETWORK
                      : (aBuilder->IsFragmentMode() ?
-                        dom::FROM_PARSER_FRAGMENT :
-                        dom::FROM_PARSER_DOCUMENT_WRITE)));
+                        NS_FROM_PARSER_FRAGMENT :
+                        NS_FROM_PARSER_DOCUMENT_WRITE)));
       NS_ASSERTION(newContent, "Element creation created null pointer.");
 
       aBuilder->HoldElement(*target = newContent);      
@@ -458,11 +429,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
           NS_NewElement(getter_AddRefs(optionElt), 
                         optionNodeInfo->NamespaceID(), 
                         ni.forget(),
-                        (mOpCode == eTreeOpCreateElementNetwork ?
-                         dom::FROM_PARSER_NETWORK
-                         : (aBuilder->IsFragmentMode() ?
-                            dom::FROM_PARSER_FRAGMENT :
-                            dom::FROM_PARSER_DOCUMENT_WRITE)));
+                        PR_TRUE);
           nsCOMPtr<nsIContent> optionText;
           NS_NewTextNode(getter_AddRefs(optionText), 
                          aBuilder->GetNodeInfoManager());
@@ -491,19 +458,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
-        if (ns == kNameSpaceID_XHTML &&
-            nsHtml5Atoms::a == name &&
-            nsHtml5Atoms::name == localName) {
-          // This is an HTML5-incompliant Geckoism.
-          // Remove when fixing bug 582361
-          NS_ConvertUTF16toUTF8 cname(*(attributes->getValue(i)));
-          NS_ConvertUTF8toUTF16 uv(nsUnescape(cname.BeginWriting()));
-          newContent->SetAttr(attributes->getURI(i), localName,
-              attributes->getPrefix(i), uv, PR_FALSE);
-        } else {
-          newContent->SetAttr(attributes->getURI(i), localName,
-              attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
-        }
+        newContent->SetAttr(attributes->getURI(i), localName, attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
+        // XXX what to do with nsresult?
       }
 
       return rv;
@@ -513,12 +469,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* parent = *(mTwo.node);
       nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(node));
       // NS_ASSERTION(formControl, "Form-associated element did not implement nsIFormControl.");
-      // TODO: uncomment the above line when <keygen> (bug 101019) is supported by Gecko
+      // TODO: uncomment the above line when <output> (bug 346485) and <keygen> (bug 101019) are supported by Gecko
       nsCOMPtr<nsIDOMHTMLFormElement> formElement(do_QueryInterface(parent));
       NS_ASSERTION(formElement, "The form element doesn't implement nsIDOMHTMLFormElement.");
-      // avoid crashing on <keygen>
-      if (formControl &&
-          !node->HasAttr(kNameSpaceID_None, nsGkAtoms::form)) {
+      if (formControl) { // avoid crashing on <output> and <keygen>
         formControl->SetForm(formElement);
       }
       return rv;

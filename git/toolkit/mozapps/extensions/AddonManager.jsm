@@ -41,10 +41,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const PREF_BLOCKLIST_PINGCOUNT = "extensions.blocklist.pingCount";
-const PREF_EM_UPDATE_ENABLED   = "extensions.update.enabled";
-const PREF_EM_LAST_APP_VERSION = "extensions.lastAppVersion";
-const PREF_EM_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
+const PREF_EM_UPDATE_ENABLED = "extensions.update.enabled";
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
@@ -81,7 +78,7 @@ function safeCall(aCallback) {
     aCallback.apply(null, args);
   }
   catch (e) {
-    WARN("Exception calling callback", e);
+    WARN("Exception calling callback: " + e);
   }
 }
 
@@ -107,9 +104,8 @@ function callProvider(aProvider, aMethod, aDefault) {
 
   try {
     return aProvider[aMethod].apply(aProvider, args);
-  }
-  catch (e) {
-    ERROR("Exception calling provider" + aMethod, e);
+  } catch (e) {
+    ERROR("Exception calling provider." + aMethod + ": " + e);
     return aDefault;
   }
 }
@@ -161,88 +157,38 @@ AsyncObjectCaller.prototype = {
 };
 
 /**
- * This represents an author of an add-on (e.g. creator or developer)
- *
- * @param  aName
- *         The name of the author
- * @param  aURL
- *         The URL of the author's profile page
- */
-function AddonAuthor(aName, aURL) {
-  this.name = aName;
-  this.url = aURL;
-}
-
-AddonAuthor.prototype = {
-  name: null,
-  url: null,
-
-  // Returns the author's name, defaulting to the empty string
-  toString: function() {
-    return this.name || "";
-  }
-}
-
-/**
- * This represents an screenshot for an add-on
- *
- * @param  aURL
- *         The URL to the full version of the screenshot
- * @param  aThumbnailURL
- *         The URL to the thumbnail version of the screenshot
- * @param  aCaption
- *         The caption of the screenshot
- */
-function AddonScreenshot(aURL, aThumbnailURL, aCaption) {
-  this.url = aURL;
-  this.thumbnailURL = aThumbnailURL;
-  this.caption = aCaption;
-}
-
-AddonScreenshot.prototype = {
-  url: null,
-  thumbnailURL: null,
-  caption: null,
-
-  // Returns the screenshot URL, defaulting to the empty string
-  toString: function() {
-    return this.url || "";
-  }
-}
-
-var gStarted = false;
-
-/**
  * This is the real manager, kept here rather than in AddonManager to keep its
  * contents hidden from API users.
  */
 var AddonManagerInternal = {
-  installListeners: [],
-  addonListeners: [],
+  installListeners: null,
+  addonListeners: null,
   providers: [],
+  started: false,
 
   /**
    * Initializes the AddonManager, loading any known providers and initializing
-   * them.
+   * them. 
    */
   startup: function AMI_startup() {
-    if (gStarted)
+    if (this.started)
       return;
 
-    let appChanged = undefined;
+    this.installListeners = [];
+    this.addonListeners = [];
+
+    let appChanged = true;
 
     try {
       appChanged = Services.appinfo.version !=
-                   Services.prefs.getCharPref(PREF_EM_LAST_APP_VERSION);
+                   Services.prefs.getCharPref("extensions.lastAppVersion");
     }
     catch (e) { }
 
-    if (appChanged !== false) {
+    if (appChanged) {
       LOG("Application has been upgraded");
-      Services.prefs.setCharPref(PREF_EM_LAST_APP_VERSION,
+      Services.prefs.setCharPref("extensions.lastAppVersion",
                                  Services.appinfo.version);
-      Services.prefs.setIntPref(PREF_BLOCKLIST_PINGCOUNT,
-                                (appChanged === undefined ? 0 : 1));
     }
 
     // Ensure all default providers have had a chance to register themselves
@@ -251,7 +197,7 @@ var AddonManagerInternal = {
         Components.utils.import(url, {});
       }
       catch (e) {
-        ERROR("Exception loading default provider \"" + url + "\"", e);
+        ERROR("Exception loading default provider \"" + url + "\": " + e);
       }
     });
 
@@ -268,14 +214,14 @@ var AddonManagerInternal = {
       }
       catch (e) {
         ERROR("Exception loading provider " + entry + " from category \"" +
-              url + "\"", e);
+              url + "\": " + e);
       }
     }
 
     this.providers.forEach(function(provider) {
       callProvider(provider, "startup", null, appChanged);
     });
-    gStarted = true;
+    this.started = true;
   },
 
   /**
@@ -288,7 +234,7 @@ var AddonManagerInternal = {
     this.providers.push(aProvider);
 
     // If we're registering after startup call this provider's startup.
-    if (gStarted)
+    if (this.started)
       callProvider(aProvider, "startup");
   },
 
@@ -299,16 +245,12 @@ var AddonManagerInternal = {
    *         The provider to unregister
    */
   unregisterProvider: function AMI_unregisterProvider(aProvider) {
-    let pos = 0;
-    while (pos < this.providers.length) {
-      if (this.providers[pos] == aProvider)
-        this.providers.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.providers = this.providers.filter(function(p) {
+      return p != aProvider;
+    });
 
     // If we're unregistering after startup call this provider's shutdown.
-    if (gStarted)
+    if (this.started)
       callProvider(aProvider, "shutdown");
   },
 
@@ -321,9 +263,9 @@ var AddonManagerInternal = {
       callProvider(provider, "shutdown");
     });
 
-    this.installListeners.splice(0);
-    this.addonListeners.splice(0);
-    gStarted = false;
+    this.installListeners = null;
+    this.addonListeners = null;
+    this.started = false;
   },
 
   /**
@@ -334,39 +276,11 @@ var AddonManagerInternal = {
     if (!Services.prefs.getBoolPref(PREF_EM_UPDATE_ENABLED))
       return;
 
-    Services.obs.notifyObservers(null, "addons-background-update-start", null);
-    let pendingUpdates = 1;
-
-    function notifyComplete() {
-      if (--pendingUpdates == 0)
-        Services.obs.notifyObservers(null, "addons-background-update-complete", null);
-    }
-
     let scope = {};
-    Components.utils.import("resource://gre/modules/AddonRepository.jsm", scope);
     Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", scope);
     scope.LightweightThemeManager.updateCurrentTheme();
 
     this.getAllAddons(function getAddonsCallback(aAddons) {
-      if ("getCachedAddonByID" in scope.AddonRepository) {
-        pendingUpdates++;
-        var ids = [a.id for each (a in aAddons)];
-        scope.AddonRepository.repopulateCache(ids, notifyComplete);
-      }
-
-      pendingUpdates += aAddons.length;
-      var autoUpdateDefault = AddonManager.autoUpdateDefault;
-
-      function shouldAutoUpdate(aAddon) {
-        if (!("applyBackgroundUpdates" in aAddon))
-          return false;
-        if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_ENABLE)
-          return true;
-        if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_DISABLE)
-          return false;
-        return autoUpdateDefault;
-      }
-
       aAddons.forEach(function BUC_forEachCallback(aAddon) {
         // Check all add-ons for updates so that any compatibility updates will
         // be applied
@@ -375,16 +289,12 @@ var AddonManagerInternal = {
             // Start installing updates when the add-on can be updated and
             // background updates should be applied.
             if (aAddon.permissions & AddonManager.PERM_CAN_UPGRADE &&
-                shouldAutoUpdate(aAddon)) {
+                aAddon.applyBackgroundUpdates) {
               aInstall.install();
             }
-          },
-
-          onUpdateFinished: notifyComplete
+          }
         }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
       });
-
-      notifyComplete();
     });
   },
 
@@ -413,7 +323,7 @@ var AddonManagerInternal = {
         }
       }
       catch (e) {
-        WARN("InstallListener threw exception when calling " + aMethod, e);
+        WARN("InstallListener threw exception when calling " + aMethod + ": " + e);
       }
     });
     return result;
@@ -434,7 +344,7 @@ var AddonManagerInternal = {
           listener[aMethod].apply(listener, args);
       }
       catch (e) {
-        WARN("AddonListener threw exception when calling " + aMethod, e);
+        WARN("AddonListener threw exception when calling " + aMethod + ": " + e);
       }
     });
   },
@@ -646,11 +556,7 @@ var AddonManagerInternal = {
       let weblistener = Cc["@mozilla.org/addons/web-install-listener;1"].
                         getService(Ci.amIWebInstallListener);
 
-      if (!this.isInstallEnabled(aMimetype, aURI)) {
-        weblistener.onWebInstallDisabled(aSource, aURI, aInstalls,
-                                         aInstalls.length);
-      }
-      else if (!this.isInstallAllowed(aMimetype, aURI)) {
+      if (!this.isInstallAllowed(aMimetype, aURI)) {
         if (weblistener.onWebInstallBlocked(aSource, aURI, aInstalls,
                                             aInstalls.length)) {
           aInstalls.forEach(function(aInstall) {
@@ -669,7 +575,7 @@ var AddonManagerInternal = {
       // In the event that the weblistener throws during instatiation or when
       // calling onWebInstallBlocked or onWebInstallRequested all of the
       // installs should get cancelled.
-      WARN("Failure calling web installer", e);
+      WARN("Failure calling web installer: " + e);
       aInstalls.forEach(function(aInstall) {
         aInstall.cancel();
       });
@@ -694,13 +600,9 @@ var AddonManagerInternal = {
    *         The InstallListener to remove
    */
   removeInstallListener: function AMI_removeInstallListener(aListener) {
-    let pos = 0;
-    while (pos < this.installListeners.length) {
-      if (this.installListeners[pos] == aListener)
-        this.installListeners.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.installListeners = this.installListeners.filter(function(i) {
+      return i != aListener;
+    });
   },
 
   /**
@@ -851,20 +753,9 @@ var AddonManagerInternal = {
    *         The listener to remove
    */
   removeAddonListener: function AMI_removeAddonListener(aListener) {
-    let pos = 0;
-    while (pos < this.addonListeners.length) {
-      if (this.addonListeners[pos] == aListener)
-        this.addonListeners.splice(pos, 1);
-      else
-        pos++;
-    }
-  },
-  
-  get autoUpdateDefault() {
-    try {
-      return Services.prefs.getBoolPref(PREF_EM_AUTOUPDATE_DEFAULT);
-    } catch(e) { }
-    return true;
+    this.addonListeners = this.addonListeners.filter(function(i) {
+      return i != aListener;
+    });
   }
 };
 
@@ -910,11 +801,7 @@ var AddonManagerPrivate = {
 
   callAddonListeners: function AMP_callAddonListeners(aMethod) {
     AddonManagerInternal.callAddonListeners.apply(AddonManagerInternal, arguments);
-  },
-
-  AddonAuthor: AddonAuthor,
-
-  AddonScreenshot: AddonScreenshot
+  }
 };
 
 /**
@@ -1026,15 +913,6 @@ var AddonManager = {
   SCOPE_SYSTEM: 8,
   // The combination of all scopes.
   SCOPE_ALL: 15,
-  
-  // Constants for Addon.applyBackgroundUpdates.
-  // Indicates that the Addon should not update automatically.
-  AUTOUPDATE_DISABLE: 0,
-  // Indicates that the Addon should update automatically only if
-  // that's the global default.
-  AUTOUPDATE_DEFAULT: 1,
-  // Indicates that the Addon should update automatically.
-  AUTOUPDATE_ENABLE: 2,
 
   getInstallForURL: function AM_getInstallForURL(aUrl, aCallback, aMimetype,
                                                  aHash, aName, aIconURL,
@@ -1103,13 +981,5 @@ var AddonManager = {
 
   removeAddonListener: function AM_removeAddonListener(aListener) {
     AddonManagerInternal.removeAddonListener(aListener);
-  },
-  
-  get autoUpdateDefault() {
-    return AddonManagerInternal.autoUpdateDefault;
   }
 };
-
-Object.freeze(AddonManagerInternal);
-Object.freeze(AddonManagerPrivate);
-Object.freeze(AddonManager);

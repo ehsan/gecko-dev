@@ -43,14 +43,14 @@
 #include "nsIDocShell.h"
 #include "gfxPattern.h"
 
-// {EC90F32E-7848-4819-A1E3-02E64C682A72}
+// {b96168fd-6f13-4ca7-b820-e96f22e71fe5}
 #define NS_ICANVASRENDERINGCONTEXTINTERNAL_IID \
-{ 0xec90f32e, 0x7848, 0x4819, { 0xa1, 0xe3, 0x2, 0xe6, 0x4c, 0x68, 0x2a, 0x72 } }
+{ 0xb96168fd, 0x6f13, 0x4ca7, \
+  { 0xb8, 0x20, 0xe9, 0x6f, 0x22, 0xe7, 0x1f, 0xe5 } }
 
 class nsHTMLCanvasElement;
 class gfxContext;
 class gfxASurface;
-class nsIPropertyBag;
 
 namespace mozilla {
 namespace layers {
@@ -102,10 +102,6 @@ public:
   // defaults to false (not opaque).
   NS_IMETHOD SetIsOpaque(PRBool isOpaque) = 0;
 
-  // Invalidate this context and release any held resources, in preperation
-  // for possibly reinitializing with SetDimensions/InitializeWithSurface.
-  NS_IMETHOD Reset() = 0;
-
   // Return the CanvasLayer for this context, creating
   // one for the given layer manager if not available.
   virtual already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
@@ -116,19 +112,21 @@ public:
   // Redraw the dirty rectangle of this canvas.
   NS_IMETHOD Redraw(const gfxRect &dirty) = 0;
 
-  // Passes a generic nsIPropertyBag options argument, along with the
-  // previous one, if any.  Optional.
-  NS_IMETHOD SetContextOptions(nsIPropertyBag *aNewOptions) { return NS_OK; }
-
-  //
-  // shmem support
-  //
-
   // If this context can be set to use Mozilla's Shmem segments as its backing
   // store, this will set it to that state. Note that if you have drawn
   // anything into this canvas before changing the shmem state, it will be
   // lost.
   NS_IMETHOD SetIsIPC(PRBool isIPC) = 0;
+
+  // Swap this back buffer with the front, and copy its contents to the new
+  // back. x, y, w, and h specify the area of |back| that is dirty.
+  NS_IMETHOD Swap(mozilla::ipc::Shmem& back,
+                  PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h) = 0;
+
+  // Sync back and front buffer, move ownership of back buffer to parent
+  NS_IMETHOD Swap(PRUint32 nativeID,
+                  PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h) = 0;
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICanvasRenderingContextInternal,

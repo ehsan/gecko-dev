@@ -66,7 +66,6 @@ XPIDLSRCS = \
   nsIHttpProtocolHandler.idl \
   nsIHttpChannelAuthProvider.idl \
   nsIHttpAuthenticableChannel.idl \
-  nsIHttpChannelChild.idl \
   $(NULL)
 
 EXPORTS_mozilla/net = \
@@ -115,7 +114,6 @@ ifdef MOZ_IPC
 CPPSRCS += \
   HttpChannelParent.cpp \
   HttpChannelChild.cpp \
-  HttpChannelParentListener.cpp \
   $(NULL)
 endif
 

@@ -39,7 +39,6 @@ DEPTH     = ../../..
 topsrcdir = @top_srcdir@
 srcdir    = @srcdir@
 VPATH     = @srcdir@
-relativesrcdir = js/jetpack/tests
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -49,12 +48,3 @@ XPCSHELL_TESTS = unit
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
-
-ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT)) # Disabled for bug 599475
-MOCHICHROME_FILES = \
-  test_jetpack_crash.xul \
-  $(NULL)
-
-libs:: $(MOCHICHROME_FILES)
-	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
-endif

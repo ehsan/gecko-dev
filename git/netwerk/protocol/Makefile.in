@@ -45,13 +45,11 @@ include $(DEPTH)/config/autoconf.mk
 PARALLEL_DIRS = \
   about \
   data \
-  device \
   file \
   ftp \
   http \
   res \
   viewsource \
-  wyciwyg \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

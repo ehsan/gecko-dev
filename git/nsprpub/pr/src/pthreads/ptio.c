@@ -3452,9 +3452,7 @@ PR_IMPLEMENT(PRFileDesc*) PR_Socket(PRInt32 domain, PRInt32 type, PRInt32 proto)
     PRIntn osfd;
     PRDescType ftype;
     PRFileDesc *fd = NULL;
-#if defined(_PR_INET6_PROBE) || !defined(_PR_INET6)
-    PRInt32 tmp_domain = domain;
-#endif
+	PRInt32 tmp_domain = domain;
 
     if (!_pr_initialized) _PR_ImplicitInitialization();
 

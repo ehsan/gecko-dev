@@ -14,9 +14,9 @@
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
 
   <script type="application/javascript"
-          src="../common.js" />
+          src="chrome://mochikit/content/a11y/accessible/common.js" />
   <script type="application/javascript"
-          src="../events.js" />
+          src="chrome://mochikit/content/a11y/accessible/events.js" />
 
   <script type="application/javascript">
     /**
@@ -41,7 +41,7 @@
      * Do tests.
      */
 
-    //gA11yEventDumpID = "eventdump"; // debug stuff
+    // gA11yEventDumpID = "eventdump"; // debug stuff
 
     var gQueue = null;
 

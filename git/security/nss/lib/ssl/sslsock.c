@@ -40,7 +40,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sslsock.c,v 1.67.2.1 2010/07/31 04:33:52 wtc%google.com Exp $ */
+/* $Id: sslsock.c,v 1.67 2010/04/25 23:37:38 nelson%bolyard.com Exp $ */
 #include "seccomon.h"
 #include "cert.h"
 #include "keyhi.h"
@@ -183,7 +183,6 @@ static sslOptions ssl_defaults = {
     PR_FALSE,   /* enableDeflate      */
     2,          /* enableRenegotiation (default: requires extension) */
     PR_FALSE,   /* requireSafeNegotiation */
-    PR_FALSE,   /* enableFalseStart   */
 };
 
 sslSessionIDLookupFunc  ssl_sid_lookup;
@@ -729,10 +728,6 @@ SSL_OptionSet(PRFileDesc *fd, PRInt32 which, PRBool on)
 	ss->opt.requireSafeNegotiation = on;
 	break;
 
-      case SSL_ENABLE_FALSE_START:
-	ss->opt.enableFalseStart = on;
-	break;
-
       default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	rv = SECFailure;
@@ -796,7 +791,6 @@ SSL_OptionGet(PRFileDesc *fd, PRInt32 which, PRBool *pOn)
                                   on = ss->opt.enableRenegotiation; break;
     case SSL_REQUIRE_SAFE_NEGOTIATION: 
                                   on = ss->opt.requireSafeNegotiation; break;
-    case SSL_ENABLE_FALSE_START:  on = ss->opt.enableFalseStart;   break;
 
     default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -847,7 +841,6 @@ SSL_OptionGetDefault(PRInt32 which, PRBool *pOn)
     case SSL_REQUIRE_SAFE_NEGOTIATION: 
                                   on = ssl_defaults.requireSafeNegotiation; 
 				  break;
-    case SSL_ENABLE_FALSE_START:  on = ssl_defaults.enableFalseStart;   break;
 
     default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -989,10 +982,6 @@ SSL_OptionSetDefault(PRInt32 which, PRBool on)
 
       case SSL_REQUIRE_SAFE_NEGOTIATION:
 	ssl_defaults.requireSafeNegotiation = on;
-	break;
-
-      case SSL_ENABLE_FALSE_START:
-	ssl_defaults.enableFalseStart = on;
 	break;
 
       default:

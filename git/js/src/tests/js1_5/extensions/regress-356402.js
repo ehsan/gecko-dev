@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-356402.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 356402;
 var summary = 'Do not assert: slot < fp->nvars';

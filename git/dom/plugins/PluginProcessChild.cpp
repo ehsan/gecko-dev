@@ -52,21 +52,6 @@
 
 using mozilla::ipc::IOThreadChild;
 
-#ifdef OS_WIN
-#include "nsSetDllDirectory.h"
-#include <algorithm>
-
-namespace {
-
-std::size_t caseInsensitiveFind(std::string aHaystack, std::string aNeedle) {
-    std::transform(aHaystack.begin(), aHaystack.end(), aHaystack.begin(), ::tolower);
-    std::transform(aNeedle.begin(), aNeedle.end(), aNeedle.begin(), ::tolower);
-    return aHaystack.find(aNeedle);
-}
-
-}
-#endif
-
 namespace mozilla {
 namespace plugins {
 
@@ -101,26 +86,9 @@ PluginProcessChild::Init()
 
     pluginFilename = WideToUTF8(values[0]);
 
-    bool protectCurrentDirectory = true;
-    // Don't use SetDllDirectory for Shockwave Director
-    const std::string shockwaveDirectorPluginFilename("\\np32dsw.dll");
-    std::size_t index = caseInsensitiveFind(pluginFilename, shockwaveDirectorPluginFilename);
-    if (index != std::string::npos &&
-        index + shockwaveDirectorPluginFilename.length() == pluginFilename.length()) {
-        protectCurrentDirectory = false;
-    }
-    if (protectCurrentDirectory) {
-        NS_SetDllDirectory(L"");
-    }
-
 #else
 #  error Sorry
 #endif
-
-    if (NS_FAILED(nsRegion::InitStatic())) {
-      NS_ERROR("Could not initialize nsRegion");
-      return false;
-    }
 
     mPlugin.Init(pluginFilename, ParentHandle(),
                  IOThreadChild::message_loop(),
@@ -135,7 +103,6 @@ PluginProcessChild::CleanUp()
 #ifdef XP_WIN
     ::OleUninitialize();
 #endif
-    nsRegion::ShutdownStatic();
 }
 
 /* static */

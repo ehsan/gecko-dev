@@ -54,8 +54,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIScrollableFrame.h"
-#include "nsFocusManager.h"
-#include "nsIDocument.h"
 
 class nsIPresShell;
 class nsIDocShell;
@@ -63,12 +61,6 @@ class nsIDocShellTreeNode;
 class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
-
-namespace mozilla {
-namespace dom {
-class TabParent;
-}
-}
 
 /*
  * Event listener manager
@@ -120,9 +112,9 @@ public:
   NS_IMETHOD GetEventTarget(nsIFrame **aFrame);
   NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent);
 
-  virtual nsEventStates GetContentState(nsIContent *aContent,
-                                        PRBool aFollowLabels = PR_FALSE);
-  virtual PRBool SetContentState(nsIContent *aContent, nsEventStates aState);
+  virtual PRInt32 GetContentState(nsIContent *aContent,
+                                  PRBool aFollowLabels = PR_FALSE);
+  virtual PRBool SetContentState(nsIContent *aContent, PRInt32 aState);
   NS_IMETHOD ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
   NS_IMETHOD EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK);
 
@@ -152,19 +144,9 @@ public:
 
   NS_IMETHOD_(PRBool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
   
-  nsPresContext* GetPresContext() { return mPresContext; }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
                                            nsIEventStateManager)
 
-  static nsIDocument* sMouseOverDocument;
-
-  static nsIEventStateManager* GetActiveEventStateManager() { return sActiveESM; }
-
-  // Sets aNewESM to be the active event state manager, and
-  // if aContent is non-null, marks the object as active.
-  static void SetActiveManager(nsEventStateManager* aNewESM,
-                               nsIContent* aContent);
 protected:
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
@@ -349,12 +331,6 @@ protected:
   nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
   nsresult DoContentCommandScrollEvent(nsContentCommandEvent* aEvent);
 
-#ifdef MOZ_IPC
-  PRBool RemoteQueryContentEvent(nsEvent *aEvent);
-  mozilla::dom::TabParent *GetCrossProcessTarget();
-  PRBool IsTargetCrossProcess(nsGUIEvent *aEvent);
-#endif
-
   PRInt32     mLockCursor;
 
   nsWeakFrame mCurrentTarget;
@@ -404,11 +380,10 @@ protected:
   PRUint32 mMClickCount;
   PRUint32 mRClickCount;
 
+  PRPackedBool mNormalLMouseEventInProcess;
+
   PRPackedBool m_haveShutdown;
 
-
-public:
-  static nsresult UpdateUserActivityTimer(void);
   // Array for accesskey support
   nsCOMArray<nsIContent> mAccessKeys;
 
@@ -417,12 +392,6 @@ public:
   PRPackedBool mLastLineScrollConsumedY;
 
   static PRInt32 sUserInputEventDepth;
-  
-  static PRBool sNormalLMouseEventInProcess;
-
-  static nsEventStateManager* sActiveESM;
-  
-  static void ClearGlobalActiveContent(nsEventStateManager* aClearer);
 
   // Functions used for click hold context menus
   PRBool mClickHoldContextMenu;
@@ -441,25 +410,14 @@ public:
 class nsAutoHandlingUserInputStatePusher
 {
 public:
-  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput,
-                                     nsEvent* aEvent,
-                                     nsIDocument* aDocument)
-    : mIsHandlingUserInput(aIsHandlingUserInput),
-      mIsMouseDown(aEvent && aEvent->message == NS_MOUSE_BUTTON_DOWN),
-      mResetFMMouseDownState(PR_FALSE)
+  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput, PRBool aIsMouseDown)
+    : mIsHandlingUserInput(aIsHandlingUserInput), mIsMouseDown(aIsMouseDown)
   {
     if (aIsHandlingUserInput) {
       nsEventStateManager::StartHandlingUserInput();
-      if (mIsMouseDown) {
+      if (aIsMouseDown) {
         nsIPresShell::SetCapturingContent(nsnull, 0);
         nsIPresShell::AllowMouseCapture(PR_TRUE);
-        if (aDocument && NS_IS_TRUSTED_EVENT(aEvent)) {
-          nsFocusManager* fm = nsFocusManager::GetFocusManager();
-          if (fm) {
-            fm->SetMouseButtonDownHandlingDocument(aDocument);
-            mResetFMMouseDownState = PR_TRUE;
-          }
-        }
       }
     }
   }
@@ -470,12 +428,6 @@ public:
       nsEventStateManager::StopHandlingUserInput();
       if (mIsMouseDown) {
         nsIPresShell::AllowMouseCapture(PR_FALSE);
-        if (mResetFMMouseDownState) {
-          nsFocusManager* fm = nsFocusManager::GetFocusManager();
-          if (fm) {
-            fm->SetMouseButtonDownHandlingDocument(nsnull);
-          }
-        }
       }
     }
   }
@@ -483,7 +435,6 @@ public:
 protected:
   PRBool mIsHandlingUserInput;
   PRBool mIsMouseDown;
-  PRBool mResetFMMouseDownState;
 
 private:
   // Hide so that this class can only be stack-allocated

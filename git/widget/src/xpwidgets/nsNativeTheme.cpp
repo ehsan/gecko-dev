@@ -50,14 +50,12 @@
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsPIDOMWindow.h"
 
 nsNativeTheme::nsNativeTheme()
-: mAnimatedContentTimeout(PR_UINT32_MAX)
 {
 }
-
-NS_IMPL_ISUPPORTS1(nsNativeTheme, nsITimerCallback)
 
 nsIPresShell *
 nsNativeTheme::GetPresShell(nsIFrame* aFrame)
@@ -71,11 +69,11 @@ nsNativeTheme::GetPresShell(nsIFrame* aFrame)
   return context ? context->GetPresShell() : nsnull;
 }
 
-nsEventStates
+PRInt32
 nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
 {
   if (!aFrame)
-    return nsEventStates();
+    return 0;
 
   PRBool isXULCheckboxRadio = 
     (aWidgetType == NS_THEME_CHECKBOX ||
@@ -85,14 +83,14 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
     aFrame = aFrame->GetParent();
 
   if (!aFrame->GetContent())
-    return nsEventStates();
+    return 0;
 
   nsIPresShell *shell = GetPresShell(aFrame);
   if (!shell)
-    return nsEventStates();
+    return 0;
 
   nsIEventStateManager* esm = shell->GetPresContext()->EventStateManager();
-  nsEventStates flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
+  PRInt32 flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))
@@ -215,7 +213,7 @@ nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
   }
 
   // Check for an HTML input element
-  nsCOMPtr<nsIDOMHTMLInputElement> inputElt = do_QueryInterface(content);
+  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElt = do_QueryInterface(content);
   if (inputElt) {
     PRBool indeterminate;
     inputElt->GetIndeterminate(&indeterminate);
@@ -262,29 +260,6 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                                                NS_AUTHOR_SPECIFIED_BACKGROUND);
 }
 
-bool
-nsNativeTheme::IsDisabled(nsIFrame* aFrame, nsEventStates aEventStates)
-{
-  if (!aFrame) {
-    return false;
-  }
-
-  nsIContent* content = aFrame->GetContent();
-  if (!content) {
-    return PR_FALSE;
-  }
-
-  if (content->IsHTML()) {
-    return aEventStates.HasState(NS_EVENT_STATE_DISABLED);
-  }
-
-  // For XML/XUL elements, an attribute must be equal to the literal
-  // string "true" to be counted as true.  An empty string should _not_
-  // be counted as true.
-  return content->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
-                              NS_LITERAL_STRING("true"), eCaseMatters);
-}
-
 PRBool
 nsNativeTheme::IsFrameRTL(nsIFrame* aFrame)
 {
@@ -319,7 +294,7 @@ nsNativeTheme::GetScrollbarButtonType(nsIFrame* aFrame)
 nsNativeTheme::TreeSortDirection
 nsNativeTheme::GetTreeSortDirection(nsIFrame* aFrame)
 {
-  if (!aFrame || !aFrame->GetContent())
+  if (!aFrame)
     return eTreeSortDirection_Natural;
 
   static nsIContent::AttrValuesArray strings[] =
@@ -478,68 +453,4 @@ nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
   }
 
   return PR_FALSE;
-}
-
-PRBool
-nsNativeTheme::QueueAnimatedContentForRefresh(nsIContent* aContent,
-                                              PRUint32 aMinimumFrameRate)
-{
-  NS_ASSERTION(aContent, "Null pointer!");
-  NS_ASSERTION(aMinimumFrameRate, "aMinimumFrameRate must be non-zero!");
-  NS_ASSERTION(aMinimumFrameRate <= 1000,
-               "aMinimumFrameRate must be less than 1000!");
-
-  PRUint32 timeout = PRUint32(NS_floor(1000 / aMinimumFrameRate));
-  timeout = PR_MIN(mAnimatedContentTimeout, timeout);
-
-  if (!mAnimatedContentTimer) {
-    mAnimatedContentTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
-    NS_ENSURE_TRUE(mAnimatedContentTimer, PR_FALSE);
-  }
-
-  if (mAnimatedContentList.IsEmpty() || timeout != mAnimatedContentTimeout) {
-    nsresult rv;
-    if (!mAnimatedContentList.IsEmpty()) {
-      rv = mAnimatedContentTimer->Cancel();
-      NS_ENSURE_SUCCESS(rv, PR_FALSE);
-    }
-
-    rv = mAnimatedContentTimer->InitWithCallback(this, timeout,
-                                                 nsITimer::TYPE_ONE_SHOT);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-    mAnimatedContentTimeout = timeout;
-  }
-
-  if (!mAnimatedContentList.AppendElement(aContent)) {
-    NS_WARNING("Out of memory!");
-    return PR_FALSE;
-  }
-
-  return PR_TRUE;
-}
-
-NS_IMETHODIMP
-nsNativeTheme::Notify(nsITimer* aTimer)
-{
-  NS_ASSERTION(aTimer == mAnimatedContentTimer, "Wrong timer!");
-
-  // XXX Assumes that calling nsIFrame::Invalidate won't reenter
-  //     QueueAnimatedContentForRefresh.
-
-  PRUint32 count = mAnimatedContentList.Length();
-  for (PRUint32 index = 0; index < count; index++) {
-    nsIFrame* frame = mAnimatedContentList[index]->GetPrimaryFrame();
-    if (frame) {
-#ifdef MOZ_ENABLE_LIBXUL
-      frame->InvalidateOverflowRect();
-#else
-      frame->InvalidateOverflowRectExternal();
-#endif
-    }
-  }
-
-  mAnimatedContentList.Clear();
-  mAnimatedContentTimeout = PR_UINT32_MAX;
-  return NS_OK;
 }

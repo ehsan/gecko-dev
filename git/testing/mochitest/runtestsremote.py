@@ -125,10 +125,7 @@ class RemoteOptions(MochitestOptions):
             return None
 
         if (options.remoteLogFile == None):
-            options.remoteLogFile = automation._devicemanager.getDeviceRoot() + '/test.log'
-
-        if (options.remoteLogFile.count('/') < 1):
-            options.remoteLogFile = automation._devicemanager.getDeviceRoot() + '/' + options.remoteLogFile
+            options.remoteLogFile =  automation._devicemanager.getDeviceRoot() + '/test.log'
 
         # Set up our options that we depend on based on the above
         productRoot = options.remoteTestRoot + "/" + automation._product
@@ -246,13 +243,7 @@ class MochiRemote(Mochitest):
     def buildURLOptions(self, options):
         self.localLog = options.logFile
         options.logFile = self.remoteLog
-        options.profilePath = self.localProfile
         retVal = Mochitest.buildURLOptions(self, options)
-        #we really need testConfig.js (for browser chrome)
-        if self._dm.pushDir(options.profilePath, self.remoteProfile) == None:
-            raise devicemanager.FileError("Unable to copy profile to device.")
-
-        options.profilePath = self.remoteProfile
         options.logFile = self.localLog
         return retVal
 
@@ -295,7 +286,6 @@ def main():
     if (options == None):
         sys.exit(1)
     
-    auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
     sys.exit(mochitest.runTests(options))
     

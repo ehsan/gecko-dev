@@ -57,12 +57,8 @@ jfieldID AndroidGeckoEvent::jKeyCodeField = 0;
 jfieldID AndroidGeckoEvent::jMetaStateField = 0;
 jfieldID AndroidGeckoEvent::jFlagsField = 0;
 jfieldID AndroidGeckoEvent::jUnicodeCharField = 0;
-jfieldID AndroidGeckoEvent::jOffsetField = 0;
 jfieldID AndroidGeckoEvent::jCountField = 0;
-jfieldID AndroidGeckoEvent::jRangeTypeField = 0;
-jfieldID AndroidGeckoEvent::jRangeStylesField = 0;
-jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
+jfieldID AndroidGeckoEvent::jCount2Field = 0;
 jfieldID AndroidGeckoEvent::jLocationField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
@@ -137,12 +133,8 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jMetaStateField = getField("mMetaState", "I");
     jFlagsField = getField("mFlags", "I");
     jUnicodeCharField = getField("mUnicodeChar", "I");
-    jOffsetField = getField("mOffset", "I");
     jCountField = getField("mCount", "I");
-    jRangeTypeField = getField("mRangeType", "I");
-    jRangeStylesField = getField("mRangeStyles", "I");
-    jRangeForeColorField = getField("mRangeForeColor", "I");
-    jRangeBackColorField = getField("mRangeBackColor", "I");
+    jCount2Field = getField("mCount2", "I");
     jLocationField = getField("mLocation", "Landroid/location/Location;");
 }
 
@@ -156,7 +148,7 @@ AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(JNIEnv *jEnv)
     jBeginDrawingMethod = getMethod("beginDrawing", "()I");
     jGetSoftwareDrawBufferMethod = getMethod("getSoftwareDrawBuffer", "()Ljava/nio/ByteBuffer;");
     jEndDrawingMethod = getMethod("endDrawing", "()V");
-    jDraw2DMethod = getMethod("draw2D", "(Ljava/nio/ByteBuffer;I)V");
+    jDraw2DMethod = getMethod("draw2D", "(Ljava/nio/ByteBuffer;)V");
     jGetHolderMethod = getMethod("getHolder", "()Landroid/view/SurfaceHolder;");
 }
 
@@ -303,21 +295,9 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
 
         case IME_EVENT:
-            if (mAction == IME_GET_TEXT || mAction == IME_SET_SELECTION) {
-                mOffset = jenv->GetIntField(jobj, jOffsetField);
-                mCount = jenv->GetIntField(jobj, jCountField);
-            } else if (mAction == IME_SET_TEXT || mAction == IME_ADD_RANGE) {
-                if (mAction == IME_SET_TEXT)
-                    ReadCharactersField(jenv);
-                mOffset = jenv->GetIntField(jobj, jOffsetField);
-                mCount = jenv->GetIntField(jobj, jCountField);
-                mRangeType = jenv->GetIntField(jobj, jRangeTypeField);
-                mRangeStyles = jenv->GetIntField(jobj, jRangeStylesField);
-                mRangeForeColor =
-                    jenv->GetIntField(jobj, jRangeForeColorField);
-                mRangeBackColor =
-                    jenv->GetIntField(jobj, jRangeBackColorField);
-            }
+            mCount = jenv->GetIntField(jobj, jCountField);
+            mCount2 = jenv->GetIntField(jobj, jCount2Field);
+            ReadCharactersField(jenv);
             break;
 
         case DRAW:
@@ -354,7 +334,6 @@ void
 AndroidGeckoEvent::Init(int aType)
 {
     mType = aType;
-    mNativeWindow = nsnull;
 }
 
 void
@@ -388,9 +367,9 @@ AndroidGeckoSurfaceView::EndDrawing()
 }
 
 void
-AndroidGeckoSurfaceView::Draw2D(jobject buffer, int stride)
+AndroidGeckoSurfaceView::Draw2D(jobject buffer)
 {
-    JNI()->CallVoidMethod(wrapped_obj, jDraw2DMethod, buffer, stride);
+    JNI()->CallVoidMethod(wrapped_obj, jDraw2DMethod, buffer);
 }
 
 jobject
@@ -441,17 +420,15 @@ AndroidRect::Init(JNIEnv *jenv, jobject jobj)
     }
 }
 
-nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
+nsJNIString::nsJNIString(jstring jstr)
 {
     if (!jstr) {
         SetIsVoid(PR_TRUE);
         return;
     }
-    JNIEnv *jni = jenv;
-    if (!jni)
-        jni = JNI();
-    const jchar* jCharPtr = jni->GetStringChars(jstr, false);
-    int len = jni->GetStringLength(jstr);
-    Assign(jCharPtr, len);
-    jni->ReleaseStringChars(jstr, jCharPtr);
+    const jchar* jCharPtr = JNI()->GetStringChars(jstr, false);
+    nsresult rv;
+    Assign(jCharPtr);
+    JNI()->ReleaseStringChars(jstr, jCharPtr);
+
 }

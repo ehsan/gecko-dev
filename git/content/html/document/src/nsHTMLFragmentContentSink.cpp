@@ -75,7 +75,6 @@
 #include "nsICSSRuleList.h"
 #include "nsIDOMCSSRule.h"
 
-using namespace mozilla::dom;
 namespace css = mozilla::css;
 
 //
@@ -391,8 +390,7 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
     }
 
-    content =
-      CreateHTMLElement(nodeType, nodeInfo.forget(), NOT_FROM_PARSER).get();
+    content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE).get();
     NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
     result = AddAttributes(aNode, content);
@@ -479,8 +477,7 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
         }
 
-        content =
-          CreateHTMLElement(nodeType, nodeInfo.forget(), NOT_FROM_PARSER);
+        content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE);
         NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
         result = AddAttributes(aNode, content);
@@ -813,9 +810,8 @@ protected:
   nsresult NameFromNode(const nsIParserNode& aNode,
                         nsIAtom **aResult);
 
-  // The return value will be true if we have sanitized the rule
-  PRBool SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText);
-
+  void SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText);
+  
   PRPackedBool mSkip; // used when we descend into <style> or <script>
   PRPackedBool mProcessStyle; // used when style is explicitly white-listed
   PRPackedBool mInStyle; // whether we're inside a style element
@@ -996,14 +992,12 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
     nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), k);
     nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(k);
 
-    // Check if this is an allowed attribute, or a style attribute in case
-    // we've been asked to allow style attributes, or an HTML5 data-*
-    // attribute, or an attribute which begins with "_".
-    if ((!sAllowedAttributes || !sAllowedAttributes->GetEntry(keyAtom)) &&
-        (!mProcessStyle || keyAtom != nsGkAtoms::style) &&
-        !(StringBeginsWith(k, NS_LITERAL_STRING("data-")) ||
-          StringBeginsWith(k, NS_LITERAL_STRING("_")))) {
-      continue;
+    // not an allowed attribute
+    if (!sAllowedAttributes || !sAllowedAttributes->GetEntry(keyAtom)) {
+      // unless it's style, and we're allowing it
+      if (!mProcessStyle || keyAtom != nsGkAtoms::style) {
+        continue;
+      }
     }
 
     // Get value and remove mandatory quotes
@@ -1049,12 +1043,8 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
                                       getter_AddRefs(rule));
       if (NS_SUCCEEDED(rv)) {
         nsAutoString cleanValue;
-        PRBool didSanitize = SanitizeStyleRule(rule, cleanValue);
-        if (didSanitize) {
-          aContent->SetAttr(kNameSpaceID_None, keyAtom, cleanValue, PR_FALSE);
-        } else {
-          aContent->SetAttr(kNameSpaceID_None, keyAtom, v, PR_FALSE);
-        }
+        SanitizeStyleRule(rule, cleanValue);
+        aContent->SetAttr(kNameSpaceID_None, keyAtom, cleanValue, PR_FALSE);
       } else {
         // we couldn't sanitize the style attribute, ignore it
         continue;
@@ -1110,10 +1100,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
 {
   nsresult rv = NS_OK;
 
-  if (mIgnoreNextCloseHead && aTag == eHTMLTag_head) {
-    mIgnoreNextCloseHead = PR_FALSE;
-    return NS_OK;
-  }
   if (mSkip) {
     mSkip = PR_FALSE;
     return rv;
@@ -1144,7 +1130,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
     nsAutoString sanitizedStyleText;
     nsIContent* style = GetCurrentContent();
     if (style) {
-      PRBool didSanitize = PR_FALSE;
       // styleText will hold the text inside the style element.
       nsAutoString styleText;
       nsContentUtils::GetNodeTextContent(style, PR_FALSE, styleText);
@@ -1185,7 +1170,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                 case nsICSSRule::IMPORT_RULE:
                 case nsICSSRule::MEDIA_RULE:
                 case nsICSSRule::PAGE_RULE:
-                  didSanitize = PR_TRUE;
                   // Ignore these rule types.
                   break;
                 case nsICSSRule::NAMESPACE_RULE:
@@ -1207,7 +1191,7 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                   nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(rule);
                   NS_ASSERTION(styleRule, "Must be a style rule");
                   nsAutoString decl;
-                  didSanitize = SanitizeStyleRule(styleRule, decl) || didSanitize;
+                  SanitizeStyleRule(styleRule, decl);
                   rv = styleRule->GetCssText(decl);
                   // Only add the rule when sanitized.
                   if (NS_SUCCEEDED(rv)) {
@@ -1219,28 +1203,25 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
           }
         }
       }
-      if (didSanitize) {
-        // Replace the style element content with its sanitized style text
-        nsContentUtils::SetNodeTextContent(style, sanitizedStyleText, PR_TRUE);
-      }
+      // Replace the style element content with its sanitized style text
+      nsContentUtils::SetNodeTextContent(style, sanitizedStyleText, PR_TRUE);
     }
   }
 
   return nsHTMLFragmentContentSink::CloseContainer(aTag);
 }
 
-PRBool
+void
 nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText)
 {
-  PRBool didSanitize = PR_FALSE;
   aRuleText.Truncate();
   css::Declaration *style = aRule->GetDeclaration();
   if (style) {
-    didSanitize = style->HasProperty(eCSSProperty_binding);
-    style->RemoveProperty(eCSSProperty_binding);
-    style->ToString(aRuleText);
+    nsresult rv = style->RemoveProperty(eCSSProperty_binding);
+    if (NS_SUCCEEDED(rv)) {
+      style->ToString(aRuleText);
+    }
   }
-  return didSanitize;
 }
 
 NS_IMETHODIMP
@@ -1250,10 +1231,7 @@ nsHTMLParanoidFragmentSink::AddLeaf(const nsIParserNode& aNode)
   
   nsresult rv = NS_OK;
 
-  // We need to explicitly skip adding leaf nodes in the paranoid sink,
-  // otherwise things like the textnode under <title> get appended to
-  // the fragment itself, and won't be popped off in CloseContainer.
-  if (mSkip || mIgnoreNextCloseHead) {
+  if (mSkip) {
     return rv;
   }
   

@@ -65,8 +65,12 @@
 #include "gfxDirectFBSurface.h"
 #endif
 
-#if defined(CAIRO_HAS_QT_SURFACE) && defined(MOZ_WIDGET_QT)
+#ifdef CAIRO_HAS_QT_SURFACE
 #include "gfxQPainterSurface.h"
+#endif
+
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+#include "gfxDDrawSurface.h"
 #endif
 
 #include <stdio.h>
@@ -187,9 +191,14 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxDirectFBSurface(csurf);
     }
 #endif
-#if defined(CAIRO_HAS_QT_SURFACE) && defined(MOZ_WIDGET_QT)
+#ifdef CAIRO_HAS_QT_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_QT) {
         result = new gfxQPainterSurface(csurf);
+    }
+#endif
+#ifdef CAIRO_HAS_DDRAW_SURFACE
+    else if (stype == CAIRO_SURFACE_TYPE_DDRAW) {
+        result = new gfxDDrawSurface(csurf);
     }
 #endif
     else {
@@ -258,7 +267,7 @@ gfxASurface::GetDeviceOffset() const
 }
 
 void
-gfxASurface::Flush() const
+gfxASurface::Flush()
 {
     cairo_surface_flush(mSurface);
 }
@@ -301,10 +310,6 @@ already_AddRefed<gfxASurface>
 gfxASurface::CreateSimilarSurface(gfxContentType aContent,
                                   const gfxIntSize& aSize)
 {
-    if (!mSurface || !mSurfaceValid) {
-      return nsnull;
-    }
-    
     cairo_surface_t *surface =
         cairo_surface_create_similar(mSurface, cairo_content_t(aContent),
                                      aSize.width, aSize.height);
@@ -415,20 +420,6 @@ gfxASurface::ContentFromFormat(gfxImageFormat format)
     }
 }
 
-gfxASurface::gfxImageFormat
-gfxASurface::FormatFromContent(gfxASurface::gfxContentType type)
-{
-    switch (type) {
-        case CONTENT_COLOR_ALPHA:
-            return ImageFormatARGB32;
-        case CONTENT_ALPHA:
-            return ImageFormatA8;
-        case CONTENT_COLOR:
-        default:
-            return ImageFormatRGB24;
-    }
-}
-
 PRInt32
 gfxASurface::BytePerPixelFromFormat(gfxImageFormat format)
 {
@@ -465,21 +456,10 @@ static const char *sSurfaceNamesForSurfaceType[] = {
     "gfx/surface/quartzimage",
     "gfx/surface/script",
     "gfx/surface/qpainter",
-    "gfx/surface/recording",
-    "gfx/surface/vg",
-    "gfx/surface/gl",
-    "gfx/surface/drm",
-    "gfx/surface/tee",
-    "gfx/surface/xml",
-    "gfx/surface/skia",
-    "gfx/surface/d2d"
+    "gfx/surface/ddraw"
 };
 
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceNamesForSurfaceType) == gfxASurface::SurfaceTypeMax);
-#ifdef CAIRO_HAS_D2D_SURFACE
-PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_D2D) == PRUint32(gfxASurface::SurfaceTypeD2D));
-#endif
-PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_SKIA) == PRUint32(gfxASurface::SurfaceTypeSkia));
 
 static const char *
 SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)

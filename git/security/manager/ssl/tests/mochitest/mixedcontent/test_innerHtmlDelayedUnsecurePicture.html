@@ -19,11 +19,11 @@
         "<img id='image1' src='http://example.com/tests/security/ssl/mixedcontent/moonsurface.jpg' />";
     }, 1);
 
-    waitForSecurityState("broken", function() 
+    window.setTimeout(function() 
     {
       isSecurityState("broken", "innerHTML loading insecure changed to broken");
       finish();
-    });
+    }, 500);
   }
 
   function afterNavigationTest()

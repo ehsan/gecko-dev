@@ -59,51 +59,29 @@
 #ifndef WINCE
 # define putenv _putenv
 #endif
+# define snprintf _snprintf
 # define fchmod(a,b)
+
 # define NS_T(str) L ## str
-// On Windows, _snprintf and _snwprintf don't guarantee null termination. These
-// macros always leave room in the buffer for null termination and set the end
-// of the buffer to null in case the string is larger than the buffer. Having
-// multiple nulls in a string is fine and this approach is simpler (possibly
-// faster) than calculating the string length to place the null terminator and
-// will truncate the string as _snprintf and _snwprintf do on other platforms.
-# define snprintf(dest, count, fmt, ...) \
-  PR_BEGIN_MACRO \
-    int _count = count - 1; \
-    _snprintf(dest, _count, fmt, ##__VA_ARGS__); \
-    dest[_count] = '\0'; \
-  PR_END_MACRO
-# define NS_tsnprintf(dest, count, fmt, ...) \
-  PR_BEGIN_MACRO \
-    int _count = count - 1; \
-    _snwprintf(dest, _count, fmt, ##__VA_ARGS__); \
-    dest[_count] = L'\0'; \
-  PR_END_MACRO
+# define NS_tsnprintf _snwprintf
 # define NS_tstrrchr wcsrchr
 # define NS_taccess _waccess
 # define NS_tchdir _wchdir
 # define NS_tchmod _wchmod
 # define NS_tmkdir(path, perms) _wmkdir(path)
 # define NS_tremove _wremove
-// _wrename is used instead of MoveFileW to avoid the link tracking service.
-# define NS_trename _wrename
 # define NS_tfopen _wfopen
+# define NS_tatoi _wtoi64
 #ifndef WINCE
 # define stat _stat
 #endif
 # define NS_tstat _wstat
 # define BACKUP_EXT L".moz-backup"
 # define CALLBACK_BACKUP_EXT L".moz-callback"
-#ifndef WINCE
-# define DELETE_DIR L"tobedeleted"
-#endif
 # define LOG_S "%S"
 #else
 # include <sys/wait.h>
 # include <unistd.h>
-#ifdef XP_MACOSX
-# include <sys/time.h>
-#endif
 
 # define NS_T(str) str
 # define NS_tsnprintf snprintf
@@ -113,8 +91,8 @@
 # define NS_tchmod chmod
 # define NS_tmkdir mkdir
 # define NS_tremove remove
-# define NS_trename rename
 # define NS_tfopen fopen
+# define NS_tatoi atoi
 # define NS_tstat stat
 # define BACKUP_EXT ".moz-backup"
 # define LOG_S "%s"
@@ -203,6 +181,9 @@ void LaunchMacPostProcess(const char* aAppExe);
   }
 #endif
 #endif
+
+char *BigBuffer = NULL;
+int BigBufferSize = 262144;
 
 //-----------------------------------------------------------------------------
 
@@ -390,8 +371,7 @@ static void LogInit()
     return;
 
   NS_tchar logFile[MAXPATHLEN];
-  NS_tsnprintf(logFile, sizeof(logFile)/sizeof(logFile[0]),
-               NS_T("%s/update.log"), gSourcePath);
+  NS_tsnprintf(logFile, MAXPATHLEN, NS_T("%s/update.log"), gSourcePath);
 
   gLogFP = NS_tfopen(logFile, NS_T("w"));
 }
@@ -514,8 +494,7 @@ static int ensure_remove(const NS_tchar *path)
   ensure_write_permissions(path);
   int rv = NS_tremove(path);
   if (rv)
-    LOG(("ensure_remove: failed to remove file: " LOG_S ", rv: %d, err: %d\n",
-         path, rv, errno));
+    LOG(("remove failed: %d,%d (" LOG_S ")\n", rv, errno, path));
   return rv;
 }
 
@@ -553,8 +532,6 @@ static int ensure_parent_dir(const NS_tchar *path)
       // If the directory already exists, then ignore the error. On WinCE rv
       // will equal 0 if the directory already exists.
       if (rv < 0 && errno != EEXIST) {
-        LOG(("ensure_parent_dir: failed to create directory: " LOG_S ", " \
-             "err: %d\n", path, errno));
         rv = WRITE_ERROR;
       } else {
         rv = OK;
@@ -565,31 +542,43 @@ static int ensure_parent_dir(const NS_tchar *path)
   return rv;
 }
 
-// Renames the specified file to the new file specified. If the destination file
-// exists it is removed.
-static int rename_file(const NS_tchar *spath, const NS_tchar *dpath)
+static int copy_file(const NS_tchar *spath, const NS_tchar *dpath)
 {
   int rv = ensure_parent_dir(dpath);
   if (rv)
     return rv;
 
-  if (NS_taccess(spath, F_OK)) {
-    LOG(("rename_file: source file doesn't exist: " LOG_S "\n", spath));
+  struct stat ss;
+
+  AutoFile sfile = NS_tfopen(spath, NS_T("rb"));
+  if (sfile == NULL || fstat(fileno((FILE*)sfile), &ss)) {
+    LOG(("copy_file: failed to open or stat: %p," LOG_S ",%d\n", sfile.get(), spath, errno));
     return READ_ERROR;
   }
 
-  if (!NS_taccess(dpath, F_OK)) {
-    if (ensure_remove(dpath)) {
-      LOG(("rename_file: destination file exists and could not be " \
-           "removed: " LOG_S "\n", dpath));
+  AutoFile dfile = ensure_open(dpath, NS_T("wb+"), ss.st_mode); 
+  if (dfile == NULL) {
+    LOG(("copy_file: failed to open: " LOG_S ",%d\n", dpath, errno));
+    return WRITE_ERROR;
+  }
+
+  int sc;
+  while ((sc = fread(BigBuffer, 1, BigBufferSize, sfile)) > 0) {
+    int dc;
+    char *bp = BigBuffer;
+    while ((dc = fwrite(bp, 1, (unsigned int) sc, dfile)) > 0) {
+      if ((sc -= dc) == 0)
+        break;
+      bp += dc;
+    }
+    if (dc < 0) {
+      LOG(("copy_file: failed to write: %d\n", errno));
       return WRITE_ERROR;
     }
   }
-
-  if (NS_trename(spath, dpath) != 0) {
-    LOG(("rename_file: failed to rename file - src: " LOG_S ", " \
-         "dst:" LOG_S ", err: %d\n", spath, dpath, errno));
-    return WRITE_ERROR;
+  if (sc < 0) {
+    LOG(("copy_file: failed to read: %d\n", errno));
+    return READ_ERROR;
   }
 
   return OK;
@@ -597,73 +586,46 @@ static int rename_file(const NS_tchar *spath, const NS_tchar *dpath)
 
 //-----------------------------------------------------------------------------
 
-// Create a backup of the specified file by renaming it.
+// Create a backup copy of the specified file alongside it.
 static int backup_create(const NS_tchar *path)
 {
   NS_tchar backup[MAXPATHLEN];
-  NS_tsnprintf(backup, sizeof(backup)/sizeof(backup[0]),
-               NS_T("%s" BACKUP_EXT), path);
+  NS_tsnprintf(backup, sizeof(backup), NS_T("%s" BACKUP_EXT), path);
 
-  return rename_file(path, backup);
+  return copy_file(path, backup);
 }
 
-// Rename the backup of the specified file that was created by renaming it back
-// to the original file.
+// Copy the backup copy of the specified file back overtop
+// the specified file.
+// XXX should be a file move instead
 static int backup_restore(const NS_tchar *path)
 {
   NS_tchar backup[MAXPATHLEN];
-  NS_tsnprintf(backup, sizeof(backup)/sizeof(backup[0]),
-               NS_T("%s" BACKUP_EXT), path);
+  NS_tsnprintf(backup, sizeof(backup), NS_T("%s" BACKUP_EXT), path);
 
-  if (NS_taccess(backup, F_OK)) {
-    LOG(("backup_restore: backup file doesn't exist: " LOG_S "\n", backup));
-    return OK;
+  int rv = copy_file(backup, path);
+  if (rv) {
+    ensure_remove(backup);
+    return rv;
   }
 
-  return rename_file(backup, path);
+  rv = ensure_remove(backup);
+  if (rv) {
+    return WRITE_ERROR;
+  }
+
+  return OK;
 }
 
-// Discard the backup of the specified file that was created by renaming it.
+// Discard the backup copy of the specified file.
 static int backup_discard(const NS_tchar *path)
 {
   NS_tchar backup[MAXPATHLEN];
-  NS_tsnprintf(backup, sizeof(backup)/sizeof(backup[0]),
-               NS_T("%s" BACKUP_EXT), path);
-
-  // Nothing to discard
-  if (NS_taccess(backup, F_OK)) {
-    LOG(("backup_discard: backup file doesn't exist: " LOG_S "\n", backup));
-    return OK;
-  }
+  NS_tsnprintf(backup, sizeof(backup), NS_T("%s" BACKUP_EXT), path);
 
   int rv = ensure_remove(backup);
-#if defined(XP_WIN) && !defined(WINCE)
-  if (rv) {
-    LOG(("backup_discard: unable to remove: " LOG_S "\n", backup));
-    NS_tchar path[MAXPATHLEN];
-    GetTempFileNameW(DELETE_DIR, L"moz", 0, path);
-    if (rename_file(backup, path)) {
-      LOG(("backup_discard: failed to rename file:" LOG_S ", dst:" LOG_S "\n",
-           backup, path));
-      return WRITE_ERROR;
-    }
-    // The MoveFileEx call to remove the file on OS reboot will fail if the
-    // process doesn't have write access to the HKEY_LOCAL_MACHINE registry key
-    // but this is ok since the installer / uninstaller will delete the
-    // directory containing the file along with its contents after an update is
-    // applied, on reinstall, and on uninstall.
-    if (MoveFileEx(path, NULL, MOVEFILE_DELAY_UNTIL_REBOOT)) {
-      LOG(("backup_discard: file renamed and will be removed on OS " \
-           "reboot: " LOG_S "\n", path));
-    } else {
-      LOG(("backup_discard: failed to schedule OS reboot removal of " \
-           "file: " LOG_S "\n", path));
-    }
-  }
-#else
   if (rv)
     return WRITE_ERROR;
-#endif
 
   return OK;
 }
@@ -807,6 +769,10 @@ RemoveFile::Execute()
     return rv;
   }
 
+  rv = ensure_remove(mDestFile);
+  if (rv)
+    return WRITE_ERROR;
+
   return OK;
 }
 
@@ -877,6 +843,10 @@ AddFile::Execute()
     rv = backup_create(mDestFile);
     if (rv)
       return rv;
+
+    rv = ensure_remove(mDestFile);
+    if (rv)
+      return WRITE_ERROR;
   } else {
     rv = ensure_parent_dir(mDestFile);
     if (rv)
@@ -936,39 +906,28 @@ PatchFile::LoadSourceFile(FILE* ofile)
 {
   struct stat os;
   int rv = fstat(fileno((FILE*)ofile), &os);
-  if (rv) {
-    LOG(("LoadSourceFile: unable to stat destination file: " LOG_S ", " \
-         "err: %d\n", mDestFile, errno));
+  if (rv)
     return READ_ERROR;
-  }
 
-  if (PRUint32(os.st_size) != header.slen) {
-    LOG(("LoadSourceFile: destination file size %d does not match expected size %d\n",
-         PRUint32(os.st_size), header.slen));
+  if (PRUint32(os.st_size) != header.slen)
     return UNEXPECTED_ERROR;
-  }
 
   buf = (unsigned char*) malloc(header.slen);
   if (!buf)
     return MEM_ERROR;
 
-  size_t r = header.slen;
+  int r = header.slen;
   unsigned char *rb = buf;
   while (r) {
-    size_t c = fread(rb, 1, r, ofile);
-    if (c < 0) {
-      LOG(("LoadSourceFile: error reading destination file: " LOG_S "\n",
-           mDestFile));
+    int c = fread(rb, 1, r, ofile);
+    if (c < 0)
       return READ_ERROR;
-    }
 
     r -= c;
     rb += c;
 
-    if (c == 0 && r) {
-      LOG(("LoadSourceFile: expected %d more bytes in destination file\n", r));
+    if (c == 0 && r)
       return UNEXPECTED_ERROR;
-    }
   }
 
   // Verify that the contents of the source file correspond to what we expect.
@@ -1020,8 +979,8 @@ PatchFile::Prepare()
   // extract the patch to a temporary file
   mPatchIndex = sPatchIndex++;
 
-  NS_tsnprintf(spath, sizeof(spath)/sizeof(spath[0]),
-               NS_T("%s/%d.patch"), gSourcePath, mPatchIndex);
+  NS_tsnprintf(spath, MAXPATHLEN, NS_T("%s/%d.patch"),
+               gSourcePath, mPatchIndex);
 
   NS_tremove(spath);
 
@@ -1048,11 +1007,8 @@ PatchFile::Execute()
     return rv;
 
   FILE *origfile = NS_tfopen(mDestFile, NS_T("rb"));
-  if (!origfile) {
-    LOG(("unable to open destination file: " LOG_S ", err: %d\n", mDestFile,
-         errno));
+  if (!origfile)
     return READ_ERROR;
-  }
 
   rv = LoadSourceFile(origfile);
   fclose(origfile);
@@ -1061,8 +1017,8 @@ PatchFile::Execute()
     return rv;
   }
 
-  // Rename the destination file if it exists before proceeding so it can be
-  // used to restore the file to its original state if there is an error.
+  // Create backup copy of the destination file before proceeding.
+
   struct stat ss;
   if (NS_tstat(mDestFile, &ss))
     return READ_ERROR;
@@ -1071,72 +1027,17 @@ PatchFile::Execute()
   if (rv)
     return rv;
 
-#if defined(HAVE_POSIX_FALLOCATE)
-  AutoFile ofile = ensure_open(mDestFile, NS_T("wb+"), ss.st_mode);
-  posix_fallocate(fileno((FILE*)ofile), 0, header.dlen);
-#elif defined(XP_WIN)
-  PRBool shouldTruncate = PR_TRUE;
-  // Creating the file, setting the size, and then closing the file handle
-  // lessens fragmentation more than any other method tested. Other methods that
-  // have been tested are:
-  // 1. _chsize / _chsize_s reduced fragmentation but though not completely.
-  // 2. _get_osfhandle and then setting the size reduced fragmentation though
-  //    not completely. There are also reports of _get_osfhandle failing on
-  //    mingw.
-  HANDLE hfile = CreateFileW(mDestFile,
-                             GENERIC_WRITE,
-                             0,
-                             NULL,
-                             CREATE_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL,
-                             NULL);
-
-  if (hfile != INVALID_HANDLE_VALUE) {
-    if (SetFilePointer(hfile, header.dlen, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER &&
-        SetEndOfFile(hfile) != 0) {
-      shouldTruncate = PR_FALSE;
-    }
-    CloseHandle(hfile);
-  }
-
-  AutoFile ofile = ensure_open(mDestFile, shouldTruncate ? NS_T("wb+") : NS_T("rb+"), ss.st_mode);
-#elif defined(XP_MACOSX)
-  AutoFile ofile = ensure_open(mDestFile, NS_T("wb+"), ss.st_mode);
-  // Modified code from FileUtils.cpp
-  fstore_t store = {F_ALLOCATECONTIG, F_PEOFPOSMODE, 0, header.dlen};
-  // Try to get a continous chunk of disk space
-  rv = fcntl(fileno((FILE*)ofile), F_PREALLOCATE, &store);
-  if (rv == -1) {
-    // OK, perhaps we are too fragmented, allocate non-continuous
-    store.fst_flags = F_ALLOCATEALL;
-    rv = fcntl(fileno((FILE*)ofile), F_PREALLOCATE, &store);
-  }
-
-  if (rv != -1) {
-    ftruncate(fileno((FILE*)ofile), header.dlen);
-  }
-#else
-  AutoFile ofile = ensure_open(mDestFile, NS_T("wb+"), ss.st_mode);
-#endif
-
-  if (ofile == NULL) {
-    LOG(("unable to create new file: " LOG_S ", err: %d\n", mDestFile,
-         errno));
+  rv = ensure_remove(mDestFile);
+  if (rv)
     return WRITE_ERROR;
-  }
 
-#ifdef XP_WIN
-  if (!shouldTruncate) {
-    fseek(ofile, 0, SEEK_SET);
-  }
-#endif
+  AutoFile ofile = ensure_open(mDestFile, NS_T("wb+"), ss.st_mode);
+  if (ofile == NULL)
+    return WRITE_ERROR;
 
   rv = MBS_ApplyPatch(&header, pfile, buf, ofile);
 
   // Go ahead and do a bit of cleanup now to minimize runtime overhead.
-  // Set pfile to NULL to make AutoFile close the file so it can be deleted on
-  // Windows.
-  pfile = NULL;
   NS_tremove(spath);
   spath[0] = '\0';
   free(buf);
@@ -1325,13 +1226,12 @@ LaunchWinPostProcess(const WCHAR *appExe)
   wcscpy(slash + 1, L"uninstall.update");
 
   WCHAR slogFile[MAXPATHLEN];
-  NS_tsnprintf(slogFile, sizeof(slogFile)/sizeof(slogFile[0]),
-               NS_T("%s/update.log"), gSourcePath);
+  _snwprintf(slogFile, MAXPATHLEN, L"%s/update.log", gSourcePath);
 
   WCHAR dummyArg[13];
   wcscpy(dummyArg, L"argv0ignored ");
 
-  size_t len = wcslen(exearg) + wcslen(dummyArg);
+  int len = wcslen(exearg) + wcslen(dummyArg);
   WCHAR *cmdline = (WCHAR *) malloc((len + 1) * sizeof(WCHAR));
   if (!cmdline)
     return;
@@ -1452,8 +1352,7 @@ WriteStatusFile(int status)
   // This is how we communicate our completion status to the main application.
 
   NS_tchar filename[MAXPATHLEN];
-  NS_tsnprintf(filename, sizeof(filename)/sizeof(filename[0]),
-               NS_T("%s/update.status"), gSourcePath);
+  NS_tsnprintf(filename, MAXPATHLEN, NS_T("%s/update.status"), gSourcePath);
 
   AutoFile file = NS_tfopen(filename, NS_T("wb+"));
   if (file == NULL)
@@ -1465,7 +1364,7 @@ WriteStatusFile(int status)
   if (status == OK) {
     text = "succeeded\n";
   } else {
-    snprintf(buf, sizeof(buf)/sizeof(buf[0]), "failed: %d\n", status);
+    snprintf(buf, sizeof(buf), "failed: %d\n", status);
     text = buf;
   }
   fwrite(text, strlen(text), 1, file);
@@ -1477,8 +1376,7 @@ UpdateThreadFunc(void *param)
   // open ZIP archive and process...
 
   NS_tchar dataFile[MAXPATHLEN];
-  NS_tsnprintf(dataFile, sizeof(dataFile)/sizeof(dataFile[0]),
-               NS_T("%s/update.mar"), gSourcePath);
+  NS_tsnprintf(dataFile, MAXPATHLEN, NS_T("%s/update.mar"), gSourcePath);
 
   int rv = gArchiveReader.Open(dataFile);
   if (rv == OK) {
@@ -1486,30 +1384,10 @@ UpdateThreadFunc(void *param)
     gArchiveReader.Close();
   }
 
-  if (rv) {
+  if (rv)
     LOG(("failed: %d\n", rv));
-  }
-  else {
-#ifdef XP_MACOSX
-    // If the update was successful we need to update the timestamp
-    // on the top-level Mac OS X bundle directory so that Mac OS X's
-    // Launch Services picks up any major changes. Here we assume that
-    // the current working directory is the top-level bundle directory.
-    char* cwd = getcwd(NULL, 0);
-    if (cwd) {
-      if (utimes(cwd, NULL) != 0) {
-        LOG(("Couldn't set access/modification time on application bundle.\n"));
-      }
-      free(cwd);
-    }
-    else {
-      LOG(("Couldn't get current working directory for setting "
-           "access/modification time on application bundle.\n"));
-    }
-#endif
-
+  else
     LOG(("succeeded\n"));
-  }
   WriteStatusFile(rv);
 
   LOG(("calling QuitProgressUI\n"));
@@ -1519,39 +1397,28 @@ UpdateThreadFunc(void *param)
 int NS_main(int argc, NS_tchar **argv)
 {
   InitProgressUI(&argc, &argv);
+  // The updater command line consists of the directory path containing the
+  // updater.mar file to process followed by the PID of the calling process.
+  // The updater will wait on the parent process to exit if the PID is non-
+  // zero.  This is leveraged on platforms such as Windows where it is
+  // necessary for the parent process to exit before its executable image may
+  // be altered.
 
-  // To process an update the updater command line must at a minimum have the
-  // directory path containing the updater.mar file to process as the first argument
-  // and the directory to apply the update to as the second argument. When the
-  // updater is launched by another process the PID of the parent process should be
-  // provided in the optional third argument and the updater will wait on the parent
-  // process to exit if the value is non-zero and the process is present. This is
-  // necessary due to not being able to update files that are in use on Windows. The
-  // optional fourth argument is the callback's working directory and the optional
-  // fifth argument is the callback path. The callback is the application to launch
-  // after  updating and it will be launched when these arguments are provided
-  // whether the update was successful or not. All remaining arguments are optional
-  // and are passed to the callback when it is launched.
-  if (argc < 3) {
-    fprintf(stderr, "Usage: updater update-dir apply-to-dir [wait-pid [callback-working-dir callback-path args...]]\n");
-    return 1;
-  }
-
-  // Change current directory to the directory where we need to apply the update.
 #ifndef WINCE
-  if (NS_tchdir(argv[2]) != 0) {
+  if (argc < 2) {
+    fprintf(stderr, "Usage: updater <dir-path> [parent-pid [working-dir callback args...]]\n");
+    return 1;
+  }
+#else
+  if (argc < 4) {
+    fprintf(stderr, "Usage: updater <dir-path> parent-pid <working-dir> [callback args...]]\n");
     return 1;
   }
 #endif
 
-  // If there is a PID specified and it is not '0' then wait for the process to exit.
-  if (argc > 3) {
-#ifdef XP_WIN
-    __int64 pid = _wtoi64(argv[3]);
-#else
-    int pid = atoi(argv[3]);
-#endif
-    if (pid != 0) {
+  if (argc > 2 ) {
+    int pid = NS_tatoi(argv[2]);
+    if (pid) {
 #ifdef XP_WIN
       HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD) pid);
       // May return NULL if the parent process has already gone away.
@@ -1563,30 +1430,33 @@ int NS_main(int argc, NS_tchar **argv)
         if (result != WAIT_OBJECT_0)
           return 1;
       }
+
+      // The process may be signaled before it releases the executable image.
+      // This is a terrible hack, but it'll have to do for now :-(
+      Sleep(50);
 #else
-      waitpid(pid, NULL, 0);
+      int status;
+      waitpid(pid, &status, 0);
 #endif
     }
   }
 
-  // The directory containing the update information.
-  gSourcePath = argv[1];
+  // The callback is the last N command line arguments starting from argOffset.
+  // The argument specified by argOffset is the callback executable and the
+  // argument prior to argOffset is the working directory.
+  const int argOffset = 4;
 
-  // The callback is the remaining arguments starting at callbackIndex.
-  // The argument specified by callbackIndex is the callback executable and the
-  // argument prior to callbackIndex is the working directory.
-  const int callbackIndex = 5;
+  gSourcePath = argv[1];
 
 #if defined(XP_WIN) && !defined(WINCE)
   // Launch a second instance of the updater with the runas verb on Windows
   // when write access is denied to the installation directory.
   HANDLE updateLockFileHandle;
   NS_tchar elevatedLockFilePath[MAXPATHLEN];
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
     NS_tchar updateLockFilePath[MAXPATHLEN];
-    NS_tsnprintf(updateLockFilePath,
-                 sizeof(updateLockFilePath)/sizeof(updateLockFilePath[0]),
-                 NS_T("%s.update_in_progress.lock"), argv[callbackIndex]);
+    NS_tsnprintf(updateLockFilePath, MAXPATHLEN,
+                 NS_T("%s.update_in_progress.lock"), argv[argOffset]);
 
     // The update_in_progress.lock file should only exist during an update. In
     // case it exists attempt to remove it and exit if that fails to prevent
@@ -1605,8 +1475,7 @@ int NS_main(int argc, NS_tchar **argv)
                                        FILE_FLAG_DELETE_ON_CLOSE,
                                        NULL);
 
-    NS_tsnprintf(elevatedLockFilePath,
-                 sizeof(elevatedLockFilePath)/sizeof(elevatedLockFilePath[0]),
+    NS_tsnprintf(elevatedLockFilePath, MAXPATHLEN,
                  NS_T("%s/update_elevated.lock"), argv[1]);
 
     if (updateLockFileHandle == INVALID_HANDLE_VALUE) {
@@ -1658,8 +1527,8 @@ int NS_main(int argc, NS_tchar **argv)
         WriteStatusFile(ELEVATION_CANCELED);
       }
 
-      if (argc > callbackIndex) {
-        LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      if (argc > argOffset) {
+        LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       }
 
       CloseHandle(elevatedFileHandle);
@@ -1669,86 +1538,87 @@ int NS_main(int argc, NS_tchar **argv)
 #endif
 
   LogInit();
-  LOG(("SOURCE DIRECTORY " LOG_S "\n", argv[1]));
-  LOG(("DESTINATION DIRECTORY " LOG_S "\n", argv[2]));
+  LOG(("SOURCE DIRECTORY " LOG_S "\n", gSourcePath));
 
 #ifdef WINCE
   // This is the working directory to apply the update and is required on WinCE
   // since it doesn't have the concept of a working directory.
-  gDestPath = argv[2];
+  gDestPath = argv[3];
+  LOG(("DESTINATION DIRECTORY " LOG_S "\n", gDestPath));
 #endif
 
 #ifdef XP_WIN
   HANDLE callbackFile = INVALID_HANDLE_VALUE;
   NS_tchar callbackBackupPath[MAXPATHLEN];
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
     // FindFirstFileW is used to get the callback's filename for comparison
     // with the callback's patch since it will return the correct case and the
     // long name instead of the 8.3 format name.
     HANDLE hFindFile;
-    hFindFile = FindFirstFileW(argv[callbackIndex], &gFFData);
+    hFindFile = FindFirstFileW(argv[argOffset], &gFFData);
     if (hFindFile == INVALID_HANDLE_VALUE) {
-      LOG(("NS_main: unable to find callback file: " LOG_S "\n", argv[callbackIndex]));
+      LOG(("NS_main: unable to find callback file: " LOG_S "\n", argv[argOffset]));
       LogFinish();
       WriteStatusFile(WRITE_ERROR);
       EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
-      LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       return 1;
     }
     FindClose(hFindFile);
 
     // Make a copy of the callback executable.
-    NS_tsnprintf(callbackBackupPath,
-                 sizeof(callbackBackupPath)/sizeof(callbackBackupPath[0]),
-                 NS_T("%s" CALLBACK_BACKUP_EXT), argv[callbackIndex]);
+    NS_tsnprintf(callbackBackupPath, sizeof(callbackBackupPath),
+                 NS_T("%s" CALLBACK_BACKUP_EXT), argv[argOffset]);
     NS_tremove(callbackBackupPath);
-    CopyFileW(argv[callbackIndex], callbackBackupPath, FALSE);
+    CopyFileW(argv[argOffset], callbackBackupPath, FALSE);
 
-    // Since the process may be signaled as exited by WaitForSingleObject before
-    // the release of the executable image try to lock the main executable file
-    // multiple times before giving up.
-    int retries = 5;
-    do {
-      // By opening a file handle to the callback executable, the OS will prevent
-      // launching the process while it is being updated. 
-      callbackFile = CreateFileW(argv[callbackIndex],
+    // By opening a file handle to the callback executable, the OS will prevent
+    // launching the process while it is being updated. 
+    callbackFile = CreateFileW(argv[argOffset],
 #ifdef WINCE
-                                 GENERIC_WRITE,
-                                 FILE_SHARE_READ | FILE_SHARE_WRITE,
+                               GENERIC_WRITE,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE,
 #else
-                                 DELETE | GENERIC_WRITE,
-                                 0, // no sharing!
+                               DELETE | GENERIC_WRITE,
+                               0, // no sharing!
 #endif
-                                 NULL, OPEN_EXISTING, 0, NULL);
-      if (callbackFile != INVALID_HANDLE_VALUE)
-        break;
-
-      Sleep(50);
-    } while (--retries);
-
+                               NULL, OPEN_EXISTING, 0, NULL);
     // CreateFileW will fail if the callback executable is already in use. Since
     // it isn't possible to update write the status file and return.
     if (callbackFile == INVALID_HANDLE_VALUE) {
       LOG(("NS_main: file in use - failed to exclusively open executable " \
-           "file: " LOG_S "\n", argv[callbackIndex]));
+           "file: " LOG_S "\n", argv[argOffset]));
       LogFinish();
       WriteStatusFile(WRITE_ERROR);
       NS_tremove(callbackBackupPath);
       EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
-      LaunchCallbackApp(argv[4], argc - callbackIndex, argv + callbackIndex);
+      LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
       return 1;
     }
   }
 #endif
 
-#if defined(XP_WIN) && !defined(WINCE)
-  // The directory to move files that are in use to on Windows. This directory
-  // will be deleted after the update is finished or on on OS reboot using
-  // MoveFileEx if it contains files that are in use.
-  if (NS_taccess(DELETE_DIR, F_OK)) {
-    NS_tmkdir(DELETE_DIR, 0755);
-  }
+  BigBuffer = (char *)malloc(BigBufferSize);
+  if (!BigBuffer) {
+    LOG(("NS_main: failed to allocate default buffer of %i. Trying 1K " \
+         "buffer\n", BigBufferSize));
+
+    // Try again with a smaller size.
+    BigBufferSize = 1024;
+    BigBuffer = (char *)malloc(BigBufferSize);
+    if (!BigBuffer) {
+      LOG(("NS_main: failed to allocate 1K buffer - exiting\n"));
+      LogFinish();
+      WriteStatusFile(MEM_ERROR);
+#ifdef XP_WIN
+      CloseHandle(callbackFile);
+      NS_tremove(callbackBackupPath);
+      EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 1);
 #endif
+      LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
+      return 1;
+    }
+  }
 
   // Run update process on a background thread.  ShowProgressUI may return
   // before QuitProgressUI has been called, so wait for UpdateThreadFunc to
@@ -1760,54 +1630,33 @@ int NS_main(int argc, NS_tchar **argv)
   t.Join();
 
 #ifdef XP_WIN
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
     CloseHandle(callbackFile);
     // CopyFile will preserve the case of the destination file if it already
     // exists.
-    if (CopyFileW(callbackBackupPath, argv[callbackIndex], FALSE) != 0) {
+    if (CopyFileW(callbackBackupPath, argv[argOffset], FALSE) != 0) {
       NS_tremove(callbackBackupPath);
     }
   }
-
-#ifndef WINCE
-  if (_wrmdir(DELETE_DIR)) {
-    LOG(("NS_main: unable to remove directory: " LOG_S ", err: %d\n",
-         DELETE_DIR, errno));
-    // The directory probably couldn't be removed due to it containing files
-    // that are in use and will be removed on OS reboot. The call to remove the
-    // directory on OS reboot is done after the calls to remove the files so the
-    // files are removed first on OS reboot since the directory must be empty
-    // for the directory removal to be successful. The MoveFileEx call to remove
-    // the directory on OS reboot will fail if the process doesn't have write
-    // access to the HKEY_LOCAL_MACHINE registry key but this is ok since the
-    // installer / uninstaller will delete the directory along with its contents
-    // after an update is applied, on reinstall, and on uninstall.
-    if (MoveFileEx(DELETE_DIR, NULL, MOVEFILE_DELAY_UNTIL_REBOOT)) {
-      LOG(("NS_main: directory will be removed on OS reboot: " LOG_S "\n",
-           DELETE_DIR));
-    } else {
-      LOG(("NS_main: failed to schedule OS reboot removal of " \
-           "directory: " LOG_S "\n", DELETE_DIR));
-    }
-  }
 #endif
-#endif /* XP_WIN */
 
   LogFinish();
+  free(BigBuffer);
+  BigBuffer = NULL;
 
-  if (argc > callbackIndex) {
+  if (argc > argOffset) {
 #if defined(XP_WIN) && !defined(WINCE)
     if (gSucceeded) {
-      LaunchWinPostProcess(argv[callbackIndex]);
+      LaunchWinPostProcess(argv[argOffset]);
     }
     EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 0);
 #endif
 #ifdef XP_MACOSX
     if (gSucceeded) {
-      LaunchMacPostProcess(argv[callbackIndex]);
+      LaunchMacPostProcess(argv[argOffset]);
     }
 #endif /* XP_MACOSX */
-    LaunchCallbackApp(argv[3], argc - callbackIndex, argv + callbackIndex);
+    LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
   }
 
   return 0;
@@ -1933,48 +1782,37 @@ ActionList::Finish(int status)
 int DoUpdate()
 {
   NS_tchar manifest[MAXPATHLEN];
-  NS_tsnprintf(manifest, sizeof(manifest)/sizeof(manifest[0]),
-               NS_T("%s/update.manifest"), gSourcePath);
+  NS_tsnprintf(manifest, MAXPATHLEN, NS_T("%s/update.manifest"), gSourcePath);
 
   // extract the manifest
   FILE *fp = NS_tfopen(manifest, NS_T("wb"));
-  if (!fp) {
-    LOG(("DoUpdate: error opening manifest file: " LOG_S "\n", manifest));
+  if (!fp)
     return READ_ERROR;
-  }
 
   int rv = gArchiveReader.ExtractFileToStream("update.manifest", fp);
   fclose(fp);
-  if (rv) {
-    LOG(("DoUpdate: error extracting manifest file\n"));
+  if (rv)
     return rv;
-  }
 
   AutoFile mfile = NS_tfopen(manifest, NS_T("rb"));
-  if (mfile == NULL) {
-    LOG(("DoUpdate: error opening manifest file: " LOG_S "\n", manifest));
+  if (mfile == NULL)
     return READ_ERROR;
-  }
 
   struct stat ms;
   rv = fstat(fileno((FILE*)mfile), &ms);
-  if (rv) {
-    LOG(("DoUpdate: error stating manifest file: " LOG_S "\n", manifest));
+  if (rv)
     return READ_ERROR;
-  }
 
   char *mbuf = (char*) malloc(ms.st_size + 1);
   if (!mbuf)
     return MEM_ERROR;
 
-  size_t r = ms.st_size;
+  int r = ms.st_size;
   char *rb = mbuf;
   while (r) {
-    size_t c = fread(rb, 1, mmin(SSIZE_MAX,r), mfile);
-    if (c < 0) {
-      LOG(("DoUpdate: error reading manifest file: " LOG_S "\n", manifest));
+    int c = fread(rb, 1, mmin(SSIZE_MAX,r), mfile);
+    if (c < 0)
       return READ_ERROR;
-    }
 
     r -= c;
     rb += c;
@@ -1994,10 +1832,8 @@ int DoUpdate()
       continue;
 
     char *token = mstrtok(kWhitespace, &line);
-    if (!token) {
-      LOG(("DoUpdate: token not found in manifest\n"));
+    if (!token)
       return PARSE_ERROR;
-    }
 
     Action *action = NULL;
     if (strcmp(token, "remove") == 0) {
@@ -2016,7 +1852,6 @@ int DoUpdate()
       action = new PatchIfFile();
     }
     else {
-      LOG(("DoUpdate: unknown token: %s\n", token));
       return PARSE_ERROR;
     }
 

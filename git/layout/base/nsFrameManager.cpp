@@ -22,7 +22,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -95,9 +94,9 @@
 #include "RestyleTracker.h"
 
 #include "nsFrameManager.h"
-
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
+#include "nsIAccessibleEvent.h"
 #endif
 
   #ifdef DEBUG
@@ -500,7 +499,7 @@ nsFrameManager::RemoveFrame(nsIAtom*        aListName,
   // that doesn't change the size of the parent.)
   // This has to sure to invalidate the entire overflow rect; this
   // is important in the presence of absolute positioning
-  aOldFrame->InvalidateFrameSubtree();
+  aOldFrame->InvalidateOverflowRect();
 
   NS_ASSERTION(!aOldFrame->GetPrevContinuation() ||
                // exception for nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames
@@ -772,13 +771,12 @@ nsresult
 nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
 {
   if (nsGkAtoms::placeholderFrame == aFrame->GetType()) {
-    // Also reparent the out-of-flow and all its continuations.
+    // Also reparent the out-of-flow
     nsIFrame* outOfFlow =
       nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
     NS_ASSERTION(outOfFlow, "no out-of-flow frame");
-    do {
-      ReparentStyleContext(outOfFlow);
-    } while (outOfFlow = outOfFlow->GetNextContinuation());
+
+    ReparentStyleContext(outOfFlow);
   }
 
   // DO NOT verify the style tree before reparenting.  The frame
@@ -1004,9 +1002,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       nsStyleChangeList *aChangeList, 
                                       nsChangeHint       aMinChange,
                                       nsRestyleHint      aRestyleHint,
-                                      RestyleTracker&    aRestyleTracker,
-                                      DesiredA11yNotifications aDesiredA11yNotifications,
-                                      nsTArray<nsIContent*>& aVisibleKidsOfHiddenElement)
+                                      PRBool             aFireAccessibilityEvents,
+                                      RestyleTracker&    aRestyleTracker)
 {
   if (!NS_IsHintSubset(nsChangeHint_NeedDirtyReflow, aMinChange)) {
     // If aMinChange doesn't include nsChangeHint_NeedDirtyReflow, clear out
@@ -1048,17 +1045,14 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
   // XXXbz oldContext should just be an nsRefPtr
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   nsStyleSet* styleSet = aPresContext->StyleSet();
+#ifdef ACCESSIBILITY
+  PRBool isVisible = aFrame->GetStyleVisibility()->IsVisible();
+#endif
 
   // XXXbz the nsIFrame constructor takes an nsStyleContext, so how
   // could oldContext be null?
   if (oldContext) {
     oldContext->AddRef();
-
-#ifdef ACCESSIBILITY
-    PRBool wasFrameVisible = mPresShell->IsAccessibilityActive() ?
-      oldContext->GetStyleVisibility()->IsVisible() : PR_FALSE;
-#endif
-
     nsIAtom* const pseudoTag = oldContext->GetPseudo();
     const nsCSSPseudoElements::Type pseudoType = oldContext->GetPseudoType();
     nsIContent* localContent = aFrame->GetContent();
@@ -1109,12 +1103,12 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // style context provider will be automatically propagated to
       // the frame(s) with child style contexts.
 
+      // Accessibility: we don't need to fire a11y events for child provider
+      // frame because it is visible or hidden withitn this frame.
       assumeDifferenceHint = ReResolveStyleContext(aPresContext, providerFrame,
                                                    aParentContent, aChangeList,
                                                    aMinChange, aRestyleHint,
-                                                   aRestyleTracker,
-                                                   aDesiredA11yNotifications,
-                                                   aVisibleKidsOfHiddenElement);
+                                                   PR_FALSE, aRestyleTracker);
 
       // The provider's new context becomes the parent context of
       // aFrame's context.
@@ -1412,45 +1406,34 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       }
     }
 
-    if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
-      DesiredA11yNotifications kidsDesiredA11yNotification =
-        aDesiredA11yNotifications;
+    PRBool fireAccessibilityEvents = aFireAccessibilityEvents;
 #ifdef ACCESSIBILITY
-      A11yNotificationType ourA11yNotification = eDontNotify;
-      // Notify a11y for primary frame only if it's a root frame of visibility
-      // changes or its parent frame was hidden while it stays visible and
-      // it is not inside a {ib} split or is the first frame of {ib} split.
-      if (mPresShell->IsAccessibilityActive() && !aFrame->GetPrevContinuation() &&
-          !nsLayoutUtils::FrameIsNonFirstInIBSplit(aFrame)) {
-        if (aDesiredA11yNotifications == eSendAllNotifications) {
-          PRBool isFrameVisible = newContext->GetStyleVisibility()->IsVisible();
-          if (isFrameVisible != wasFrameVisible) {
-            if (isFrameVisible) {
-              // Notify a11y the element (perhaps with its children) was shown.
-              // We don't fall into this case if this element gets or stays shown
-              // while its parent becomes hidden.
-              kidsDesiredA11yNotification = eSkipNotifications;
-              ourA11yNotification = eNotifyShown;
-            } else {
-              // The element is being hidden; its children may stay visible, or
-              // become visible after being hidden previously. If we'll find
-              // visible children then we should notify a11y about that as if
-              // they were inserted into tree. Notify a11y this element was
-              // hidden.
-              kidsDesiredA11yNotification = eNotifyIfShown;
-              ourA11yNotification = eNotifyHidden;
-            }
-          }
-        } else if (aDesiredA11yNotifications == eNotifyIfShown &&
-                   newContext->GetStyleVisibility()->IsVisible()) {
-          // Notify a11y that element stayed visible while its parent was
-          // hidden.
-          aVisibleKidsOfHiddenElement.AppendElement(aFrame->GetContent());
-          kidsDesiredA11yNotification = eSkipNotifications;
-        }
+    if (fireAccessibilityEvents && mPresShell->IsAccessibilityActive() &&
+        aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
+        !aFrame->GetPrevContinuation()) {
+      // A significant enough change occurred that this part
+      // of the accessible tree is no longer valid. Fire event for primary
+      // frames only and if it wasn't fired for parent frame already.
+
+      // XXX: bug 355521. Visibility does not affect descendents with
+      // visibility set. Work on a separate, accurate mechanism for dealing with
+      // visibility changes.
+      nsCOMPtr<nsIAccessibilityService> accService = 
+        do_GetService("@mozilla.org/accessibilityService;1");
+      if (accService) {
+        PRUint32 changeType = isVisible ?
+          nsIAccessibilityService::FRAME_HIDE :
+          nsIAccessibilityService::FRAME_SHOW;
+
+        accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
+                                         changeType);
+        fireAccessibilityEvents = PR_FALSE;
       }
+    }
 #endif
 
+    if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
+      
       // There is no need to waste time crawling into a frame's children on a frame change.
       // The act of reconstructing frames will force new style contexts to be resolved on all
       // of this frame's descendants anyway, so we want to avoid wasting time processing
@@ -1487,34 +1470,29 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
               // |nsFrame::GetParentStyleContextFrame| checks being out
               // of flow so that this works correctly.
-              do {
-                ReResolveStyleContext(aPresContext, outOfFlowFrame,
-                                      content, aChangeList,
-                                      NS_SubtractHint(aMinChange,
-                                                      nsChangeHint_ReflowFrame),
-                                      childRestyleHint,
-                                      aRestyleTracker,
-                                      kidsDesiredA11yNotification,
-                                      aVisibleKidsOfHiddenElement);
-              } while (outOfFlowFrame = outOfFlowFrame->GetNextContinuation());
+              ReResolveStyleContext(aPresContext, outOfFlowFrame,
+                                    content, aChangeList,
+                                    NS_SubtractHint(aMinChange,
+                                                    nsChangeHint_ReflowFrame),
+                                    childRestyleHint,
+                                    fireAccessibilityEvents,
+                                    aRestyleTracker);
 
               // reresolve placeholder's context under the same parent
               // as the out-of-flow frame
               ReResolveStyleContext(aPresContext, child, content,
                                     aChangeList, aMinChange,
                                     childRestyleHint,
-                                    aRestyleTracker,
-                                    kidsDesiredA11yNotification,
-                                    aVisibleKidsOfHiddenElement);
+                                    fireAccessibilityEvents,
+                                    aRestyleTracker);
             }
             else {  // regular child frame
               if (child != resolvedChild) {
                 ReResolveStyleContext(aPresContext, child, content,
                                       aChangeList, aMinChange,
                                       childRestyleHint,
-                                      aRestyleTracker,
-                                      kidsDesiredA11yNotification,
-                                      aVisibleKidsOfHiddenElement);
+                                      fireAccessibilityEvents,
+                                      aRestyleTracker);
               } else {
                 NOISY_TRACE_FRAME("child frame already resolved as descendant, skipping",aFrame);
               }
@@ -1526,40 +1504,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         childList = aFrame->GetAdditionalChildListName(listIndex++);
       } while (childList);
       // XXX need to do overflow frames???
-
-#ifdef ACCESSIBILITY
-      // Send notifications about visibility changes.
-      if (ourA11yNotification == eNotifyShown) {
-        nsCOMPtr<nsIAccessibilityService> accService =
-          do_GetService("@mozilla.org/accessibilityService;1");
-        if (accService) {
-          nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
-          nsIContent* content = aFrame->GetContent();
-
-          accService->ContentRangeInserted(presShell, content->GetParent(),
-                                           content,
-                                           content->GetNextSibling());
-        }
-      } else if (ourA11yNotification == eNotifyHidden) {
-        nsCOMPtr<nsIAccessibilityService> accService =
-          do_GetService("@mozilla.org/accessibilityService;1");
-        if (accService) {
-          nsIPresShell* presShell = aFrame->PresContext()->GetPresShell();
-          nsIContent* content = aFrame->GetContent();
-          accService->ContentRemoved(presShell, content->GetParent(), content);
-
-          // Process children staying shown.
-          PRUint32 visibleContentCount = aVisibleKidsOfHiddenElement.Length();
-          for (PRUint32 idx = 0; idx < visibleContentCount; idx++) {
-            nsIContent* content = aVisibleKidsOfHiddenElement[idx];
-            accService->ContentRangeInserted(presShell, content->GetParent(),
-                                             content, content->GetNextSibling());
-          }
-          aVisibleKidsOfHiddenElement.Clear();
-        }
-      }
-#endif
     }
+
   }
 
   return aMinChange;
@@ -1589,7 +1535,6 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
 
   FramePropertyTable *propTable = GetPresContext()->PropertyTable();
 
-  nsTArray<nsIContent*> visibleKidsOfHiddenElement;
   do {
     // Outer loop over special siblings
     do {
@@ -1599,9 +1544,8 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
                               aChangeList, topLevelChange,
                               aRestyleDescendants ?
                                 eRestyle_Subtree : eRestyle_Self,
-                              aRestyleTracker,
-                              eSendAllNotifications,
-                              visibleKidsOfHiddenElement);
+                              PR_TRUE,
+                              aRestyleTracker);
       NS_UpdateHint(topLevelChange, frameChange);
 
       if (topLevelChange & nsChangeHint_ReconstructFrame) {

@@ -9,9 +9,7 @@
 #include "compiler/debug.h"
 #include "compiler/InfoSink.h"
 #include "compiler/UnfoldSelect.h"
-#include "compiler/SearchSymbol.h"
 
-#include <stdio.h>
 #include <algorithm>
 
 namespace sh
@@ -65,7 +63,7 @@ OutputHLSL::OutputHLSL(TParseContext &context) : TIntermTraverser(true, true, tr
 
     mScopeDepth = 0;
 
-    mUniqueIndex = 0;
+    mArgumentIndex = 0;
 }
 
 OutputHLSL::~OutputHLSL()
@@ -97,7 +95,7 @@ int OutputHLSL::vectorSize(const TType &type) const
 
 void OutputHLSL::header()
 {
-    ShShaderType shaderType = mContext.shaderType;
+    EShLanguage language = mContext.language;
     TInfoSinkBase &out = mHeader;
 
     for (StructDeclarations::iterator structDeclaration = mStructDeclarations.begin(); structDeclaration != mStructDeclarations.end(); structDeclaration++)
@@ -110,7 +108,7 @@ void OutputHLSL::header()
         out << *constructor;
     }
 
-    if (shaderType == SH_FRAGMENT_SHADER)
+    if (language == EShLangFragment)
     {
         TString uniforms;
         TString varyings;
@@ -182,7 +180,7 @@ void OutputHLSL::header()
 
         if (mUsesFragCoord)
         {
-            out << "uniform float4 dx_Viewport;\n"
+            out << "uniform float4 dx_Window;\n"
                    "uniform float2 dx_Depth;\n";
         }
 
@@ -362,8 +360,7 @@ void OutputHLSL::header()
                "    float diff;\n"
                "};\n"
                "\n"
-               "uniform float3 dx_DepthRange;"
-               "static gl_DepthRangeParameters gl_DepthRange = {dx_DepthRange.x, dx_DepthRange.y, dx_DepthRange.z};\n"
+               "uniform gl_DepthRangeParameters gl_DepthRange;\n"
                "\n";
     }
 
@@ -655,39 +652,7 @@ bool OutputHLSL::visitBinary(Visit visit, TIntermBinary *node)
     switch (node->getOp())
     {
       case EOpAssign:                  outputTriplet(visit, "(", " = ", ")");           break;
-      case EOpInitialize:
-        if (visit == PreVisit)
-        {
-            // GLSL allows to write things like "float x = x;" where a new variable x is defined
-            // and the value of an existing variable x is assigned. HLSL uses C semantics (the
-            // new variable is created before the assignment is evaluated), so we need to convert
-            // this to "float t = x, x = t;".
-
-            TIntermSymbol *symbolNode = node->getLeft()->getAsSymbolNode();
-            TIntermTyped *expression = node->getRight();
-
-            sh::SearchSymbol searchSymbol(symbolNode->getSymbol());
-            expression->traverse(&searchSymbol);
-            bool sameSymbol = searchSymbol.foundMatch();
-
-            if (sameSymbol)
-            {
-                // Type already printed
-                out << "t" + str(mUniqueIndex) + " = ";
-                expression->traverse(this);
-                out << ", ";
-                symbolNode->traverse(this);
-                out << " = t" + str(mUniqueIndex);
-
-                mUniqueIndex++;
-                return false;
-            }
-        }
-        else if (visit == InVisit)
-        {
-            out << " = ";
-        }
-        break;
+      case EOpInitialize:              outputTriplet(visit, "", " = ", "");             break;
       case EOpAddAssign:               outputTriplet(visit, "(", " += ", ")");          break;
       case EOpSubAssign:               outputTriplet(visit, "(", " -= ", ")");          break;
       case EOpMulAssign:               outputTriplet(visit, "(", " *= ", ")");          break;
@@ -825,11 +790,11 @@ bool OutputHLSL::visitBinary(Visit visit, TIntermBinary *node)
         {
             if (node->getLeft()->isMatrix())
             {
-                switch (node->getLeft()->getNominalSize())
+                switch (node->getLeft()->getSize())
                 {
-                  case 2: mUsesEqualMat2 = true; break;
-                  case 3: mUsesEqualMat3 = true; break;
-                  case 4: mUsesEqualMat4 = true; break;
+                  case 2 * 2: mUsesEqualMat2 = true; break;
+                  case 3 * 3: mUsesEqualMat3 = true; break;
+                  case 4 * 4: mUsesEqualMat4 = true; break;
                   default: UNREACHABLE();
                 }
             }
@@ -838,7 +803,7 @@ bool OutputHLSL::visitBinary(Visit visit, TIntermBinary *node)
                 switch (node->getLeft()->getBasicType())
                 {
                   case EbtFloat:
-                    switch (node->getLeft()->getNominalSize())
+                    switch (node->getLeft()->getSize())
                     {
                       case 2: mUsesEqualVec2 = true; break;
                       case 3: mUsesEqualVec3 = true; break;
@@ -847,7 +812,7 @@ bool OutputHLSL::visitBinary(Visit visit, TIntermBinary *node)
                     }
                     break;
                   case EbtInt:
-                    switch (node->getLeft()->getNominalSize())
+                    switch (node->getLeft()->getSize())
                     {
                       case 2: mUsesEqualIVec2 = true; break;
                       case 3: mUsesEqualIVec3 = true; break;
@@ -856,7 +821,7 @@ bool OutputHLSL::visitBinary(Visit visit, TIntermBinary *node)
                     }
                     break;
                   case EbtBool:
-                    switch (node->getLeft()->getNominalSize())
+                    switch (node->getLeft()->getSize())
                     {
                       case 2: mUsesEqualBVec2 = true; break;
                       case 3: mUsesEqualBVec3 = true; break;
@@ -967,9 +932,9 @@ bool OutputHLSL::visitUnary(Visit visit, TIntermUnary *node)
       case EOpFract:            outputTriplet(visit, "frac(", "", ")");      break;
       case EOpLength:           outputTriplet(visit, "length(", "", ")");    break;
       case EOpNormalize:        outputTriplet(visit, "normalize(", "", ")"); break;
-      case EOpDFdx:             outputTriplet(visit, "ddx(", "", ")");       break;
-      case EOpDFdy:             outputTriplet(visit, "ddy(", "", ")");       break;
-      case EOpFwidth:           outputTriplet(visit, "fwidth(", "", ")");    break;        
+//    case EOpDPdx:             outputTriplet(visit, "ddx(", "", ")");       break;
+//    case EOpDPdy:             outputTriplet(visit, "ddy(", "", ")");       break;
+//    case EOpFwidth:           outputTriplet(visit, "fwidth(", "", ")");    break;        
       case EOpAny:              outputTriplet(visit, "any(", "", ")");       break;
       case EOpAll:              outputTriplet(visit, "all(", "", ")");       break;
       default: UNREACHABLE();
@@ -980,7 +945,7 @@ bool OutputHLSL::visitUnary(Visit visit, TIntermUnary *node)
 
 bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
 {
-    ShShaderType shaderType = mContext.shaderType;
+    EShLanguage language = mContext.language;
     TInfoSinkBase &out = mBody;
 
     switch (node->getOp())
@@ -1322,7 +1287,7 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
       case EOpVectorNotEqual:   outputTriplet(visit, "(", " != ", ")");                break;
       case EOpMod:
         {
-            switch (node->getSequence()[0]->getAsTyped()->getNominalSize())   // Number of components in the first argument
+            switch (node->getSequence()[0]->getAsTyped()->getSize())   // Number of components in the first argument
             {
               case 1: mUsesMod1 = true; break;
               case 2: mUsesMod2 = true; break;
@@ -1351,7 +1316,7 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
       case EOpCross:         outputTriplet(visit, "cross(", ", ", ")");         break;
       case EOpFaceForward:
         {
-            switch (node->getSequence()[0]->getAsTyped()->getNominalSize())   // Number of components in the first argument
+            switch (node->getSequence()[0]->getAsTyped()->getSize())   // Number of components in the first argument
             {
             case 1: mUsesFaceforward1 = true; break;
             case 2: mUsesFaceforward2 = true; break;
@@ -1426,7 +1391,7 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
 
     TInfoSinkBase &out = mBody;
 
-    if (node->getType() == ELoopDoWhile)
+    if (!node->testFirst())
     {
         out << "do\n"
                "{\n";
@@ -1438,14 +1403,14 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
             mUnfoldSelect->traverse(node->getInit());
         }
         
-        if (node->getCondition())
+        if (node->getTest())
         {
-            mUnfoldSelect->traverse(node->getCondition());
+            mUnfoldSelect->traverse(node->getTest());
         }
         
-        if (node->getExpression())
+        if (node->getTerminal())
         {
-            mUnfoldSelect->traverse(node->getExpression());
+            mUnfoldSelect->traverse(node->getTerminal());
         }
 
         out << "for(";
@@ -1457,16 +1422,16 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
 
         out << "; ";
 
-        if (node->getCondition())
+        if (node->getTest())
         {
-            node->getCondition()->traverse(this);
+            node->getTest()->traverse(this);
         }
 
         out << "; ";
 
-        if (node->getExpression())
+        if (node->getTerminal())
         {
-            node->getExpression()->traverse(this);
+            node->getTerminal()->traverse(this);
         }
 
         out << ")\n"
@@ -1480,11 +1445,11 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
 
     out << "}\n";
 
-    if (node->getType() == ELoopDoWhile)
+    if (!node->testFirst())
     {
         out << "while(\n";
 
-        node->getCondition()->traverse(this);
+        node->getTest()->traverse(this);
 
         out << ")";
     }
@@ -1587,7 +1552,7 @@ bool OutputHLSL::handleExcessiveLoop(TIntermLoop *node)
 
                     if (symbol && constant)
                     {
-                        if (constant->getBasicType() == EbtInt && constant->getNominalSize() == 1)
+                        if (constant->getBasicType() == EbtInt && constant->getSize() == 1)
                         {
                             index = symbol;
                             initial = constant->getUnionArrayPointer()[0].getIConst();
@@ -1599,9 +1564,9 @@ bool OutputHLSL::handleExcessiveLoop(TIntermLoop *node)
     }
 
     // Parse comparator and limit value
-    if (index != NULL && node->getCondition())
+    if (index != NULL && node->getTest())
     {
-        TIntermBinary *test = node->getCondition()->getAsBinaryNode();
+        TIntermBinary *test = node->getTest()->getAsBinaryNode();
         
         if (test && test->getLeft()->getAsSymbolNode()->getId() == index->getId())
         {
@@ -1609,7 +1574,7 @@ bool OutputHLSL::handleExcessiveLoop(TIntermLoop *node)
 
             if (constant)
             {
-                if (constant->getBasicType() == EbtInt && constant->getNominalSize() == 1)
+                if (constant->getBasicType() == EbtInt && constant->getSize() == 1)
                 {
                     comparator = test->getOp();
                     limit = constant->getUnionArrayPointer()[0].getIConst();
@@ -1619,10 +1584,10 @@ bool OutputHLSL::handleExcessiveLoop(TIntermLoop *node)
     }
 
     // Parse increment
-    if (index != NULL && comparator != EOpNull && node->getExpression())
+    if (index != NULL && comparator != EOpNull && node->getTerminal())
     {
-        TIntermBinary *binaryTerminal = node->getExpression()->getAsBinaryNode();
-        TIntermUnary *unaryTerminal = node->getExpression()->getAsUnaryNode();
+        TIntermBinary *binaryTerminal = node->getTerminal()->getAsBinaryNode();
+        TIntermUnary *unaryTerminal = node->getTerminal()->getAsUnaryNode();
         
         if (binaryTerminal)
         {
@@ -1631,7 +1596,7 @@ bool OutputHLSL::handleExcessiveLoop(TIntermLoop *node)
 
             if (constant)
             {
-                if (constant->getBasicType() == EbtInt && constant->getNominalSize() == 1)
+                if (constant->getBasicType() == EbtInt && constant->getSize() == 1)
                 {
                     int value = constant->getUnionArrayPointer()[0].getIConst();
 
@@ -1745,7 +1710,7 @@ TString OutputHLSL::argumentString(const TIntermSymbol *symbol)
 
     if (name.empty())   // HLSL demands named arguments, also for prototypes
     {
-        name = "x" + str(mUniqueIndex++);
+        name = "x" + str(mArgumentIndex++);
     }
     else
     {
@@ -1882,8 +1847,8 @@ void OutputHLSL::addConstructor(const TType &type, const TString &name, const TI
 
     TType ctorType = type;
     ctorType.clearArrayness();
-    ctorType.setPrecision(EbpHigh);
-    ctorType.setQualifier(EvqTemporary);
+    ctorType.changePrecision(EbpHigh);
+    ctorType.changeQualifier(EvqTemporary);
 
     TString ctorName = type.getStruct() ? decorate(name) : name;
 

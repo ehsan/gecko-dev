@@ -187,19 +187,13 @@ public:
 #endif
 
 private:
-  /**
-   * Computes margin values from the specified margin style information, and
-   * fills in the mComputedMargin member.
-   * @return PR_TRUE if the margin is dependent on the containing block width
-   */
-  PRBool ComputeMargin(nscoord aContainingBlockWidth);
+  // Computes margin values from the specified margin style information, and
+  // fills in the mComputedMargin member
+  void ComputeMargin(nscoord aContainingBlockWidth);
   
-  /**
-   * Computes padding values from the specified padding style information, and
-   * fills in the mComputedPadding member.
-   * @return PR_TRUE if the padding is dependent on the containing block width
-   */
-   PRBool ComputePadding(nscoord aContainingBlockWidth);
+  // Computes padding values from the specified padding style information, and
+  // fills in the mComputedPadding member
+  void ComputePadding(nscoord aContainingBlockWidth);
 
 protected:
 
@@ -343,10 +337,7 @@ public:
                                      // percent height frames inside cells which may not have computed heights
     PRUint16 mNextInFlowUntouched:1; // nothing in the frame's next-in-flow (or its descendants)
                                      // is changing
-    PRUint16 mIsTopOfPage:1;         // Is the current context at the top of a
-                                     // page?  When true, we force something
-                                     // that's too tall for a page/column to
-                                     // fit anyway to avoid infinite loops.
+    PRUint16 mIsTopOfPage:1;         // is the current context at the top of a page?
     PRUint16 mBlinks:1;              // Keep track of text-decoration: blink
     PRUint16 mHasClearance:1;        // Block has clearance
     PRUint16 mAssumingHScrollbar:1;  // parent frame is an nsIScrollableFrame and it

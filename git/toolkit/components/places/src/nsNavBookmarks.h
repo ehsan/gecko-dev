@@ -161,6 +161,9 @@ public:
    */
   PRBool IsRealBookmark(PRInt64 aPlaceId);
 
+  nsresult BeginUpdateBatch();
+  nsresult EndUpdateBatch();
+
   PRBool ItemExists(PRInt64 aItemId);
 
   /**
@@ -230,6 +233,11 @@ private:
 
   // personal toolbar folder
   PRInt64 mToolbarFolder;
+
+  // The level of batches' nesting, 0 when no batches are open.
+  PRInt32 mBatchLevel;
+  // Current active transaction for a batch.
+  mozStorageTransaction* mBatchDBTransaction;
 
   nsresult GetParentAndIndexOfFolder(PRInt64 aFolder,
                                      PRInt64* aParent,
@@ -373,7 +381,8 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBSetItemLastModified;
   nsCOMPtr<mozIStorageStatement> mDBSetItemIndex;
   nsCOMPtr<mozIStorageStatement> mDBGetKeywordForURI;
-  nsCOMPtr<mozIStorageStatement> mDBGetBookmarksToKeywords;
+  nsCOMPtr<mozIStorageStatement> mDBGetKeywordForBookmark;
+  nsCOMPtr<mozIStorageStatement> mDBGetURIForKeyword;
   nsCOMPtr<mozIStorageStatement> mDBAdjustPosition;
   nsCOMPtr<mozIStorageStatement> mDBRemoveItem;
   nsCOMPtr<mozIStorageStatement> mDBGetLastChildId;
@@ -440,21 +449,23 @@ private:
   nsCategoryCache<nsINavBookmarkObserver> mCacheObservers;
 
   bool mShuttingDown;
-
-  /**
-   * Always call EnsureKeywordsHash() and check it for errors before actually
-   * using the hash.  Internal keyword methods are already doing that.
-   */
-  nsresult EnsureKeywordsHash();
-  nsDataHashtable<nsTrimInt64HashKey, nsString> mBookmarkToKeywordHash;
-
-  /**
-   * This function must be called every time a bookmark is removed.
-   *
-   * @param aURI
-   *        Uri to test.
-   */
-  nsresult UpdateKeywordsHashForRemovedBookmark(PRInt64 aItemId);
 };
+
+struct nsBookmarksUpdateBatcher
+{
+  nsBookmarksUpdateBatcher()
+  {
+    nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
+    if (bookmarks)
+      bookmarks->BeginUpdateBatch();
+  }
+  ~nsBookmarksUpdateBatcher()
+  {
+    nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
+    if (bookmarks)
+      bookmarks->EndUpdateBatch();
+  }
+};
+
 
 #endif // nsNavBookmarks_h_

@@ -46,7 +46,6 @@
 #include "nsGkAtoms.h"
 #include "nsIFrame.h"
 #include "nsIPopupBoxObject.h"
-#include "nsMenuPopupFrame.h"
 #include "nsIServiceManager.h"
 #ifdef MOZ_XUL
 #include "nsIDOMNSDocument.h"
@@ -137,6 +136,10 @@ nsXULTooltipListener::MouseOut(nsIDOMEvent* aMouseEvent)
 {
   // reset flag so that tooltip will display on the next MouseMove
   mTooltipShownOnce = PR_FALSE;
+   
+  // Clear the cached mouse event as it might hold a window alive too long, see
+  // bug 420803.
+  mCachedMouseEvent = nsnull;
 
   // if the timer is running and no tooltip is shown, we
   // have to cancel the timer here so that it doesn't 
@@ -153,7 +156,6 @@ nsXULTooltipListener::MouseOut(nsIDOMEvent* aMouseEvent)
     return NS_OK;
 #endif
 
-#ifdef MOZ_XUL
   // check to see if the mouse left the targetNode, and if so,
   // hide the tooltip
   if (currentTooltip) {
@@ -162,23 +164,26 @@ nsXULTooltipListener::MouseOut(nsIDOMEvent* aMouseEvent)
     aMouseEvent->GetTarget(getter_AddRefs(eventTarget));
     nsCOMPtr<nsIDOMNode> targetNode(do_QueryInterface(eventTarget));
 
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-    if (pm) {
-      nsCOMPtr<nsIDOMNode> tooltipNode =
-        pm->GetLastTriggerTooltipNode(currentTooltip->GetCurrentDoc());
-      if (tooltipNode == targetNode) {
-        // if the target node is the current tooltip target node, the mouse
-        // left the node the tooltip appeared on, so close the tooltip.
-        HideTooltip();
-        // reset special tree tracking
-        if (mIsSourceTree) {
-          mLastTreeRow = -1;
-          mLastTreeCol = nsnull;
-        }
+    // which node is our tooltip on?
+    nsCOMPtr<nsIDOMXULDocument> xulDoc(do_QueryInterface(currentTooltip->GetDocument()));
+    if (!xulDoc)     // remotely possible someone could have 
+      return NS_OK;  // removed tooltip from dom while it was open
+    nsCOMPtr<nsIDOMNode> tooltipNode;
+    xulDoc->TrustedGetTooltipNode (getter_AddRefs(tooltipNode));
+
+    // if they're the same, the mouse left the node the tooltip appeared on,
+    // close the tooltip.
+    if (tooltipNode == targetNode) {
+      HideTooltip();
+#ifdef MOZ_XUL
+      // reset special tree tracking
+      if (mIsSourceTree) {
+        mLastTreeRow = -1;
+        mLastTreeCol = nsnull;
       }
+#endif
     }
   }
-#endif
 
   return NS_OK;
 }
@@ -215,6 +220,7 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
     return NS_OK;
   mMouseScreenX = newMouseX;
   mMouseScreenY = newMouseY;
+  mCachedMouseEvent = aMouseEvent;
 
   nsCOMPtr<nsIDOMEventTarget> currentTarget;
   aMouseEvent->GetCurrentTarget(getter_AddRefs(currentTarget));
@@ -443,6 +449,8 @@ nsXULTooltipListener::ShowTooltip()
       }
 #endif
 
+      nsCOMPtr<nsIDOMNode> targetNode = do_QueryReferent(mTargetNode);
+      xulDoc->SetTooltipNode(targetNode);
       mCurrentTooltip = do_GetWeakReference(tooltipNode);
       LaunchTooltip();
       mTargetNode = nsnull;
@@ -544,8 +552,10 @@ nsXULTooltipListener::LaunchTooltip()
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
-    nsCOMPtr<nsIContent> target = do_QueryReferent(mTargetNode);
-    pm->ShowTooltipAtScreen(currentTooltip, target, mMouseScreenX, mMouseScreenY);
+    pm->ShowPopupAtScreen(currentTooltip, mMouseScreenX, mMouseScreenY,
+                          PR_FALSE, mCachedMouseEvent);
+
+    mCachedMouseEvent = nsnull;
 
     // Clear the current tooltip if the popup was not opened successfully.
     if (!pm->IsPopupOpen(currentTooltip))
@@ -558,6 +568,8 @@ nsXULTooltipListener::LaunchTooltip()
 nsresult
 nsXULTooltipListener::HideTooltip()
 {
+  mCachedMouseEvent = nsnull;
+
 #ifdef MOZ_XUL
   nsCOMPtr<nsIContent> currentTooltip = do_QueryReferent(mCurrentTooltip);
   if (currentTooltip) {
@@ -695,6 +707,10 @@ nsXULTooltipListener::DestroyTooltip()
     // clear out the tooltip node on the document
     nsCOMPtr<nsIDocument> doc = currentTooltip->GetDocument();
     if (doc) {
+      nsCOMPtr<nsIDOMXULDocument> xulDoc(do_QueryInterface(doc));
+      if (xulDoc)
+        xulDoc->SetTooltipNode(nsnull);
+
       // remove the mousedown and keydown listener from document
       nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(doc));
       evtTarget->RemoveEventListener(NS_LITERAL_STRING("DOMMouseScroll"), static_cast<nsIDOMMouseListener*>(this), PR_TRUE);

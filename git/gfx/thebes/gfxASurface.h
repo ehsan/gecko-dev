@@ -89,14 +89,7 @@ public:
         SurfaceTypeQuartzImage,
         SurfaceTypeScript,
         SurfaceTypeQPainter,
-        SurfaceTypeRecording,
-        SurfaceTypeVG,
-        SurfaceTypeGL,
-        SurfaceTypeDRM,
-        SurfaceTypeTee,
-        SurfaceTypeXML,
-        SurfaceTypeSkia,
-        SurfaceTypeD2D,
+        SurfaceTypeDDraw,
         SurfaceTypeMax
     } gfxSurfaceType;
 
@@ -124,7 +117,7 @@ public:
     void SetDeviceOffset(const gfxPoint& offset);
     gfxPoint GetDeviceOffset() const;
 
-    void Flush() const;
+    void Flush();
     void MarkDirty();
     void MarkDirty(const gfxRect& r);
 
@@ -149,48 +142,18 @@ public:
      */
     virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
                                                                const gfxIntSize& aSize);
-
     /**
-     * Returns an image surface for this surface, or nsnull if not supported.
-     * This will not copy image data, just wraps an image surface around
-     * pixel data already available in memory.
+     * Return trues if offscreen surfaces created from this surface
+     * would behave differently depending on the gfxContentType. Returns
+     * false if they don't (i.e. the surface returned by
+     * CreateOffscreenSurface is always as if you passed
+     * CONTENT_COLOR_ALPHA). Knowing this can be useful to avoid
+     * recreating a surface just because it changed from opaque to
+     * transparent.
      */
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface()
+    virtual PRBool AreSimilarSurfacesSensitiveToContentType()
     {
-      return nsnull;
-    }
-
-    enum TextQuality {
-        /**
-         * TEXT_QUALITY_OK means that text is always rendered to a
-         * transparent surface just as well as it would be rendered to an
-         * opaque surface. This would normally only be true if
-         * subpixel antialiasing is disabled or if the platform's
-         * transparent surfaces support component alpha.
-         */
-        TEXT_QUALITY_OK,
-        /**
-         * TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS means that text is rendered
-         * to a transparent surface just as well as it would be rendered to an
-         * opaque surface, but only if all the pixels the text is drawn
-         * over already have opaque alpha values.
-         */
-        TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS,
-        /**
-         * TEXT_QUALITY_BAD means that text is rendered
-         * to a transparent surface worse than it would be rendered to an
-         * opaque surface, even if all the pixels the text is drawn
-         * over already have opaque alpha values.
-         */
-        TEXT_QUALITY_BAD
-    };
-    /**
-     * Determine how well text would be rendered in transparent surfaces that
-     * are similar to this surface.
-     */
-    virtual TextQuality GetTextQualityInTransparentSurfaces()
-    {
-        return TEXT_QUALITY_BAD;
+      return PR_TRUE;
     }
 
     int CairoStatus();
@@ -208,7 +171,6 @@ public:
     virtual PRInt32 GetDefaultContextFlags() const { return 0; }
 
     static gfxContentType ContentFromFormat(gfxImageFormat format);
-    static gfxImageFormat FormatFromContent(gfxContentType format);
 
     /**
      * Record number of bytes for given surface type.  Use positive bytes
@@ -229,10 +191,6 @@ public:
     PRInt32 KnownMemoryUsed() { return mBytesRecorded; }
 
     static PRInt32 BytePerPixelFromFormat(gfxImageFormat format);
-
-    virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
-
-    virtual PRBool SupportsSelfCopy() { return PR_TRUE; }
 
 protected:
     gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mBytesRecorded(0), mSurfaceValid(PR_FALSE)

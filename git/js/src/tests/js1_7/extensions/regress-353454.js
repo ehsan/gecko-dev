@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-353454.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 353454;
 var summary = 'Do not assert with regexp iterator';

@@ -64,7 +64,6 @@ USING_INDEXEDDB_NAMESPACE
 using mozilla::MutexAutoLock;
 
 LazyIdleThread::LazyIdleThread(PRUint32 aIdleTimeoutMS,
-                               ShutdownMethod aShutdownMethod,
                                nsIObserver* aIdleObserver)
 : mMutex("LazyIdleThread::mMutex"),
   mOwningThread(NS_GetCurrentThread()),
@@ -72,7 +71,6 @@ LazyIdleThread::LazyIdleThread(PRUint32 aIdleTimeoutMS,
   mIdleTimeoutMS(aIdleTimeoutMS),
   mPendingEventCount(0),
   mIdleNotificationCount(0),
-  mShutdownMethod(aShutdownMethod),
   mShutdown(PR_FALSE),
   mThreadIsShuttingDown(PR_FALSE),
   mIdleTimeoutEnabled(PR_TRUE)
@@ -174,7 +172,7 @@ LazyIdleThread::EnsureThread()
 
   nsresult rv;
 
-  if (mShutdownMethod == AutomaticShutdown && NS_IsMainThread()) {
+  if (NS_IsMainThread()) {
     nsCOMPtr<nsIObserverService> obs =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -259,7 +257,7 @@ LazyIdleThread::ShutdownThread()
   nsresult rv;
 
   if (mThread) {
-    if (mShutdownMethod == AutomaticShutdown && NS_IsMainThread()) {
+    if (NS_IsMainThread()) {
       nsCOMPtr<nsIObserverService> obs =
         do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
       NS_WARN_IF_FALSE(obs, "Failed to get observer service!");
@@ -506,10 +504,8 @@ LazyIdleThread::Observe(nsISupports* /* aSubject */,
                         const PRUnichar* /* aData */)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(mShutdownMethod == AutomaticShutdown,
-               "Should not receive notifications if not AutomaticShutdown!");
-  NS_ASSERTION(!strcmp("xpcom-shutdown-threads", aTopic), "Bad topic!");
-
+  NS_ENSURE_FALSE(strcmp("xpcom-shutdown-threads", aTopic),
+                  NS_ERROR_UNEXPECTED);
   Shutdown();
   return NS_OK;
 }

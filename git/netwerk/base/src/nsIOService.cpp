@@ -78,7 +78,7 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
+#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
 #include "nsNativeConnectionHelper.h"
 #endif
 
@@ -174,7 +174,7 @@ PRUint32   nsIOService::gDefaultSegmentCount = 24;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsIOService::nsIOService()
-    : mOffline(PR_TRUE)
+    : mOffline(PR_FALSE)
     , mOfflineForProfileChange(PR_FALSE)
     , mManageOfflineStatus(PR_TRUE)
     , mSettingOffline(PR_FALSE)
@@ -191,10 +191,20 @@ nsIOService::Init()
     NS_TIME_FUNCTION;
 
     nsresult rv;
-
-    // We need to get references to the DNS service so that we can shut it
+    
+    // We need to get references to these services so that we can shut them
     // down later. If we wait until the nsIOService is being shut down,
     // GetService will fail at that point.
+
+    // TODO(darin): Load the Socket and DNS services lazily.
+
+    mSocketTransportService = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) {
+        NS_WARNING("failed to get socket transport service");
+        return rv;
+    }
+
+    NS_TIME_FUNCTION_MARK("got SocketTransportService");
 
     mDNSService = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
@@ -261,13 +271,9 @@ nsIOService::Init()
     NS_TIME_FUNCTION_MARK("Set up the recycling allocator");
 
     gIOService = this;
-
-#ifdef MOZ_IPC
-    // go into managed mode if we can, and chrome process
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
-#endif
-        mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
-
+    
+    // go into managed mode if we can
+    mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
     if (!mNetworkLinkService)
         mManageOfflineStatus = PR_FALSE;
 
@@ -283,29 +289,7 @@ nsIOService::Init()
 nsIOService::~nsIOService()
 {
     gIOService = nsnull;
-}
-
-nsresult
-nsIOService::InitializeSocketTransportService()
-{
-    NS_TIME_FUNCTION;
-
-    nsresult rv = NS_OK;
-
-    if (!mSocketTransportService) {
-        mSocketTransportService = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("failed to get socket transport service");
-        }
-    }
-
-    if (mSocketTransportService) {
-        rv = mSocketTransportService->Init();
-        NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
-    }
-
-    return rv;
-}
+}   
 
 nsIOService*
 nsIOService::GetInstance() {
@@ -336,15 +320,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS5(nsIOService,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsresult
-nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                                    PRUint32 flags,
-                                    nsAsyncRedirectVerifyHelper *helper)
+nsIOService::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+                               PRUint32 flags)
 {
     nsCOMPtr<nsIChannelEventSink> sink =
         do_GetService(NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID);
     if (sink) {
-        nsresult rv = helper->DelegateOnChannelRedirect(sink, oldChan,
-                                                        newChan, flags);
+        nsresult rv = sink->OnChannelRedirect(oldChan, newChan, flags);
         if (NS_FAILED(rv))
             return rv;
     }
@@ -354,11 +336,11 @@ nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
         mChannelEventSinks.GetEntries();
     PRInt32 len = entries.Count();
     for (PRInt32 i = 0; i < len; ++i) {
-        nsresult rv = helper->DelegateOnChannelRedirect(entries[i], oldChan,
-                                                        newChan, flags);
+        nsresult rv = entries[i]->OnChannelRedirect(oldChan, newChan, flags);
         if (NS_FAILED(rv))
             return rv;
     }
+
     return NS_OK;
 }
 
@@ -754,7 +736,10 @@ nsIOService::SetOffline(PRBool offline)
                 rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
-            InitializeSocketTransportService();
+            if (mSocketTransportService) {
+                rv = mSocketTransportService->Init();
+                NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
+            }
             mOffline = PR_FALSE;    // indicate success only AFTER we've
                                     // brought up the services
 
@@ -1086,7 +1071,7 @@ nsIOService::TrackNetworkLinkStatusForOffline()
         // option is set to always autodial. If so, then we are 
         // always up for the purposes of offline management.
         if (autodialEnabled) {
-#if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
+#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
             // On Windows and Maemo (libconic) we should first check with the OS
             // to see if autodial is enabled.  If it is enabled then we are
             // allowed to manage the offline state.

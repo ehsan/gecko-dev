@@ -41,7 +41,7 @@
 
 #include "nsDOMAttribute.h"
 #include "nsGenericElement.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsINameSpaceManager.h"
 #include "nsDOMError.h"
@@ -60,15 +60,13 @@
 #include "mozAutoDocUpdate.h"
 #include "nsMutationEvent.h"
 
-using namespace mozilla::dom;
-
 //----------------------------------------------------------------------
 PRBool nsDOMAttribute::sInitialized;
 
 nsDOMAttribute::nsDOMAttribute(nsDOMAttributeMap *aAttrMap,
                                already_AddRefed<nsINodeInfo> aNodeInfo,
-                               const nsAString   &aValue, PRBool aNsAware)
-  : nsIAttribute(aAttrMap, aNodeInfo, aNsAware), mValue(aValue), mChild(nsnull)
+                               const nsAString   &aValue)
+  : nsIAttribute(aAttrMap, aNodeInfo), mValue(aValue), mChild(nsnull)
 {
   NS_ABORT_IF_FALSE(mNodeInfo, "We must get a nodeinfo here!");
 
@@ -165,14 +163,8 @@ nsDOMAttribute::SetMap(nsDOMAttributeMap *aMap)
   if (content) {
     content->RemoveMutationObserver(this);
   }
-
+  
   mAttrMap = aMap;
-
-  // If we have a new content, we sholud start listening to it.
-  content = GetContentInternal();
-  if (content) {
-    content->AddMutationObserver(this);
-  }
 }
 
 nsIContent*
@@ -214,8 +206,7 @@ already_AddRefed<nsIAtom>
 nsDOMAttribute::GetNameAtom(nsIContent* aContent)
 {
   nsIAtom* result = nsnull;
-  if (!mNsAware &&
-      mNodeInfo->NamespaceID() == kNameSpaceID_None &&
+  if (mNodeInfo->NamespaceID() == kNameSpaceID_None &&
       aContent->IsInHTMLDocument() &&
       aContent->IsHTML()) {
     nsAutoString name;
@@ -261,16 +252,6 @@ nsDOMAttribute::SetValue(const nsAString& aValue)
   }
   else {
     mValue = aValue;
-
-    if (mChild) {
-      if (mValue.IsEmpty()) {
-        doRemoveChild(true);
-      } else {
-        mChild->SetText(mValue, PR_FALSE);
-      }
-    } else {
-      EnsureChildState();
-    }
   }
 
   return rv;
@@ -435,7 +416,7 @@ nsDOMAttribute::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   const_cast<nsDOMAttribute*>(this)->GetValue(value);
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  *aResult = new nsDOMAttribute(nsnull, ni.forget(), value, mNsAware);
+  *aResult = new nsDOMAttribute(nsnull, ni.forget(), value);
   if (!*aResult) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -662,29 +643,25 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationE
     return NS_OK;
   }
 
-  {
-    nsCOMPtr<nsIContent> child = mChild;
-    nsMutationGuard::DidMutate();
-    mozAutoDocUpdate updateBatch(GetOwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
-    nsMutationGuard guard;
-  
-    mozAutoSubtreeModified subtree(nsnull, nsnull);
-    if (aNotify &&
-        nsContentUtils::HasMutationListeners(mChild,
-                                             NS_EVENT_BITS_MUTATION_NODEREMOVED,
-                                             this)) {
-      mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
-      nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
-      mutation.mRelatedNode =
-        do_QueryInterface(static_cast<nsIAttribute*>(this));
-      subtree.UpdateTarget(GetOwnerDoc(), this);
-      nsEventDispatcher::Dispatch(mChild, nsnull, &mutation);
-    }
-    if (guard.Mutated(0) && mChild != child) {
-      return NS_OK;
-    }
+  nsCOMPtr<nsIContent> child = mChild;
+  nsMutationGuard::DidMutate();
+  mozAutoDocUpdate updateBatch(GetOwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
+  nsMutationGuard guard;
 
-    doRemoveChild(aNotify);
+  mozAutoSubtreeModified subtree(nsnull, nsnull);
+  if (aNotify &&
+      nsContentUtils::HasMutationListeners(mChild,
+                                           NS_EVENT_BITS_MUTATION_NODEREMOVED,
+                                           this)) {
+    mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+    nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
+    mutation.mRelatedNode =
+      do_QueryInterface(static_cast<nsIAttribute*>(this));
+    subtree.UpdateTarget(GetOwnerDoc(), this);
+    nsEventDispatcher::Dispatch(mChild, nsnull, &mutation);
+  }
+  if (guard.Mutated(0) && mChild != child) {
+    return NS_OK;
   }
 
   nsString nullString;
@@ -769,13 +746,13 @@ nsDOMAttribute::EnsureChildState()
 
 void
 nsDOMAttribute::AttributeChanged(nsIDocument* aDocument,
-                                 Element* aElement,
+                                 nsIContent* aContent,
                                  PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  PRInt32 aModType)
 {
   nsIContent* content = GetContentInternal();
-  if (aElement != content) {
+  if (aContent != content) {
     return;
   }
 
@@ -792,7 +769,9 @@ nsDOMAttribute::AttributeChanged(nsIDocument* aDocument,
   
   // Just blow away our mChild and recreate it if needed
   if (mChild) {
-    doRemoveChild(true);
+    static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
+    NS_RELEASE(mChild);
+    mFirstChild = nsnull;
   }
   EnsureChildState();
 }
@@ -808,16 +787,3 @@ nsDOMAttribute::Shutdown()
 {
   sInitialized = PR_FALSE;
 }
-
-void
-nsDOMAttribute::doRemoveChild(bool aNotify)
-{
-  if (aNotify) {
-    nsNodeUtils::AttributeChildRemoved(this, mChild);
-  }
-
-  static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
-  NS_RELEASE(mChild);
-  mFirstChild = nsnull;
-}
-

@@ -3,6 +3,7 @@
  * http://creativecommons.org/licenses/publicdomain/
  * Contributor: Jason Orendorff
  */
+gTestfile = 'regress-530879';
 function f(a, b, c, d) {
     yield arguments.length;
 }

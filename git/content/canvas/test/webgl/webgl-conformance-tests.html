@@ -38,12 +38,18 @@ function start() {
     }
     var context = null;
     try {
-        context = canvas.getContext("webgl");
+        context = canvas.getContext("experimental-webgl");
     } catch(e) {
     }
-		if (!context) {
+    if (!context) {
       try {
-          context = canvas.getContext("experimental-webgl");
+        context = canvas.getContext("webkit-3d");
+      } catch(e) {
+      }
+    }
+    if (!context) {
+      try {
+        context = canvas.getContext("moz-webgl");
       } catch(e) {
       }
     }
@@ -166,6 +172,7 @@ function start() {
     page.startPage();
     this.currentPage = page;
     this.iframe.src = url;
+    return result;
   };
 
   Reporter.prototype.addPage = function(url) {
@@ -235,7 +242,7 @@ function start() {
   var iframe = document.getElementById("testframe");
   var testHarness = new WebGLTestHarnessModule.TestHarness(
       iframe,
-      '00_test_list.txt',
+      'test_list.txt',
       function(type, msg, success) {
         return reporter.reportFunc(type, msg, success);
       });

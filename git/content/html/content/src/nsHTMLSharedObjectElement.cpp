@@ -57,19 +57,17 @@
 #undef GetObject
 #endif
 
-using namespace mozilla::dom;
-
-class nsHTMLSharedObjectElement : public nsGenericHTMLElement
-                                , public nsObjectLoadingContent
-                                , public nsIDOMHTMLAppletElement
-                                , public nsIDOMHTMLEmbedElement
+class nsHTMLSharedObjectElement : public nsGenericHTMLElement,
+                                  public nsObjectLoadingContent,
+                                  public nsIDOMHTMLAppletElement,
+                                  public nsIDOMHTMLEmbedElement
 #ifdef MOZ_SVG
-                                , public nsIDOMGetSVGDocument
+                                  , public nsIDOMGetSVGDocument
 #endif
 {
 public:
   nsHTMLSharedObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                            mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+                            PRUint32 aFromParser = 0);
   virtual ~nsHTMLSharedObjectElement();
 
   // nsISupports
@@ -124,7 +122,7 @@ public:
                                 nsAttrValue &aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom *aAttribute) const;
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   virtual void DestroyContent();
 
   // nsObjectLoadingContent
@@ -180,12 +178,11 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(SharedObject)
 
 
 nsHTMLSharedObjectElement::nsHTMLSharedObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                                     FromParser aFromParser)
+                                                     PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
     mIsDoneAddingChildren(mNodeInfo->Equals(nsGkAtoms::embed) || !aFromParser)
 {
   RegisterFreezableElement();
-  SetIsNetworkCreated(aFromParser == FROM_PARSER_NETWORK);
 }
 
 nsHTMLSharedObjectElement::~nsHTMLSharedObjectElement()
@@ -363,7 +360,7 @@ NS_IMPL_INT_ATTR(nsHTMLSharedObjectElement, Hspace, hspace)
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Name, name)
 NS_IMPL_URI_ATTR_WITH_BASE(nsHTMLSharedObjectElement, Object, object, codebase)
 NS_IMPL_URI_ATTR(nsHTMLSharedObjectElement, Src, src)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSharedObjectElement, TabIndex, tabindex, -1)
+NS_IMPL_INT_ATTR(nsHTMLSharedObjectElement, TabIndex, tabindex)
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Type, type)
 NS_IMPL_INT_ATTR(nsHTMLSharedObjectElement, Vspace, vspace)
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Width, width)
@@ -420,21 +417,6 @@ MapAttributesIntoRule(const nsMappedAttributes *aAttributes,
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
-static void
-EmbedMapAttributesIntoRule(const nsMappedAttributes *aAttributes,
-                           nsRuleData *aData)
-{
-  // NOTE: this should call the exact some methods than MapAttributesIntoRule
-  // except that MapCommonAttributesExceptHiddenInto is called instead of
-  // MapCommonAttributesInto.
-  // TODO: This method should be removed when bug 614825 will be fixed.
-  nsGenericHTMLElement::MapImageBorderAttributeInto(aAttributes, aData);
-  nsGenericHTMLElement::MapImageMarginAttributeInto(aAttributes, aData);
-  nsGenericHTMLElement::MapImageSizeAttributesInto(aAttributes, aData);
-  nsGenericHTMLElement::MapImageAlignAttributeInto(aAttributes, aData);
-  nsGenericHTMLElement::MapCommonAttributesExceptHiddenInto(aAttributes, aData);
-}
-
 NS_IMETHODIMP_(PRBool)
 nsHTMLSharedObjectElement::IsAttributeMapped(const nsIAtom *aAttribute) const
 {
@@ -452,10 +434,6 @@ nsHTMLSharedObjectElement::IsAttributeMapped(const nsIAtom *aAttribute) const
 nsMapRuleToAttributesFunc
 nsHTMLSharedObjectElement::GetAttributeMappingFunction() const
 {
-  if (mNodeInfo->Equals(nsGkAtoms::embed)) {
-    return &EmbedMapAttributesIntoRule;
-  }
-
   return &MapAttributesIntoRule;
 }
 
@@ -475,10 +453,9 @@ nsHTMLSharedObjectElement::StartObjectLoad(PRBool aNotify)
   else {
     LoadObject(uri, aNotify, type);
   }
-  SetIsNetworkCreated(PR_FALSE);
 }
 
-nsEventStates
+PRInt32
 nsHTMLSharedObjectElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() | ObjectState();

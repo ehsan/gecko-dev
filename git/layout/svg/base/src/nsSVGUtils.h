@@ -131,13 +131,6 @@ IsSVGWhitespace(char aChar)
          aChar == '\xD'  || aChar == '\xA';
 }
 
-inline PRBool
-IsSVGWhitespace(PRUnichar aChar)
-{
-  return aChar == PRUnichar('\x20') || aChar == PRUnichar('\x9') ||
-         aChar == PRUnichar('\xD')  || aChar == PRUnichar('\xA');
-}
-
 /*
  * Checks the svg enable preference and if a renderer could
  * successfully be created.  Declared as a function instead of a
@@ -167,10 +160,6 @@ public:
    */
   nsSVGRenderState(nsIRenderingContext *aContext);
   /**
-   * Render SVG to a modern rendering context
-   */
-  nsSVGRenderState(gfxContext *aContext);
-  /**
    * Render SVG to a temporary surface
    */
   nsSVGRenderState(gfxASurface *aSurface);
@@ -181,16 +170,10 @@ public:
   void SetRenderMode(RenderMode aMode) { mRenderMode = aMode; }
   RenderMode GetRenderMode() { return mRenderMode; }
 
-  void SetPaintingToWindow(PRBool aPaintingToWindow) {
-    mPaintingToWindow = aPaintingToWindow;
-  }
-  PRBool IsPaintingToWindow() { return mPaintingToWindow; }
-
 private:
   RenderMode                    mRenderMode;
   nsCOMPtr<nsIRenderingContext> mRenderingContext;
   nsRefPtr<gfxContext>          mGfxContext;
-  PRPackedBool                  mPaintingToWindow;
 };
 
 class nsAutoSVGRenderMode
@@ -439,33 +422,19 @@ public:
    * Convert a surface size to an integer for use by thebes
    * possibly making it smaller in the process so the surface does not
    * use excessive memory.
-   *
-   * XXXdholbert Putting impl in header file so that imagelib can call this
-   * method.  Once we switch to a libxul-only world, this can go back into
-   * the .cpp file.
-   *
    * @param aSize the desired surface size
    * @param aResultOverflows true if the desired surface size is too big
    * @return the surface size to use
    */
-  static gfxIntSize ConvertToSurfaceSize(const gfxSize& aSize,
-                                  PRBool *aResultOverflows)
-  {
-    gfxIntSize surfaceSize(ClampToInt(aSize.width), ClampToInt(aSize.height));
+  static gfxIntSize
+  ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows);
 
-    *aResultOverflows = surfaceSize.width != NS_round(aSize.width) ||
-      surfaceSize.height != NS_round(aSize.height);
-
-    if (!gfxASurface::CheckSurfaceSize(surfaceSize)) {
-      surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
-                                 surfaceSize.width);
-      surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
-                                  surfaceSize.height);
-      *aResultOverflows = PR_TRUE;
-    }
-
-    return surfaceSize;
-  }
+  /*
+   * Get a pointer to a surface that can be used to create thebes
+   * contexts for various measurement purposes.
+   */
+  static gfxASurface *
+  GetThebesComputationalSurface();
 
   /*
    * Convert a nsIDOMSVGMatrix to a gfxMatrix.
@@ -587,24 +556,17 @@ public:
   static PRBool IsInnerSVG(nsIContent* aContent);
 
   /**
-   * Convert a floating-point value to a 32-bit integer value, clamping to
-   * the range of valid integers.
-   */
-  static PRInt32 ClampToInt(double aVal)
-  {
-    return NS_lround(NS_MAX(double(PR_INT32_MIN),
-                            NS_MIN(double(PR_INT32_MAX), aVal)));
-  }
-
-  /**
-   * Given a nsIContent* that is actually an nsSVGSVGElement*, this method
-   * checks whether it currently has a valid viewBox, and returns true if so.
+   * Parse a string that may contain either a CSS <number> or, if
+   * aAllowPercentages is set to true, a CSS <percentage>, and return the
+   * number as a float.
    *
-   * No other type of element should be passed to this method.
-   * (In debug builds, anything non-<svg> will trigger an abort; in non-debug
-   * builds, it will trigger a PR_FALSE return-value as a safe fallback.)
+   * This helper returns PR_TRUE if a number was successfully parsed from the
+   * string and no characters were left, else it returns PR_FALSE.
    */
-  static PRBool RootSVGElementHasViewbox(const nsIContent *aRootSVGElem);
+  static PRBool NumberFromString(const nsAString& aString, float* aValue,
+                                 PRBool aAllowPercentages = PR_FALSE);
+
+  static void Shutdown();
 
 private:
   /* Computational (nil) surfaces */

@@ -458,12 +458,12 @@
         <body>
         <![CDATA[
           var requestedTab = aNewTab;
-          while (aNewTab.hidden || aNewTab.disabled || !this._canAdvanceToTab(aNewTab)) {
+          while (aNewTab.hidden || aNewTab.disabled) {
             aNewTab = aFallbackDir == -1 ? aNewTab.previousSibling : aNewTab.nextSibling;
             if (!aNewTab && aWrap)
               aNewTab = aFallbackDir == -1 ? this.childNodes[this.childNodes.length - 1] :
                                              this.childNodes[0];
-            if (!aNewTab || aNewTab == requestedTab)
+            if (aNewTab == requestedTab)
               return;
           }
 
@@ -491,15 +491,6 @@
               }
             }
           }
-        ]]>
-        </body>
-      </method>
-
-      <method name="_canAdvanceToTab">
-        <parameter name="aTab"/>
-        <body>
-        <![CDATA[
-          return true;
         ]]>
         </body>
       </method>

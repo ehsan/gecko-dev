@@ -120,10 +120,11 @@ nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-PRUint32
-nsHTMLImageAccessible::NativeRole()
+nsresult
+nsHTMLImageAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GRAPHIC;
+  *aRole = nsIAccessibleRole::ROLE_GRAPHIC;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,7 +39,6 @@
 #include "nsICharsetAlias.h"
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
-#include "nsUnicharUtils.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsCRT.h"
 
@@ -52,7 +51,8 @@ NS_INTERFACE_MAP_BEGIN(mozEnglishWordUtils)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozEnglishWordUtils)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_2(mozEnglishWordUtils,
+NS_IMPL_CYCLE_COLLECTION_3(mozEnglishWordUtils,
+                           mCaseConv,
                            mCategories,
                            mURLDetector)
 
@@ -62,6 +62,7 @@ mozEnglishWordUtils::mozEnglishWordUtils()
 
   nsresult rv;
   mURLDetector = do_CreateInstance(MOZ_TXTTOHTMLCONV_CONTRACTID, &rv);
+  mCaseConv = do_GetService(NS_UNICHARUTIL_CONTRACTID);
   mCategories = do_GetService(NS_UNICHARCATEGORY_CONTRACTID);
 }
 
@@ -117,15 +118,15 @@ NS_IMETHODIMP mozEnglishWordUtils::GetRootForm(const PRUnichar *aWord, PRUint32 
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(0, tmpPtr);
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      ToLowerCase(tmpPtr[0], tmpPtr[0], length);
+      mCaseConv->ToLower(tmpPtr[0], tmpPtr[0], length);
 
       tmpPtr[1] = ToNewUnicode(word);
       if (!tmpPtr[1]) {
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(1, tmpPtr);
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      ToLowerCase(tmpPtr[1], tmpPtr[1], length);
-      ToUpperCase(tmpPtr[1], tmpPtr[1], 1);
+      mCaseConv->ToLower(tmpPtr[1], tmpPtr[1], length);
+      mCaseConv->ToUpper(tmpPtr[1], tmpPtr[1], 1);
 
       tmpPtr[2] = ToNewUnicode(word);
       if (!tmpPtr[2]) {
@@ -147,7 +148,7 @@ NS_IMETHODIMP mozEnglishWordUtils::GetRootForm(const PRUnichar *aWord, PRUint32 
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(0, tmpPtr);
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      ToLowerCase(tmpPtr[0], tmpPtr[0], length);
+      mCaseConv->ToLower(tmpPtr[0], tmpPtr[0], length);
 
       tmpPtr[1] = ToNewUnicode(word);
       if (!tmpPtr[1]) {
@@ -244,14 +245,15 @@ NS_IMETHODIMP mozEnglishWordUtils::FindNextWord(const PRUnichar *word, PRUint32 
 mozEnglishWordUtils::myspCapitalization 
 mozEnglishWordUtils::captype(const nsString &word)
 {
+  if(!mCaseConv) return HuhCap; //punt
   PRUnichar* lword=ToNewUnicode(word);  
-  ToUpperCase(lword,lword,word.Length());
+  mCaseConv->ToUpper(lword,lword,word.Length());
   if(word.Equals(lword)){
     nsMemory::Free(lword);
     return AllCap;
   }
 
-  ToLowerCase(lword,lword,word.Length());
+  mCaseConv->ToLower(lword,lword,word.Length());
   if(word.Equals(lword)){
     nsMemory::Free(lword);
     return NoCap;
@@ -296,12 +298,10 @@ NS_IMETHODIMP mozEnglishWordUtils::FromRootForm(const PRUnichar *aWord, const PR
         case NoCap:
           break;
         case AllCap:
-          ToUpperCase(tmpPtr[i],tmpPtr[i],length);
-          rv = NS_OK;
+          rv = mCaseConv->ToUpper(tmpPtr[i],tmpPtr[i],length);
           break;
         case InitCap:  
-          ToUpperCase(tmpPtr[i],tmpPtr[i],1);
-          rv = NS_OK;
+          rv = mCaseConv->ToUpper(tmpPtr[i],tmpPtr[i],1);
           break;
         default:
           rv = NS_ERROR_FAILURE; // should never get here;

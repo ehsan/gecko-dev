@@ -42,9 +42,6 @@
 #include "nsIDOMSVGSymbolElement.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////
 // implementation
@@ -59,7 +56,7 @@ nsSVGElement::LengthInfo nsSVGUseElement::sLengthInfo[4] =
 
 nsSVGElement::StringInfo nsSVGUseElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Use)
@@ -197,13 +194,13 @@ nsSVGUseElement::CharacterDataChanged(nsIDocument *aDocument,
 }
 
 void
-nsSVGUseElement::AttributeChanged(nsIDocument* aDocument,
-                                  Element* aElement,
+nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
+                                  nsIContent *aContent,
                                   PRInt32 aNameSpaceID,
-                                  nsIAtom* aAttribute,
+                                  nsIAtom *aAttribute,
                                   PRInt32 aModType)
 {
-  if (nsContentUtils::IsInSameAnonymousTree(this, aElement)) {
+  if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
     TriggerReclone();
   }
 }
@@ -344,8 +341,7 @@ nsSVGUseElement::CreateAnonymousContent()
       return nsnull;
 
     nsCOMPtr<nsIContent> svgNode;
-    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(),
-                        NOT_FROM_PARSER);
+    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(), PR_FALSE);
 
     if (!svgNode)
       return nsnull;
@@ -515,20 +511,6 @@ nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum)
     UnlinkSource();
     TriggerReclone();
   }
-}
-
-void
-nsSVGUseElement::DidAnimateString(PRUint8 aAttrEnum)
-{
-  if (aAttrEnum == HREF) {
-    // we're changing our nature, clear out the clone information
-    mOriginal = nsnull;
-    UnlinkSource();
-    TriggerReclone();
-    return;
-  }
-
-  nsSVGUseElementBase::DidAnimateString(aAttrEnum);
 }
 
 nsSVGElement::StringAttributesInfo

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-324650.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 324650;
 var summary = 'Switch Statement with many cases';

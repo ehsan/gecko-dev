@@ -1,4 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -48,7 +48,6 @@ import java.nio.*;
 import android.os.*;
 import android.app.*;
 import android.text.*;
-import android.text.method.*;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.content.*;
@@ -83,12 +82,6 @@ class GeckoSurfaceView
         mBufferHeight = 0;
 
         mSurfaceLock = new ReentrantLock();
-
-        mEditableFactory = Editable.Factory.getInstance();
-        setupEditable("");
-        mIMEState = IME_STATE_DISABLED;
-        mIMETypeHint = "";
-        mIMEActionHint = "";
     }
 
     protected void finalize() throws Throwable {
@@ -113,10 +106,6 @@ class GeckoSurfaceView
                      mSoftwareBuffer.capacity() < (width * height * 2) ||
                      mWidth != width || mHeight != height)
                 mSoftwareBuffer = ByteBuffer.allocateDirect(width * height * 2);
-            boolean doSyncDraw = mDrawMode == DRAW_2D &&
-                mSoftwareBuffer != null &&
-                GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning);
-            mSyncDraw = doSyncDraw;
 
             mFormat = format;
             mWidth = width;
@@ -125,42 +114,31 @@ class GeckoSurfaceView
 
             Log.i("GeckoAppJava", "surfaceChanged: fmt: " + format + " dim: " + width + " " + height);
 
+            // XXX This code doesn't seem to actually get hit
+            if (!GeckoAppShell.sGeckoRunning) {
+                GeckoAppShell.setInitialSize(width, height);
+                return;
+            }
+
             GeckoEvent e = new GeckoEvent(GeckoEvent.SIZE_CHANGED, width, height, -1, -1);
             GeckoAppShell.sendEventToGecko(e);
 
-            if (mSoftwareBuffer != null)
+            if (mSurfaceNeedsRedraw) {
                 GeckoAppShell.scheduleRedraw();
-
-            if (!doSyncDraw) {
-                if (mDrawMode == DRAW_GLES_2)
-                    return;
-                Canvas c = holder.lockCanvas();
-                c.drawARGB(255, 255, 255, 255);
-                holder.unlockCanvasAndPost(c);
-                return;
+                mSurfaceNeedsRedraw = false;
             }
+
+            mSurfaceChanged = true;
         } finally {
             mSurfaceLock.unlock();
         }
-
-        ByteBuffer bb = null;
-        try {
-            bb = mSyncBuf.take();
-        } catch (InterruptedException ie) {
-            Log.e("GeckoAppJava", "Threw exception while getting sync buf: " + ie);
-        }
-        if (bb != null && bb.capacity() == (width * height * 2)) {
-            mSoftwareBitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.RGB_565);
-            mSoftwareBitmap.copyPixelsFromBuffer(bb);
-            Canvas c = holder.lockCanvas();
-            c.drawBitmap(mSoftwareBitmap, 0, 0, null);
-            holder.unlockCanvasAndPost(c);
-        }
     }
-
+ 
     public void surfaceCreated(SurfaceHolder holder) {
+        if (GeckoAppShell.sGeckoRunning)
+            mSurfaceNeedsRedraw = true;
     }
-
+ 
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.i("GeckoAppJava", "surface destroyed");
         mSurfaceValid = false;
@@ -168,7 +146,6 @@ class GeckoSurfaceView
     }
 
     public ByteBuffer getSoftwareDrawBuffer() {
-        mDrawMode = DRAW_2D;
         return mSoftwareBuffer;
     }
 
@@ -178,7 +155,6 @@ class GeckoSurfaceView
 
     public static final int DRAW_ERROR = 0;
     public static final int DRAW_GLES_2 = 1;
-    public static final int DRAW_2D = 2;
 
     public int beginDrawing() {
         if (mInDrawing) {
@@ -206,7 +182,6 @@ class GeckoSurfaceView
         }
 
         mInDrawing = true;
-        mDrawMode = DRAW_GLES_2;
         return DRAW_GLES_2;
     }
 
@@ -221,6 +196,8 @@ class GeckoSurfaceView
                 Log.e("GeckoAppJava", "endDrawing with false mSurfaceValid");
                 return;
             }
+        } catch (java.lang.IllegalArgumentException ex) {
+            mSurfaceChanged = true;
         } finally {
             mInDrawing = false;
 
@@ -231,51 +208,11 @@ class GeckoSurfaceView
         }
     }
 
-    /* How this works:
-     * Whenever we want to draw, we want to be sure that we do not lock
-     * the canvas unless we're sure we can draw. Locking the canvas clears
-     * the canvas to black in most cases, causing a black flash.
-     * At the same time, the surface can resize/disappear at any moment
-     * unless the canvas is locked.
-     * Draws originate from a different thread so the surface could change
-     * at any moment while we try to draw until we lock the canvas.
-     *
-     * Also, never try to lock the canvas while holding the surface lock
-     * unless you're in SurfaceChanged, in which case the canvas was already
-     * locked. Surface lock -> Canvas lock will lead to AB-BA deadlocks.
-     */
-    public void draw2D(ByteBuffer buffer, int stride) {
-        // mSurfaceLock ensures that we get mSyncDraw/mSoftwareBuffer/etc.
-        // set correctly before determining whether we should do a sync draw
-        mSurfaceLock.lock();
-        try {
-            if (mSyncDraw) {
-                if (buffer != mSoftwareBuffer || stride != (mWidth * 2))
-                    return;
-                mSyncDraw = false;
-                try {
-                    mSyncBuf.put(buffer);
-                } catch (InterruptedException ie) {
-                    Log.e("GeckoAppJava", "Threw exception while getting sync buf: " + ie);
-                }
-                return;
-            }
-        } finally {
-            mSurfaceLock.unlock();
-        }
-
-        if (buffer != mSoftwareBuffer || stride != (mWidth * 2))
-            return;
+    public void draw2D(ByteBuffer buffer) {
         Canvas c = getHolder().lockCanvas();
         if (c == null)
             return;
-        if (buffer != mSoftwareBuffer || stride != (mWidth * 2)) {
-            /* We're screwed. Fill it with white and hope it isn't too noticable
-             * This could potentially happen if this function is called
-             * right before mSurfaceLock is locked in SurfaceChanged.
-             * However, I've never actually seen this code get hit.
-             */
-            c.drawARGB(255, 255, 255, 255);
+        if (buffer != mSoftwareBuffer) {
             getHolder().unlockCanvasAndPost(c);
             return;
         }
@@ -296,55 +233,9 @@ class GeckoSurfaceView
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
-        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE;
-        mKeyListener = TextKeyListener.getInstance();
-
-        if (mIMEState == IME_STATE_PASSWORD)
-            outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_PASSWORD;
-        else if (mIMETypeHint.equalsIgnoreCase("url"))
-            outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_URI;
-        else if (mIMETypeHint.equalsIgnoreCase("email"))
-            outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS;
-        else if (mIMETypeHint.equalsIgnoreCase("search"))
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_SEARCH;
-        else if (mIMETypeHint.equalsIgnoreCase("tel"))
-            outAttrs.inputType = InputType.TYPE_CLASS_PHONE;
-        else if (mIMETypeHint.equalsIgnoreCase("number") ||
-                 mIMETypeHint.equalsIgnoreCase("range"))
-            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER;
-        else if (mIMETypeHint.equalsIgnoreCase("datetime") ||
-                 mIMETypeHint.equalsIgnoreCase("datetime-local"))
-            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME |
-                                 InputType.TYPE_DATETIME_VARIATION_NORMAL;
-        else if (mIMETypeHint.equalsIgnoreCase("date"))
-            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME |
-                                 InputType.TYPE_DATETIME_VARIATION_DATE;
-        else if (mIMETypeHint.equalsIgnoreCase("time"))
-            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME |
-                                 InputType.TYPE_DATETIME_VARIATION_TIME;
-
-        if (mIMEActionHint.equalsIgnoreCase("go"))
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_GO;
-        else if (mIMEActionHint.equalsIgnoreCase("done"))
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE;
-        else if (mIMEActionHint.equalsIgnoreCase("next"))
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_NEXT;
-        else if (mIMEActionHint.equalsIgnoreCase("search"))
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_SEARCH;
-        else if (mIMEActionHint.equalsIgnoreCase("send"))
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_SEND;
-        else
-            outAttrs.actionLabel = mIMEActionHint;
-        inputConnection.reset();
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT |
+                             InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
         return inputConnection;
-    }
-
-    public void setupEditable(String contents)
-    {
-        mEditable = mEditableFactory.newEditable(contents);
-        mEditable.setSpan(inputConnection, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
-        Selection.setSelection(mEditable, contents.length());
     }
 
     // accelerometer
@@ -384,14 +275,15 @@ class GeckoSurfaceView
     // Is this surface valid for drawing into?
     boolean mSurfaceValid;
 
+    // Do we need to force a redraw on surfaceChanged?
+    boolean mSurfaceNeedsRedraw;
+
+    // Has this surface been changed?  (That is,
+    // do we need to recreate buffers?)
+    boolean mSurfaceChanged;
+
     // Are we actively between beginDrawing/endDrawing?
     boolean mInDrawing;
-
-    // Are we waiting for a buffer to draw in surfaceChanged?
-    boolean mSyncDraw;
-
-    // True if gecko requests a buffer
-    int mDrawMode;
 
     // let's not change stuff around while we're in the middle of
     // starting drawing, ending drawing, or changing surface
@@ -412,23 +304,10 @@ class GeckoSurfaceView
     int mBufferHeight;
 
     // IME stuff
-    public static final int IME_STATE_DISABLED = 0;
-    public static final int IME_STATE_ENABLED = 1;
-    public static final int IME_STATE_PASSWORD = 2;
-
     GeckoInputConnection inputConnection;
-    KeyListener mKeyListener;
-    Editable mEditable;
-    Editable.Factory mEditableFactory;
-    boolean mIMEFocus;
     int mIMEState;
-    String mIMETypeHint;
-    String mIMEActionHint;
 
     // Software rendering
     ByteBuffer mSoftwareBuffer;
     Bitmap mSoftwareBitmap;
-
-    final SynchronousQueue<ByteBuffer> mSyncBuf = new SynchronousQueue<ByteBuffer>();
 }
-

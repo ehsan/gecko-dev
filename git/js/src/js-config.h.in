@@ -83,9 +83,8 @@
 #undef JS_INTPTR_TYPE
 #undef JS_BYTES_PER_WORD
 
-/* Some mozilla code uses JS-friend APIs that depend on JS_TRACER and
-   JS_METHODJIT being correct. */
+/* Some mozilla code uses JS-friend APIs that depend on JS_TRACER being
+   correct. */
 #undef JS_TRACER
-#undef JS_METHODJIT
 
 #endif /* js_config_h___ */

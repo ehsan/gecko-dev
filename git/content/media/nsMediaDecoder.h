@@ -51,31 +51,6 @@
 class nsHTMLMediaElement;
 class nsMediaStream;
 class nsIStreamListener;
-class nsTimeRanges;
-
-// The size to use for audio data frames in MozAudioAvailable events.
-// This value is per channel, and is chosen to give ~43 fps of events,
-// for example, 44100 with 2 channels, 2*1024 = 2048.
-#define FRAMEBUFFER_LENGTH_PER_CHANNEL 1024
-
-// The total size of the framebuffer used for MozAudioAvailable events
-// has to be within the following range.
-#define FRAMEBUFFER_LENGTH_MIN 512
-#define FRAMEBUFFER_LENGTH_MAX 16384
-
-// Shuts down a thread asynchronously.
-class ShutdownThreadEvent : public nsRunnable 
-{
-public:
-  ShutdownThreadEvent(nsIThread* aThread) : mThread(aThread) {}
-  ~ShutdownThreadEvent() {}
-  NS_IMETHOD Run() {
-    mThread->Shutdown();
-    return NS_OK;
-  }
-private:
-  nsCOMPtr<nsIThread> mThread;
-};
 
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of GetImageContainer, SetVideoData and GetStatistics,
@@ -137,8 +112,7 @@ public:
   // the decoder, even if Load returns an error.
   // This is called at most once per decoder, after Init().
   virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener **aListener,
-                        nsMediaDecoder* aCloneDonor) = 0;
+                        nsIStreamListener **aListener) = 0;
 
   // Called when the video file has completed downloading.
   virtual void ResourceLoaded() = 0;
@@ -206,10 +180,6 @@ public:
   // than the result of downloaded data.
   virtual void Progress(PRBool aTimer);
 
-  // Fire timeupdate events if needed according to the time constraints
-  // outlined in the specification.
-  virtual void FireTimeUpdate();
-
   // Called by nsMediaStream when the "cache suspended" status changes.
   // If nsMediaStream::IsSuspendedByCache returns true, then the decoder
   // should stop buffering or otherwise waiting for download progress and
@@ -224,10 +194,6 @@ public:
   // download has ended. Called on the main thread only. aStatus is
   // the result from OnStopRequest.
   virtual void NotifyDownloadEnded(nsresult aStatus) = 0;
-
-  // Called as data arrives on the stream and is read into the cache.  Called
-  // on the main thread only.
-  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) = 0;
 
   // Cleanup internal data structures. Must be called on the main
   // thread by the owning object before that object disposes of this object.
@@ -252,14 +218,6 @@ public:
   // if it's available.
   nsHTMLMediaElement* GetMediaElement();
 
-  // Returns the current size of the framebuffer used in
-  // MozAudioAvailable events.
-  PRUint32 GetFrameBufferLength() { return mFrameBufferLength; };
-
-  // Sets the length of the framebuffer used in MozAudioAvailable events.
-  // The new size must be between 512 and 16384.
-  nsresult RequestFrameBufferLength(PRUint32 aLength);
-
   // Moves any existing channel loads into the background, so that they don't
   // block the load event. This is called when we stop delaying the load
   // event. Any new loads initiated (for example to seek) will also be in the
@@ -278,10 +236,6 @@ public:
                     float aPixelAspectRatio,
                     Image* aImage);
 
-  // Constructs the time ranges representing what segments of the media
-  // are buffered and playable.
-  virtual nsresult GetBuffered(nsTimeRanges* aBuffered) = 0;
-
   // Returns PR_TRUE if we can play the entire media through without stopping
   // to buffer, given the current download and playback rates.
   PRBool CanPlayThrough();
@@ -293,12 +247,6 @@ protected:
 
   // Stop progress information timer.
   nsresult StopProgress();
-
-  // Ensures our media stream has been pinned.
-  void PinForSeek();
-
-  // Ensures our media stream has been unpinned.
-  void UnpinForSeek();
 
 protected:
   // Timer used for updating progress events
@@ -338,13 +286,6 @@ protected:
 
   // Pixel aspect ratio (ratio of the pixel width to pixel height)
   float mPixelAspectRatio;
-
-  // The framebuffer size to use for audioavailable events.
-  PRUint32 mFrameBufferLength;
-
-  // PR_TRUE when our media stream has been pinned. We pin the stream
-  // while seeking.
-  PRPackedBool mPinnedForSeek;
 
   // Has our size changed since the last repaint?
   PRPackedBool mSizeChanged;

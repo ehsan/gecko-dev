@@ -39,7 +39,6 @@
 
 #include "nsRect.h"
 #include "nsIWidget.h"
-#include "nsWidgetsCID.h"
 #include "nsIToolkit.h"
 #include "nsIAppShell.h"
 #include "nsILocalFile.h"
@@ -62,7 +61,7 @@ class gfxContext;
  * class, but it gives them a head start.)
  */
 
-class nsBaseWidget : public nsIWidget_MOZILLA_2_0_BRANCH
+class nsBaseWidget : public nsIWidget
 {
   friend class nsAutoRollup;
 
@@ -84,8 +83,6 @@ public:
   virtual nsIWidget*      GetParent(void);
   virtual nsIWidget*      GetTopLevelWidget();
   virtual nsIWidget*      GetSheetWindowParent(void);
-  virtual float           GetDPI();
-  virtual double          GetDefaultScale();
   virtual void            AddChild(nsIWidget* aChild);
   virtual void            RemoveChild(nsIWidget* aChild);
 
@@ -115,9 +112,7 @@ public:
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   virtual nsIDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager(bool *aAllowRetaining = nsnull);
-  virtual LayerManager*   GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nsnull);
+  virtual LayerManager*   GetLayerManager();
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
@@ -143,37 +138,23 @@ public:
   NS_IMETHOD              ResetInputState() { return NS_OK; }
   NS_IMETHOD              SetIMEOpenState(PRBool aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetIMEOpenState(PRBool* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              SetInputMode(const IMEContext& aContext) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              GetInputMode(IMEContext& aContext) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
-  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
   NS_IMETHOD              SetAcceleratedRendering(PRBool aEnabled);
   virtual PRBool          GetAcceleratedRendering();
-  virtual PRBool          GetShouldAccelerate();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
-  virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(PR_FALSE, PR_FALSE); }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
-  virtual already_AddRefed<nsIWidget>
-  CreateChild(const nsIntRect  &aRect,
-              EVENT_CALLBACK   aHandleEventFunction,
-              nsIDeviceContext *aContext,
-              nsIAppShell      *aAppShell = nsnull,
-              nsIToolkit       *aToolkit = nsnull,
-              nsWidgetInitData *aInitData = nsnull,
-              PRBool           aForceUseIWidgetParent = PR_FALSE);
   NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsIDeviceContext *aContext);
   virtual ViewWrapper*    GetAttachedViewPtr();
   NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);
   NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
   NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
-  NS_IMETHOD              RegisterTouchWindow();
-  NS_IMETHOD              UnregisterTouchWindow();
 
   nsPopupLevel PopupLevel() { return mPopupLevel; }
 
@@ -190,7 +171,6 @@ public:
             mBorderStyle & eBorderStyle_title);
   }
 
-  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent) = 0;
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
    * (nsBaseWidget::GetLayerManager() does). This sets up the widget's
@@ -205,15 +185,6 @@ public:
     nsBaseWidget* mWidget;
   };
   friend class AutoLayerManagerSetup;
-
-  class AutoUseBasicLayerManager {
-  public:
-    AutoUseBasicLayerManager(nsBaseWidget* aWidget);
-    ~AutoUseBasicLayerManager();
-  private:
-    nsBaseWidget* mWidget;
-  };
-  friend class AutoUseBasicLayerManager;
 
 protected:
 
@@ -250,16 +221,6 @@ protected:
   // if the new rectangles are different from the old rectangles.
   PRBool StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects);
 
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_CHILD_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
-
-  BasicLayerManager* CreateBasicLayerManager();
-
 protected: 
   void*             mClientData;
   ViewWrapper*      mViewWrapperPtr;
@@ -268,7 +229,6 @@ protected:
   nsIDeviceContext* mContext;
   nsIToolkit*       mToolkit;
   nsRefPtr<LayerManager> mLayerManager;
-  nsRefPtr<LayerManager> mBasicLayerManager;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;
@@ -276,7 +236,6 @@ protected:
   nsBorderStyle     mBorderStyle;
   PRPackedBool      mOnDestroyCalled;
   PRPackedBool      mUseAcceleratedRendering;
-  PRPackedBool      mTemporarilyUseBasicLayerManager;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped
@@ -338,6 +297,91 @@ class nsAutoRollup
 
   nsAutoRollup();
   ~nsAutoRollup();
+};
+
+/**
+ * BlitRectIter and/or ScrollRectIterBase are classes used in
+ * nsIWidget::Scroll() implementations.  They provide sorting of rectangles
+ * such that copying from rects[i] - aDelta to rects[i] does not alter
+ * anything in rects[j] for each j > i when rect[i] and rect[j] do not
+ * intersect each other nor any other rectangle.  That is, it is safe to just
+ * copy non-intersecting rectangles in the order provided.
+ *
+ * ScrollRectIterBase is only instantiated within derived classes.  It expects
+ * to be initialized through BaseInit() with a linked list of rectangles.
+ *
+ * BlitRectIter provides a simple constructor from an array of nsIntRects.
+ */
+
+class ScrollRectIterBase {
+public:
+  PRBool IsDone() { return mHead == nsnull; }
+  void operator++() { mHead = mHead->mNext; }
+  const nsIntRect& Rect() const { return *mHead; }
+
+protected:
+  ScrollRectIterBase() {}
+
+  struct ScrollRect : public nsIntRect {
+    ScrollRect(const nsIntRect& aIntRect) : nsIntRect(aIntRect) {}
+
+    // Flip the coordinate system so that we can assume that the rectangles
+    // are moving in the direction of decreasing x and y (left and up).
+    // This function is its own inverse.
+    void Flip(const nsIntPoint& aDelta)
+    {
+      if (aDelta.x > 0) x = -XMost();
+      if (aDelta.y > 0) y = -YMost();
+    }
+
+    ScrollRect* mNext;
+  };
+
+  void BaseInit(const nsIntPoint& aDelta, ScrollRect* aHead);
+
+private:
+  void Flip(const nsIntPoint& aDelta)
+  {
+    for (ScrollRect* r = mHead; r; r = r->mNext) {
+      r->Flip(aDelta);
+    }
+  }
+
+  /**
+   * Comparator for an initial sort of the rectangles.  The rectangles are
+   * primarily sorted in increasing y, which is required for the algorithm.
+   * The secondary sort is in decreasing x, chosen to make Move() more
+   * efficient for rows of rectangles with equal y.
+   */
+  class InitialSortComparator {
+  public:
+    PRBool Equals(const ScrollRect* a, const ScrollRect* b) const
+    {
+      return a->y == b->y && a->x == b->x;
+    }
+    PRBool LessThan(const ScrollRect* a, const ScrollRect* b) const
+    {
+      return a->y < b->y || (a->y == b->y && a->x > b->x);
+    }
+  };
+
+  void Move(ScrollRect** aUnmovedLink);
+
+  // Linked list of rectangles; these are assumed owned by the derived class
+  ScrollRect* mHead;
+  // Used in sorting to point to the last mNext link in the moved chain.
+  ScrollRect** mTailLink;
+};
+
+class BlitRectIter : public ScrollRectIterBase {
+public:
+  BlitRectIter(const nsIntPoint& aDelta, const nsTArray<nsIntRect>& aRects);
+private:
+  // Copying is not supported.
+  BlitRectIter(const BlitRectIter&);
+  void operator=(const BlitRectIter&);
+
+  nsTArray<ScrollRect> mRects;
 };
 
 #endif // nsBaseWidget_h__

@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Anant Narayanan <anant@kix.in>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,15 +41,13 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 const WEAVE_SYNC_PREFS = "services.sync.prefs.sync.";
+const WEAVE_PREFS_GUID = "preferences";
 
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/stores.js");
 Cu.import("resource://services-sync/trackers.js");
 Cu.import("resource://services-sync/type_records/prefs.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/ext/Preferences.js");
-
-const PREFS_GUID = Utils.encodeBase64url(Svc.AppInfo.ID);
 
 function PrefsEngine() {
   SyncEngine.call(this, "Prefs");
@@ -60,15 +57,6 @@ PrefsEngine.prototype = {
   _storeObj: PrefStore,
   _trackerObj: PrefTracker,
   _recordObj: PrefRec,
-  version: 2,
-
-  getChangedIDs: function getChangedIDs() {
-    // No need for a proper timestamp (no conflict resolution needed).
-    let changedIDs = {};
-    if (this._tracker.modified)
-      changedIDs[PREFS_GUID] = 0;
-    return changedIDs;
-  },
 
   _wipeClient: function _wipeClient() {
     SyncEngine.prototype._wipeClient.call(this);
@@ -88,43 +76,59 @@ PrefsEngine.prototype = {
 
 function PrefStore(name) {
   Store.call(this, name);
-  Svc.Obs.add("profile-before-change", function() {
-    this.__prefs = null;
-  }, this);
 }
 PrefStore.prototype = {
   __proto__: Store.prototype,
 
- __prefs: null,
   get _prefs() {
-    if (!this.__prefs)
-      this.__prefs = new Preferences();
-    return this.__prefs;
+    let prefs = Cc["@mozilla.org/preferences-service;1"].
+      getService(Ci.nsIPrefBranch);
+
+    this.__defineGetter__("_prefs", function() prefs);
+    return prefs;
   },
 
-  _getSyncPrefs: function _getSyncPrefs() {
-    let syncPrefs = Cc["@mozilla.org/preferences-service;1"]
-                      .getService(Ci.nsIPrefService)
-                      .getBranch(WEAVE_SYNC_PREFS)
-                      .getChildList("", {});
-    // Also sync preferences that determine which prefs get synced.
-    return syncPrefs.concat(
-      syncPrefs.map(function (pref) { return WEAVE_SYNC_PREFS + pref; }));
+  get _syncPrefs() {
+    let service = Cc["@mozilla.org/preferences-service;1"].
+      getService(Ci.nsIPrefService);
+    let syncPrefs = service.getBranch(WEAVE_SYNC_PREFS).getChildList("", {});
+
+    this.__defineGetter__("_syncPrefs", function() syncPrefs);
+    return syncPrefs;
   },
 
-  _isSynced: function _isSyncedPref(pref) {
-    return (pref.indexOf(WEAVE_SYNC_PREFS) == 0)
-            || this._prefs.get(WEAVE_SYNC_PREFS + pref, false);
-  },
+  _getAllPrefs: function PrefStore__getAllPrefs() {
+    let values = [];
+    let toSync = this._syncPrefs;
 
-  _getAllPrefs: function () {
-    let values = {};
-    for each (let pref in this._getSyncPrefs()) {
-      if (this._isSynced(pref)) {
-        // Missing prefs get the null value.
-        values[pref] = this._prefs.get(pref, null);
+    let pref;
+    for (let i = 0; i < toSync.length; i++) {
+      if (!this._prefs.getBoolPref(WEAVE_SYNC_PREFS + toSync[i]))
+        continue;
+
+      pref = {};
+      pref["name"] = toSync[i];
+
+      switch (this._prefs.getPrefType(toSync[i])) {
+        case Ci.nsIPrefBranch.PREF_INT:
+          pref["type"] = "int";
+          pref["value"] = this._prefs.getIntPref(toSync[i]);
+          break;
+        case Ci.nsIPrefBranch.PREF_STRING:
+          pref["type"] = "string";
+          pref["value"] = this._prefs.getCharPref(toSync[i]);
+          break;
+        case Ci.nsIPrefBranch.PREF_BOOL:
+          pref["type"] = "boolean";
+          pref["value"] = this._prefs.getBoolPref(toSync[i]);
+          break;
+        default:
+          this._log.trace("Unsupported pref type for " + toSync[i]);
       }
+      if ("value" in pref)
+        values[values.length] = pref;
     }
+
     return values;
   },
 
@@ -133,37 +137,39 @@ PrefStore.prototype = {
     let ltmExists = true;
     let ltm = {};
     let enabledBefore = false;
-    let enabledPref = "lightweightThemes.isThemeSelected";
     let prevTheme = "";
     try {
       Cu.import("resource://gre/modules/LightweightThemeManager.jsm", ltm);
       ltm = ltm.LightweightThemeManager;
-      enabledBefore = this._prefs.get(enabledPref, false);
-      prevTheme = ltm.currentTheme;
+
+      let enabledPref = "lightweightThemes.isThemeSelected";
+      if (this._prefs.getPrefType(enabledPref) == this._prefs.PREF_BOOL) {
+        enabledBefore = this._prefs.getBoolPref(enabledPref);
+        prevTheme = ltm.currentTheme;
+      }
     } catch(ex) {
       ltmExists = false;
     } // LightweightThemeManager only exists in Firefox 3.6+
-
-    for (let [pref, value] in Iterator(values)) {
-      if (!this._isSynced(pref))
-        continue;
-
-      // Pref has gone missing, best we can do is reset it.
-      if (value == null) {
-        this._prefs.reset(pref);
-        continue;
+    
+    for (let i = 0; i < values.length; i++) {
+      switch (values[i]["type"]) {
+        case "int":
+          this._prefs.setIntPref(values[i]["name"], values[i]["value"]);
+          break;
+        case "string":
+          this._prefs.setCharPref(values[i]["name"], values[i]["value"]);
+          break;
+        case "boolean":
+          this._prefs.setBoolPref(values[i]["name"], values[i]["value"]);
+          break;
+        default:
+          this._log.trace("Unexpected preference type: " + values[i]["type"]);
       }
-
-      try {
-        this._prefs.set(pref, value);
-      } catch(ex) {
-        this._log.trace("Failed to set pref: " + pref + ": " + ex);
-      } 
     }
 
     // Notify the lightweight theme manager of all the new values
     if (ltmExists) {
-      let enabledNow = this._prefs.get(enabledPref, false);
+      let enabledNow = this._prefs.getBoolPref("lightweightThemes.isThemeSelected");    
       if (enabledBefore && !enabledNow)
         ltm.currentTheme = null;
       else if (enabledNow && ltm.usedThemes[0] != prevTheme) {
@@ -176,7 +182,7 @@ PrefStore.prototype = {
   getAllIDs: function PrefStore_getAllIDs() {
     /* We store all prefs in just one WBO, with just one GUID */
     let allprefs = {};
-    allprefs[PREFS_GUID] = true;
+    allprefs[WEAVE_PREFS_GUID] = this._getAllPrefs();
     return allprefs;
   },
 
@@ -185,13 +191,13 @@ PrefStore.prototype = {
   },
 
   itemExists: function FormStore_itemExists(id) {
-    return (id === PREFS_GUID);
+    return (id === WEAVE_PREFS_GUID);
   },
 
-  createRecord: function createRecord(id, collection) {
-    let record = new PrefRec(collection, id);
+  createRecord: function createRecord(guid) {
+    let record = new PrefRec();
 
-    if (id == PREFS_GUID) {
+    if (guid == WEAVE_PREFS_GUID) {
       record.value = this._getAllPrefs();
     } else {
       record.deleted = true;
@@ -205,14 +211,10 @@ PrefStore.prototype = {
   },
 
   remove: function PrefStore_remove(record) {
-    this._log.trace("Ignoring remove request");
+    this._log.trace("Ignoring remove request")
   },
 
   update: function PrefStore_update(record) {
-    // Silently ignore pref updates that are for other apps.
-    if (record.id != PREFS_GUID)
-      return;
-
     this._log.trace("Received pref updates, applying...");
     this._setAllPrefs(record.value);
   },
@@ -224,69 +226,37 @@ PrefStore.prototype = {
 
 function PrefTracker(name) {
   Tracker.call(this, name);
-  Svc.Obs.add("profile-before-change", this);
-  Svc.Obs.add("weave:engine:start-tracking", this);
-  Svc.Obs.add("weave:engine:stop-tracking", this);
+  this._prefs.addObserver("", this, false);
 }
 PrefTracker.prototype = {
   __proto__: Tracker.prototype,
 
-  get modified() {
-    return Svc.Prefs.get("engine.prefs.modified", false);
-  },
-  set modified(value) {
-    Svc.Prefs.set("engine.prefs.modified", value);
-  },
-
-  loadChangedIDs: function loadChangedIDs() {
-    // Don't read changed IDs from disk at start up.
-  },
-
-  clearChangedIDs: function clearChangedIDs() {
-    this.modified = false;
-  },
-
- __prefs: null,
   get _prefs() {
-    if (!this.__prefs)
-      this.__prefs = new Preferences();
-    return this.__prefs;
+    let prefs = Cc["@mozilla.org/preferences-service;1"].
+      getService(Ci.nsIPrefBranch2);
+
+    this.__defineGetter__("_prefs", function() prefs);
+    return prefs;
   },
 
-  _enabled: false,
-  observe: function(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "weave:engine:start-tracking":
-        if (!this._enabled) {
-          Cc["@mozilla.org/preferences-service;1"]
-            .getService(Ci.nsIPrefBranch2).addObserver("", this, false);
-          this._enabled = true;
-        }
-        break;
-      case "weave:engine:stop-tracking":
-        if (this._enabled)
-          this._enabled = false;
-        // Fall through to clean up.
-      case "profile-before-change":
-        this.__prefs = null;
-        Cc["@mozilla.org/preferences-service;1"]
-          .getService(Ci.nsIPrefBranch2).removeObserver("", this);
-        break;
-      case "nsPref:changed":
-        // 100 points for a change that determines which prefs are synced,
-        // 25 points per regular pref change.
-        let up;
-        if (aData.indexOf(WEAVE_SYNC_PREFS) == 0)
-          up = 100;
-        else if (this._prefs.get(WEAVE_SYNC_PREFS + aData, false))
-          up = 25;
+  get _syncPrefs() {
+    let service = Cc["@mozilla.org/preferences-service;1"].
+      getService(Ci.nsIPrefService);
+    let syncPrefs = service.getBranch(WEAVE_SYNC_PREFS).getChildList("", {});
 
-        if (up) {
-          this.score += up;
-          this.modified = true;
-          this._log.trace("Preference " + aData + " changed");
-        }
-        break;
+    this.__defineGetter__("_syncPrefs", function() syncPrefs);
+    return syncPrefs;
+  },
+
+  /* 25 points per pref change */
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "nsPref:changed")
+      return;
+
+    if (this._syncPrefs.indexOf(aData) != -1) {
+      this.score += 1;
+      this.addChangedID(WEAVE_PREFS_GUID);
+      this._log.trace("Preference " + aData + " changed");
     }
   }
 };

@@ -61,13 +61,9 @@ const PRUint32 kDefaultTreeCacheSize = 256;
   { 0xb8, 0xe1, 0x2c, 0x44, 0xb0, 0x41, 0x85, 0xe3 }    \
 }
 
-class nsXULTreeAccessible : public nsAccessibleWrap
+class nsXULTreeAccessible : public nsXULSelectableAccessible
 {
 public:
-  using nsAccessible::GetChildCount;
-  using nsAccessible::GetChildAt;
-  using nsAccessible::GetChildAtPoint;
-
   nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports and cycle collection
@@ -79,12 +75,15 @@ public:
   NS_IMETHOD GetValue(nsAString& aValue);
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
+  // nsIAccessibleSelectable
+  NS_DECL_NSIACCESSIBLESELECTABLE
+
   // nsAccessNode
   virtual PRBool IsDefunct();
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    PRBool aDeepestChild,
@@ -92,17 +91,6 @@ public:
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
-
-  // SelectAccessible
-  virtual bool IsSelect();
-  virtual already_AddRefed<nsIArray> SelectedItems();
-  virtual PRUint32 SelectedItemCount();
-  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
-  virtual bool IsItemSelected(PRUint32 aIndex);
-  virtual bool AddItemToSelection(PRUint32 aIndex);
-  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
-  virtual bool SelectAll();
-  virtual bool UnselectAll();
 
   // nsXULTreeAccessible
 
@@ -152,6 +140,8 @@ protected:
   nsCOMPtr<nsITreeBoxObject> mTree;
   nsCOMPtr<nsITreeView> mTreeView;
   nsAccessibleHashtable mAccessibleCache;
+
+  NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeAccessible,
@@ -172,14 +162,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeAccessible,
 class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 {
 public:
-  using nsAccessible::GetParent;
-
   nsXULTreeItemAccessibleBase(nsIContent *aContent, nsIWeakReference *aShell,
                               nsAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessNode
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
@@ -204,7 +195,6 @@ public:
   // nsAccessNode
   virtual PRBool IsDefunct();
   virtual void Shutdown();
-  virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
@@ -273,7 +263,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
   // nsXULTreeItemAccessibleBase
   virtual void RowInvalidated(PRInt32 aStartColIdx, PRInt32 aEndColIdx);

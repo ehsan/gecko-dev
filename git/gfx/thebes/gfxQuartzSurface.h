@@ -56,20 +56,18 @@ public:
 
     virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
                                                                const gfxIntSize& aSize);
-    virtual TextQuality GetTextQualityInTransparentSurfaces()
+    virtual PRBool AreSimilarSurfacesSensitiveToContentType()
     {
-      return TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS;
+      return PR_FALSE;
     }
 
-    virtual const gfxIntSize GetSize() const { return gfxIntSize(mSize.width, mSize.height); }
+    const gfxSize& GetSize() const { return mSize; }
 
     CGContextRef GetCGContext() { return mCGContext; }
 
     CGContextRef GetCGContextWithClip(gfxContext *ctx);
 
     virtual PRInt32 GetDefaultContextFlags() const;
-
-    already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
 protected:
     CGContextRef mCGContext;

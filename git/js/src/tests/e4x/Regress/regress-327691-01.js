@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-327691-01.js';
 
 var summary = "Do not crash in js_IsXMLName";
 var BUGNUMBER = 327691;

@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '10.6.js';
 
 START("10.6 - ToXMLName");
 

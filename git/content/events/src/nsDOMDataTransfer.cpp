@@ -50,7 +50,6 @@
 #include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
-#include "nsCRT.h"
 
 NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
@@ -84,10 +83,9 @@ nsDOMDataTransfer::nsDOMDataTransfer()
 {
 }
 
-nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType)
+nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
   : mEventType(aEventType),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
-    mEffectAllowed(nsIDragService::DRAGDROP_ACTION_UNINITIALIZED),
     mCursorState(PR_FALSE),
     mReadOnly(PR_TRUE),
     mIsExternal(PR_TRUE),
@@ -95,6 +93,11 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType)
     mDragImageX(0),
     mDragImageY(0)
 {
+  mEffectAllowed = aAction &
+                   (nsIDragService::DRAGDROP_ACTION_COPY |
+                    nsIDragService::DRAGDROP_ACTION_LINK |
+                    nsIDragService::DRAGDROP_ACTION_MOVE);
+
   CacheExternalFormats();
 }
 
@@ -254,7 +257,14 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
       if (!file)
         continue;
 
-      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(file);
+      nsCOMPtr<nsIDocument> targetDoc;
+      nsCOMPtr<nsINode> targetNode = do_QueryInterface(mDragTarget);
+      if (targetNode) {
+        targetDoc = targetNode->GetOwnerDoc();
+      }
+
+      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(file, targetDoc);
+      NS_ENSURE_TRUE(domFile, NS_ERROR_OUT_OF_MEMORY);
 
       if (!mFiles->Append(domFile))
         return NS_ERROR_FAILURE;
@@ -326,7 +336,7 @@ nsDOMDataTransfer::GetData(const nsAString& aFormat, nsAString& aData)
             aData.Assign(Substring(stringdata, lastidx));
           else
             aData.Assign(Substring(stringdata, lastidx, idx - lastidx));
-          aData = nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(aData, PR_TRUE);
+          aData = nsContentUtils::TrimWhitespace(aData, PR_TRUE);
           return NS_OK;
         }
         lastidx = idx + 1;

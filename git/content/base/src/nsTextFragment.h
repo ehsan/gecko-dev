@@ -44,7 +44,7 @@
 #ifndef nsTextFragment_h___
 #define nsTextFragment_h___
 
-#include "nsString.h"
+#include "nsAString.h"
 #include "nsTraceRefcnt.h"
 class nsString;
 class nsCString;
@@ -112,7 +112,7 @@ public:
   /**
    * Return PR_TRUE if this fragment contains Bidi text
    * For performance reasons this flag is not set automatically, but
-   * requires an explicit call to UpdateBidiFlag()
+   * requires an explicit call to SetBidiFlag()
    */
   PRBool IsBidi() const
   {
@@ -165,27 +165,14 @@ public:
   /**
    * Append the contents of this string fragment to aString
    */
-  void AppendTo(nsAString& aString) const {
-    if (mState.mIs2b) {
-      aString.Append(m2b, mState.mLength);
-    } else {
-      AppendASCIItoUTF16(Substring(m1b, m1b + mState.mLength),
-                         aString);
-    }
-  }
+  void AppendTo(nsAString& aString) const;
 
   /**
    * Append a substring of the contents of this string fragment to aString.
    * @param aOffset where to start the substring in this text fragment
    * @param aLength the length of the substring
    */
-  void AppendTo(nsAString& aString, PRInt32 aOffset, PRInt32 aLength) const {
-    if (mState.mIs2b) {
-      aString.Append(m2b + aOffset, aLength);
-    } else {
-      AppendASCIItoUTF16(Substring(m1b + aOffset, m1b + aOffset + aLength), aString);
-    }
-  }
+  void AppendTo(nsAString& aString, PRInt32 aOffset, PRInt32 aLength) const;
 
   /**
    * Make a copy of the fragments contents starting at offset for
@@ -209,7 +196,7 @@ public:
    * Scan the contents of the fragment and turn on mState.mIsBidi if it
    * includes any Bidi characters.
    */
-  void UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength);
+  void SetBidiFlag();
 
   struct FragmentBits {
     // PRUint32 to ensure that the values are unsigned, because we

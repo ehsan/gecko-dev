@@ -90,6 +90,8 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
             // DWrite simulation.
             mNeedsOblique = PR_TRUE;
     }
+    PRInt8 baseWeight, weightDistance;
+    GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
     if (aNeedsBold) {
         sims |= DWRITE_FONT_SIMULATIONS_BOLD;
     }
@@ -176,28 +178,11 @@ gfxDWriteFont::ComputeMetrics()
 
     mMetrics.maxAdvance = mAdjustedSize;
 
-    // try to get the true maxAdvance value from 'hhea'
-    PRUint8 *tableData;
-    PRUint32 len;
-    void *tableContext = NULL;
-    BOOL exists;
-    HRESULT hr =
-        mFontFace->TryGetFontTable(DWRITE_MAKE_OPENTYPE_TAG('h', 'h', 'e', 'a'),
-                                   (const void**)&tableData,
-                                   &len,
-                                   &tableContext,
-                                   &exists);
-    if (SUCCEEDED(hr)) {
-        if (exists && len >= sizeof(mozilla::HheaTable)) {
-            const mozilla::HheaTable* hhea =
-                reinterpret_cast<const mozilla::HheaTable*>(tableData);
-            mMetrics.maxAdvance = ((gfxFloat)PRUint16(hhea->advanceWidthMax) /
-                       fontMetrics.designUnitsPerEm) * mAdjustedSize;
-        }
-        mFontFace->ReleaseFontTable(tableContext);
-    }
-
-    mMetrics.internalLeading = NS_MAX(mMetrics.maxHeight - mMetrics.emHeight, 0.0);
+    mMetrics.internalLeading = 
+        ceil(((gfxFloat)(fontMetrics.ascent + 
+                    fontMetrics.descent - 
+                    fontMetrics.designUnitsPerEm) / 
+                    fontMetrics.designUnitsPerEm) * mAdjustedSize);
     mMetrics.externalLeading = 
         ceil(((gfxFloat)fontMetrics.lineGap /
                    fontMetrics.designUnitsPerEm) * mAdjustedSize);
@@ -208,44 +193,18 @@ gfxDWriteFont::ComputeMetrics()
     mMetrics.spaceWidth = 
         ((gfxFloat)metrics.advanceWidth /
                    fontMetrics.designUnitsPerEm) * mAdjustedSize;
-
-    // try to get aveCharWidth from the OS/2 table, fall back to measuring 'x'
-    // if the table is not available
-    mMetrics.aveCharWidth = 0;
-    hr = mFontFace->TryGetFontTable(DWRITE_MAKE_OPENTYPE_TAG('O', 'S', '/', '2'),
-                                    (const void**)&tableData,
-                                    &len,
-                                    &tableContext,
-                                    &exists);
-    if (SUCCEEDED(hr)) {
-        if (exists && len >= 4) {
-            // Not checking against sizeof(mozilla::OS2Table) here because older
-            // versions of the table have different sizes; we only need the first
-            // two 16-bit fields here.
-            const mozilla::OS2Table* os2 =
-                reinterpret_cast<const mozilla::OS2Table*>(tableData);
-            mMetrics.aveCharWidth = ((gfxFloat)PRInt16(os2->xAvgCharWidth) /
+    UINT32 ucs = L'x';
+    if (SUCCEEDED(mFontFace->GetGlyphIndicesA(&ucs, 1, &glyph)) &&
+        SUCCEEDED(mFontFace->GetDesignGlyphMetrics(&glyph, 1, &metrics))) {    
+        mMetrics.aveCharWidth = 
+            ((gfxFloat)metrics.advanceWidth /
                        fontMetrics.designUnitsPerEm) * mAdjustedSize;
-        }
-        mFontFace->ReleaseFontTable(tableContext);
+    } else {
+        // Let's just assume the X is square.
+        mMetrics.aveCharWidth = 
+            ((gfxFloat)fontMetrics.xHeight /
+                       fontMetrics.designUnitsPerEm) * mAdjustedSize;
     }
-
-    UINT32 ucs;
-    if (mMetrics.aveCharWidth < 1) {
-        ucs = L'x';
-        if (SUCCEEDED(mFontFace->GetGlyphIndicesA(&ucs, 1, &glyph)) &&
-            SUCCEEDED(mFontFace->GetDesignGlyphMetrics(&glyph, 1, &metrics))) {    
-            mMetrics.aveCharWidth = 
-                ((gfxFloat)metrics.advanceWidth /
-                           fontMetrics.designUnitsPerEm) * mAdjustedSize;
-        } else {
-            // Let's just assume the X is square.
-            mMetrics.aveCharWidth = 
-                ((gfxFloat)fontMetrics.xHeight /
-                           fontMetrics.designUnitsPerEm) * mAdjustedSize;
-        }
-    }
-
     ucs = L'0';
     if (SUCCEEDED(mFontFace->GetGlyphIndicesA(&ucs, 1, &glyph)) &&
         SUCCEEDED(mFontFace->GetDesignGlyphMetrics(&glyph, 1, &metrics))) {
@@ -255,7 +214,6 @@ gfxDWriteFont::ComputeMetrics()
     } else {
         mMetrics.zeroOrAveCharWidth = mMetrics.aveCharWidth;
     }
-
     mMetrics.underlineOffset = 
         ((gfxFloat)fontMetrics.underlinePosition /
                    fontMetrics.designUnitsPerEm) * mAdjustedSize;
@@ -281,8 +239,7 @@ gfxDWriteFont::ComputeMetrics()
     printf("    emHeight: %f emAscent: %f emDescent: %f\n", mMetrics.emHeight, mMetrics.emAscent, mMetrics.emDescent);
     printf("    maxAscent: %f maxDescent: %f maxAdvance: %f\n", mMetrics.maxAscent, mMetrics.maxDescent, mMetrics.maxAdvance);
     printf("    internalLeading: %f externalLeading: %f\n", mMetrics.internalLeading, mMetrics.externalLeading);
-    printf("    spaceWidth: %f aveCharWidth: %f zeroOrAve: %f xHeight: %f\n",
-           mMetrics.spaceWidth, mMetrics.aveCharWidth, mMetrics.zeroOrAveCharWidth, mMetrics.xHeight);
+    printf("    spaceWidth: %f aveCharWidth: %f xHeight: %f\n", mMetrics.spaceWidth, mMetrics.aveCharWidth, mMetrics.xHeight);
     printf("    uOff: %f uSize: %f stOff: %f stSize: %f supOff: %f subOff: %f\n",
            mMetrics.underlineOffset, mMetrics.underlineSize, mMetrics.strikeoutOffset, mMetrics.strikeoutSize,
            mMetrics.superscriptOffset, mMetrics.subscriptOffset);
@@ -416,11 +373,5 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
                               DestroyBlobFunc, ftr);
     }
 
-    if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
-        // for downloaded fonts, there may be layout tables cached in the entry
-        // even though they're absent from the sanitized platform font
-        return mFontEntry->GetFontTable(aTag);
-    }
-
-    return nsnull;
+    return hb_blob_create_empty();
 }

@@ -72,51 +72,40 @@ FILE *gOutFile = NULL;
 FILE *gErrFile = NULL;
 
 static JSBool
-Print(JSContext *cx, uintN argc, jsval *vp)
+Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i, n;
     JSString *str;
 
-    jsval *argv = JS_ARGV(cx, vp);
     for (i = n = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
-            return false;
-        JSAutoByteString bytes(cx, str);
-        if (!bytes)
-            return false;
-        fprintf(gOutFile, "%s%s", i ? " " : "", bytes.ptr());
+            return JS_FALSE;
+        fprintf(gOutFile, "%s%s", i ? " " : "", JS_GetStringBytes(str));
     }
     n++;
     if (n)
         fputc('\n', gOutFile);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
+    return JS_TRUE;
 }
 
 static JSBool
-Load(JSContext *cx, uintN argc, jsval *vp)
+Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i;
     JSString *str;
+    const char *filename;
     JSScript *script;
     JSBool ok;
     jsval result;
 
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    jsval *argv = JS_ARGV(cx, vp);
     for (i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return JS_FALSE;
         argv[i] = STRING_TO_JSVAL(str);
-        JSAutoByteString filename(cx, str);
-        if (!filename)
-            return false;
-        script = JS_CompileFile(cx, obj, filename.ptr());
+        filename = JS_GetStringBytes(str);
+        script = JS_CompileFile(cx, obj, filename);
         if (!script)
             ok = JS_FALSE;
         else {
@@ -126,14 +115,13 @@ Load(JSContext *cx, uintN argc, jsval *vp)
         if (!ok)
             return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec glob_functions[] = {
-    {"print",           Print,          0,0},
-    {"load",            Load,           1,0},
-    {nsnull,nsnull,0,0}
+    {"print",           Print,          0,0,0},
+    {"load",            Load,           1,0,0},
+    {nsnull,nsnull,0,0,0}
 };
 
 static JSClass global_class = {
@@ -295,9 +283,9 @@ MySecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
     }
 }
 
-/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsid aName, inout voidPtr aPolicy); */
+/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsval aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP 
-MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsid aName, void * *aPolicy)
+MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsval aName, void * *aPolicy)
 {
     switch(mMode)
     {
@@ -552,11 +540,11 @@ TestArgFormatter(JSContext* jscontext, JSObject* glob, nsIXPConnect* xpc)
     const char*                  e_in = "another meaningless chunck of text";
     
 
-    JSString*               a_out;
+    char*                   a_out;
     nsCOMPtr<nsISupports>   b_out;
     nsCOMPtr<nsIVariant>    c_out;
     nsAutoString            d_out;
-    JSString*               e_out;
+    char*                   e_out;
 
     nsCOMPtr<nsITestXPCFoo> specified;
     PRInt32                 val;
@@ -588,7 +576,7 @@ TestArgFormatter(JSContext* jscontext, JSObject* glob, nsIXPConnect* xpc)
             return;
         }
 
-        ok = JS_ConvertArguments(jscontext, 5, argv, "S %ip %iv %is S",
+        ok = JS_ConvertArguments(jscontext, 5, argv, "s %ip %iv %is s",
                                 &a_out, 
                                 static_cast<nsISupports**>(getter_AddRefs(b_out)), 
                                 static_cast<nsIVariant**>(getter_AddRefs(c_out)),
@@ -608,7 +596,7 @@ TestArgFormatter(JSContext* jscontext, JSObject* glob, nsIXPConnect* xpc)
     if (!ok)
         return;
 
-    if(JS_MatchStringAndAscii(a_out, a_in) && JS_MatchStringAndAscii(e_out, e_in))
+    if(!strcmp(a_in, a_out) && !strcmp(e_in, e_out))
         printf("passed\n");
     else
         printf(" conversion OK, but surrounding was mangled -- FAILED!\n");
@@ -822,14 +810,9 @@ int main()
 
         {
             JSAutoRequest ar(jscontext);
-            glob = JS_NewCompartmentAndGlobalObject(jscontext, &global_class, NULL);
+            glob = JS_NewGlobalObject(jscontext, &global_class);
             if (!glob)
                 DIE("FAILED to create global object");
-
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(jscontext, glob))
-                DIE("FAILED to enter compartment");
-
             if (!JS_InitStandardClasses(jscontext, glob))
                 DIE("FAILED to init standard classes");
             if (!JS_DefineFunctions(jscontext, glob, glob_functions))

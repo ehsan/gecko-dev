@@ -39,7 +39,7 @@
 #ifndef _nsEventShell_H_
 #define _nsEventShell_H_
 
-#include "AccEvent.h"
+#include "nsAccEvent.h"
 
 #include "a11yGeneric.h"
 
@@ -59,15 +59,18 @@ public:
   /**
    * Fire the accessible event.
    */
-  static void FireEvent(AccEvent* aEvent);
+  static void FireEvent(nsAccEvent *aEvent);
 
   /**
    * Fire accessible event of the given type for the given accessible.
    *
    * @param  aEventType   [in] the event type
    * @param  aAccessible  [in] the event target
+   * @param  aIsAsync     [in, optional] specifies whether the origin change
+   *                        this event is fired owing to is async.
    */
   static void FireEvent(PRUint32 aEventType, nsAccessible *aAccessible,
+                        PRBool aIsAsynch = PR_FALSE,
                         EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
   /**
@@ -102,7 +105,7 @@ public:
   /**
    * Push event to queue, coalesce it if necessary. Start pending processing.
    */
-  void Push(AccEvent* aEvent);
+  void Push(nsAccEvent *aEvent);
 
   /**
    * Shutdown the queue.
@@ -139,29 +142,34 @@ private:
    */
   void ApplyToSiblings(PRUint32 aStart, PRUint32 aEnd,
                        PRUint32 aEventType, nsINode* aNode,
-                       AccEvent::EEventRule aEventRule);
+                       nsAccEvent::EEventRule aEventRule);
+
+  /**
+   * Do not emit one of two given reorder events fired for the same DOM node.
+   */
+  void CoalesceReorderEventsFromSameSource(nsAccEvent *aAccEvent1,
+                                           nsAccEvent *aAccEvent2);
 
   /**
    * Do not emit one of two given reorder events fired for DOM nodes in the case
    * when one DOM node is in parent chain of second one.
    */
-  void CoalesceReorderEventsFromSameTree(AccEvent* aAccEvent,
-                                         AccEvent* aDescendantAccEvent);
+  void CoalesceReorderEventsFromSameTree(nsAccEvent *aAccEvent,
+                                         nsAccEvent *aDescendantAccEvent);
 
   /**
    * Coalesce text change events caused by sibling hide events.
    */
   void CoalesceTextChangeEventsFor(AccHideEvent* aTailEvent,
                                    AccHideEvent* aThisEvent);
-  void CoalesceTextChangeEventsFor(AccShowEvent* aTailEvent,
-                                   AccShowEvent* aThisEvent);
 
   /**
-   * Create text change event caused by hide or show event. When a node is
-   * hidden/removed or shown/appended, the text in an ancestor hyper text will
-   * lose or get new characters.
+   * Create text change event caused by hide event. When a node is hidden or
+   * removed, the text in an ancestor hyper text will lose characters. Create
+   * text change event unless the node is being removed or frame is being
+   * destroyed.
    */
-  void CreateTextChangeEventFor(AccMutationEvent* aEvent);
+  void CreateTextChangeEventFor(AccHideEvent* aEvent);
 
   /**
    * Indicates whether we're waiting on a refresh notification from our
@@ -178,7 +186,7 @@ private:
    * Pending events array.  Don't make this an nsAutoTArray; we use
    * SwapElements() on it.
    */
-  nsTArray<nsRefPtr<AccEvent> > mEvents;
+  nsTArray<nsRefPtr<nsAccEvent> > mEvents;
 };
 
 #endif

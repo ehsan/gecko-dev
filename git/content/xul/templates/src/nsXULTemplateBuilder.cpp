@@ -64,6 +64,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIPrivateDOMImplementation.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"
 #include "nsBindingManager.h"
@@ -108,8 +109,6 @@
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateQueryProcessorStorage.h"
 
-using namespace mozilla::dom;
-
 //----------------------------------------------------------------------
 
 static NS_DEFINE_CID(kRDFContainerUtilsCID,      NS_RDFCONTAINERUTILS_CID);
@@ -147,7 +146,7 @@ nsXULTemplateBuilder::nsXULTemplateBuilder(void)
 }
 
 static PLDHashOperator
-DestroyMatchList(nsISupports* aKey, nsTemplateMatch*& aMatch, void* aContext)
+DestroyMatchList(nsISupports* aKey, nsTemplateMatch* aMatch, void* aContext)
 {
     nsFixedSizeAllocator* pool = static_cast<nsFixedSizeAllocator *>(aContext);
 
@@ -158,7 +157,7 @@ DestroyMatchList(nsISupports* aKey, nsTemplateMatch*& aMatch, void* aContext)
         aMatch = next;
     }
 
-    return PL_DHASH_REMOVE;
+    return PL_DHASH_NEXT;
 }
 
 nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
@@ -237,7 +236,8 @@ nsXULTemplateBuilder::Uninit(PRBool aIsFinal)
 
     mQuerySets.Clear();
 
-    mMatchMap.Enumerate(DestroyMatchList, &mPool);
+    mMatchMap.EnumerateRead(DestroyMatchList, &mPool);
+    mMatchMap.Clear();
 
     mRootResult = nsnull;
     mRefVariable = nsnull;
@@ -268,13 +268,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDataSource)
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDB)
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCompDB)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRoot)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootResult)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mListeners)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mQueryProcessor)
-    if (tmp->mMatchMap.IsInitialized()) {
-      tmp->mMatchMap.Enumerate(DestroyMatchList, &(tmp->mPool));
-    }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDataSource)
@@ -527,9 +520,6 @@ nsXULTemplateBuilder::UpdateResult(nsIXULTemplateResult* aOldResult,
     PR_LOG(gXULTemplateLog, PR_LOG_ALWAYS,
            ("nsXULTemplateBuilder::UpdateResult %p %p %p",
            aOldResult, aNewResult, aQueryNode));
-
-    if (!mRoot || !mQueriesCompiled)
-      return NS_OK;
 
     // get the containers where content may be inserted. If
     // GetInsertionLocations returns false, no container has generated
@@ -1027,9 +1017,6 @@ nsXULTemplateBuilder::ResultBindingChanged(nsIXULTemplateResult* aResult)
     // The new result will have the new values.
     NS_ENSURE_ARG_POINTER(aResult);
 
-    if (!mRoot || !mQueriesCompiled)
-      return NS_OK;
-
     return SynchronizeResult(aResult);
 }
 
@@ -1123,12 +1110,12 @@ nsXULTemplateBuilder::Observe(nsISupports* aSubject,
 
 void
 nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
-                                       Element*     aElement,
+                                       nsIContent*  aContent,
                                        PRInt32      aNameSpaceID,
                                        nsIAtom*     aAttribute,
                                        PRInt32      aModType)
 {
-    if (aElement == mRoot && aNameSpaceID == kNameSpaceID_None) {
+    if (aContent == mRoot && aNameSpaceID == kNameSpaceID_None) {
         // Check for a change to the 'ref' attribute on an atom, in which
         // case we may need to nuke and rebuild the entire content model
         // beneath the element.
@@ -1139,8 +1126,13 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
         // Check for a change to the 'datasources' attribute. If so, setup
         // mDB by parsing the new value and rebuild.
         else if (aAttribute == nsGkAtoms::datasources) {
-            nsContentUtils::AddScriptRunner(
-                NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableLoadAndRebuild));
+            Uninit(PR_FALSE);  // Reset results
+            
+            PRBool shouldDelay;
+            LoadDataSources(aDocument, &shouldDelay);
+            if (!shouldDelay)
+                nsContentUtils::AddScriptRunner(
+                    NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableRebuild));
         }
     }
 }
@@ -1158,9 +1150,8 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
         if (mQueryProcessor)
             mQueryProcessor->Done();
 
-        // Pass false to Uninit since content is going away anyway
-        nsContentUtils::AddScriptRunner(
-            NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitFalse));
+        // use false since content is going away anyway
+        Uninit(PR_FALSE);
 
         aDocument->RemoveObserver(this);
 
@@ -1176,6 +1167,7 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
 
         mDB = nsnull;
         mCompDB = nsnull;
+        mRoot = nsnull;
         mDataSource = nsnull;
     }
 }
@@ -1194,9 +1186,9 @@ nsXULTemplateBuilder::NodeWillBeDestroyed(const nsINode* aNode)
     mDataSource = nsnull;
     mDB = nsnull;
     mCompDB = nsnull;
+    mRoot = nsnull;
 
-    nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitTrue));
+    Uninit(PR_TRUE);
 }
 
 

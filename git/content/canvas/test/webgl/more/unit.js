@@ -266,7 +266,7 @@ function assertOk(name, f) {
 function assert(name, v) {
   if (v == null) { v = name; name = null; }
   if (!v) {
-    testFailed("assert", name, v);
+    testFailed("assert", name, v)
     return false;
   } else {
     return true;
@@ -276,7 +276,7 @@ function assert(name, v) {
 function assertProperty(name, v, p) {
   if (p == null) { p = v; v = name; name = p; }
   if (v[p] == null) {
-    testFailed("assertProperty", name);
+    testFailed("assertProperty", name)
     return false;
   } else {
     return true;
@@ -294,34 +294,11 @@ function compare(a,b) {
 function assertEquals(name, v, p) {
   if (p == null) { p = v; v = name; name = null; }
   if (!compare(v, p)) {
-    testFailed("assertEquals", name, v, p);
+    testFailed("assertEquals", name, v, p)
     return false;
   } else {
     return true;
   }
-}
-
-function assertArrayEquals(name, v, p) {
-  if (p == null) { p = v; v = name; name = null; }
-  if (!v) {
-    testFailed("assertArrayEquals: first array undefined", name, v, p);
-    return false;
-  }
-  if (!p) {
-    testFailed("assertArrayEquals: second array undefined", name, v, p);
-    return false;
-  }
-  if (v.length != p.length) {
-    testFailed("assertArrayEquals", name, v, p);
-    return false;
-  }
-  for (var ii = 0; ii < v.length; ++ii) {
-    if (v[ii] != p[ii]) {
-      testFailed("assertArrayEquals", name, v, p);
-      return false;
-    }
-  }
-  return true;
 }
 
 function assertNotEquals(name, v, p) {
@@ -343,8 +320,6 @@ function time(elementId, f) {
 }
 
 function randomFloat () {
-    // note that in fuzz-testing, this can used as the size of a buffer to allocate.
-    // so it shouldn't return astronomic values. The maximum value 10000000 is already quite big.
     var fac = 1.0;
     var r = Math.random();
     if (r < 0.25)
@@ -356,7 +331,7 @@ function randomFloat () {
     else if (r < 0.6)
         fac = 100000;
     else if (r < 0.7)
-        fac = 10000000;
+        fac = 10000000000;
     else if (r < 0.8)
         fac = NaN;
     return -0.5*fac + Math.random() * fac;

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355556.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355556;
 var summary = 'Do not crash with eval(..., arguments)';

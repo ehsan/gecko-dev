@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
-#include "DOMSVGNumber.h"
 #include "DOMSVGLength.h"
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
@@ -53,6 +52,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
+#include "nsSVGNumber.h"
 #include "nsSVGRect.h"
 #include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
@@ -60,7 +60,6 @@
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
-#include "nsSVGEffects.h" // For nsSVGEffects::RemoveAllRenderingObservers
 
 #ifdef MOZ_SMIL
 #include "nsEventDispatcher.h"
@@ -69,11 +68,10 @@
 #include "nsSMILTypes.h"
 #include "nsIContentIterator.h"
 
+using namespace mozilla;
+
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 #endif // MOZ_SMIL
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal, mElement)
 
@@ -198,18 +196,19 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 // Implementation
 
 nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                 FromParser aFromParser)
+                                 PRUint32 aFromParser)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
     mViewportWidth(0),
     mViewportHeight(0),
+    mCoordCtxMmPerPx(0),
     mCurrentTranslate(0.0f, 0.0f),
     mCurrentScale(1.0f),
     mPreviousTranslate(0.0f, 0.0f),
     mPreviousScale(1.0f),
     mRedrawSuspendCount(0)
 #ifdef MOZ_SMIL
-  , mStartAnimationOnBindToTree(!aFromParser)
+    ,mStartAnimationOnBindToTree(!aFromParser)
 #endif // MOZ_SMIL
 {
 }
@@ -223,7 +222,10 @@ nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGSVGElement *it = new nsSVGSVGElement(ni.forget(), NOT_FROM_PARSER);
+  nsSVGSVGElement *it = new nsSVGSVGElement(ni.forget(), PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = it->Init();
@@ -307,7 +309,15 @@ nsSVGSVGElement::GetViewport(nsIDOMSVGRect * *aViewport)
 NS_IMETHODIMP
 nsSVGSVGElement::GetPixelUnitToMillimeterX(float *aPixelUnitToMillimeterX)
 {
-  *aPixelUnitToMillimeterX = MM_PER_INCH_FLOAT / 96;
+  // to correctly determine this, the caller would need to pass in the
+  // right PresContext...
+  nsPresContext *context = nsContentUtils::GetContextForContent(this);
+  if (!context) {
+    *aPixelUnitToMillimeterX = 0.28f; // 90dpi
+    return NS_OK;
+  }
+
+  *aPixelUnitToMillimeterX = 25.4f / nsPresContext::AppUnitsToIntCSSPixels(context->AppUnitsPerInch());
   return NS_OK;
 }
 
@@ -322,7 +332,16 @@ nsSVGSVGElement::GetPixelUnitToMillimeterY(float *aPixelUnitToMillimeterY)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenPixelToMillimeterX(float *aScreenPixelToMillimeterX)
 {
-  *aScreenPixelToMillimeterX = MM_PER_INCH_FLOAT / 96;
+  // to correctly determine this, the caller would need to pass in the
+  // right PresContext...
+  nsPresContext *context = nsContentUtils::GetContextForContent(this);
+  if (!context) {
+    *aScreenPixelToMillimeterX = 0.28f; // 90dpi
+    return NS_OK;
+  }
+
+  *aScreenPixelToMillimeterX = 25.4f /
+      nsPresContext::AppUnitsToIntCSSPixels(context->AppUnitsPerInch());
   return NS_OK;
 }
 
@@ -632,8 +651,7 @@ nsSVGSVGElement::DeSelectAll()
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGNumber());
-  return NS_OK;
+  return NS_NewSVGNumber(_retval);
 }
 
 /* nsIDOMSVGLength createSVGLength (); */
@@ -1037,7 +1055,6 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
     rv = mTimedDocumentRoot->SetParent(smilController);
     if (mStartAnimationOnBindToTree) {
       mTimedDocumentRoot->Begin();
-      mStartAnimationOnBindToTree = PR_FALSE;
     }
   }
 
@@ -1133,6 +1150,15 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     return float(nsSVGUtils::ComputeNormalizedHypotenuse(w, h));
   }
   return 0;
+}
+
+float
+nsSVGSVGElement::GetMMPerPx(PRUint8 aCtxType)
+{
+  if (mCoordCtxMmPerPx == 0.0f) {
+    GetScreenPixelToMillimeterX(&mCoordCtxMmPerPx);
+  }
+  return mCoordCtxMmPerPx;
 }
 
 //----------------------------------------------------------------------
@@ -1231,12 +1257,3 @@ nsSVGSVGElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;
 }
-
-#ifndef MOZ_ENABLE_LIBXUL
-// XXXdholbert HACK -- see comment w/ this method's declaration in header file.
-void
-nsSVGSVGElement::RemoveAllRenderingObservers()
-{
-  nsSVGEffects::RemoveAllRenderingObservers(this);
-}
-#endif // !MOZ_LIBXUL

@@ -51,7 +51,6 @@
 #include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
 #include "nsSVGPreserveAspectRatio.h"
-#include "mozilla/dom/FromParser.h"
 
 #ifdef MOZ_SMIL
 class nsSMILTimeContainer;
@@ -134,9 +133,8 @@ class nsSVGSVGElement : public nsSVGSVGElementBase,
 protected:
   friend nsresult NS_NewSVGSVGElement(nsIContent **aResult,
                                       already_AddRefed<nsINodeInfo> aNodeInfo,
-                                      mozilla::dom::FromParser aFromParser);
-  nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                  mozilla::dom::FromParser aFromParser);
+                                      PRUint32 aFromParser);
+  nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo, PRUint32 aFromParser);
   
 public:
 
@@ -204,10 +202,10 @@ public:
   
   // nsSVGSVGElement methods:
   float GetLength(PRUint8 mCtxType);
+  float GetMMPerPx(PRUint8 mCtxType = 0);
 
   // public helpers:
   gfxMatrix GetViewBoxTransform();
-  PRBool    HasValidViewbox() const { return mViewBox.IsValid(); }
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -221,14 +219,6 @@ public:
   }
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-#ifndef MOZ_ENABLE_LIBXUL
-  // XXXdholbert HACK to call static method
-  // nsSVGEffects::RemoveAllRenderingObservers() on myself, on behalf
-  // of imagelib in non-libxul builds.
-  virtual void RemoveAllRenderingObservers();
-#endif // !MOZ_LIBXUL
-
 protected:
   // nsSVGElement overrides
   PRBool IsEventName(nsIAtom* aName);
@@ -296,6 +286,8 @@ protected:
   // flag this as an inner <svg> to save the overhead of GetCtx calls?
   // XXXjwatt our frame should probably reset these when it's destroyed.
   float mViewportWidth, mViewportHeight;
+
+  float mCoordCtxMmPerPx;
 
 #ifdef MOZ_SMIL
   // The time container for animations within this SVG document fragment. Set

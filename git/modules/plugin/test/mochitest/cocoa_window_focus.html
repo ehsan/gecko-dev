@@ -14,14 +14,6 @@
       window.opener.SimpleTest.ok(aValue, aMessage);
     }
 
-    function executeSoon(func) {
-      window.opener.SimpleTest.executeSoon(func);
-    }
-
-    function waitForFocus(aCb, aTarget, aBlank) {
-      window.opener.SimpleTest.waitForFocus(aCb, aTarget, aBlank);
-    }
-
     function runTests() {
       var plugin1 = document.getElementById("plugin1");
       var plugin2 = document.getElementById("plugin2");
@@ -53,46 +45,27 @@
         ok(false, "Plugin does not know its initial top-level window activation state!");
       }
 
-      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-      var fm = Components.classes["@mozilla.org/focus-manager;1"].
-                          getService(Components.interfaces.nsIFocusManager);
-
-      waitForFocus(function() {
-        // Make sure the plugin handled the focus event before checking.
-        executeSoon(function() {
-          expectedEventCount++;
-
-          is(plugin1.getTopLevelWindowActivationState(), false, "Activation state should be: deactivated");
-          is(plugin1.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
-
-          is(plugin2.getTopLevelWindowActivationState(), false, "Activation state should be: deactivated");
-          is(plugin2.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
-
-          // Bring our window back to the front and make sure plugins were properly notified.
-          netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-          fm.focusedWindow = window;
-
-          waitForFocus(function() {
-            // Make sure the plugin handled the focus event before checking.
-            executeSoon(function() {
-              expectedEventCount++;
-
-              is(plugin1.getTopLevelWindowActivationState(), true, "Activation state should be: activated");
-              is(plugin1.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
-
-              is(plugin2.getTopLevelWindowActivationState(), true, "Activation state should be: activated");
-              is(plugin2.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
-
-              window.opener.testsFinished();
-            });
-          }, window);
-        });
-      }, window.opener);
-
       // Send our window to the back and make sure plugins were properly notified.
-      // Calling window.blur() is not allowed.
-      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-      fm.focusedWindow = window.opener;
+      window.blur();
+      expectedEventCount++;
+
+      is(plugin1.getTopLevelWindowActivationState(), false, "Activation state should be: deactivated");
+      is(plugin1.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
+
+      is(plugin2.getTopLevelWindowActivationState(), false, "Activation state should be: deactivated");
+      is(plugin2.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
+
+      // Bring our window back to the front and make sure plugins were properly notified.
+      window.focus();
+      expectedEventCount++;
+
+      is(plugin1.getTopLevelWindowActivationState(), true, "Activation state should be: activated");
+      is(plugin1.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
+
+      is(plugin2.getTopLevelWindowActivationState(), true, "Activation state should be: activated");
+      is(plugin2.getTopLevelWindowActivationEventCount(), expectedEventCount, "Window focus event count should be " + expectedEventCount);
+
+      window.opener.testsFinished();
     }
   </script>
 </body>

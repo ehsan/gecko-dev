@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -404,7 +403,8 @@ DocumentInfoHashtableTraverser(nsIURI* key,
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mDocumentTable value");
-  cb->NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(di));
+  nsCOMPtr<nsISupports> iface = do_QueryObject(di);
+  cb->NoteXPCOMChild(iface);
   return PL_DHASH_NEXT;
 }
 
@@ -628,9 +628,6 @@ nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
 {
   NS_PRECONDITION(aOldDocument != nsnull, "no old document");
 
-  if (mDestroyed)
-    return;
-
   // Hold a ref to the binding so it won't die when we remove it from our
   // table.
   nsRefPtr<nsXBLBinding> binding = GetBinding(aContent);
@@ -648,7 +645,6 @@ nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
   }
 
   if (binding) {
-    binding->PrototypeBinding()->BindingDetached(binding->GetBoundElement());
     binding->ChangeDocument(aOldDocument, nsnull);
     SetBinding(aContent, nsnull);
   }
@@ -1682,8 +1678,6 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
 void
 nsBindingManager::DropDocumentReference()
 {
-  mDestroyed = PR_TRUE;
-
   // Make sure to not run any more XBL constructors
   mProcessingAttachedStack = PR_TRUE;
   if (mProcessAttachedQueueEvent) {
@@ -1701,9 +1695,6 @@ nsBindingManager::DropDocumentReference()
   if (mInsertionParentTable.ops)
     PL_DHashTableFinish(&(mInsertionParentTable));
   mInsertionParentTable.ops = nsnull;
-
-  if (mBindingTable.IsInitialized())
-    mBindingTable.Clear();
 
   mDocument = nsnull;
 }

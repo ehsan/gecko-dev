@@ -186,25 +186,6 @@ NS_IMETHODIMP nsCacheEntryDescriptor::IsStreamBased(PRBool *result)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsCacheEntryDescriptor::GetPredictedDataSize(PRInt64 *result)
-{
-    NS_ENSURE_ARG_POINTER(result);
-    nsCacheServiceAutoLock lock;
-    if (!mCacheEntry) return NS_ERROR_NOT_AVAILABLE;
-
-    *result = mCacheEntry->PredictedDataSize();
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsCacheEntryDescriptor::SetPredictedDataSize(PRInt64
-                                                           predictedSize)
-{
-    nsCacheServiceAutoLock lock;
-    if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
-
-    mCacheEntry->SetPredictedDataSize(predictedSize);
-    return NS_OK;
-}
 
 NS_IMETHODIMP nsCacheEntryDescriptor::GetDataSize(PRUint32 *result)
 {
@@ -532,6 +513,7 @@ nsInputStreamWrapper::LazyInit()
     nsCacheEntry* cacheEntry = mDescriptor->CacheEntry();
     if (!cacheEntry) return NS_ERROR_NOT_AVAILABLE;
 
+    nsCOMPtr<nsIInputStream> input;
     rv = nsCacheService::OpenInputStreamForEntry(cacheEntry, mode,
                                                  mStartOffset,
                                                  getter_AddRefs(mInput));

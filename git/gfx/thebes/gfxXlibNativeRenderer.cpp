@@ -42,9 +42,17 @@
 #include "gfxXlibSurface.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
-#include "gfxAlphaRecovery.h"
 #include "cairo-xlib.h"
 #include "cairo-xlib-xrender.h"
+#include <stdlib.h>
+
+#if   HAVE_STDINT_H
+#include <stdint.h>
+#elif HAVE_INTTYPES_H
+#include <inttypes.h>
+#elif HAVE_SYS_INT_TYPES_H
+#include <sys/int_types.h>
+#endif
 
 #if 0
 #include <stdio.h>
@@ -177,57 +185,6 @@ gfxXlibNativeRenderer::DrawDirect(gfxContext *ctx, nsIntSize size,
         return PR_FALSE;
     }
     
-    cairo_matrix_t matrix;
-    cairo_get_matrix (cr, &matrix);
-    double device_offset_x, device_offset_y;
-    cairo_surface_get_device_offset (target, &device_offset_x, &device_offset_y);
-
-    /* Draw() checked that the matrix contained only a very-close-to-integer
-       translation.  Here (and in several other places and thebes) device
-       offsets are assumed to be integer. */
-    NS_ASSERTION(PRInt32(device_offset_x) == device_offset_x &&
-                 PRInt32(device_offset_y) == device_offset_y,
-                 "Expected integer device offsets");
-    nsIntPoint offset(NS_lroundf(matrix.x0 + device_offset_x),
-                      NS_lroundf(matrix.y0 + device_offset_y));
-    
-    int max_rectangles = 0;
-    if (flags & DRAW_SUPPORTS_CLIP_RECT) {
-      max_rectangles = 1;
-    }
-    if (flags & DRAW_SUPPORTS_CLIP_LIST) {
-      max_rectangles = MAX_STATIC_CLIP_RECTANGLES;
-    }
-
-    /* The client won't draw outside the surface so consider this when
-       analysing clip rectangles. */
-    nsIntRect bounds(offset, size);
-    bounds.IntersectRect(bounds,
-                         nsIntRect(0, 0,
-                                   cairo_xlib_surface_get_width(target),
-                                   cairo_xlib_surface_get_height(target)));
-
-    PRBool needs_clip = PR_TRUE;
-    nsIntRect rectangles[MAX_STATIC_CLIP_RECTANGLES];
-    int rect_count = 0;
-
-    /* Check that the clip is rectangular and aligned on unit boundaries. */
-    /* Temporarily set the matrix for _get_rectangular_clip. It's basically
-       the identity matrix, but we must adjust for the fact that our
-       offset-rect is in device coordinates. */
-    cairo_identity_matrix (cr);
-    cairo_translate (cr, -device_offset_x, -device_offset_y);
-    PRBool have_rectangular_clip =
-        _get_rectangular_clip (cr, bounds, &needs_clip,
-                               rectangles, max_rectangles, &rect_count);
-    cairo_set_matrix (cr, &matrix);
-    if (!have_rectangular_clip)
-        return PR_FALSE;
-
-    /* Stop now if everything is clipped out */
-    if (needs_clip && rect_count == 0)
-        return PR_TRUE;
-      
     /* Check that the screen is supported.
        Visuals belong to screens, so, if alternate visuals are not supported,
        then alternate screens cannot be supported. */  
@@ -261,6 +218,57 @@ gfxXlibNativeRenderer::DrawDirect(gfxContext *ctx, nsIntSize size,
         }
     }
   
+    cairo_matrix_t matrix;
+    cairo_get_matrix (cr, &matrix);
+    double device_offset_x, device_offset_y;
+    cairo_surface_get_device_offset (target, &device_offset_x, &device_offset_y);
+
+    /* Draw() checked that the matrix contained only a very-close-to-integer
+       translation.  Here (and in several other places and thebes) device
+       offsets are assumed to be integer. */
+    NS_ASSERTION(PRUint32(device_offset_x) == device_offset_x &&
+                 PRUint32(device_offset_y) == device_offset_y,
+                 "Expected integer device offsets");
+    nsIntPoint offset(NS_lroundf(matrix.x0 + device_offset_x),
+                      NS_lroundf(matrix.y0 + device_offset_y));
+    
+    int max_rectangles = 0;
+    if (flags & DRAW_SUPPORTS_CLIP_RECT) {
+      max_rectangles = 1;
+    }
+    if (flags & DRAW_SUPPORTS_CLIP_LIST) {
+      max_rectangles = MAX_STATIC_CLIP_RECTANGLES;
+    }
+
+    /* The client won't draw outside the surface so consider this when
+       analysing clip rectangles. */
+    nsIntRect bounds(offset, size);
+    bounds.IntersectRect(bounds,
+                         nsIntRect(0, 0,
+                                   cairo_xlib_surface_get_width(target),
+                                   cairo_xlib_surface_get_height(target)));
+
+    PRBool needs_clip;
+    nsIntRect rectangles[MAX_STATIC_CLIP_RECTANGLES];
+    int rect_count;
+
+    /* Check that the clip is rectangular and aligned on unit boundaries. */
+    /* Temporarily set the matrix for _get_rectangular_clip. It's basically
+       the identity matrix, but we must adjust for the fact that our
+       offset-rect is in device coordinates. */
+    cairo_identity_matrix (cr);
+    cairo_translate (cr, -device_offset_x, -device_offset_y);
+    PRBool have_rectangular_clip =
+        _get_rectangular_clip (cr, bounds, &needs_clip,
+                               rectangles, max_rectangles, &rect_count);
+    cairo_set_matrix (cr, &matrix);
+    if (!have_rectangular_clip)
+        return PR_FALSE;
+
+    /* Draw only calls this function when the clip region is not empty. */
+    NS_ASSERTION(!needs_clip || rect_count != 0,
+                 "Where did the clip region go?");
+      
     /* we're good to go! */
     NATIVE_DRAWING_NOTE("TAKING FAST PATH\n");
     cairo_surface_flush (target);
@@ -450,27 +458,119 @@ PRBool
 gfxXlibNativeRenderer::DrawOntoTempSurface(gfxXlibSurface *tempXlibSurface,
                                            nsIntPoint offset)
 {
-    tempXlibSurface->Flush();
+    cairo_surface_t *temp_xlib_surface = tempXlibSurface->CairoSurface();
+    cairo_surface_flush (temp_xlib_surface);
     /* no clipping is needed because the callback can't draw outside the native
        surface anyway */
     nsresult rv = DrawWithXlib(tempXlibSurface, offset, NULL, 0);
-    tempXlibSurface->MarkDirty();
+    cairo_surface_mark_dirty (temp_xlib_surface);
     return NS_SUCCEEDED(rv);
 }
 
-static already_AddRefed<gfxImageSurface>
-CopyXlibSurfaceToImage(gfxXlibSurface *tempXlibSurface,
-                       gfxASurface::gfxImageFormat format)
+static cairo_surface_t *
+_copy_xlib_surface_to_image (gfxXlibSurface *tempXlibSurface,
+                             cairo_format_t format,
+                             int width, int height,
+                             unsigned char **data_out)
 {
-    nsRefPtr<gfxImageSurface> result =
-        new gfxImageSurface(tempXlibSurface->GetSize(), format);
+    unsigned char *data;
+    cairo_surface_t *result;
+    cairo_t *cr;
+    
+    *data_out = data = (unsigned char*)malloc (width*height*4);
+    if (!data)
+        return NULL;
+  
+    result = cairo_image_surface_create_for_data (data, format, width, height, width*4);
+    cr = cairo_create (result);
+    cairo_set_source_surface (cr, tempXlibSurface->CairoSurface(), 0, 0);
+    cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
+    cairo_paint (cr);
+    cairo_destroy (cr);
+    return result;
+}
 
-    gfxContext copyCtx(result);
-    copyCtx.SetSource(tempXlibSurface);
-    copyCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
-    copyCtx.Paint();
+#define SET_ALPHA(v, a) (((v) & ~(0xFF << 24)) | ((a) << 24))
+#define GREEN_OF(v) (((v) >> 8) & 0xFF)
 
-    return result.forget();
+/**
+ * Given the RGB data for two image surfaces, one a source image composited
+ * with OVER onto a black background, and one a source image composited with 
+ * OVER onto a white background, reconstruct the original image data into
+ * black_data.
+ * 
+ * Consider a single color channel and a given pixel. Suppose the original
+ * premultiplied color value was C and the alpha value was A. Let the final
+ * on-black color be B and the final on-white color be W. All values range
+ * over 0-255.
+ * Then B=C and W=(255*(255 - A) + C*255)/255. Solving for A, we get
+ * A=255 - (W - C). Therefore it suffices to leave the black_data color
+ * data alone and set the alpha values using that simple formula. It shouldn't
+ * matter what color channel we pick for the alpha computation, but we'll
+ * pick green because if we went through a color channel downsample the green
+ * bits are likely to be the most accurate.
+ */
+static void
+_compute_alpha_values (uint32_t *black_data,
+                       uint32_t *white_data,
+                       int width, int height,
+                       gfxXlibNativeRenderer::DrawOutput *analysis)
+{
+    int num_pixels = width*height;
+    int i;
+    uint32_t first;
+    uint32_t deltas = 0;
+    unsigned char first_alpha;
+  
+    if (num_pixels == 0) {
+        if (analysis) {
+            analysis->mUniformAlpha = True;
+            analysis->mUniformColor = True;
+            /* whatever we put here will be true */
+            analysis->mColor = gfxRGBA(0.0, 0.0, 0.0, 1.0);
+        }
+        return;
+    }
+  
+    first_alpha = 255 - (GREEN_OF(*white_data) - GREEN_OF(*black_data));
+    /* set the alpha value of 'first' */
+    first = SET_ALPHA(*black_data, first_alpha);
+  
+    for (i = 0; i < num_pixels; ++i) {
+        uint32_t black = *black_data;
+        uint32_t white = *white_data;
+        unsigned char pixel_alpha = 255 - (GREEN_OF(white) - GREEN_OF(black));
+        
+        black = SET_ALPHA(black, pixel_alpha);
+        *black_data = black;
+        deltas |= (first ^ black);
+        
+        black_data++;
+        white_data++;
+    }
+    
+    if (analysis) {
+        analysis->mUniformAlpha = (deltas >> 24) == 0;
+        if (analysis->mUniformAlpha) {
+            analysis->mColor.a = first_alpha/255.0;
+            /* we only set uniform_color when the alpha is already uniform.
+               it's only useful in that case ... and if the alpha was nonuniform
+               then computing whether the color is uniform would require unpremultiplying
+               every pixel */
+            analysis->mUniformColor = (deltas & ~(0xFF << 24)) == 0;
+            if (analysis->mUniformColor) {
+                if (first_alpha == 0) {
+                    /* can't unpremultiply, this is OK */
+                    analysis->mColor = gfxRGBA(0.0, 0.0, 0.0, 0.0);
+                } else {
+                    double d_first_alpha = first_alpha;
+                    analysis->mColor.r = (first & 0xFF)/d_first_alpha;
+                    analysis->mColor.g = ((first >> 8) & 0xFF)/d_first_alpha;
+                    analysis->mColor.b = ((first >> 16) & 0xFF)/d_first_alpha;
+                }
+            }
+        }
+    }
 }
 
 void
@@ -478,6 +578,11 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
                             PRUint32 flags, Screen *screen, Visual *visual,
                             DrawOutput* result)
 {
+    cairo_surface_t *black_image_surface;
+    cairo_surface_t *white_image_surface;
+    unsigned char *black_data;
+    unsigned char *white_data;
+  
     if (result) {
         result->mSurface = NULL;
         result->mUniformAlpha = PR_FALSE;
@@ -593,55 +698,61 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
         return;
     }
     
-    nsRefPtr<gfxImageSurface> blackImage =
-        CopyXlibSurfaceToImage(tempXlibSurface, gfxASurface::ImageFormatARGB32);
+    int width = drawingRect.width;
+    int height = drawingRect.height;
+    black_image_surface =
+        _copy_xlib_surface_to_image (tempXlibSurface, CAIRO_FORMAT_ARGB32,
+                                     width, height, &black_data);
     
     tmpCtx->SetDeviceColor(gfxRGBA(1.0, 1.0, 1.0));
     tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
     tmpCtx->Paint();
     DrawOntoTempSurface(tempXlibSurface, -drawingRect.TopLeft());
-    nsRefPtr<gfxImageSurface> whiteImage =
-        CopyXlibSurfaceToImage(tempXlibSurface, gfxASurface::ImageFormatRGB24);
+    white_image_surface =
+        _copy_xlib_surface_to_image (tempXlibSurface, CAIRO_FORMAT_RGB24,
+                                     width, height, &white_data);
   
-    if (blackImage->CairoStatus() == CAIRO_STATUS_SUCCESS &&
-        blackImage->CairoStatus() == CAIRO_STATUS_SUCCESS) {
-        gfxAlphaRecovery::Analysis analysis;
-        if (!gfxAlphaRecovery::RecoverAlpha(blackImage, whiteImage,
-                                            result ? &analysis : nsnull))
-            return;
-
-        ctx->SetSource(blackImage, offset);
-
+    if (black_image_surface && white_image_surface &&
+        cairo_surface_status (black_image_surface) == CAIRO_STATUS_SUCCESS &&
+        cairo_surface_status (white_image_surface) == CAIRO_STATUS_SUCCESS &&
+        black_data != NULL && white_data != NULL) {
+        cairo_surface_flush (black_image_surface);
+        cairo_surface_flush (white_image_surface);
+        _compute_alpha_values ((uint32_t*)black_data, (uint32_t*)white_data, width, height, result);
+        cairo_surface_mark_dirty (black_image_surface);
+        
+        cairo_t *cr = ctx->GetCairo();
+        cairo_set_source_surface (cr, black_image_surface, offset.x, offset.y);
         /* if the caller wants to retrieve the rendered image, put it into
            a 'similar' surface, and use that as the source for the drawing right
            now. This means we always return a surface similar to the surface
            used for 'cr', which is ideal if it's going to be cached and reused.
-           We do not return an image if the result has uniform color (including
-           alpha). */
-        if (result) {
-            if (analysis.uniformAlpha) {
-                result->mUniformAlpha = PR_TRUE;
-                result->mColor.a = analysis.alpha;
-            }
-            if (analysis.uniformColor) {
-                result->mUniformColor = PR_TRUE;
-                result->mColor.r = analysis.r;
-                result->mColor.g = analysis.g;
-                result->mColor.b = analysis.b;
-            } else {
-                result->mSurface = target->
-                    CreateSimilarSurface(gfxASurface::CONTENT_COLOR_ALPHA,
-                                         gfxIntSize(size.width, size.height));
-
-                gfxContext copyCtx(result->mSurface);
-                copyCtx.SetSource(blackImage);
-                copyCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
-                copyCtx.Paint();
-
-                ctx->SetSource(result->mSurface);
-            }
+           We do not return an image if the result has uniform color and alpha. */
+        if (result && (!result->mUniformAlpha || !result->mUniformColor)) {
+            cairo_surface_t *target = cairo_get_group_target (cr);
+            cairo_surface_t *similar_surface =
+                cairo_surface_create_similar (target, CAIRO_CONTENT_COLOR_ALPHA,
+                                              width, height);
+            cairo_t *copy_cr = cairo_create (similar_surface);
+            cairo_set_source_surface (copy_cr, black_image_surface, 0.0, 0.0);
+            cairo_set_operator (copy_cr, CAIRO_OPERATOR_SOURCE);
+            cairo_paint (copy_cr);
+            cairo_destroy (copy_cr);
+      
+            cairo_set_source_surface (cr, similar_surface, 0.0, 0.0);
+            
+            result->mSurface = gfxASurface::Wrap(similar_surface);
         }
         
-        ctx->Paint();
+        cairo_paint (cr);
     }
+    
+    if (black_image_surface) {
+        cairo_surface_destroy (black_image_surface);
+    }
+    if (white_image_surface) {
+        cairo_surface_destroy (white_image_surface);
+    }
+    free (black_data);
+    free (white_data);
 }

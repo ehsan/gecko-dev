@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-275378.js';
 //-----------------------------------------------------------------------------
 // testcase by Martin Zvieger <martin.zvieger@sphinx.at>
 // if fails, will fail to run in browser due to syntax error

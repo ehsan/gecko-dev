@@ -19,7 +19,7 @@
 #endif
 
 [@AB_CD@]
-@BINPATH@/chrome/@AB_CD@@JAREXT@
+@BINPATH@/chrome/@AB_CD@.jar
 @BINPATH@/chrome/@AB_CD@.manifest
 @BINPATH@/@PREF_DIR@/firefox-l10n.js
 @BINPATH@/searchplugins/*
@@ -38,9 +38,7 @@
 
 [xpcom]
 @BINPATH@/dependentlibs.list
-#ifndef MOZ_STATIC_JS
 @BINPATH@/@DLL_PREFIX@mozjs@DLL_SUFFIX@
-#endif
 @BINPATH@/@DLL_PREFIX@plc4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@plds4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@xpcom@DLL_SUFFIX@
@@ -149,7 +147,6 @@
 @BINPATH@/components/dom_css.xpt
 @BINPATH@/components/dom_events.xpt
 @BINPATH@/components/dom_geolocation.xpt
-@BINPATH@/components/dom_notification.xpt
 @BINPATH@/components/dom_html.xpt
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
@@ -188,7 +185,6 @@
 @BINPATH@/components/jetpack.xpt
 @BINPATH@/components/jsdservice.xpt
 @BINPATH@/components/layout_base.xpt
-@BINPATH@/components/layout_forms.xpt
 #ifdef NS_PRINTING
 @BINPATH@/components/layout_printing.xpt
 #endif
@@ -213,7 +209,6 @@
 @BINPATH@/components/necko_strconv.xpt
 @BINPATH@/components/necko_viewsource.xpt
 @BINPATH@/components/necko_wifi.xpt
-@BINPATH@/components/necko_wyciwyg.xpt
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
 @BINPATH@/components/parentalcontrols.xpt
@@ -238,6 +233,7 @@
 #ifdef MOZ_ENABLE_XREMOTE
 @BINPATH@/components/toolkitremote.xpt
 #endif
+@BINPATH@/components/toolkitsearch.xpt
 @BINPATH@/components/txtsvc.xpt
 @BINPATH@/components/txmgr.xpt
 #ifdef MOZ_USE_NATIVE_UCONV
@@ -271,8 +267,6 @@
 @BINPATH@/components/zipwriter.xpt
 
 ; JavaScript components
-@BINPATH@/components/ConsoleAPI.manifest
-@BINPATH@/components/ConsoleAPI.js
 @BINPATH@/components/FeedProcessor.manifest
 @BINPATH@/components/FeedProcessor.js
 @BINPATH@/components/BrowserFeeds.manifest
@@ -353,7 +347,6 @@
 @BINPATH@/components/nsPlacesAutoComplete.js
 @BINPATH@/components/nsPlacesExpiration.js
 @BINPATH@/components/PlacesProtocolHandler.js
-@BINPATH@/components/PlacesCategoriesStarter.js
 @BINPATH@/components/nsDefaultCLH.manifest
 @BINPATH@/components/nsDefaultCLH.js
 @BINPATH@/components/nsContentPrefService.manifest
@@ -369,7 +362,6 @@
 @BINPATH@/components/satchel.manifest
 @BINPATH@/components/nsFormAutoComplete.js
 @BINPATH@/components/nsFormHistory.js
-@BINPATH@/components/nsInputListAutoComplete.js
 @BINPATH@/components/contentSecurityPolicy.manifest
 @BINPATH@/components/contentSecurityPolicy.js
 @BINPATH@/components/contentAreaDropListener.manifest
@@ -385,8 +377,9 @@
 @BINPATH@/components/nsPrompter.manifest
 @BINPATH@/components/nsPrompter.js
 #ifdef MOZ_SERVICES_SYNC
-@BINPATH@/components/SyncComponents.manifest
+@BINPATH@/components/FormNotifier.js
 @BINPATH@/components/Weave.js
+@BINPATH@/components/WeaveCrypto.js
 #endif
 
 ; Modules
@@ -405,25 +398,133 @@
 @BINPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
 #endif
 
-; ANGLE on Win32
-#ifdef XP_WIN32
-#ifndef HAVE_64BIT_OS
-@BINPATH@/libEGL.dll
-@BINPATH@/libGLESv2.dll
-#endif
-#endif
-
 ; [Browser Chrome Files]
-@BINPATH@/chrome/browser@JAREXT@
+@BINPATH@/chrome/browser.jar
 @BINPATH@/chrome/browser.manifest
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/preview.png
 #if MOZ_UPDATE_CHANNEL == beta
-@BINPATH@/extensions/testpilot@labs.mozilla.com/*
+@BINPATH@/extensions/testpilot@labs.mozilla.com/chrome.manifest
+@BINPATH@/extensions/testpilot@labs.mozilla.com/components/TestPilot.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/all-studies-window.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/all-studies-window.xul
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/browser.css
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/browser.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/debug.html
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/experiment-page.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/feedback-browser.xul
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.colorhelpers.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.colorhelpers.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.crosshair.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.crosshair.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.image.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.image.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.navigate.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.navigate.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.selection.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.selection.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.stack.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.stack.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.threshold.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.flot.threshold.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/flot/jquery.min.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/raw-data-dialog.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/raw-data-dialog.xul
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/screen.css
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/status-quit.html
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/status.html
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/survey-generator.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/take-survey.html
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/tp-browser.xul
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/welcome-page.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/welcome.html
+@BINPATH@/extensions/testpilot@labs.mozilla.com/content/window-utils.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/defaults/preferences/preferences.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/install.rdf
+@BINPATH@/extensions/testpilot@labs.mozilla.com/instrument/chrome.manifest
+@BINPATH@/extensions/testpilot@labs.mozilla.com/instrument/install.rdf
+@BINPATH@/extensions/testpilot@labs.mozilla.com/instrument/instrument.jsm
+@BINPATH@/extensions/testpilot@labs.mozilla.com/instrument/instrument.xul
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/dbutils.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/experiment_data_store.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/extension-update.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/feedback.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/jar-code-store.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/cuddlefish.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/memory.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/observer-service.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/plain-text-console.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/preferences-service.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/securable-module.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/timer.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/traceback.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/unit-test.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/unload.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/lib/url.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/log4moz.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/metadata.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/Observers.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/remote-experiment-loader.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/setup.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/string_sanitizer.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/modules/tasks.js
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/badge-default.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/bg.jpg
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/css/screen-standalone.css
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/dino_32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/bg-status.jpg
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/callout.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/callout_continue.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/data1.jpg
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/data2.jpg
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_comments.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_computer.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_continue.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_quit.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_results.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_twitter.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/images/home_upcoming.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/logo.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/mozilla-logo.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/status-completed.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/status-ejected.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/status-missed.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/testpilot_16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/testPilot_200x200.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/testpilot_32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-completedstudies-32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-currentstudies-32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-generic-32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-learned-32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-results-48x48.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-settings-32x32.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-study-48x48.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/all/tp-submit-48x48.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/linux/close_button.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/linux/feedback-frown-16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/linux/feedback-smile-16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/linux/feedback.css
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/mac/close_button.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/mac/feedback-frown-16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/mac/feedback-smile-16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/mac/feedback.css
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/mac/notification-tail-down.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/mac/notification-tail-up.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/win/close_button.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/win/feedback-frown-16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/win/feedback-smile-16x16.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/win/feedback.css
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/win/notification-tail-down.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/skin/win/notification-tail-up.png
+@BINPATH@/extensions/testpilot@labs.mozilla.com/tests/test_data_store.js
 #endif
-@BINPATH@/chrome/toolkit@JAREXT@
+@BINPATH@/chrome/toolkit.jar
 @BINPATH@/chrome/toolkit.manifest
+@BINPATH@/@PREF_DIR@/reporter.js
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
 @BINPATH@/chrome/icons/default/default16.png
@@ -520,7 +621,7 @@
 @BINPATH@/@DLL_PREFIX@nssdbm3.chk
 #endif
 #endif
-@BINPATH@/chrome/pippki@JAREXT@
+@BINPATH@/chrome/pippki.jar
 @BINPATH@/chrome/pippki.manifest
 
 ; for Solaris SPARC

@@ -52,7 +52,6 @@ XPIDLSRCS = \
 		$(NULL)
 
 EXPORTS = \
-		nsIConstraintValidation.h \
 		nsIFormControl.h \
 		nsIForm.h \
 		nsIFormProcessor.h \
@@ -60,6 +59,7 @@ EXPORTS = \
 		nsIRadioVisitor.h \
 		nsIRadioGroupContainer.h \
 		nsITextControlElement.h \
+		nsIFileControlElement.h \
 		nsFormSubmission.h \
 		nsIFrameSetElement.h \
 		nsHTMLAudioElement.h \

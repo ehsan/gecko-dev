@@ -47,8 +47,8 @@ class nsIRenderingContext;
 class nsGUIEvent;
 
 #define NS_IVIEWOBSERVER_IID  \
-  { 0xc8ba5804, 0x2459, 0x4b62, \
-    { 0xa4, 0x15, 0x02, 0x84, 0x1a, 0xd7, 0x93, 0xa7 } }
+  { 0xc5dfb460, 0x50fb, 0x483e, \
+    { 0xb4, 0x22, 0x19, 0xb7, 0x20, 0x4f, 0xe2, 0xdc } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -97,7 +97,6 @@ public:
    */
   NS_IMETHOD HandleEvent(nsIView*       aView,
                          nsGUIEvent*    aEvent,
-                         PRBool         aDontRetargetEvents,
                          nsEventStatus* aEventStatus) = 0;
 
   /* called when the view has been resized and the
@@ -109,11 +108,10 @@ public:
   NS_IMETHOD ResizeReflow(nsIView * aView, nscoord aWidth, nscoord aHeight) = 0;
 
   /**
-   * Returns true if the view observer wants to drop all invalidation right now
-   * because painting is suppressed. It will invalidate everything when it
-   * unsuppresses.
+   * Hack to find out if the view observer is itself visible, in lieu
+   * of having the view trees linked.
    */
-  NS_IMETHOD_(PRBool) ShouldIgnoreInvalidation() = 0;
+  NS_IMETHOD_(PRBool) IsVisible() = 0;
 
   /**
    * Notify the observer that we're about to start painting.  This

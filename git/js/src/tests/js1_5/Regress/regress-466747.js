@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-466747.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 466747;
 var summary = 'TM: Do not assert: fp->slots + fp->script->nfixed + ' +

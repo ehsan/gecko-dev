@@ -20,10 +20,6 @@ var gServer;
 var gAddonInstalled = false;
 
 function test() {
-  requestLongerTimeout(2);
-  // Turn on searching for this test
-  Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 15);
-
   waitForExplicitFinish();
 
   gProvider = new MockProvider();
@@ -62,7 +58,7 @@ function test() {
 
   installs.forEach(function(aInstall) { aInstall.install(); });
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     gCategoryUtilities = new CategoryUtilities(gManagerWindow);
     run_next_test();
@@ -101,8 +97,12 @@ function getAnonymousElementByAttribute(aElement, aName, aValue) {
  *         The expected isSearching state
  */
 function check_is_searching(aExpectedSearching) {
-  var loading = gManagerWindow.document.getElementById("search-loading");
-  is(!is_hidden(loading), aExpectedSearching,
+  is(gManagerWindow.gHeader.isSearching, aExpectedSearching,
+     "Should get expected isSearching state");
+
+  var throbber = gManagerWindow.document.getElementById("header-searching");
+  var style = gManagerWindow.document.defaultView.getComputedStyle(throbber, "");
+  is(style.visibility, aExpectedSearching ? "visible" : "hidden",
      "Search throbber should be showing iff currently searching");
 }
 
@@ -130,7 +130,7 @@ function search(aQuery, aFinishImmediately, aCallback, aCategoryType) {
   var searchBox = gManagerWindow.document.getElementById("header-search");
   searchBox.value = aQuery;
 
-  EventUtils.synthesizeMouseAtCenter(searchBox, { }, gManagerWindow);
+  EventUtils.synthesizeMouse(searchBox, 2, 2, { }, gManagerWindow);
   EventUtils.synthesizeKey("VK_RETURN", { }, gManagerWindow);
 
   var finishImmediately = true;
@@ -168,7 +168,7 @@ function get_actual_results() {
     if (style.display == "none" || style.visibility != "visible")
       continue;
 
-    if (item.mInstall || item.isPending("install")) {
+    if (item.mInstall) {
       var sourceURI = item.mInstall.sourceURI.spec;
       if (sourceURI == REMOTE_INSTALL_URL) {
         results.push({name: REMOTE_TO_INSTALL, item: item});
@@ -182,16 +182,14 @@ function get_actual_results() {
         continue;
       }
     }
-    else if (item.mAddon) {
+
+    if (item.mAddon) {
       var result = item.mAddon.id.match(/^(.+)@tests\.mozilla\.org$/);
       if (result != null) {
         is(item.mAddon.name.indexOf("PASS"), 0, "Addon name should start with PASS");
         results.push({name: result[1], item: item});
         continue;
       }
-    }
-    else {
-      ok(false, "Found an item in the list that was neither installing or installed");
     }
   }
 
@@ -205,10 +203,12 @@ function get_actual_results() {
  *         How the results are sorted (e.g. "name")
  * @param  aLocalExpected
  *         Boolean representing if local results are expected
+ * @param  aRemoteExpected
+ *         Boolean representing if remote results are expected
  * @return A pair: [array of results with an expected order,
  *                  array of results with unknown order]
  */
-function get_expected_results(aSortBy, aLocalExpected) {
+function get_expected_results(aSortBy, aLocalExpected, aRemoteExpected) {
   var expectedOrder = null, unknownOrder = null;
   switch (aSortBy) {
     case "relevancescore":
@@ -221,6 +221,12 @@ function get_expected_results(aSortBy, aLocalExpected) {
       expectedOrder = [ "install1", "remote1",  "addon2" , "remote2",
                         "remote3" , "addon1" , "install2", "remote4" ];
       unknownOrder = [];
+      break;
+    case "size":
+      expectedOrder = [ "addon2" , "remote2", "remote4", "addon1",
+                        "remote1", "remote3" ];
+      // Size data not available for installs
+      unknownOrder = [ "install1", "install2" ];
       break;
     case "dateUpdated":
       expectedOrder = [ "addon1", "addon2" ];
@@ -241,7 +247,7 @@ function get_expected_results(aSortBy, aLocalExpected) {
     if (aId.indexOf("addon") == 0 || aId.indexOf("install") == 0)
       return aLocalExpected;
     if (aId.indexOf("remote") == 0)
-      return !aLocalExpected;
+      return aRemoteExpected;
 
     return false;
   }
@@ -260,19 +266,21 @@ function get_expected_results(aSortBy, aLocalExpected) {
  *         How the results are sorted (e.g. "name")
  * @param  aReverseOrder
  *         Boolean representing if the results are in reverse default order
- * @param  aShowLocal
- *         Boolean representing if local results are being shown
+ * @param  aFilterLocal
+ *         Boolean representing if local results should be filtered out or not
+ * @param  aFilterRemote
+ *         Boolean representing if remote results should be filtered out or not
  */
-function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
-  var localFilterSelected = gManagerWindow.document.getElementById("search-filter-local").selected;
-  var remoteFilterSelected = gManagerWindow.document.getElementById("search-filter-remote").selected;
-  is(localFilterSelected, aShowLocal, "Local filter should be selected if showing local items");
-  is(remoteFilterSelected, !aShowLocal, "Remote filter should be selected if showing remote items");
+function check_results(aQuery, aSortBy, aReverseOrder, aFilterLocal, aFilterRemote) {
+  var localFilterChecked = gManagerWindow.document.getElementById("search-filter-local").checked;
+  var remoteFilterChecked = gManagerWindow.document.getElementById("search-filter-remote").checked;
+  is(localFilterChecked, !aFilterLocal, "Local filter should be checked if showing local items");
+  is(remoteFilterChecked, !aFilterRemote, "Remote filter should be checked if showing remote items");
 
   // Get expected order assuming default order
   var expectedOrder = [], unknownOrder = [];
   if (aQuery == QUERY)
-    [expectedOrder, unknownOrder] = get_expected_results(aSortBy, aShowLocal);
+    [expectedOrder, unknownOrder] = get_expected_results(aSortBy, !aFilterLocal, !aFilterRemote);
 
   // Get actual order of results
   var actualResults = get_actual_results();
@@ -287,26 +295,6 @@ function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
   // Check actual vs. expected list of results
   var totalExpectedResults = expectedOrder.length + unknownOrder.length;
   is(actualOrder.length, totalExpectedResults, "Should get correct number of results");
-
-  // Check the "first" and "last" attributes are set correctly
-  for (let i = 0; i < actualResults.length; i++) {
-    if (i == 0) {
-      is(actualResults[0].item.hasAttribute("first"), true,
-         "First item should have 'first' attribute set");
-      is(actualResults[0].item.hasAttribute("last"), false,
-         "First item should not have 'last' attribute set");
-    } else if (i == (actualResults.length - 1)) {
-      is(actualResults[actualResults.length - 1].item.hasAttribute("first"), false,
-         "Last item should not have 'first' attribute set");
-      is(actualResults[actualResults.length - 1].item.hasAttribute("last"), true,
-         "Last item should have 'last' attribute set");
-    } else {
-      is(actualResults[i].item.hasAttribute("first"), false,
-         "Item " + i + " should not have 'first' attribute set");
-      is(actualResults[i].item.hasAttribute("last"), false,
-         "Item " + i + " should not have 'last' attribute set");
-    }
-  }
 
   var i = 0;
   for (; i < expectedOrder.length; i++)
@@ -343,13 +331,23 @@ function check_filtered_results(aQuery, aSortBy, aReverseOrder) {
   var list = gManagerWindow.document.getElementById("search-list");
   list.ensureElementIsVisible(localFilter);
 
-  // Check with showing local add-ons
-  EventUtils.synthesizeMouseAtCenter(localFilter, { }, gManagerWindow);
-  check_results(aQuery, aSortBy, aReverseOrder, true);
+  // Check with no filtering
+  check_results(aQuery, aSortBy, aReverseOrder, false, false);
 
-  // Check with showing remote add-ons
-  EventUtils.synthesizeMouseAtCenter(remoteFilter, { }, gManagerWindow);
-  check_results(aQuery, aSortBy, aReverseOrder, false);
+  // Check with filtering out local add-ons
+  EventUtils.synthesizeMouse(localFilter, 2, 2, { }, gManagerWindow);
+  check_results(aQuery, aSortBy, aReverseOrder, true, false);
+
+  // Check with filtering out both local and remote add-ons
+  EventUtils.synthesizeMouse(remoteFilter, 2, 2, { }, gManagerWindow);
+  check_results(aQuery, aSortBy, aReverseOrder, true, true);
+
+  // Check with filtering out remote add-ons
+  EventUtils.synthesizeMouse(localFilter, 2, 2, { }, gManagerWindow);
+  check_results(aQuery, aSortBy, aReverseOrder, false, true);
+
+  // Set back to no filtering
+  EventUtils.synthesizeMouse(remoteFilter, 2, 2, { }, gManagerWindow);
 }
 
 /*
@@ -402,7 +400,7 @@ function get_install_item(aName) {
 function get_install_button(aItem) {
   isnot(aItem, null, "Item should not be null when checking state of install button");
   var installStatus = getAnonymousElementByAttribute(aItem, "anonid", "install-status");
-  return getAnonymousElementByAttribute(installStatus, "anonid", "install-remote-btn");
+  return getAnonymousElementByAttribute(installStatus, "anonid", "install-remote");
 }
 
 
@@ -420,7 +418,7 @@ add_test(function() {
 // only remote items have install buttons showing
 add_test(function() {
   search(QUERY, false, function() {
-    check_filtered_results(QUERY, "relevancescore", false);
+    check_results(QUERY, "relevancescore", false);
 
     var list = gManagerWindow.document.getElementById("search-list");
     var results = get_actual_results();
@@ -447,15 +445,17 @@ add_test(function() {
 
       var item = result.item;
       list.ensureElementIsVisible(item);
-      EventUtils.synthesizeMouseAtCenter(item, { clickCount: 2 }, gManagerWindow);
+      EventUtils.synthesizeMouse(item, 2, 2, { clickCount: 2 }, gManagerWindow);
       wait_for_view_load(gManagerWindow, function() {
-        var name = gManagerWindow.document.getElementById("detail-name").textContent;
+        var name = gManagerWindow.document.getElementById("detail-name").value;
         is(name, item.mAddon.name, "Name in detail view should be correct");
         var version = gManagerWindow.document.getElementById("detail-version").value;
         is(version, item.mAddon.version, "Version in detail view should be correct");
 
-        EventUtils.synthesizeMouseAtCenter(gManagerWindow.document.getElementById("category-search"),
-                                           { }, gManagerWindow);
+        var headerLink = gManagerWindow.document.getElementById("header-link");
+        is(headerLink.hidden, false, "Header link should be showing in detail view");
+
+        EventUtils.synthesizeMouse(headerLink, 2, 2, { }, gManagerWindow);
         wait_for_view_load(gManagerWindow, run_next_double_click_test);
       });
     }
@@ -469,8 +469,8 @@ add_test(function() {
   var sorters = gManagerWindow.document.getElementById("search-sorters");
   var originalHandler = sorters.handler;
 
-  var sorterNames = ["name", "dateUpdated"];
-  var buttonIds = ["name-btn", "date-btn"];
+  var sorterNames = ["name", "size", "dateUpdated"];
+  var buttonIds = ["btn-name", "btn-size", "btn-date"];
   var currentIndex = 0;
   var currentReversed = false;
 
@@ -483,7 +483,7 @@ add_test(function() {
     // Simulate clicking on a specific sorter
     var buttonId = buttonIds[currentIndex];
     var sorter = getAnonymousElementByAttribute(sorters, "anonid", buttonId);
-    EventUtils.synthesizeMouseAtCenter(sorter, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(sorter, 2, 2, { }, gManagerWindow);
   }
 
   sorters.handler = {
@@ -508,7 +508,7 @@ add_test(function() {
 // Tests that searching for the empty string does nothing when in search view
 add_test(function() {
   search("", true, function() {
-    check_filtered_results(QUERY, "dateUpdated", true);
+    check_results(QUERY, "dateUpdated", true);
     run_next_test();
   });
 });
@@ -526,7 +526,7 @@ add_test(function() {
 // and the last sort is still used
 add_test(function() {
   search(QUERY, true, function() {
-    check_filtered_results(QUERY, "dateUpdated", true);
+    check_results(QUERY, "dateUpdated", true);
     run_next_test();
   });
 });
@@ -565,7 +565,7 @@ add_test(function() {
     installBtn = get_install_button(remoteItem);
     is(installBtn.hidden, false, "Install button should be showing before install");
     remoteItem.mAddon.install.addListener(listener);
-    EventUtils.synthesizeMouseAtCenter(installBtn, { }, gManagerWindow);
+    EventUtils.synthesizeMouse(installBtn, 2, 2, { }, gManagerWindow);
   });
 });
 

@@ -57,7 +57,7 @@ nsRawReader::~nsRawReader()
   MOZ_COUNT_DTOR(nsRawReader);
 }
 
-nsresult nsRawReader::Init(nsBuiltinDecoderReader* aCloneDonor)
+nsresult nsRawReader::Init()
 {
   return NS_OK;
 }
@@ -242,7 +242,7 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   return PR_TRUE;
 }
 
-nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
+nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime)
 {
   mozilla::MonitorAutoEnter autoEnter(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
@@ -299,9 +299,4 @@ nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, 
 PRInt64 nsRawReader::FindEndTime(PRInt64 aEndTime)
 {
   return -1;
-}
-
-nsresult nsRawReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
-{
-  return NS_OK;
 }

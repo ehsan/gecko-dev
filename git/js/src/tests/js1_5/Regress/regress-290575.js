@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-290575.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 290575;
 var summary = 'Do not crash calling function with more than 32768 arguments';

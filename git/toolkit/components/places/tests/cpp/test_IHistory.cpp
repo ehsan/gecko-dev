@@ -39,8 +39,6 @@
 
 #include "places_test_harness.h"
 #include "nsIBrowserHistory.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 
 #include "mock_Link.h"
 using namespace mozilla::dom;
@@ -128,22 +126,6 @@ NS_IMPL_ISUPPORTS1(
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Functions
-
-void
-test_set_places_enabled()
-{
-  // Ensure places is enabled for everyone.
-  nsresult rv;
-  nsCOMPtr<nsIPrefBranch> prefBranch =
-    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-  do_check_success(rv);
-
-  rv = prefBranch->SetBoolPref("places.history.enabled", PR_TRUE);
-  do_check_success(rv);
-
-  // Run the next test.
-  run_next_test();
-}
 
 // These variables are shared between part 1 and part 2 of the test.  Part 2
 // sets the nsCOMPtr's to nsnull, freeing the reference.
@@ -569,41 +551,12 @@ test_visituri_transition_embed()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// IPC-only Tests
-
-#ifdef MOZ_IPC
-void
-test_two_null_links_same_uri()
-{
-  // Tests that we do not crash when we have had two NULL Links passed to
-  // RegisterVisitedCallback and then the visit occurs (bug 607469).  This only
-  // happens in IPC builds.
-  nsCOMPtr<nsIURI> testURI(new_test_uri());
-
-  nsCOMPtr<IHistory> history(do_get_IHistory());
-  nsresult rv = history->RegisterVisitedCallback(testURI, NULL);
-  do_check_success(rv);
-  rv = history->RegisterVisitedCallback(testURI, NULL);
-  do_check_success(rv);
-
-  rv = history->VisitURI(testURI, NULL, mozilla::IHistory::TOP_LEVEL);
-  do_check_success(rv);
-
-  nsCOMPtr<VisitURIObserver> finisher = new VisitURIObserver();
-  finisher->WaitForNotification();
-
-  run_next_test();
-}
-#endif // MOZ_IPC
-
-////////////////////////////////////////////////////////////////////////////////
 //// Test Harness
 
 /**
  * Note: for tests marked "Order Important!", please see the test for details.
  */
 Test gTests[] = {
-  TEST(test_set_places_enabled), // Must come first!
   TEST(test_unvisted_does_not_notify_part1), // Order Important!
   TEST(test_visited_notifies),
   TEST(test_unvisted_does_not_notify_part2), // Order Important!
@@ -618,11 +571,6 @@ Test gTests[] = {
   TEST(test_visituri_creates_visit),
   TEST(test_visituri_transition_typed),
   TEST(test_visituri_transition_embed),
-
-  // The rest of these tests are tests that are only run in IPC builds.
-#ifdef MOZ_IPC
-  TEST(test_two_null_links_same_uri),
-#endif // MOZ_IPC
 };
 
 const char* file = __FILE__;

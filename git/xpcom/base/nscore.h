@@ -195,7 +195,7 @@
 #define NS_EXPORT_STATIC_MEMBER_(type) type
 #define NS_IMPORT_STATIC_MEMBER_(type) type
 
-#elif defined(XP_OS2)
+#elif defined(XP_OS2) && defined(__declspec)
 
 #define NS_IMPORT __declspec(dllimport)
 #define NS_IMPORT_(type) type __declspec(dllimport)
@@ -337,10 +337,9 @@
 #undef NS_BUILD_REFCNT_LOGGING
 #endif
 
-/* If a program allocates memory for the lifetime of the app, it doesn't make
- * sense to touch memory pages and free that memory at shutdown,
- * unless we are running leak stats.
- */
+// If a program allocates memory for the lifetime of the app, it doesn't make
+// sense to touch memory pages and free that memory at shutdown,
+// unless we are running leak stats.
 #if defined(NS_TRACE_MALLOC) || defined(NS_BUILD_REFCNT_LOGGING) || defined(MOZ_VALGRIND)
 #define NS_FREE_PERMANENT_DATA
 #endif

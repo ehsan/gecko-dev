@@ -223,10 +223,12 @@ public:
    * Used for normal and misspelling selection changes processing.
    *
    * @param aSelection  [in] the given selection
+   * @param aNode       [out, optional] the DOM node of text accessible
    * @return            text accessible
    */
   static already_AddRefed<nsHyperTextAccessible>
-    GetTextAccessibleFromSelection(nsISelection* aSelection);
+    GetTextAccessibleFromSelection(nsISelection *aSelection,
+                                   nsINode **aNode = nsnull);
 
   /**
    * Converts the given coordinates to coordinates relative screen.
@@ -294,6 +296,11 @@ public:
 
     return role;
   }
+
+  /**
+   * Return the role from native markup of the given accessible.
+   */
+  static PRUint32 RoleInternal(nsIAccessible *aAcc);
 
   /**
    * Return the state for the given accessible.

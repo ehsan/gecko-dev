@@ -135,16 +135,11 @@ public:
   virtual nsresult CreateNativeGlobalForInner(
                                       nsIScriptGlobalObject *aGlobal,
                                       PRBool aIsChrome,
-                                      nsIPrincipal *aPrincipal,
                                       void **aNativeGlobal,
                                       nsISupports **aHolder);
   virtual nsresult ConnectToInner(nsIScriptGlobalObject *aNewInner,
                                   void *aOuterGlobal);
-  virtual nsresult InitContext();
-  virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
-                                     nsIScriptGlobalObject *aCurrentInner);
-  virtual nsresult SetOuterObject(void *aOuterObject);
-  virtual nsresult InitOuterWindow();
+  virtual nsresult InitContext(nsIScriptGlobalObject *aGlobalObject);
   virtual PRBool IsContextInitialized();
   virtual void FinalizeContext();
 
@@ -189,7 +184,7 @@ public:
 
   // CC does always call cycle collector and it also updates the counters
   // that MaybeCC uses.
-  static void CC(nsICycleCollectorListener *aListener);
+  static void CC();
 
   // MaybeCC calls cycle collector if certain conditions are fulfilled.
   // The conditions are:
@@ -212,8 +207,6 @@ public:
 
   // Calls IntervalCC() if user is currently inactive, otherwise MaybeCC(PR_TRUE)
   static void CCIfUserInactive();
-
-  static void MaybeCCIfUserInactive();
 
   static void FireGCTimer(PRBool aLoadInProgress);
 
@@ -314,9 +307,12 @@ private:
   PRTime mModalStateTime;
   PRUint32 mModalStateDepth;
 
-  // mGlobalObjectRef ensures that the outer window stays alive as long as the
-  // context does. It is eventually collected by the cycle collector.
-  nsCOMPtr<nsISupports> mGlobalObjectRef;
+  // mGlobalWrapperRef is used only to hold a strong reference to the
+  // global object wrapper while the nsJSContext is alive. This cuts
+  // down on the number of rooting and unrooting calls XPConnect has
+  // to make when the global object is touched in JS.
+
+  nsCOMPtr<nsISupports> mGlobalWrapperRef;
 
   static int JSOptionChangedCallback(const char *pref, void *data);
 

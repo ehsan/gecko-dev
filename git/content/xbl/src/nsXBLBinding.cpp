@@ -123,7 +123,7 @@ XBLFinalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+XBLResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
            JSObject **objp)
 {
   // Note: if we get here, that means that the implementation for some binding
@@ -136,7 +136,7 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
   JSObject* origObj = *objp;
   *objp = NULL;
 
-  if (!JSID_IS_STRING(id)) {
+  if (!JSVAL_IS_STRING(id)) {
     return JS_TRUE;
   }
 
@@ -316,8 +316,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLBinding)
   // XXX What about mNextBinding and mInsertionPointTable?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXBLBinding)
-  cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(
-                      tmp->mPrototypeBinding->XBLDocumentInfo()));
+  nsCOMPtr<nsISupports> iface = do_QueryObject(tmp->mPrototypeBinding->XBLDocumentInfo());
+  cb.NoteXPCOMChild(iface);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNextBinding, nsXBLBinding)
   if (tmp->mInsertionPointTable)
@@ -1114,11 +1114,6 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
             JSObject* base = scriptObject;
             JSObject* proto;
             JSAutoRequest ar(cx);
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(cx, scriptObject)) {
-              return;
-            }
-
             for ( ; true; base = proto) { // Will break out on null proto
               proto = ::JS_GetPrototype(cx, base);
               if (!proto) {
@@ -1129,9 +1124,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
               if (!clazz ||
                   (~clazz->flags &
                    (JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS)) ||
-                  JSCLASS_RESERVED_SLOTS(clazz) != 1 ||
-                  clazz->resolve != (JSResolveOp)XBLResolve ||
-                  clazz->finalize != XBLFinalize) {
+                  JSCLASS_RESERVED_SLOTS(clazz) != 1) {
                 // Clearly not the right class
                 continue;
               }
@@ -1251,11 +1244,6 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
   nsCAutoString className(aClassName);
   JSObject* parent_proto = nsnull;  // If we have an "obj" we can set this
   JSAutoRequest ar(cx);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, global))
-      return NS_ERROR_FAILURE;
-
   if (obj) {
     // Retrieve the current prototype of obj.
     parent_proto = ::JS_GetPrototype(cx, obj);
@@ -1354,10 +1342,6 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 
     // Keep this proto binding alive while we're alive.  Do this first so that
     // we can guarantee that in XBLFinalize this will be non-null.
-    // Note that we can't just store aProtoBinding in the private and
-    // addref/release the nsXBLDocumentInfo through it, because cycle
-    // collection doesn't seem to work right if the private is not an
-    // nsISupports.
     nsXBLDocumentInfo* docInfo = aProtoBinding->XBLDocumentInfo();
     ::JS_SetPrivate(cx, proto, docInfo);
     NS_ADDREF(docInfo);

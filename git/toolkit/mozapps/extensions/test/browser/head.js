@@ -6,79 +6,23 @@ Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-var pathParts = gTestPath.split("/");
-// Drop the test filename
-pathParts.splice(pathParts.length - 1);
-
-var gTestInWindow = /-window$/.test(pathParts[pathParts.length - 1]);
-
-// Drop the UI type
-pathParts.splice(pathParts.length - 1);
-pathParts.push("browser");
-
-const RELATIVE_DIR = pathParts.slice(4).join("/") + "/";
+const RELATIVE_DIR = "browser/toolkit/mozapps/extensions/test/browser/";
 
 const TESTROOT = "http://example.com/" + RELATIVE_DIR;
 const TESTROOT2 = "http://example.org/" + RELATIVE_DIR;
-const CHROMEROOT = pathParts.join("/") + "/";
+const CHROMEROOT = "chrome://mochikit/content/" + RELATIVE_DIR;
 
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
-const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
-const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 
 var gPendingTests = [];
 var gTestsRun = 0;
-var gTestStart = null;
-
-var gUseInContentUI = !gTestInWindow && ("switchToTabHavingURI" in window);
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
-// Turn off remote results in searches
-Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 0);
-// Default to a local discovery pane
-Services.prefs.setCharPref(PREF_DISCOVERURL, "http://127.0.0.1/extensions-dummy/discoveryURL");
 registerCleanupFunction(function() {
   Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
-  try {
-    Services.prefs.clearUserPref(PREF_SEARCH_MAXRESULTS);
-  }
-  catch (e) {
-  }
-
-  // Throw an error if the add-ons manager window is open anywhere
-  var windows = Services.wm.getEnumerator("Addons:Manager");
-  if (windows.hasMoreElements())
-    ok(false, "Found unexpected add-ons manager window still open");
-  while (windows.hasMoreElements())
-    windows.getNext().QueryInterface(Ci.nsIDOMWindow).close();
-
-  windows = Services.wm.getEnumerator("Addons:Compatibility");
-  if (windows.hasMoreElements())
-    ok(false, "Found unexpected add-ons compatibility window still open");
-  while (windows.hasMoreElements())
-    windows.getNext().QueryInterface(Ci.nsIDOMWindow).close();
-
-  windows = Services.wm.getEnumerator("Addons:Install");
-  if (windows.hasMoreElements())
-    ok(false, "Found unexpected add-ons installation window still open");
-  while (windows.hasMoreElements())
-    windows.getNext().QueryInterface(Ci.nsIDOMWindow).close();
-
-
-  // We can for now know that getAllInstalls actually calls its callback before
-  // it returns so this will complete before the next test start.
-  AddonManager.getAllInstalls(function(aInstalls) {
-    aInstalls.forEach(function(aInstall) {
-      if (aInstall instanceof MockInstall)
-        return;
-
-      ok(false, "Should not have seen an install of " + aInstall.sourceURI.spec + " in state " + aInstall.state);
-      aInstall.cancel();
-    });
-  });
 });
 
 function add_test(test) {
@@ -86,113 +30,26 @@ function add_test(test) {
 }
 
 function run_next_test() {
-  if (gTestsRun > 0)
-    info("Test " + gTestsRun + " took " + (Date.now() - gTestStart) + "ms");
-
   if (gPendingTests.length == 0) {
     end_test();
     return;
   }
 
   gTestsRun++;
-  var test = gPendingTests.shift();
-  if (test.name)
-    info("Running test " + gTestsRun + " (" + test.name + ")");
-  else
-    info("Running test " + gTestsRun);
+  info("Running test " + gTestsRun);
 
-  gTestStart = Date.now();
-  test();
+  gPendingTests.shift()();
 }
 
 function get_addon_file_url(aFilename) {
-  try {
-    var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
-             getService(Ci.nsIChromeRegistry);
-    var fileurl = cr.convertChromeURL(makeURI(CHROMEROOT + "addons/" + aFilename));
-    return fileurl.QueryInterface(Ci.nsIFileURL);
-  } catch(ex) {
-    var jar = getJar(CHROMEROOT + "addons/" + aFilename);
-    var tmpDir = extractJarToTmp(jar);
-    tmpDir.append(aFilename);
-
-    return Services.io.newFileURI(tmpDir).QueryInterface(Ci.nsIFileURL);
-  }
+  var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
+           getService(Ci.nsIChromeRegistry);
+  var fileurl = cr.convertChromeURL(makeURI(CHROMEROOT + "addons/" + aFilename));
+  return fileurl.QueryInterface(Ci.nsIFileURL);
 }
 
-function get_test_items_in_list(aManager) {
-  var tests = "@tests.mozilla.org";
-
-  let view = aManager.document.getElementById("view-port").selectedPanel;
-  let listid = view.id == "search-view" ? "search-list" : "addon-list";
-  let item = aManager.document.getElementById(listid).firstChild;
-  let items = [];
-
-  while (item) {
-    if (item.localName != "richlistitem") {
-      item = item.nextSibling;
-      continue;
-    }
-
-    if (!item.mAddon || item.mAddon.id.substring(item.mAddon.id.length - tests.length) == tests)
-      items.push(item);
-    item = item.nextSibling;
-  }
-
-  return items;
-}
-
-function check_all_in_list(aManager, aIds, aIgnoreExtras) {
-  var doc = aManager.document;
-  var view = doc.getElementById("view-port").selectedPanel;
-  var listid = view.id == "search-view" ? "search-list" : "addon-list";
-  var list = doc.getElementById(listid);
-
-  var inlist = [];
-  var node = list.firstChild;
-  while (node) {
-    if (node.value)
-      inlist.push(node.value);
-    node = node.nextSibling;
-  }
-
-  for (var i = 0; i < aIds.length; i++) {
-    if (inlist.indexOf(aIds[i]) == -1)
-      ok(false, "Should find " + aIds[i] + " in the list");
-  }
-
-  if (aIgnoreExtras)
-    return;
-
-  for (i = 0; i < inlist.length; i++) {
-    if (aIds.indexOf(inlist[i]) == -1)
-      ok(false, "Shouldn't have seen " + inlist[i] + " in the list");
-  }
-}
-
-function get_addon_element(aManager, aId) {
-  var doc = aManager.document;
-  var view = doc.getElementById("view-port").selectedPanel;
-  var listid = "addon-list";
-  if (view.id == "search-view")
-    listid = "search-list";
-  else if (view.id == "updates-view")
-    listid = "updates-list";
-  var list = doc.getElementById(listid);
-
-  var node = list.firstChild;
-  while (node) {
-    if (node.value == aId)
-      return node;
-    node = node.nextSibling;
-  }
-  return null;
-}
-
-function wait_for_view_load(aManagerWindow, aCallback, aForceWait, aLongerTimeout) {
-  requestLongerTimeout(aLongerTimeout ? aLongerTimeout : 2);
-
-  if (!aForceWait && !aManagerWindow.gViewController.isLoading) {
+function wait_for_view_load(aManagerWindow, aCallback) {
+  if (!aManagerWindow.gViewController.isLoading) {
     aCallback(aManagerWindow);
     return;
   }
@@ -209,18 +66,14 @@ function wait_for_manager_load(aManagerWindow, aCallback) {
     return;
   }
 
-  info("Waiting for initialization");
   aManagerWindow.document.addEventListener("Initialized", function() {
     aManagerWindow.document.removeEventListener("Initialized", arguments.callee, false);
     aCallback(aManagerWindow);
   }, false);
 }
 
-function open_manager(aView, aCallback, aLoadCallback, aLongerTimeout) {
+function open_manager(aView, aCallback) {
   function setup_manager(aManagerWindow) {
-    if (aLoadCallback)
-      aLoadCallback(aManagerWindow);
-
     if (aView)
       aManagerWindow.loadView(aView);
 
@@ -228,27 +81,24 @@ function open_manager(aView, aCallback, aLoadCallback, aLongerTimeout) {
     is(aManagerWindow.location, MANAGER_URI, "Should be displaying the correct UI");
 
     wait_for_manager_load(aManagerWindow, function() {
-      wait_for_view_load(aManagerWindow, aCallback, null, aLongerTimeout);
+      wait_for_view_load(aManagerWindow, aCallback);
     });
   }
 
-  if (gUseInContentUI) {
-    gBrowser.selectedTab = gBrowser.addTab();
+  if ("switchToTabHavingURI" in window) {
     switchToTabHavingURI(MANAGER_URI, true, function(aBrowser) {
       setup_manager(aBrowser.contentWindow.wrappedJSObject);
     });
     return;
   }
 
-  openDialog(MANAGER_URI).addEventListener("pageshow", function() {
-    this.removeEventListener("pageshow", arguments.callee, true);
+  openDialog(MANAGER_URI).addEventListener("load", function() {
+    this.removeEventListener("load", arguments.callee, false);
     setup_manager(this);
-  }, true);
+  }, false);
 }
 
-function close_manager(aManagerWindow, aCallback, aLongerTimeout) {
-  requestLongerTimeout(aLongerTimeout ? aLongerTimeout : 2);
-
+function close_manager(aManagerWindow, aCallback) {
   ok(aManagerWindow != null, "Should have an add-ons manager window to close");
   is(aManagerWindow.location, MANAGER_URI, "Should be closing window with correct URI");
 
@@ -260,70 +110,8 @@ function close_manager(aManagerWindow, aCallback, aLongerTimeout) {
   aManagerWindow.close();
 }
 
-function restart_manager(aManagerWindow, aView, aCallback, aLoadCallback) {
-  if (!aManagerWindow) {
-    open_manager(aView, aCallback, aLoadCallback);
-    return;
-  }
-
-  close_manager(aManagerWindow, function() {
-    open_manager(aView, aCallback, aLoadCallback);
-  });
-}
-
-function wait_for_window_open(aCallback) {
-  Services.wm.addListener({
-    onOpenWindow: function(aWindow) {
-      Services.wm.removeListener(this);
-
-      let domwindow = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIDOMWindowInternal);
-      domwindow.addEventListener("load", function() {
-        domwindow.removeEventListener("load", arguments.callee, false);
-        executeSoon(function() {
-          aCallback(domwindow);
-        });
-      }, false);
-    },
-
-    onCloseWindow: function(aWindow) {
-    },
-
-    onWindowTitleChange: function(aWindow, aTitle) {
-    }
-  });
-}
-
-function get_string(aName) {
-  var bundle = Services.strings.createBundle("chrome://mozapps/locale/extensions/extensions.properties");
-  if (arguments.length == 1)
-    return bundle.GetStringFromName(aName);
-  var args = Array.slice(arguments, 1);
-  return bundle.formatStringFromName(aName, args, args.length);
-}
-
-function is_hidden(aElement) {
-  var style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, "");
-  if (style.display == "none")
-    return true;
-  if (style.visibility != "visible")
-    return true;
-
-  // Hiding a parent element will hide all its children
-  if (aElement.parentNode != aElement.ownerDocument)
-    return is_hidden(aElement.parentNode);
-
-  return false;
-}
-
-function is_element_visible(aElement, aMsg) {
-  isnot(aElement, null, "Element should not be null, when checking visibility");
-  ok(!is_hidden(aElement), aMsg);
-}
-
-function is_element_hidden(aElement, aMsg) {
-  isnot(aElement, null, "Element should not be null, when checking visibility");
-  ok(is_hidden(aElement), aMsg);
+function restart_manager(aManagerWindow, aView, aCallback) {
+  close_manager(aManagerWindow, function() { open_manager(aView, aCallback); });
 }
 
 function CategoryUtilities(aManagerWindow) {
@@ -331,7 +119,7 @@ function CategoryUtilities(aManagerWindow) {
 
   var self = this;
   this.window.addEventListener("unload", function() {
-    self.window.removeEventListener("unload", arguments.callee, false);
+    self.removeEventListener("unload", arguments.callee, false);
     self.window = null;
   }, false);
 }
@@ -376,7 +164,8 @@ CategoryUtilities.prototype = {
         aCategory.getAttribute("disabled") == "true")
       return false;
 
-    return !is_hidden(aCategory);
+    var style = this.window.document.defaultView.getComputedStyle(aCategory, "");
+    return style.display != "none" && style.visibility == "visible";
   },
 
   isTypeVisible: function(aCategoryType) {
@@ -421,8 +210,8 @@ CertOverrideListener.prototype = {
   },
 
   notifyCertProblem: function (socketInfo, sslStatus, targetHost) {
-    var cert = sslStatus.QueryInterface(Components.interfaces.nsISSLStatus)
-                        .serverCert;
+    cert = sslStatus.QueryInterface(Components.interfaces.nsISSLStatus)
+                    .serverCert;
     var cos = Cc["@mozilla.org/security/certoverride;1"].
               getService(Ci.nsICertOverrideService);
     cos.rememberValidityOverride(this.host, -1, cert, this.bits, false);
@@ -492,11 +281,6 @@ MockProvider.prototype = {
    *         The add-on to add
    */
   addAddon: function MP_addAddon(aAddon) {
-    var oldAddons = this.addons.filter(function(aOldAddon) aOldAddon.id == aAddon.id);
-    var oldAddon = oldAddons.length > 0 ? oldAddons[0] : null;
-
-    this.addons = this.addons.filter(function(aOldAddon) aOldAddon.id != aAddon.id);
-
     this.addons.push(aAddon);
     aAddon._provider = this;
 
@@ -506,7 +290,7 @@ MockProvider.prototype = {
     let requiresRestart = (aAddon.operationsRequiringRestart &
                            AddonManager.OP_NEEDS_RESTART_INSTALL) != 0;
     AddonManagerPrivate.callInstallListeners("onExternalInstall", null, aAddon,
-                                             oldAddon, requiresRestart)
+                                             null, requiresRestart)
   },
 
   /**
@@ -562,10 +346,6 @@ MockProvider.prototype = {
       for (var prop in aAddonProp) {
         if (prop == "id")
           continue;
-        if (prop == "applyBackgroundUpdates") {
-          addon._applyBackgroundUpdates = aAddonProp[prop];
-          continue;
-        }
         addon[prop] = aAddonProp[prop];
       }
       this.addAddon(addon);
@@ -832,15 +612,14 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
   this.blocklistState = 0;
   this.appDisabled = false;
   this._userDisabled = false;
-  this._applyBackgroundUpdates = AddonManager.AUTOUPDATE_ENABLE;
   this.scope = AddonManager.SCOPE_PROFILE;
   this.isActive = true;
   this.creator = "";
   this.pendingOperations = 0;
-  this._permissions = AddonManager.PERM_CAN_UNINSTALL |
-                      AddonManager.PERM_CAN_ENABLE |
-                      AddonManager.PERM_CAN_DISABLE |
-                      AddonManager.PERM_CAN_UPGRADE;
+  this.permissions = AddonManager.PERM_CAN_UNINSTALL |
+                     AddonManager.PERM_CAN_ENABLE |
+                     AddonManager.PERM_CAN_DISABLE |
+                     AddonManager.PERM_CAN_UPGRADE;
   this.operationsRequiringRestart = aOperationsRequiringRestart ||
     (AddonManager.OP_NEEDS_RESTART_INSTALL |
      AddonManager.OP_NEEDS_RESTART_UNINSTALL |
@@ -867,33 +646,6 @@ MockAddon.prototype = {
     this._updateActiveState(currentActive, newActive);
 
     return val;
-  },
-
-  get permissions() {
-    let permissions = this._permissions;
-    if (this.appDisabled || !this._userDisabled)
-      permissions &= ~AddonManager.PERM_CAN_ENABLE;
-    if (this.appDisabled || this._userDisabled)
-      permissions &= ~AddonManager.PERM_CAN_DISABLE;
-    return permissions;
-  },
-
-  set permissions(val) {
-    return this._permissions = val;
-  },
-
-  get applyBackgroundUpdates() {
-    return this._applyBackgroundUpdates;
-  },
-  
-  set applyBackgroundUpdates(val) {
-    if (val != AddonManager.AUTOUPDATE_DEFAULT &&
-        val != AddonManager.AUTOUPDATE_DISABLE &&
-        val != AddonManager.AUTOUPDATE_ENABLE) {
-      ok(false, "addon.applyBackgroundUpdates set to an invalid value: " + val);
-    }
-    this._applyBackgroundUpdates = val;
-    AddonManagerPrivate.callAddonListeners("onPropertyChanged", this, ["applyBackgroundUpdates"]);
   },
 
   isCompatibleWith: function(aAppVersion, aPlatformVersion) {
@@ -930,7 +682,6 @@ MockAddon.prototype = {
       return;
 
     if (newActive == this.isActive) {
-      this.pendingOperations -= (newActive ? AddonManager.PENDING_DISABLE : AddonManager.PENDING_ENABLE);
       AddonManagerPrivate.callAddonListeners("onOperationCancelled", this);
     }
     else if (newActive) {
@@ -986,10 +737,14 @@ MockInstall.prototype = {
   install: function() {
     switch (this.state) {
       case AddonManager.STATE_AVAILABLE:
-        this.state = AddonManager.STATE_DOWNLOADING;
-        if (!this.callListeners("onDownloadStarted")) {
+      case AddonManager.STATE_DOWNLOADED:
+        // Downloading to be implemented when needed
+
+        this.state = AddonManager.STATE_INSTALLING;
+        if (!this.callListeners("onInstallStarted")) {
+          // Reverting to STATE_DOWNLOADED instead to be implemented when needed
           this.state = AddonManager.STATE_CANCELLED;
-          this.callListeners("onDownloadCancelled");
+          this.callListeners("onInstallCancelled");
           return;
         }
 
@@ -998,29 +753,8 @@ MockInstall.prototype = {
           this.addon = this._addonToInstall;
         else {
           this.addon = new MockAddon("", this.name, this.type);
-          this.addon.version = this.version;
           this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
         }
-        this.addon.install = this;
-        if (this.existingAddon) {
-          if (!this.addon.id)
-            this.addon.id = this.existingAddon.id;
-          this.existingAddon.pendingUpgrade = this.addon;
-          this.existingAddon.pendingOperations |= AddonManager.PENDING_UPGRADE;
-        }
-
-        this.state = AddonManager.STATE_DOWNLOADED;
-        this.callListeners("onDownloadEnded");
-
-      case AddonManager.STATE_DOWNLOADED:
-        this.state = AddonManager.STATE_INSTALLING;
-        if (!this.callListeners("onInstallStarted")) {
-          this.state = AddonManager.STATE_CANCELLED;
-          this.callListeners("onInstallCancelled");
-          return;
-        }
-
-        AddonManagerPrivate.callAddonListeners("onInstalling", this.addon);
 
         this.state = AddonManager.STATE_INSTALLED;
         this.callListeners("onInstallEnded");
@@ -1076,15 +810,10 @@ MockInstall.prototype = {
     // Call test listeners after standard listeners to remove race condition
     // between standard and test listeners
     this.testListeners.forEach(function(aListener) {
-      try {
-        if (aMethod in aListener)
-          if (aListener[aMethod].call(aListener, this, this.addon) === false)
-            result = false;
-      }
-      catch (e) {
-        ok(false, "Test listener threw exception: " + e);
-      }
-    }, this);
+      if (aMethod in aListener)
+        if (aListener[aMethod].call(aListener, this, this.addon) === false)
+          result = false;
+    });
 
     return result;
   }

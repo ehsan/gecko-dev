@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.4.12-1.js';
 
 var summary = "13.4.4.12 - XML Descendants";
 var BUGNUMBER = 289117;

@@ -132,11 +132,9 @@ FontEntry::CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
         return nsnull;
     }
     FontEntry* fe = FontEntry::CreateFontEntryFromFace(face, aFontData);
-    if (fe) {
-        fe->mItalic = aProxyEntry.mItalic;
-        fe->mWeight = aProxyEntry.mWeight;
-        fe->mStretch = aProxyEntry.mStretch;
-    }
+    fe->mItalic = aProxyEntry.mItalic;
+    fe->mWeight = aProxyEntry.mWeight;
+    fe->mStretch = aProxyEntry.mStretch;
     return fe;
 }
 
@@ -185,11 +183,8 @@ FontEntry::CreateFontEntryFromFace(FT_Face aFace, const PRUint8 *aFontData) {
     FontEntry *fe = new FontEntry(fontName);
     fe->mItalic = aFace->style_flags & FT_STYLE_FLAG_ITALIC;
     fe->mFTFace = aFace;
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    fe->mFontFace = cairo_ft_font_face_create_for_ft_face(aFace, FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING);
-#else
     fe->mFontFace = cairo_ft_font_face_create_for_ft_face(aFace, 0);
-#endif
+
     FTUserFontData *userFontData = new FTUserFontData(aFace, aFontData);
     cairo_font_face_set_user_data(fe->mFontFace, &key,
                                   userFontData, FTFontDestroyFunc);
@@ -722,7 +717,7 @@ gfxFT2FontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 
 void gfxFT2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun)
 {
-    ComputeRanges(mRanges, mString.get(), 0, mString.Length(), 0);
+    ComputeRanges(mRanges, mString.get(), 0, mString.Length());
 
     PRUint32 offset = 0;
     for (PRUint32 i = 0; i < mRanges.Length(); ++i) {
@@ -804,10 +799,8 @@ gfxFT2FontGroup::AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnicha
                 }
             }
 
-            // convert 26.6 fixed point to app units
-            // round rather than truncate to nearest pixel
-            // because these advances are often scaled
-            advance = ((advance * appUnitsPerDevUnit + 32) >> 6);
+            // now apply unit conversion and scaling
+            advance = MOZ_FT_TRUNC(advance) * appUnitsPerDevUnit;
         }
 #ifdef DEBUG_thebes_2
         printf(" gid=%d, advance=%d (%s)\n", gid, advance,

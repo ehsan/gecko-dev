@@ -47,7 +47,7 @@ try {
 var observer = {
   onBeginUpdateBatch: function() {},
   onEndUpdateBatch: function() {},
-  onItemAdded: function(id, folder, index, itemType, uri) {
+  onItemAdded: function(id, folder, index, itemType) {
     this._itemAddedId = id;
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
@@ -127,15 +127,15 @@ function run_test() {
   do_check_eq(bmsvc.getItemLastModified(bookmarkId), childNode.lastModified);
 
   // test live update of lastModified caused by other changes:
-  // We set lastModified in the past to workaround timers resolution,
-  // see bug 427142 for details.
-  var pastDate = Date.now() * 1000 - 20000;
+  // We set lastModified 1us in the past to workaround a timing bug on
+  // virtual machines, see bug 427142 for details.
+  var pastDate = Date.now() * 1000 - 1;
   bmsvc.setItemLastModified(bookmarkId, pastDate);
   // set title (causing update of last modified)
   var oldLastModified = bmsvc.getItemLastModified(bookmarkId);
   bmsvc.setItemTitle(bookmarkId, "Google");
   // test that lastModified is updated
-  is_time_ordered(oldLastModified, childNode.lastModified);
+  do_check_true(oldLastModified < childNode.lastModified);
   // test that node value matches db value
   do_check_eq(bmsvc.getItemLastModified(bookmarkId), childNode.lastModified);
 

@@ -50,7 +50,6 @@
 
 #include "base/string_util.h"
 
-#include "mozilla/FileUtils.h"
 #include "mozilla/PluginLibrary.h"
 #include "mozilla/plugins/PPluginModuleParent.h"
 #include "mozilla/plugins/PluginInstanceParent.h"
@@ -62,7 +61,6 @@
 #include "nsHashKeys.h"
 #include "nsIFileStreams.h"
 #include "nsTObserverArray.h"
-#include "nsITimer.h"
 
 namespace mozilla {
 namespace plugins {
@@ -98,8 +96,8 @@ protected:
     PPluginInstanceParent*
     AllocPPluginInstance(const nsCString& aMimeType,
                          const uint16_t& aMode,
-                         const InfallibleTArray<nsCString>& aNames,
-                         const InfallibleTArray<nsCString>& aValues,
+                         const nsTArray<nsCString>& aNames,
+                         const nsTArray<nsCString>& aValues,
                          NPError* rv);
 
     virtual bool
@@ -156,10 +154,6 @@ protected:
     NS_OVERRIDE
     virtual bool ShouldContinueFromReplyTimeout();
 
-    NS_OVERRIDE
-    virtual bool
-    RecvBackUpXResources(const FileDescriptor& aXSocketFd);
-
     virtual bool
     AnswerNPN_UserAgent(nsCString* userAgent);
 
@@ -176,14 +170,6 @@ protected:
 
     virtual bool
     RecvAppendNotesToCrashReport(const nsCString& aNotes);
-
-    NS_OVERRIDE virtual bool
-    RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,
-                         const int32_t& aX, const int32_t& aY,
-                         const size_t& aWidth, const size_t& aHeight);
-
-    NS_OVERRIDE virtual bool
-    RecvPluginHideWindow(const uint32_t& aWindowId);
 
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
@@ -227,9 +213,6 @@ private:
                                 void *value);
 
     virtual bool HasRequiredFunctions();
-    virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
-    virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface);
-    NS_OVERRIDE virtual bool UseAsyncPainting() { return true; }
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error);
@@ -269,14 +252,9 @@ private:
     nsString mHangID;
 
 #ifdef OS_MACOSX
-    nsCOMPtr<nsITimer> mCATimer;
+    void CAUpdate();
+    base::RepeatingTimer<PluginModuleParent> mCATimer;
     nsTObserverArray<PluginInstanceParent*> mCATimerTargets;
-#endif
-
-#ifdef MOZ_X11
-    // Dup of plugin's X socket, used to scope its resources to this
-    // object instead of the plugin process's lifetime
-    ScopedClose mPluginXSocketFdDup;
 #endif
 };
 

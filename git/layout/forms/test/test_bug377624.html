@@ -23,7 +23,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=377624
   <input id='g' type='file' accept="image/*, audio/* ,video/*">
   <input id='h' type='file' accept="foo/baz,image/*,bogus/duh">
   <input id='i' type='file' accept="mime/type;parameter,video/*">
-  <input id='j' type='file' accept="audio/*, audio/*, audio/*">
   <input id='z' type='file' accept="i/am,a,pathological,;,,,,test/case">
 </div>
 <pre id="test">
@@ -46,12 +45,6 @@ const CUSTOM_FILE_PICKER_ID = Components.ID("d63dee33-fb6d-4547-a8d1-c12197655cc
 const FILE_PICKER_DESCRIPTION = "File Picker Test Service";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-// disable popups to make sure that the popup blocker does not interfere
-// with manually opened file pickers.
-var pbi = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch2);
-var oldAllow = pbi.getBoolPref("dom.disable_open_during_load");
-pbi.setBoolPref("dom.disable_open_during_load", true);
 
 function FilePickerService()
 {
@@ -99,7 +92,6 @@ FilePickerService.prototype = {
 
   appendFilters: function(val)
   {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     this._obs.notifyObservers(null, "TEST_FILEPICKER_APPENDFILTERS", val);
   },
 
@@ -107,7 +99,6 @@ FilePickerService.prototype = {
 
   show: function()
   {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     this._obs.notifyObservers(null, "TEST_FILEPICKER_SHOW", this.filterIndex);
     return this.returnOK;
   }
@@ -124,13 +115,17 @@ factory = {
 var testData = [["a", FilePickerService.prototype.filterImages, 1],
                 ["b", FilePickerService.prototype.filterAudio, 1],
                 ["c", FilePickerService.prototype.filterVideo, 1],
-                ["d", 0, 0],
-                ["e", 0, 0],
-                ["f", 0, 0],
-                ["g", 0, 0],
+                ["d", FilePickerService.prototype.filterImages +
+                      FilePickerService.prototype.filterAudio, 1],
+                ["e", FilePickerService.prototype.filterImages +
+                      FilePickerService.prototype.filterVideo, 1],
+                ["f", FilePickerService.prototype.filterAudio +
+                      FilePickerService.prototype.filterVideo, 1],
+                ["g", FilePickerService.prototype.filterImages +
+                      FilePickerService.prototype.filterAudio +
+                      FilePickerService.prototype.filterVideo, 1],
                 ["h", FilePickerService.prototype.filterImages, 1],
                 ["i", FilePickerService.prototype.filterVideo, 1],
-                ["j", FilePickerService.prototype.filterAudio, 1],
                 ["z", 0, 0]];
 
 testData.forEach(function (datum) {
@@ -202,8 +197,7 @@ function runTests()
                                  "File Picker Service",
                                  FILE_PICKER_CID,
                                  null);
-                                 
-              pbi.setBoolPref("dom.disable_open_during_load", oldAllow);
+
               SimpleTest.finish();
             } else {
               launchNextTest(observer);

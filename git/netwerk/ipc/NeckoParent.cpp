@@ -42,8 +42,6 @@
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/net/CookieServiceParent.h"
-#include "mozilla/net/WyciwygChannelParent.h"
-#include "mozilla/net/FTPChannelParent.h"
 
 #include "nsHTMLDNSPrefetch.h"
 
@@ -60,9 +58,9 @@ NeckoParent::~NeckoParent()
 }
 
 PHttpChannelParent* 
-NeckoParent::AllocPHttpChannel(PBrowserParent* browser)
+NeckoParent::AllocPHttpChannel(PBrowserParent* iframeEmbedding)
 {
-  HttpChannelParent *p = new HttpChannelParent(browser);
+  HttpChannelParent *p = new HttpChannelParent(iframeEmbedding);
   p->AddRef();
   return p;
 }
@@ -71,22 +69,6 @@ bool
 NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
 {
   HttpChannelParent *p = static_cast<HttpChannelParent *>(channel);
-  p->Release();
-  return true;
-}
-
-PFTPChannelParent*
-NeckoParent::AllocPFTPChannel()
-{
-  FTPChannelParent *p = new FTPChannelParent();
-  p->AddRef();
-  return p;
-}
-
-bool
-NeckoParent::DeallocPFTPChannel(PFTPChannelParent* channel)
-{
-  FTPChannelParent *p = static_cast<FTPChannelParent *>(channel);
   p->Release();
   return true;
 }
@@ -101,22 +83,6 @@ bool
 NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
 {
   delete cs;
-  return true;
-}
-
-PWyciwygChannelParent*
-NeckoParent::AllocPWyciwygChannel()
-{
-  WyciwygChannelParent *p = new WyciwygChannelParent();
-  p->AddRef();
-  return p;
-}
-
-bool
-NeckoParent::DeallocPWyciwygChannel(PWyciwygChannelParent* channel)
-{
-  WyciwygChannelParent *p = static_cast<WyciwygChannelParent *>(channel);
-  p->Release();
   return true;
 }
 

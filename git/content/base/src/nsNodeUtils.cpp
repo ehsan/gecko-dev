@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=99: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -42,7 +41,6 @@
 #include "nsIContent.h"
 #include "mozilla/dom/Element.h"
 #include "nsIMutationObserver.h"
-#include "nsIMutationObserver2.h"
 #include "nsIDocument.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsIEventListenerManager.h"
@@ -62,17 +60,11 @@
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
-#include "nsImageLoadingContent.h"
-#include "jsobj.h"
-#include "jsgc.h"
-#include "xpcpublic.h"
 
 using namespace mozilla::dom;
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
-// NOTE: AttributeChildRemoved doesn't use this macro but has a very similar use.
-// If you change how this macro behave please update AttributeChildRemoved.
 #define IMPL_MUTATION_NOTIFICATION(func_, content_, params_)      \
   PR_BEGIN_MACRO                                                  \
   nsINode* node = content_;                                       \
@@ -113,26 +105,26 @@ nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
 }
 
 void
-nsNodeUtils::AttributeWillChange(Element* aElement,
+nsNodeUtils::AttributeWillChange(nsIContent* aContent,
                                  PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  PRInt32 aModType)
 {
-  nsIDocument* doc = aElement->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aElement,
-                             (doc, aElement, aNameSpaceID, aAttribute,
+  nsIDocument* doc = aContent->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aContent,
+                             (doc, aContent, aNameSpaceID, aAttribute,
                               aModType));
 }
 
 void
-nsNodeUtils::AttributeChanged(Element* aElement,
+nsNodeUtils::AttributeChanged(nsIContent* aContent,
                               PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
-  nsIDocument* doc = aElement->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeChanged, aElement,
-                             (doc, aElement, aNameSpaceID, aAttribute,
+  nsIDocument* doc = aContent->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeChanged, aContent,
+                             (doc, aContent, aNameSpaceID, aAttribute,
                               aModType));
 }
 
@@ -199,32 +191,6 @@ nsNodeUtils::ContentRemoved(nsINode* aContainer,
 }
 
 void
-nsNodeUtils::AttributeChildRemoved(nsINode* aAttribute,
-                                   nsIContent* aChild)
-{
-  NS_PRECONDITION(aAttribute->IsNodeOfType(nsINode::eATTRIBUTE),
-                  "container must be a nsIAttribute");
-
-  // This is a variant of IMPL_MUTATION_NOTIFICATION.
-  do {
-    nsINode::nsSlots* slots = aAttribute->GetExistingSlots();
-    if (slots && !slots->mMutationObservers.IsEmpty()) {
-      // This is a variant of NS_OBSERVER_ARRAY_NOTIFY_OBSERVERS.
-      nsTObserverArray<nsIMutationObserver*>::ForwardIterator iter_ =
-        slots->mMutationObservers;
-      nsCOMPtr<nsIMutationObserver2> obs_;
-      while (iter_.HasMore()) {
-        obs_ = do_QueryInterface(iter_.GetNext());
-        if (obs_) {
-          obs_->AttributeChildRemoved(aAttribute, aChild);
-        }
-      }
-    }
-    aAttribute = aAttribute->GetNodeParent();
-  } while (aAttribute);
-}
-
-void
 nsNodeUtils::ParentChainChanged(nsIContent *aContent)
 {
   // No need to notify observers on the parents since their parent
@@ -280,7 +246,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
         aNode->HasFlag(ADDED_TO_FORM)) {
       // Tell the form (if any) this node is going away.  Don't
       // notify, since we're being destroyed in any case.
-      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE);
+      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE,
+                                                               PR_FALSE);
     }
   }
   aNode->UnsetFlags(NODE_HAS_PROPERTIES);
@@ -444,14 +411,15 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, PRBool aDeep, nsIDOMNode **aResult)
 nsresult
 nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                            nsNodeInfoManager *aNewNodeInfoManager,
-                           JSContext *aCx, JSObject *aNewScope,
+                           JSContext *aCx, JSObject *aOldScope,
+                           JSObject *aNewScope,
                            nsCOMArray<nsINode> &aNodesWithProperties,
                            nsINode *aParent, nsINode **aResult)
 {
   NS_PRECONDITION((!aClone && aNewNodeInfoManager) || !aCx,
                   "If cloning or not getting a new nodeinfo we shouldn't "
                   "rewrap");
-  NS_PRECONDITION(!aCx || aNewScope, "Must have new scope");
+  NS_PRECONDITION(!aCx || (aOldScope && aNewScope), "Must have scopes");
   NS_PRECONDITION(!aParent || aNode->IsNodeOfType(nsINode::eCONTENT),
                   "Can't insert document or attribute nodes into a parent");
 
@@ -462,12 +430,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   // attributes and children).
 
   nsresult rv;
-  JSObject *wrapper;
-  if (aCx && (wrapper = aNode->GetWrapper())) {
-      rv = xpc_MorphSlimWrapper(aCx, aNode);
-      NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsNodeInfoManager *nodeInfoManager = aNewNodeInfoManager;
 
   // aNode.
@@ -532,9 +494,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
-    if (elem) {
-      elem->NodeInfoChanged(newNodeInfo);
-    }
 
     nsIDocument* newDoc = aNode->GetOwnerDoc();
     if (newDoc) {
@@ -552,11 +511,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
           if (elm->MayHavePaintEventListener()) {
             window->SetHasPaintEventListeners();
           }
-#ifdef MOZ_MEDIA
-          if (elm->MayHaveAudioAvailableEventListener()) {
-            window->SetHasAudioAvailableEventListeners();
-          }
-#endif
         }
       }
     }
@@ -571,40 +525,16 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     }
 #endif
 
-    // nsImageLoadingContent needs to know when its document changes
-    if (oldDoc != newDoc) {
-      nsCOMPtr<nsIImageLoadingContent> imageContent(do_QueryInterface(aNode));
-      if (imageContent)
-        imageContent->NotifyOwnerDocumentChanged(oldDoc);
-    }
-
     if (elem) {
       elem->RecompileScriptEventListeners();
     }
 
-    if (aCx && wrapper) {
+    if (aCx) {
       nsIXPConnect *xpc = nsContentUtils::XPConnect();
       if (xpc) {
-        JSObject *preservedWrapper = nsnull;
-
-        // If reparenting moves us to a new compartment, preserving causes
-        // problems. In that case, we release ourselves and re-preserve after
-        // reparenting so we're sure to have the right JS object preserved.
-        // We use a JSObject stack copy of the wrapper to protect it from GC
-        // under ReparentWrappedNativeIfFound.
-        if (aNode->PreservingWrapper()) {
-          preservedWrapper = wrapper;
-          nsContentUtils::ReleaseWrapper(aNode, aNode);
-        }
-
         nsCOMPtr<nsIXPConnectJSObjectHolder> oldWrapper;
-        rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode,
+        rv = xpc->ReparentWrappedNativeIfFound(aCx, aOldScope, aNewScope, aNode,
                                                getter_AddRefs(oldWrapper));
-
-        if (preservedWrapper) {
-          nsContentUtils::PreserveWrapper(aNode, aNode);
-        }
-
         if (NS_FAILED(rv)) {
           aNode->mNodeInfo.swap(nodeInfo);
 
@@ -646,8 +576,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     for (i = 0; i < length; ++i) {
       nsCOMPtr<nsINode> child;
       rv = CloneAndAdopt(aNode->GetChildAt(i), aClone, PR_TRUE, nodeInfoManager,
-                         aCx, aNewScope, aNodesWithProperties, clone,
-                         getter_AddRefs(child));
+                         aCx, aOldScope, aNewScope, aNodesWithProperties,
+                         clone, getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }

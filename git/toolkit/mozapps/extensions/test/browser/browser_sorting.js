@@ -42,7 +42,7 @@ function test() {
     size: 5
   }]);
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     run_next_test();
   });
@@ -60,8 +60,9 @@ function check_order(aExpectedOrder) {
   var node = list.firstChild;
   while (node) {
     var id = node.getAttribute("value");
-    if (id && id.substring(id.length - 18) == "@tests.mozilla.org")
-      order.push(node.getAttribute("value"));
+    if (id && id.substring(id.length - 18) != "@tests.mozilla.org")
+      return;
+    order.push(node.getAttribute("value"));
     node = node.nextSibling;
   }
 
@@ -81,11 +82,45 @@ add_test(function() {
   run_next_test();
 });
 
+// Tests that switching to size ordering works and defaults to descending
+add_test(function() {
+  var sorters = gManagerWindow.document.getElementById("list-sorters");
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-size");
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
+
+  check_order([
+    "test2@tests.mozilla.org",
+    "test3@tests.mozilla.org",
+    "test5@tests.mozilla.org",
+    "test1@tests.mozilla.org",
+    "test4@tests.mozilla.org"
+  ]);
+
+  run_next_test();
+});
+
+// Tests that switching to ascending size ordering works
+add_test(function() {
+  var sorters = gManagerWindow.document.getElementById("list-sorters");
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-size");
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
+
+  check_order([
+    "test4@tests.mozilla.org",
+    "test1@tests.mozilla.org",
+    "test5@tests.mozilla.org",
+    "test3@tests.mozilla.org",
+    "test2@tests.mozilla.org"
+  ]);
+
+  run_next_test();
+});
+
 // Tests that switching to date ordering works and defaults to descending
 add_test(function() {
   var sorters = gManagerWindow.document.getElementById("list-sorters");
-  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "date-btn");
-  EventUtils.synthesizeMouseAtCenter(nameSorter, { }, gManagerWindow);
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-date");
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
 
   check_order([
     "test5@tests.mozilla.org",
@@ -101,8 +136,8 @@ add_test(function() {
 // Tests that switching to name ordering works and defaults to ascending
 add_test(function() {
   var sorters = gManagerWindow.document.getElementById("list-sorters");
-  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "name-btn");
-  EventUtils.synthesizeMouseAtCenter(nameSorter, { }, gManagerWindow);
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-name");
+  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
 
   check_order([
     "test2@tests.mozilla.org",

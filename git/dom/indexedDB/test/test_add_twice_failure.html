@@ -13,6 +13,9 @@
   <script type="text/javascript;version=1.7">
     function testSteps()
     {
+      const CONSTRAINT_ERR =
+        Components.interfaces.nsIIDBDatabaseException.CONSTRAINT_ERR;
+
       const name = window.location.pathname;
       const description = "My Test Database";
 
@@ -23,12 +26,12 @@
 
       let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let objectStore = db.createObjectStore("foo", "");
+      let objectStore = event.result;
       let key = 10;
 
       request = objectStore.add({}, key);
@@ -39,7 +42,7 @@
       is(event.result, key, "Correct key");
 
       request = objectStore.add({}, key);
-      request.onerror = new ExpectError(IDBDatabaseException.CONSTRAINT_ERR);
+      request.onerror = new ExpectError(CONSTRAINT_ERR);
       request.onsuccess = unexpectedSuccessHandler;
       yield;
 

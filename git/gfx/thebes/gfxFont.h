@@ -48,6 +48,7 @@
 #include "gfxFontUtils.h"
 #include "nsTArray.h"
 #include "nsTHashtable.h"
+#include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "gfxSkipChars.h"
 #include "gfxRect.h"
@@ -136,7 +137,11 @@ struct THEBES_API gfxFontStyle {
     // "Wingdings", etc.) should be applied.
     PRPackedBool familyNameQuirks : 1;
 
-    // The weight of the font: 100, 200, ... 900.
+    // The weight of the font.  100, 200, ... 900 are the weights, and
+    // single integer offsets request the next bolder/lighter font
+    // available.  For example, for a font available in weights 200,
+    // 400, 700, and 900, a weight of 898 should lead to the weight 400
+    // font being used, since it is two weights lighter than 900.
     PRUint16 weight;
 
     // The stretch of the font (the sum of various NS_FONT_STRETCH_*
@@ -155,7 +160,7 @@ struct THEBES_API gfxFontStyle {
     // the language (may be an internal langGroup code rather than an actual
     // language code) specified in the document or element's lang property,
     // or inferred from the charset
-    nsRefPtr<nsIAtom> language;
+    nsIAtom *language;
 
     // Language system tag, to override document language;
     // an OpenType "language system" tag represented as a 32-bit integer
@@ -186,7 +191,8 @@ struct THEBES_API gfxFontStyle {
             nsISupportsHashKey::HashKey(language);
     }
 
-    PRInt8 ComputeWeight() const;
+    void ComputeWeightAndOffset(PRInt8 *outBaseWeight,
+                                PRInt8 *outOffset) const;
 
     PRBool Equals(const gfxFontStyle& other) const {
         return (size == other.size) &&
@@ -293,11 +299,6 @@ public:
     // if it is more efficient to get the table from the OS at that level.
     virtual hb_blob_t *GetFontTable(PRUint32 aTag);
 
-    // Preload a font table into the cache (used to store layout tables for
-    // harfbuzz, when they will be stripped from the actual sfnt being
-    // passed to platform font APIs for rasterization)
-    void PreloadFontTable(PRUint32 aTag, nsTArray<PRUint8>& aTable);
-
     nsString         mName;
 
     PRPackedBool     mItalic      : 1;
@@ -326,7 +327,7 @@ public:
 protected:
     friend class gfxPlatformFontList;
     friend class gfxMacPlatformFontList;
-    friend class gfxUserFcFontEntry;
+    friend class gfxFcFontEntry;
     friend class gfxFontFamily;
     friend class gfxSingleFaceMacFontFamily;
 
@@ -355,10 +356,8 @@ protected:
 
     gfxFontFamily *mFamily;
 
-private:
-
-    /**
-     * Font table hashtable, to support GetFontTable for harfbuzz.
+    /*
+     * Font table cache, to support GetFontTable for harfbuzz.
      *
      * The harfbuzz shaper (and potentially other clients) needs access to raw
      * font table data. This needs to be cached so that it can be used
@@ -369,86 +368,50 @@ private:
      * Because we may instantiate many gfxFonts for the same physical font
      * file (at different sizes), we should ensure that they can share a
      * single cached copy of the font tables. To do this, we implement table
-     * access and sharing on the fontEntry rather than the font itself.
+     * access and caching on the fontEntry rather than the font itself.
      *
      * The default implementation uses GetFontTable() to read font table
-     * data into byte arrays, and wraps them in blobs which are registered in
-     * a hashtable.  The hashtable can then return pre-existing blobs to
-     * harfbuzz.
+     * data into byte arrays, and caches these in a hashtable along with
+     * hb_blob_t wrappers. The entry can then return blobs to harfbuzz.
      *
-     * Harfbuzz will "destroy" the blobs when it is finished with them.  When
-     * the last blob reference is removed, the FontTableBlobData user data
-     * will remove the blob from the hashtable if still registered.
+     * Harfbuzz will "destroy" the blobs when it is finished with them;
+     * they are created with a destroy callback that removes them from
+     * the hashtable when all references are released.
      */
-
-    class FontTableBlobData;
-
-    /**
-     * FontTableHashEntry manages the entries of hb_blob_ts for two
-     * different situations:
-     *
-     * The common situation is to share font table across fonts with the same
-     * font entry (but different sizes) for use by HarfBuzz.  The hashtable
-     * does not own a strong reference to the blob, but keeps a weak pointer,
-     * managed by FontTableBlobData.  Similarly FontTableBlobData keeps only a
-     * weak pointer to the hashtable, managed by FontTableHashEntry.
-     *
-     * Some font tables are saved here before they would get stripped by OTS
-     * sanitizing.  These are retained for harfbuzz, which does its own
-     * sanitizing.  The hashtable owns a reference, so ownership is simple.
-     */
-
-    class FontTableHashEntry : public nsUint32HashKey
-    {
+    class FontTableCacheEntry {
     public:
-        // Declarations for nsTHashtable
+        // create a cache entry by adopting the content of an existing buffer
+        FontTableCacheEntry(nsTArray<PRUint8>& aBuffer,
+                            PRUint32 aTag,
+            nsClassHashtable<nsUint32HashKey,FontTableCacheEntry>& aCache);
 
-        typedef nsUint32HashKey KeyClass;
-        typedef KeyClass::KeyType KeyType;
-        typedef KeyClass::KeyTypePointer KeyTypePointer;
-
-        FontTableHashEntry(KeyTypePointer aTag)
-            : KeyClass(aTag), mBlob() { };
-        // Copying transfers blob association.
-        FontTableHashEntry(FontTableHashEntry& toCopy)
-            : KeyClass(toCopy), mBlob(toCopy.mBlob)
-        {
-            toCopy.mBlob = nsnull;
+        ~FontTableCacheEntry() {
+            MOZ_COUNT_DTOR(FontTableCacheEntry);
         }
 
-        ~FontTableHashEntry() { Clear(); }
+        hb_blob_t *GetBlob() const { return mBlob; }
 
-        // FontTable/Blob API
-
-        // Transfer (not copy) elements of aTable to a new hb_blob_t and
-        // return ownership to the caller.  A weak reference to the blob is
-        // recorded in the hashtable entry so that others may use the same
-        // table.
-        hb_blob_t *
-        ShareTableAndGetBlob(nsTArray<PRUint8>& aTable,
-                             nsTHashtable<FontTableHashEntry> *aHashtable);
-
-        // Transfer (not copy) elements of aTable to a new hb_blob_t that is
-        // owned by the hashtable entry.
-        void SaveTable(nsTArray<PRUint8>& aTable);
-
-        // Return a strong reference to the blob.
-        // Callers must hb_blob_destroy the returned blob.
-        hb_blob_t *GetBlob() const;
-
-        void Clear();
+    protected:
+        // the data block, owned (via adoption) by the entry
+        nsTArray<PRUint8>  mData;
+        // a harfbuzz blob wrapper that we can return to clients
+        hb_blob_t         *mBlob;
+        // the blob destroy function needs to know the table tag
+        // and the owning hashtable, so that it can remove the entry
+        PRUint32           mTag;
+        nsClassHashtable<nsUint32HashKey,FontTableCacheEntry>&
+                           mCache;
 
     private:
-        static void DeleteFontTableBlobData(void *aBlobData);
         // not implemented
-        FontTableHashEntry& operator=(FontTableHashEntry& toCopy);
+        FontTableCacheEntry(const FontTableCacheEntry&);
 
-        FontTableBlobData *mSharedBlobData;
-        hb_blob_t *mBlob;
+        static void Destroy(void *aUserData);
     };
 
-    nsTHashtable<FontTableHashEntry> mFontTableCache;
+    nsClassHashtable<nsUint32HashKey,FontTableCacheEntry> mFontTableCache;
 
+private:
     gfxFontEntry(const gfxFontEntry&);
     gfxFontEntry& operator=(const gfxFontEntry&);
 };
@@ -1173,8 +1136,7 @@ public:
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
                                PRUint32 aRunLength,
-                               PRInt32 aRunScript,
-                               PRBool aPreferPlatformShaping = PR_FALSE);
+                               PRInt32 aRunScript);
 
 protected:
     nsRefPtr<gfxFontEntry> mFontEntry;
@@ -1793,7 +1755,7 @@ public:
         /** The advance, x-offset and y-offset of the glyph, in appunits
          *  mAdvance is in the text direction (RTL or LTR)
          *  mXOffset is always from left to right
-         *  mYOffset is always from top to bottom */   
+         *  mYOffset is always from bottom to top */   
         PRInt32  mAdvance;
         float    mXOffset, mYOffset;
     };
@@ -2155,18 +2117,14 @@ public:
         return mUnderlineOffset;
     }
 
-    virtual already_AddRefed<gfxFont>
-        FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRInt32 aRunScript,
-                        gfxFont *aPrevMatchedFont);
+    already_AddRefed<gfxFont> FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxFont *aPrevMatchedFont);
 
     // search through pref fonts for a character, return nsnull if no matching pref font
     virtual already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
 
     virtual already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
 
-    void ComputeRanges(nsTArray<gfxTextRange>& mRanges,
-                       const PRUnichar *aString, PRUint32 begin, PRUint32 end,
-                       PRInt32 aRunScript);
+    void ComputeRanges(nsTArray<gfxTextRange>& mRanges, const PRUnichar *aString, PRUint32 begin, PRUint32 end);
 
     gfxUserFontSet* GetUserFontSet();
 
@@ -2244,6 +2202,16 @@ protected:
     static PRBool FindPlatformFont(const nsAString& aName,
                                    const nsACString& aGenericName,
                                    void *closure);
+
+    inline gfxFont* WhichFontSupportsChar(nsTArray< nsRefPtr<gfxFont> >& aFontList, PRUint32 aCh) {
+        PRUint32 len = aFontList.Length();
+        for (PRUint32 i = 0; i < len; i++) {
+            gfxFont* font = aFontList.ElementAt(i);
+            if (font && font->HasCharacter(aCh))
+                return font;
+        }
+        return nsnull;
+    }
 
     static NS_HIDDEN_(nsILanguageAtomService*) gLangService;
 };

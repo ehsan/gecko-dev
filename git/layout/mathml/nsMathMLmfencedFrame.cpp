@@ -89,8 +89,7 @@ nsMathMLmfencedFrame::SetInitialChildList(nsIAtom*        aListName,
   // No need to track the style contexts given to our MathML chars. 
   // The Style System will use Get/SetAdditionalStyleContext() to keep them
   // up-to-date if dynamic changes arise.
-  CreateFencesAndSeparators(PresContext());
-  return NS_OK;
+  return CreateFencesAndSeparators(PresContext());
 }
 
 NS_IMETHODIMP
@@ -127,7 +126,7 @@ nsMathMLmfencedFrame::RemoveFencesAndSeparators()
   mSeparatorsCount = 0;
 }
 
-void
+nsresult
 nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
 {
   nsAutoString value;
@@ -138,12 +137,14 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
   if (!GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::open,
                     value)) {
     value = PRUnichar('('); // default as per the MathML REC
-  } else {
-    value.CompressWhitespace();
+  }
+  else {
+    value.Trim(" ");
   }
 
   if (!value.IsEmpty()) {
     mOpenChar = new nsMathMLChar;
+    if (!mOpenChar) return NS_ERROR_OUT_OF_MEMORY;
     mOpenChar->SetData(aPresContext, value);
     isMutable = nsMathMLOperators::IsMutableOperator(value);
     ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, mOpenChar, isMutable);
@@ -154,12 +155,14 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
   if(!GetAttribute(mContent, mPresentationData.mstyle,
                     nsGkAtoms::close, value)) {
     value = PRUnichar(')'); // default as per the MathML REC
-  } else {
-    value.CompressWhitespace();
+  }
+  else {
+    value.Trim(" ");
   }
 
   if (!value.IsEmpty()) {
     mCloseChar = new nsMathMLChar;
+    if (!mCloseChar) return NS_ERROR_OUT_OF_MEMORY;
     mCloseChar->SetData(aPresContext, value);
     isMutable = nsMathMLOperators::IsMutableOperator(value);
     ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, mCloseChar, isMutable);
@@ -167,10 +170,11 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
 
   //////////////
   // see if separators are there ...
-  if (!GetAttribute(mContent, mPresentationData.mstyle, 
-                    nsGkAtoms::separators_, value)) {
+  if(!GetAttribute(mContent, mPresentationData.mstyle, 
+                   nsGkAtoms::separators_, value)) {
     value = PRUnichar(','); // default as per the MathML REC
-  } else {
+  }
+  else {
     value.StripWhitespace();
   }
 
@@ -179,6 +183,7 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
     PRInt32 sepCount = mFrames.GetLength() - 1;
     if (0 < sepCount) {
       mSeparatorsChar = new nsMathMLChar[sepCount];
+      if (!mSeparatorsChar) return NS_ERROR_OUT_OF_MEMORY;
       nsAutoString sepChar;
       for (PRInt32 i = 0; i < sepCount; i++) {
         if (i < mSeparatorsCount) {
@@ -199,6 +204,7 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
       mSeparatorsCount = 0;
     }
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP

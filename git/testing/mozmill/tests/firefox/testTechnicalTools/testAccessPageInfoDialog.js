@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *   Henrik Skupin <hskupin@mozilla.com>
- *   Anthony Hughes <ahughes@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,36 +35,24 @@
  * ***** END LICENSE BLOCK ***** */
 
 // Include necessary modules
-const RELATIVE_ROOT = '../../shared-modules';
-const MODULE_REQUIRES = ['UtilsAPI'];
+var RELATIVE_ROOT = '../../shared-modules';
+var MODULE_REQUIRES = ['UtilsAPI'];
 
-const TIMEOUT = 5000;
+const gDelay = 0;
+const gTimeout = 5000;
 
-const LOCAL_TEST_FOLDER = collector.addHttpResource('../test-files/');
-const LOCAL_TEST_PAGE = LOCAL_TEST_FOLDER + 'layout/mozilla.html';
-
-var setupModule = function(module) {
+var setupModule = function(module)
+{
   module.controller = mozmill.getBrowserController();
 }
 
-var teardownModule = function(module) {
+var teardownModule = function(module)
+{
   UtilsAPI.closeContentAreaContextMenu(controller);
 }
 
-var testAccessPageInfo = function () {
-  // Load web page with RSS feed
-  controller.open(LOCAL_TEST_PAGE);
-  controller.waitForPageLoad();
-
-  // Open context menu on the html element and select Page Info entry
-  var content = new elementslib.ID(controller.tabs.activeTab, "content");
-  controller.rightClick(content);
-  controller.click(new elementslib.ID(controller.window.document, "context-viewinfo"));
-
-  UtilsAPI.handleWindow("type", "Browser:page-info", checkPageInfoWindow);
-}
-
-function checkPageInfoWindow(controller) {
+var testAccessPageInfo = function ()
+{
   // List of all available panes inside the page info window
   var panes = [
                {button: 'generalTab', panel: 'generalPanel'},
@@ -75,18 +62,35 @@ function checkPageInfoWindow(controller) {
                {button: 'securityTab', panel: 'securityPanel'}
               ];
 
+  // Load web page with RSS feed
+  controller.open('http://www.cnn.com');
+  controller.waitForPageLoad();
+
+  // Open context menu on the html element and select Page Info entry
+  controller.rightclick(new elementslib.XPath(controller.tabs.activeTab, "/html"));
+  controller.sleep(gDelay);
+  controller.click(new elementslib.ID(controller.window.document, "context-viewinfo"));
+  controller.sleep(500);
+
+  // Check if the Page Info window has been opened
+  var window = mozmill.wm.getMostRecentWindow('Browser:page-info');
+  var piController = new mozmill.controller.MozMillController(window);
+
   // Step through each of the tabs
-  for each (var pane in panes) {
-    var paneButton = new elementslib.ID(controller.window.document, pane.button);
-    controller.click(paneButton);
+  for each (pane in panes) {
+    piController.click(new elementslib.ID(piController.window.document, pane.button));
+    piController.sleep(gDelay);
 
     // Check if the panel has been shown
-    var node = new elementslib.ID(controller.window.document, pane.panel);
-    controller.waitForElement(node, TIMEOUT);
+    var node = new elementslib.ID(piController.window.document, pane.panel);
+    piController.waitForElement(node, gTimeout);
   }
 
   // Close the Page Info window by pressing Escape
-  controller.keypress(null, 'VK_ESCAPE', {});
+  piController.keypress(null, 'VK_ESCAPE', {});
+
+  // Wait a bit to make sure the page info window has been closed
+  controller.sleep(200);
 }
 
 /**

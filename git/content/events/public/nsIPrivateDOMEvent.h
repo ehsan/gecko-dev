@@ -103,10 +103,6 @@ NS_NewDOMSVGEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsEv
 nsresult
 NS_NewDOMSVGZoomEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsGUIEvent* aEvent);
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-nsresult
-NS_NewDOMTimeEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsEvent* aEvent);
-#endif // MOZ_SMIL
 nsresult
 NS_NewDOMXULCommandEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsInputEvent* aEvent);
 nsresult
@@ -122,13 +118,6 @@ NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext,
                           PRUint32 aEventType = 0,
                           nsInvalidateRequestList* aInvalidateRequests = nsnull);
 nsresult
-NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext,
-                             nsEvent* aEvent,
-                             PRUint32 aEventType = 0,
-                             float* aFrameBuffer = nsnull,
-                             PRUint32 aFrameBufferLength = 0,
-                             float aTime = 0);
-nsresult
 NS_NewDOMSimpleGestureEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsSimpleGestureEvent* aEvent);
 nsresult
 NS_NewDOMScrollAreaEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsScrollAreaEvent* aEvent);
@@ -136,6 +125,4 @@ nsresult
 NS_NewDOMTransitionEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsTransitionEvent* aEvent);
 nsresult
 NS_NewDOMCloseEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsEvent* aEvent);
-nsresult
-NS_NewDOMMozTouchEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsMozTouchEvent* aEvent);
 #endif // nsIPrivateDOMEvent_h__

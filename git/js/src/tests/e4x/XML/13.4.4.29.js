@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.4.29.js';
 
 START("13.4.4.29 - XML prependChild()");
 

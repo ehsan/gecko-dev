@@ -38,8 +38,6 @@
 #include <assert.h>
 
 #include "gfxQPainterSurface.h"
-
-#ifdef CAIRO_HAS_QT_SURFACE
 #include "gfxImageSurface.h"
 
 #include "cairo-qt.h"
@@ -94,7 +92,7 @@ gfxQPainterSurface::GetQImage()
 }
 
 already_AddRefed<gfxImageSurface>
-gfxQPainterSurface::GetAsImageSurface()
+gfxQPainterSurface::GetImageSurface()
 {
     if (!mSurfaceValid)
         return nsnull;
@@ -108,4 +106,3 @@ gfxQPainterSurface::GetAsImageSurface()
     nsRefPtr<gfxImageSurface> asurf = new gfxImageSurface(isurf);
     return asurf.forget();
 }
-#endif

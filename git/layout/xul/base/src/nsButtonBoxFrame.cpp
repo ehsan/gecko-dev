@@ -121,10 +121,10 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
         nsKeyEvent* keyEvent = (nsKeyEvent*)aEvent;
         if (NS_VK_SPACE == keyEvent->keyCode) {
           // only activate on keyup if we're already in the :hover:active state
-          const nsEventStates activeHover = NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_HOVER;
+          const PRInt32 activeHover = NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_HOVER;
           nsIEventStateManager *esm = aPresContext->EventStateManager();
-          nsEventStates buttonState = esm->GetContentState(mContent);
-          if (buttonState.HasAllStates(activeHover)) {
+          PRInt32 buttonState = esm->GetContentState(mContent);
+          if ((buttonState & activeHover) == activeHover) {
             esm->SetContentState(nsnull, activeHover);    // return to normal state
             MouseClicked(aPresContext, aEvent);
           }

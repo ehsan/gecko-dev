@@ -40,10 +40,6 @@
 #ifndef __nsWindow_h__
 #define __nsWindow_h__
 
-#ifdef MOZ_IPC
-#  include "mozilla/ipc/SharedMemorySysV.h"
-#endif
-
 #include "nsAutoPtr.h"
 
 #include "mozcontainer.h"
@@ -101,11 +97,6 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 
 #endif /* MOZ_LOGGING */
 
-#if defined(MOZ_X11) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)
-#  define MOZ_HAVE_SHMIMAGE
-
-class nsShmImage;
-#endif
 
 class nsWindow : public nsBaseWidget, public nsSupportsWeakReference
 {
@@ -145,7 +136,6 @@ public:
                               nsWidgetInitData *aInitData);
     NS_IMETHOD         Destroy(void);
     virtual nsIWidget *GetParent();
-    virtual float      GetDPI();
     virtual nsresult   SetParent(nsIWidget* aNewParent);
     NS_IMETHOD         SetModal(PRBool aModal);
     NS_IMETHOD         IsVisible(PRBool & aState);
@@ -182,6 +172,9 @@ public:
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool           aIsSynchronous);
     NS_IMETHOD         Update();
+    virtual void       Scroll(const nsIntPoint& aDelta,
+                              const nsTArray<nsIntRect>& aDestRects,
+                              const nsTArray<Configuration>& aReconfigureChildren);
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
@@ -323,8 +316,8 @@ public:
                                             PRBool *aIsCancelled);
 
     NS_IMETHOD ResetInputState();
-    NS_IMETHOD SetInputMode(const IMEContext& aContext);
-    NS_IMETHOD GetInputMode(IMEContext& aContext);
+    NS_IMETHOD SetIMEEnabled(PRUint32 aState);
+    NS_IMETHOD GetIMEEnabled(PRUint32* aState);
     NS_IMETHOD CancelIMEComposition();
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
     NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
@@ -337,21 +330,16 @@ public:
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
 
+    virtual LayerManager*   GetLayerManager();
     gfxASurface       *GetThebesSurface();
 
     static already_AddRefed<gfxASurface> GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                                                   const nsIntSize& aSize);
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 
 #ifdef ACCESSIBILITY
     static PRBool      sAccessibilityEnabled;
 #endif
 protected:
-    // Helper for SetParent and ReparentNativeWidget.
-    void ReparentNativeWidgetInternal(nsIWidget* aNewParent,
-                                      GtkWidget* aNewContainer,
-                                      GdkWindow* aNewParentWindow,
-                                      GtkWidget* aOldContainer);
     nsCOMPtr<nsIWidget> mParent;
     // Is this a toplevel window?
     PRPackedBool        mIsTopLevel;
@@ -411,10 +399,6 @@ private:
     PRInt32             mTransparencyBitmapWidth;
     PRInt32             mTransparencyBitmapHeight;
 
-#ifdef MOZ_HAVE_SHMIMAGE
-    // If we're using xshm rendering, mThebesSurface wraps mShmImage
-    nsRefPtr<nsShmImage>  mShmImage;
-#endif
     nsRefPtr<gfxASurface> mThebesSurface;
 
 #ifdef MOZ_DFB
@@ -504,6 +488,38 @@ private:
     void         FireDragLeaveTimer       (void);
     static guint DragMotionTimerCallback (gpointer aClosure);
     static void  DragLeaveTimerCallback  (nsITimer *aTimer, void *aClosure);
+
+    /* Key Down event is DOM Virtual Key driven, needs 256 bits. */
+    PRUint32 mKeyDownFlags[8];
+
+    /* Helper methods for DOM Key Down event suppression. */
+    PRUint32* GetFlagWord32(PRUint32 aKeyCode, PRUint32* aMask) {
+        /* Mozilla DOM Virtual Key Code is from 0 to 224. */
+        NS_ASSERTION((aKeyCode <= 0xFF), "Invalid DOM Key Code");
+        aKeyCode &= 0xFF;
+
+        /* 32 = 2^5 = 0x20 */
+        *aMask = PRUint32(1) << (aKeyCode & 0x1F);
+        return &mKeyDownFlags[(aKeyCode >> 5)];
+    }
+
+    PRBool IsKeyDown(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        return ((*flag) & mask) != 0;
+    }
+
+    void SetKeyDownFlag(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        *flag |= mask;
+    }
+
+    void ClearKeyDownFlag(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        *flag &= ~mask;
+    }
 
     void DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent);
 

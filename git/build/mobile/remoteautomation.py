@@ -42,17 +42,15 @@ import os
 import socket
 
 from automation import Automation
-from devicemanager import DeviceManager, NetworkTools
+from devicemanager import DeviceManager
 
 class RemoteAutomation(Automation):
     _devicemanager = None
     
-    def __init__(self, deviceManager, appName = '', remoteLog = None):
+    def __init__(self, deviceManager, appName = ''):
         self._devicemanager = deviceManager
         self._appName = appName
         self._remoteProfile = None
-        self._remoteLog = remoteLog
-
         # Default our product to fennec
         self._product = "fennec"
         Automation.__init__(self)
@@ -68,9 +66,6 @@ class RemoteAutomation(Automation):
 
     def setProduct(self, product):
         self._product = product
-        
-    def setRemoteLog(self, logfile):
-        self._remoteLog = logfile
 
     def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsDir):
         # maxTime is used to override the default timeout, we should honor that
@@ -99,14 +94,33 @@ class RemoteAutomation(Automation):
 #        return app, ['--environ:NO_EM_RESTART=1'] + args
         return app, args
 
+    # Utilities to get the local ip address
+    def getInterfaceIp(self, ifname):
+        if os.name != "nt":
+            import fcntl
+            import struct
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            return socket.inet_ntoa(fcntl.ioctl(
+                                    s.fileno(),
+                                    0x8915,  # SIOCGIFADDR
+                                    struct.pack('256s', ifname[:15])
+                                    )[20:24])
+        else:
+            return None
+
     def getLanIp(self):
-        nettools = NetworkTools()
-        return nettools.getLanIp()
+        ip = socket.gethostbyname(socket.gethostname())
+        if ip.startswith("127.") and os.name != "nt":
+            interfaces = ["eth0","eth1","eth2","wlan0","wlan1","wifi0","ath0","ath1","ppp0"]
+            for ifname in interfaces:
+                try:
+                    ip = self.getInterfaceIp(ifname)
+                    break;
+                except IOError:
+                    pass
+        return ip
 
     def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
-        if stdout == None or stdout == -1:
-          stdout = self._remoteLog
-
         return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd)
 
     # be careful here as this inner class doesn't have access to outer class members    
@@ -115,7 +129,8 @@ class RemoteAutomation(Automation):
         dm = None
         def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
             self.dm = dm
-            self.proc = dm.launchProcess(cmd, stdout)
+            print "going to launch process: " + str(self.dm.host)
+            self.proc = dm.launchProcess(cmd)
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name
@@ -154,3 +169,4 @@ class RemoteAutomation(Automation):
  
         def kill(self):
             self.dm.killProcess(self.procName)
+

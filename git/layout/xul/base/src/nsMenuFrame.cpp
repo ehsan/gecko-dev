@@ -153,37 +153,6 @@ private:
   PRBool mIsActivate;
 };
 
-class nsMenuAttributeChangedEvent : public nsRunnable
-{
-public:
-  nsMenuAttributeChangedEvent(nsIFrame* aFrame, nsIAtom* aAttr)
-  : mFrame(aFrame), mAttr(aAttr)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    nsMenuFrame* frame = static_cast<nsMenuFrame*>(mFrame.GetFrame());
-    NS_ENSURE_STATE(frame);
-    if (mAttr == nsGkAtoms::checked) {
-      frame->UpdateMenuSpecialState(frame->PresContext());
-    } else if (mAttr == nsGkAtoms::acceltext) {
-      // someone reset the accelText attribute,
-      // so clear the bit that says *we* set it
-      frame->AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
-      frame->BuildAcceleratorText();
-    } else if (mAttr == nsGkAtoms::key) {
-      frame->BuildAcceleratorText();
-    } else if (mAttr == nsGkAtoms::type || mAttr == nsGkAtoms::name) {
-      frame->UpdateMenuType(frame->PresContext());
-    }
-    return NS_OK;
-  }
-protected:
-  nsWeakFrame       mFrame;
-  nsCOMPtr<nsIAtom> mAttr;
-};
-
 //
 // NS_NewMenuFrame and NS_NewMenuItemFrame
 //
@@ -232,11 +201,12 @@ nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 
 } // cntr
 
-void
-nsMenuFrame::SetParent(nsIFrame* aParent)
+NS_IMETHODIMP
+nsMenuFrame::SetParent(const nsIFrame* aParent)
 {
   nsBoxFrame::SetParent(aParent);
-  InitMenuParent(aParent);
+  InitMenuParent(const_cast<nsIFrame *>(aParent));
+  return NS_OK;
 }
 
 void
@@ -699,16 +669,20 @@ nsMenuFrame::AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
+  nsAutoString value;
 
-  if (aAttribute == nsGkAtoms::checked ||
-      aAttribute == nsGkAtoms::acceltext ||
-      aAttribute == nsGkAtoms::key ||
-      aAttribute == nsGkAtoms::type ||
-      aAttribute == nsGkAtoms::name) {
-    nsCOMPtr<nsIRunnable> event =
-      new nsMenuAttributeChangedEvent(this, aAttribute);
-    nsContentUtils::AddScriptRunner(event);
-  }
+  if (aAttribute == nsGkAtoms::checked) {
+    if (mType != eMenuType_Normal)
+        UpdateMenuSpecialState(PresContext());
+  } else if (aAttribute == nsGkAtoms::acceltext) {
+    // someone reset the accelText attribute, so clear the bit that says *we* set it
+    AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
+    BuildAcceleratorText();
+  } else if (aAttribute == nsGkAtoms::key) {
+    BuildAcceleratorText();
+  } else if (aAttribute == nsGkAtoms::type || aAttribute == nsGkAtoms::name)
+    UpdateMenuType(PresContext());
+
   return NS_OK;
 }
 
@@ -1254,7 +1228,8 @@ nsMenuFrame::CreateMenuCommandEvent(nsGUIEvent *aEvent, PRBool aFlipChecked)
 
   PRBool shift = PR_FALSE, control = PR_FALSE, alt = PR_FALSE, meta = PR_FALSE;
   if (aEvent && (aEvent->eventStructType == NS_MOUSE_EVENT ||
-                 aEvent->eventStructType == NS_KEY_EVENT)) {
+                 aEvent->eventStructType == NS_KEY_EVENT ||
+                 aEvent->eventStructType == NS_ACCESSIBLE_EVENT)) {
     shift = static_cast<nsInputEvent *>(aEvent)->isShift;
     control = static_cast<nsInputEvent *>(aEvent)->isControl;
     alt = static_cast<nsInputEvent *>(aEvent)->isAlt;
@@ -1367,13 +1342,6 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
         return PR_FALSE;
       tmpSize = mPopupFrame->GetPrefSize(aState);
       aSize.width = tmpSize.width;
-
-      // if there is a scroll frame, add the desired width of the scrollbar as well
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstChild(nsnull));
-      if (scrollFrame) {
-        aSize.width += scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
-      }
-
       return PR_TRUE;
     }
   }

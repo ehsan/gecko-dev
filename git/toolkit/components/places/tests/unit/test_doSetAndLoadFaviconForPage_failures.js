@@ -85,7 +85,9 @@ let tests = [
       PlacesUtils.favicons.setAndLoadFaviconForPage(this.pageURI, favicons[0].uri, true);
     },
     clean: function clean2() {
-      Services.prefs.setBoolPref("places.history.enabled", true);
+      try {
+        Services.prefs.clearUserPref("places.history.enabled");
+      } catch (ex) {}
     }
   },
 

@@ -38,8 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsMathMLmfencedFrame_h
-#define nsMathMLmfencedFrame_h
+#ifndef nsMathMLmfencedFrame_h___
+#define nsMathMLmfencedFrame_h___
 
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
@@ -129,8 +129,8 @@ protected:
   RemoveFencesAndSeparators();
 
   // add fences and separators when all child frames are known
-  void
+  nsresult
   CreateFencesAndSeparators(nsPresContext* aPresContext);
 };
 
-#endif /* nsMathMLmfencedFrame_h */
+#endif /* nsMathMLmfencedFrame_h___ */

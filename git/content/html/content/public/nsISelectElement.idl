@@ -48,7 +48,7 @@ interface nsIDOMHTMLOptionElement;
  * OPTIONs within a SELECT element.
  */
 
-[scriptable, uuid(aa73a61a-8ef2-402d-b86c-3a5c5f2a6027)]
+[scriptable, uuid(35bd8ed5-5f34-4126-8c4f-38ba01681836)]
 interface nsISelectElement : nsISupports
 {
 
@@ -64,8 +64,7 @@ interface nsISelectElement : nsISupports
    */
   [noscript] void willAddOptions(in nsIContent aOptions,
                                  in nsIContent aParent,
-                                 in long aContentIndex,
-                                 in boolean aNotify);
+                                 in long aContentIndex);
 
   /**
    * To be called when stuff is removed under a child of the select--but
@@ -76,8 +75,7 @@ interface nsISelectElement : nsISupports
    *        parent is an optgroup, the index within the optgroup)
    */
   [noscript] void willRemoveOptions(in nsIContent aParent,
-                                    in long aContentIndex,
-                                    in boolean aNotify);
+                                    in long aContentIndex);
 
   /**
    * Checks whether an option is disabled (even if it's part of an optgroup)

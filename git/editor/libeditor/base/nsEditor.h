@@ -360,13 +360,6 @@ protected:
 
   nsKeyEvent* GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent);
 
-  PRBool CanEnableSpellCheck()
-  {
-    // Check for password/readonly/disabled, which are not spellchecked
-    // regardless of DOM
-    return !IsPasswordEditor() && !IsReadonly() && !IsDisabled();
-  }
-
 public:
 
   /** All editor operations which alter the doc should be prefaced
@@ -666,11 +659,11 @@ public:
            IsInteractionAllowed();
   }
 
-  // Get the focused content, if we're focused.  Returns null otherwise.
-  virtual already_AddRefed<nsIContent> GetFocusedContent();
+  // Whether the editor has application level focus or not.
+  virtual PRBool HasFocus();
 
   // Whether the editor is active on the DOM window.  Note that when this
-  // returns true but GetFocusedContent() returns null, it means that this editor was
+  // returns true but HasFocus() returns false, it means that this editor was
   // focused when the DOM window was active.
   virtual PRBool IsActiveInDOMWindow();
 

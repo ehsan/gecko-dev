@@ -49,20 +49,8 @@
 #define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
 
 #if defined(MOZ_WIDGET_QT)
-#include <QtGui/QApplication>
-#include <QtCore/QScopedPointer>
-#include <QtGui/QApplication>
-#include <QtGui/QInputContextFactory>
-#include <QtGui/QInputContext>
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-#include <MApplication>
-#include "MozMeegoAppService.h"
-#endif // MOZ_ENABLE_MEEGOTOUCH
-#endif // MOZ_WIDGET_QT
-
-#ifdef MOZ_IPC
-#include "mozilla/dom/ContentParent.h"
-using mozilla::dom::ContentParent;
+#include <qwidget.h>
+#include <qapplication.h>
 #endif
 
 #include "nsAppRunner.h"
@@ -470,8 +458,6 @@ static void RemoveArg(char **argv)
 static ArgResult
 CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull, PRBool aRemArg = PR_TRUE)
 {
-  NS_ABORT_IF_FALSE(gArgv, "gArgv must be initialized before CheckArg()");
-
   char **curarg = gArgv + 1; // skip argv[0]
   ArgResult ar = ARG_NONE;
 
@@ -778,22 +764,6 @@ nsXULAppInfo::GetProcessType(PRUint32* aResult)
 }
 
 NS_IMETHODIMP
-nsXULAppInfo::EnsureContentProcess()
-{
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() != GeckoProcessType_Default)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  ContentParent* c = ContentParent::GetSingleton();
-  if (!c)
-    return NS_ERROR_NOT_AVAILABLE;
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_AVAILABLE;
-#endif
-}
-
-NS_IMETHODIMP
 nsXULAppInfo::InvalidateCachesOnRestart()
 {
   nsCOMPtr<nsIFile> file;
@@ -834,6 +804,21 @@ nsXULAppInfo::InvalidateCachesOnRestart()
   }
   return NS_OK;
 }
+
+/* readonly attribute unsigned long launchTimestamp; */
+NS_IMETHODIMP nsXULAppInfo::GetLaunchTimestamp(PRUint32 *aTimestamp)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* readonly attribute unsigned long startupTimestamp; */
+NS_IMETHODIMP nsXULAppInfo::GetStartupTimestamp(PRUint32 *aTimestamp)
+{
+  *aTimestamp = gAppData->startupTimestamp;
+  return NS_OK;
+}
+
+
 
 #ifdef XP_WIN
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
@@ -1116,6 +1101,10 @@ ScopedXPCOMStartup::~ScopedXPCOMStartup()
 
     NS_ShutdownXPCOM(mServiceManager);
     mServiceManager = nsnull;
+
+#ifdef MOZ_OMNIJAR
+    mozilla::SetOmnijar(nsnull);
+#endif
   }
 }
 
@@ -1173,14 +1162,24 @@ ScopedXPCOMStartup::Initialize()
   NS_ASSERTION(gDirServiceProvider, "Should not get here!");
 
   nsresult rv;
+#ifdef MOZ_OMNIJAR
+  nsCOMPtr<nsILocalFile> lf;
+  char *omnijarPath = getenv("OMNIJAR_PATH");
+  if (omnijarPath)
+    rv = NS_NewNativeLocalFile(nsDependentCString(omnijarPath), PR_TRUE, getter_AddRefs(lf));
+  else
+    rv = XRE_GetBinaryPath(gArgv[0], getter_AddRefs(lf));
+  if (NS_SUCCEEDED(rv))
+    mozilla::SetOmnijar(lf);
+#endif
 
 #ifndef MOZ_ENABLE_LIBXUL
 #ifndef _BUILD_STATIC_BIN
   XRE_AddStaticComponent(&kXREModule);
 #else
-  for (const mozilla::Module *const *const *staticModules = kPStaticModules;
+  for (const mozilla::Module *const *staticModules = kPStaticModules;
        *staticModules; ++staticModules)
-      XRE_AddStaticComponent(**staticModules);
+      XRE_AddStaticComponent(*staticModules);
 #endif
 #endif
 
@@ -2139,7 +2138,7 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
     PRBool exists;
     lf->Exists(&exists);
     if (!exists) {
-        rv = lf->Create(nsIFile::DIRECTORY_TYPE, 0700);
+        rv = lf->Create(nsIFile::DIRECTORY_TYPE, 0644);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -2397,12 +2396,14 @@ CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
   rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
   *aCachesOK = (NS_FAILED(rv) || !buf.EqualsLiteral("1"));
   
+#ifdef DEBUG
   PRBool purgeCaches = PR_FALSE;
   if (aFlagFile) {
     aFlagFile->Exists(&purgeCaches);
   }
 
   *aCachesOK = !purgeCaches && *aCachesOK;
+#endif
   return PR_TRUE;
 }
 
@@ -2491,9 +2492,6 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
   
   file->SetNativeLeafName(NS_LITERAL_CSTRING("XPC" PLATFORM_FASL_SUFFIX));
   file->Remove(PR_FALSE);
-
-  file->SetNativeLeafName(NS_LITERAL_CSTRING("startupCache"));
-  file->Remove(PR_TRUE);
 }
 
 // To support application initiated restart via nsIAppStartup.quit, we
@@ -3044,12 +3042,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   ScopedFPHandler handler;
 #endif /* XP_OS2 */
 
-  if (PR_GetEnv("MOZ_SAFE_MODE_RESTART")) {
-    gSafeMode = PR_TRUE;
-    // unset the env variable
-    PR_SetEnv("MOZ_SAFE_MODE_RESTART=");
-  }
-
   ar = CheckArg("safe-mode", PR_TRUE);
   if (ar == ARG_BAD) {
     PR_fprintf(PR_STDERR, "Error: argument -safe-mode is invalid when argument -osint is specified\n");
@@ -3057,15 +3049,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   } else if (ar == ARG_FOUND) {
     gSafeMode = PR_TRUE;
   }
-
-#ifdef XP_WIN
-  // If the shift key is pressed during startup start in safe mode. GetKeyState
-  // returns a short and the high order bit will be 1 if the shift key is
-  // pressed. By masking the returned short with 0x8000 the result will be 0 if
-  // the key is not pressed and non-zero otherwise.
-  if (GetKeyState(VK_SHIFT) & 0x8000)
-    gSafeMode = PR_TRUE;
-#endif
 
 #ifdef XP_MACOSX
   if (GetCurrentEventKeyModifiers() & optionKey)
@@ -3139,32 +3122,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     ar = CheckArg("graphicssystem", PR_TRUE, &qgraphicssystemARG, PR_FALSE);
     if (ar == ARG_FOUND)
       PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
+    QApplication app(gArgc, gArgv);
 
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-    QScopedPointer<QApplication> app;
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      MozMeegoAppService *appService = new MozMeegoAppService;
-      app.reset(new MApplication(gArgc, gArgv, appService));
-    } else {
-      app.reset(new QApplication(gArgc, gArgv));
-    }
-#else
-    QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
-#endif
-
-#if MOZ_PLATFORM_MAEMO > 5
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      // try to get the MInputContext if possible to support the MeeGo VKB
-      QInputContext* inputContext = app->inputContext();
-      if (inputContext && inputContext->identifierName() != "MInputContext") {
-          QInputContext* context = QInputContextFactory::create("MInputContext",
-                                                                app.data());
-          if (context)
-              app->setInputContext(context);
-      }
-    }
-#endif
-    QStringList nonQtArguments = app->arguments();
+    QStringList nonQtArguments = app.arguments();
     gQtOnlyArgc = 1;
     gQtOnlyArgv = (char**) malloc(sizeof(char*) 
                   * (gRestartArgc - nonQtArguments.size() + 2));
@@ -3287,34 +3247,22 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return 1;
     }
 
-#if defined(MOZ_UPDATER) && !defined(ANDROID)
-    // Check for and process any available updates
-    nsCOMPtr<nsIFile> updRoot;
-    PRBool persistent;
-    rv = dirProvider.GetFile(XRE_UPDATE_ROOT_DIR, &persistent,
-                             getter_AddRefs(updRoot));
-    // XRE_UPDATE_ROOT_DIR may fail. Fallback to appDir if failed
-    if (NS_FAILED(rv))
-      updRoot = dirProvider.GetAppDir();
+#if defined(MOZ_UPDATER)
+  // Check for and process any available updates
+  nsCOMPtr<nsIFile> updRoot;
+  PRBool persistent;
+  rv = dirProvider.GetFile(XRE_UPDATE_ROOT_DIR, &persistent,
+                           getter_AddRefs(updRoot));
+  // XRE_UPDATE_ROOT_DIR may fail. Fallback to appDir if failed
+  if (NS_FAILED(rv))
+    updRoot = dirProvider.GetAppDir();
 
-    // Support for processing an update and exiting. The MOZ_PROCESS_UPDATES
-    // environment variable will be part of the updater's environment and the
-    // application that is relaunched by the updater. When the application is
-    // relaunched by the updater it will be removed below and the application
-    // will exit.
-    if (CheckArg("process-updates")) {
-      SaveToEnv("MOZ_PROCESS_UPDATES=1");
-    }
-    ProcessUpdates(dirProvider.GetGREDir(),
-                   dirProvider.GetAppDir(),
-                   updRoot,
-                   gRestartArgc,
-                   gRestartArgv,
-                   appData.version);
-    if (PR_GetEnv("MOZ_PROCESS_UPDATES")) {
-      PR_SetEnv("MOZ_PROCESS_UPDATES=");
-      return 0;
-    }
+  ProcessUpdates(dirProvider.GetGREDir(),
+                 dirProvider.GetAppDir(),
+                 updRoot,
+                 gRestartArgc,
+                 gRestartArgv,
+                 appData.version);
 #endif
 
     nsCOMPtr<nsIProfileLock> profileLock;
@@ -3371,32 +3319,32 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // Also check to see if something has happened to invalidate our
     // fastload caches, like an extension upgrade or installation.
  
-    // If we see .purgecaches, that means someone did a make. 
-    // Re-register components to catch potential changes.
-    // We only offer this in debug builds, though.
-    nsCOMPtr<nsILocalFile> flagFile;
-
-    rv = NS_ERROR_FILE_NOT_FOUND;
-    nsCOMPtr<nsIFile> fFlagFile;
-    if (gAppData->directory) {
-      rv = gAppData->directory->Clone(getter_AddRefs(fFlagFile));
-    }
-    flagFile = do_QueryInterface(fFlagFile);
-    if (flagFile) {
-      flagFile->AppendNative(FILE_INVALIDATE_CACHES);
-    }
-
+     // If we see .purgecaches, that means someone did a make. 
+     // Re-register components to catch potential changes.
+     // We only offer this in debug builds, though.
+     nsCOMPtr<nsILocalFile> flagFile;
+#ifdef DEBUG
+     rv = NS_ERROR_FILE_NOT_FOUND;
+     nsCOMPtr<nsIFile> fFlagFile;
+     if (gAppData->directory) {
+       rv = gAppData->directory->Clone(getter_AddRefs(fFlagFile));
+     }
+     flagFile = do_QueryInterface(fFlagFile);
+     if (flagFile) {
+       flagFile->SetNativeLeafName(FILE_INVALIDATE_CACHES);
+     }
+ #endif
     PRBool cachesOK;
     PRBool versionOK = CheckCompatibility(profD, version, osABI, 
                                           dirProvider.GetGREDir(),
                                           gAppData->directory, flagFile,
                                           &cachesOK);
-    if (CheckArg("purgecaches")) {
-      cachesOK = PR_FALSE;
-    }
-    if (PR_GetEnv("MOZ_PURGE_CACHES")) {
-      cachesOK = PR_FALSE;
-    }
+     if (CheckArg("purgecaches")) {
+       cachesOK = PR_FALSE;
+     }
+     if (PR_GetEnv("MOZ_PURGE_CACHES")) {
+       cachesOK = PR_FALSE;
+     }
  
     // Every time a profile is loaded by a build with a different version,
     // it updates the compatibility.ini file saying what version last wrote
@@ -3434,10 +3382,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                    dirProvider.GetGREDir(), gAppData->directory);
     }
 
+#ifdef DEBUG
     if (flagFile) {
       flagFile->Remove(PR_TRUE);
     }
-
+#endif
     PRBool appInitiatedRestart = PR_FALSE;
 
     MOZ_SPLASHSCREEN_UPDATE(30);
@@ -3795,6 +3744,16 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
 #if defined(OS_WIN)
   CommandLine::Init(aArgc, aArgv);
 #else
+#ifdef MOZ_OMNIJAR
+  nsCOMPtr<nsILocalFile> lf;
+  char *omnijarPath = getenv("OMNIJAR_PATH");
+  if (omnijarPath)
+    rv = NS_NewNativeLocalFile(nsDependentCString(omnijarPath), PR_TRUE, getter_AddRefs(lf));
+  else
+    rv = XRE_GetBinaryPath(gArgv[0], getter_AddRefs(lf));
+  if (NS_SUCCEEDED(rv))
+    mozilla::SetOmnijar(lf);
+#endif
 
   // these leak on error, but that's OK: we'll just exit()
   char** canonArgs = new char*[aArgc];
@@ -3826,25 +3785,6 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
   delete[] canonArgs;
 #endif
 #endif
-
-#ifdef MOZ_OMNIJAR
-  const char *omnijarPath = nsnull;
-  ArgResult ar = CheckArg("omnijar", PR_FALSE, &omnijarPath);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -omnijar requires an omnijar path\n");
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!omnijarPath)
-    return rv;
-
-  nsCOMPtr<nsILocalFile> omnijar;
-  rv = NS_NewNativeLocalFile(nsDependentCString(omnijarPath), PR_TRUE,
-                             getter_AddRefs(omnijar));
-  if (NS_SUCCEEDED(rv))
-    mozilla::SetOmnijar(omnijar);
-#endif
-
   return rv;
 }
 

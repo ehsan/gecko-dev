@@ -283,22 +283,20 @@ var DownloadTaskbarProgressUpdater =
       this._taskbarState = Ci.nsITaskbarProgress.STATE_NO_PROGRESS;
     }
     else {
-      let numPaused = 0, numScanning = 0;
+      let numPaused = 0;
 
       // Enumerate all active downloads
       let downloads = this._dm.activeDownloads;
       while (downloads.hasMoreElements()) {
         let download = downloads.getNext().QueryInterface(Ci.nsIDownload);
         // Only set values if we actually know the download size
-        if (download.percentComplete != -1) {
+        if (download.percentComplete < 100 && download.size > 0) {
           totalSize += download.size;
           totalTransferred += download.amountTransferred;
         }
         // We might need to display a paused state, so track this
         if (download.state == this._dm.DOWNLOAD_PAUSED) {
           numPaused++;
-        } else if (download.state == this._dm.DOWNLOAD_SCANNING) {
-          numScanning++;
         }
       }
 
@@ -316,9 +314,8 @@ var DownloadTaskbarProgressUpdater =
       }
       // If at least one download is not paused, and we don't have any
       // information about download sizes, display an indeterminate indicator
-      else if (totalSize == 0 || numActive == numScanning) {
+      else if (totalSize == 0) {
         this._taskbarState = Ci.nsITaskbarProgress.STATE_INDETERMINATE;
-        totalSize = 0;
         totalTransferred = 0;
       }
       // Otherwise display a normal progress bar

@@ -175,11 +175,6 @@ public:
   NS_IMETHOD_(nsIContent*) GetRootEditorNode() = 0;
 
   /**
-   * Create the placeholder anonymous node for the text control and returns it.
-   */
-  NS_IMETHOD_(nsIContent*) CreatePlaceholderNode() = 0;
-
-  /**
    * Get the placeholder anonymous node for the text control.
    */
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode() = 0;
@@ -198,11 +193,6 @@ public:
    * Show/hide the placeholder for the control.
    */
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify) = 0;
-
-  /**
-   * Callback called whenever the value is changed.
-   */
-  NS_IMETHOD_(void) OnValueChanged(PRBool aNotify) = 0;
 
   static const PRInt32 DEFAULT_COLS = 20;
   static const PRInt32 DEFAULT_ROWS = 1;

@@ -52,6 +52,7 @@
 #include "nsThreadUtils.h"
 #include "nsPageContentFrame.h"
 #include "nsCSSPseudoElements.h"
+#include "nsRefreshDriver.h"
 #include "RestyleTracker.h"
 
 class nsIDocument;
@@ -71,15 +72,15 @@ class ChildIterator;
 class nsICSSAnonBoxPseudo;
 class nsPageContentFrame;
 struct PendingBinding;
-class nsRefreshDriver;
+
+typedef void (nsLazyFrameConstructionCallback)
+             (nsIContent* aContent, nsIFrame* aFrame, void* aArg);
 
 class nsFrameConstructorState;
 class nsFrameConstructorSaveState;
 
-class nsCSSFrameConstructor
+class nsCSSFrameConstructor : public nsARefreshObserver
 {
-  friend class nsRefreshDriver;
-
 public:
   typedef mozilla::dom::Element Element;
   typedef mozilla::css::RestyleTracker RestyleTracker;
@@ -88,6 +89,15 @@ public:
   ~nsCSSFrameConstructor(void) {
     NS_ASSERTION(mUpdateCount == 0, "Dying in the middle of our own update?");
   }
+
+  // Matches signature on nsARefreshObserver.  Just like
+  // NS_DECL_ISUPPORTS, but without the QI part.
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+protected:
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
+public:
 
   struct RestyleData;
   friend struct RestyleData;
@@ -235,25 +245,35 @@ public:
   nsresult CharacterDataChanged(nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo);
 
-  nsresult ContentStatesChanged(nsIContent*   aContent1,
-                                nsIContent*   aContent2,
-                                nsEventStates aStateMask);
+  nsresult ContentStatesChanged(nsIContent*     aContent1,
+                                nsIContent*     aContent2,
+                                PRInt32         aStateMask);
 
-  // generate the child frames and process bindings
-  nsresult GenerateChildFrames(nsIFrame* aFrame);
+  // Process the children of aContent and indicate that frames should be
+  // created for them. This is used for lazily built content such as that
+  // inside popups so that it is only created when the popup is opened.
+  // If aIsSynch is true, this method constructs the frames synchronously.
+  // aCallback will be called with three arguments, the first is the value
+  // of aContent, the second is aContent's primary frame, and the third is
+  // the value of aArg.
+  // aCallback will always be called even if the children of aContent had
+  // been generated earlier.
+  nsresult AddLazyChildren(nsIContent* aContent,
+                           nsLazyFrameConstructionCallback* aCallback,
+                           void* aArg, PRBool aIsSynch = PR_FALSE);
 
   // Should be called when a frame is going to be destroyed and
   // WillDestroyFrameTree hasn't been called yet.
   void NotifyDestroyingFrame(nsIFrame* aFrame);
 
-  void AttributeWillChange(Element* aElement,
-                           PRInt32  aNameSpaceID,
-                           nsIAtom* aAttribute,
-                           PRInt32  aModType);
-  void AttributeChanged(Element* aElement,
-                        PRInt32  aNameSpaceID,
-                        nsIAtom* aAttribute,
-                        PRInt32  aModType);
+  void AttributeWillChange(nsIContent* aContent,
+                           PRInt32     aNameSpaceID,
+                           nsIAtom*    aAttribute,
+                           PRInt32     aModType);
+  void AttributeChanged(nsIContent* aContent,
+                        PRInt32     aNameSpaceID,
+                        nsIAtom*    aAttribute,
+                        PRInt32     aModType);
 
   void BeginUpdate();
   void EndUpdate();
@@ -331,6 +351,9 @@ public:
   {
     PostRestyleEventCommon(aElement, aRestyleHint, aMinChangeHint, PR_TRUE);
   }
+
+  // nsARefreshObserver
+  virtual void WillRefresh(mozilla::TimeStamp aTime);
 private:
   /**
    * Notify the frame constructor that an element needs to have its
@@ -416,7 +439,7 @@ private:
                               nsIFrame*&     aCanvasFrame);
 
   void DoContentStateChanged(Element* aElement,
-                             nsEventStates aStateMask);
+                             PRInt32 aStateMask);
 
   /* aMinHint is the minimal change that should be made to the element */
   // XXXbz do we really need the aPrimaryFrame argument here?
@@ -728,10 +751,6 @@ private:
      This can be used with or without FCDATA_FUNC_IS_FULL_CTOR.
      The child items might still need table pseudo processing. */
 #define FCDATA_USE_CHILD_ITEMS 0x20000
-  /* If FCDATA_FORCED_NON_SCROLLABLE_BLOCK is set, then this block
-     would have been scrollable but has been forced to be
-     non-scrollable due to being in a paginated context. */
-#define FCDATA_FORCED_NON_SCROLLABLE_BLOCK 0x40000
 
   /* Structure representing information about how a frame should be
      constructed.  */
@@ -1800,6 +1819,27 @@ public:
 
 private:
 
+  class LazyGenerateChildrenEvent;
+  friend class LazyGenerateChildrenEvent;
+
+  // See comments of nsCSSFrameConstructor::AddLazyChildren()
+  class LazyGenerateChildrenEvent : public nsRunnable {
+  public:
+    NS_DECL_NSIRUNNABLE
+    LazyGenerateChildrenEvent(nsIContent *aContent,
+                              nsIPresShell *aPresShell,
+                              nsLazyFrameConstructionCallback* aCallback,
+                              void* aArg)
+      : mContent(aContent), mPresShell(aPresShell), mCallback(aCallback), mArg(aArg)
+    {}
+
+  private:
+    nsCOMPtr<nsIContent> mContent;
+    nsCOMPtr<nsIPresShell> mPresShell;
+    nsLazyFrameConstructionCallback* mCallback;
+    void* mArg;
+  };
+
   nsIDocument*        mDocument;  // Weak ref
   nsIPresShell*       mPresShell; // Weak ref
 
@@ -1831,6 +1871,9 @@ private:
   PRPackedBool        mObservingRefreshDriver : 1;
   // True if we're in the middle of a nsRefreshDriver refresh
   PRPackedBool        mInStyleRefresh : 1;
+  // True if we're in the middle of a nsRefreshDriver refresh and haven't yet
+  // called CreateNeededFrames
+  PRPackedBool        mInLazyFCRefresh : 1;
   PRUint32            mHoverGeneration;
   nsChangeHint        mRebuildAllExtraHint;
 

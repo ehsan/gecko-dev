@@ -56,20 +56,20 @@ NSString *const kDefaultServerType = @"google";
 
 @interface NSView (ResizabilityExtentions)
 // Shifts the view vertically by the given amount.
-- (void)breakpad_shiftVertically:(CGFloat)offset;
+- (void)breakpad_shiftVertically:(float)offset;
 
 // Shifts the view horizontally by the given amount.
-- (void)breakpad_shiftHorizontally:(CGFloat)offset;
+- (void)breakpad_shiftHorizontally:(float)offset;
 @end
 
 @implementation NSView (ResizabilityExtentions)
-- (void)breakpad_shiftVertically:(CGFloat)offset {
+- (void)breakpad_shiftVertically:(float)offset {
   NSPoint origin = [self frame].origin;
   origin.y += offset;
   [self setFrameOrigin:origin];
 }
 
-- (void)breakpad_shiftHorizontally:(CGFloat)offset {
+- (void)breakpad_shiftHorizontally:(float)offset {
   NSPoint origin = [self frame].origin;
   origin.x += offset;
   [self setFrameOrigin:origin];
@@ -79,11 +79,11 @@ NSString *const kDefaultServerType = @"google";
 @interface NSWindow (ResizabilityExtentions)
 // Adjusts the window height by heightDelta relative to its current height,
 // keeping all the content at the same size.
-- (void)breakpad_adjustHeight:(CGFloat)heightDelta;
+- (void)breakpad_adjustHeight:(float)heightDelta;
 @end
 
 @implementation NSWindow (ResizabilityExtentions)
-- (void)breakpad_adjustHeight:(CGFloat)heightDelta {
+- (void)breakpad_adjustHeight:(float)heightDelta {
   [[self contentView] setAutoresizesSubviews:NO];
 
   NSRect windowFrame = [self frame];
@@ -101,16 +101,16 @@ NSString *const kDefaultServerType = @"google";
 // Grows or shrinks the height of the field to the minimum required to show the
 // current text, preserving the existing width and origin.
 // Returns the change in height.
-- (CGFloat)breakpad_adjustHeightToFit;
+- (float)breakpad_adjustHeightToFit;
 
 // Grows or shrinks the width of the field to the minimum required to show the
 // current text, preserving the existing height and origin.
 // Returns the change in width.
-- (CGFloat)breakpad_adjustWidthToFit;
+- (float)breakpad_adjustWidthToFit;
 @end
 
 @implementation NSTextField (ResizabilityExtentions)
-- (CGFloat)breakpad_adjustHeightToFit {
+- (float)breakpad_adjustHeightToFit {
   NSRect oldFrame = [self frame];
   // Starting with the 10.5 SDK, height won't grow, so make it huge to start.
   NSRect presizeFrame = oldFrame;
@@ -125,7 +125,7 @@ NSString *const kDefaultServerType = @"google";
   return newSize.height - NSHeight(oldFrame);
 }
 
-- (CGFloat)breakpad_adjustWidthToFit {
+- (float)breakpad_adjustWidthToFit {
   NSRect oldFrame = [self frame];
   [self sizeToFit];
   return NSWidth([self frame]) - NSWidth(oldFrame);
@@ -136,11 +136,11 @@ NSString *const kDefaultServerType = @"google";
 // Resizes to fit the label using IB-style size-to-fit metrics and enforcing a
 // minimum width of 70, while preserving the right edge location.
 // Returns the change in width.
-- (CGFloat)breakpad_smartSizeToFit;
+- (float)breakpad_smartSizeToFit;
 @end
 
 @implementation NSButton (ResizabilityExtentions)
-- (CGFloat)breakpad_smartSizeToFit {
+- (float)breakpad_smartSizeToFit {
   NSRect oldFrame = [self frame];
   [self sizeToFit];
   NSRect newFrame = [self frame];
@@ -218,8 +218,7 @@ NSString *const kDefaultServerType = @"google";
 // Run an alert window with the given timeout. Returns
 // NSRunStoppedResponse if the timeout is exceeded. A timeout of 0
 // queues the message immediately in the modal run loop.
-- (NSInteger)runModalWindow:(NSWindow*)window 
-                withTimeout:(NSTimeInterval)timeout;
+- (int)runModalWindow:(NSWindow*)window withTimeout:(NSTimeInterval)timeout;
 
 // Returns a unique client id (user-specific), creating a persistent
 // one in the user defaults, if necessary.
@@ -387,7 +386,7 @@ NSString *const kDefaultServerType = @"google";
   }
 
   // Otherwise, if we have no client id, generate one!
-  srandom((int)[[NSDate date] timeIntervalSince1970]);
+  srandom([[NSDate date] timeIntervalSince1970]);
   long clientId1 = random();
   long clientId2 = random();
   long clientId3 = random();
@@ -404,8 +403,8 @@ NSString *const kDefaultServerType = @"google";
   unsigned int logFileCounter = 0;
 
   NSString *logPath;
-  size_t logFileTailSize =
-      [[parameters_ objectForKey:@BREAKPAD_LOGFILE_UPLOAD_SIZE] intValue];
+  int logFileTailSize = [[parameters_ objectForKey:@BREAKPAD_LOGFILE_UPLOAD_SIZE]
+                          intValue];
 
   NSMutableArray *logFilenames; // An array of NSString, one per log file
   logFilenames = [[NSMutableArray alloc] init];
@@ -545,7 +544,7 @@ NSString *const kDefaultServerType = @"google";
   // Get the timeout value for the notification.
   NSTimeInterval timeout = [self messageTimeout];
 
-  NSInteger buttonPressed = NSAlertAlternateReturn;
+  int buttonPressed = NSAlertAlternateReturn;
   // Determine whether we should create a text box for user feedback.
   if ([self shouldRequestComments]) {
     BOOL didLoadNib = [NSBundle loadNibNamed:@"Breakpad" owner:self];
@@ -593,7 +592,7 @@ NSString *const kDefaultServerType = @"google";
   [commentMessage_ setStringValue:[NSString stringWithFormat:@"%@\n\n%@",
                                    [self explanatoryDialogText],
                                    NSLocalizedString(@"commentsMsg", @"")]];
-  CGFloat commentHeightDelta = [commentMessage_ breakpad_adjustHeightToFit];
+  float commentHeightDelta = [commentMessage_ breakpad_adjustHeightToFit];
   [headerBox_ breakpad_shiftVertically:commentHeightDelta];
   [alertWindow_ breakpad_adjustHeight:commentHeightDelta];
 
@@ -601,7 +600,7 @@ NSString *const kDefaultServerType = @"google";
   // section depending on whether or not we are asking for email.
   if (includeEmail) {
     [emailMessage_ setStringValue:NSLocalizedString(@"emailMsg", @"")];
-    CGFloat emailHeightDelta = [emailMessage_ breakpad_adjustHeightToFit];
+    float emailHeightDelta = [emailMessage_ breakpad_adjustHeightToFit];
     [preEmailBox_ breakpad_shiftVertically:emailHeightDelta];
     [alertWindow_ breakpad_adjustHeight:emailHeightDelta];
   } else {
@@ -610,7 +609,7 @@ NSString *const kDefaultServerType = @"google";
 
   // Localize the email label, and shift the associated text field.
   [emailLabel_ setStringValue:NSLocalizedString(@"emailLabel", @"")];
-  CGFloat emailLabelWidthDelta = [emailLabel_ breakpad_adjustWidthToFit];
+  float emailLabelWidthDelta = [emailLabel_ breakpad_adjustWidthToFit];
   [emailEntryField_ breakpad_shiftHorizontally:emailLabelWidthDelta];
 
   // Localize the placeholder text.
@@ -621,12 +620,12 @@ NSString *const kDefaultServerType = @"google";
 
   // Localize the privacy policy label, and keep it right-aligned to the arrow.
   [privacyLinkLabel_ setStringValue:NSLocalizedString(@"privacyLabel", @"")];
-  CGFloat privacyLabelWidthDelta = [privacyLinkLabel_ breakpad_adjustWidthToFit];
+  float privacyLabelWidthDelta = [privacyLinkLabel_ breakpad_adjustWidthToFit];
   [privacyLinkLabel_ breakpad_shiftHorizontally:(-privacyLabelWidthDelta)];
 
   // Localize the buttons, and keep the cancel button at the right distance.
   [sendButton_ setTitle:NSLocalizedString(@"sendReportButton", @"")];
-  CGFloat sendButtonWidthDelta = [sendButton_ breakpad_smartSizeToFit];
+  float sendButtonWidthDelta = [sendButton_ breakpad_smartSizeToFit];
   [cancelButton_ breakpad_shiftHorizontally:(-sendButtonWidthDelta)];
   [cancelButton_ setTitle:NSLocalizedString(@"cancelButton", @"")];
   [cancelButton_ breakpad_smartSizeToFit];
@@ -634,13 +633,12 @@ NSString *const kDefaultServerType = @"google";
 
 - (void)removeEmailPrompt {
   [emailSectionBox_ setHidden:YES];
-  CGFloat emailSectionHeight = NSHeight([emailSectionBox_ frame]);
+  float emailSectionHeight = NSHeight([emailSectionBox_ frame]);
   [preEmailBox_ breakpad_shiftVertically:(-emailSectionHeight)];
   [alertWindow_ breakpad_adjustHeight:(-emailSectionHeight)];
 }
 
-- (NSInteger)runModalWindow:(NSWindow*)window 
-                withTimeout:(NSTimeInterval)timeout {
+- (int)runModalWindow:(NSWindow*)window withTimeout:(NSTimeInterval)timeout {
   // Queue a |stopModal| message to be performed in |timeout| seconds.
   if (timeout > 0.001) {
     remainingDialogTime_ = timeout;
@@ -655,7 +653,7 @@ NSString *const kDefaultServerType = @"google";
   // Run the window modally and wait for either a |stopModal| message or a
   // button click.
   [NSApp activateIgnoringOtherApps:YES];
-  NSInteger returnMethod = [NSApp runModalForWindow:window];
+  int returnMethod = [NSApp runModalForWindow:window];
 
   return returnMethod;
 }
@@ -719,7 +717,7 @@ doCommandBySelector:(SEL)commandSelector {
   
   if (remainingDialogTime_ > 59) {
     // calculate minutes remaining for UI purposes
-    displayedTimeLeft = (int)(remainingDialogTime_ / 60);
+    displayedTimeLeft = (remainingDialogTime_ / 60);
     
     if (displayedTimeLeft == 1) {
       formatString = NSLocalizedString(@"countdownMsgMinuteSingular", @"");
@@ -727,8 +725,8 @@ doCommandBySelector:(SEL)commandSelector {
       formatString = NSLocalizedString(@"countdownMsgMinutesPlural", @"");
     }
   } else {
-    displayedTimeLeft = (int)remainingDialogTime_;
-    if (displayedTimeLeft == 1) {
+    displayedTimeLeft = remainingDialogTime_;
+    if (remainingDialogTime_ == 1) {
       formatString = NSLocalizedString(@"countdownMsgSecondSingular", @"");
     } else {
       formatString = NSLocalizedString(@"countdownMsgSecondsPlural", @"");
@@ -799,8 +797,7 @@ doCommandBySelector:(SEL)commandSelector {
   NSTimeInterval now = CFAbsoluteTimeGetCurrent();
   NSTimeInterval spanSeconds = (now - lastTime);
 
-  [programDict setObject:[NSNumber numberWithDouble:now] 
-                  forKey:kLastSubmission];
+  [programDict setObject:[NSNumber numberWithFloat:now] forKey:kLastSubmission];
   [ud setObject:programDict forKey:program];
   [ud synchronize];
 
@@ -1058,7 +1055,7 @@ doCommandBySelector:(SEL)commandSelector {
 //=============================================================================
 @implementation LengthLimitingTextField
 
-- (void)setMaximumLength:(NSUInteger)maxLength {
+- (void) setMaximumLength:(unsigned int)maxLength {
   maximumLength_ = maxLength;
 }
 
@@ -1075,7 +1072,7 @@ shouldChangeTextInRange:(NSRange)affectedCharRange
   }
   // Figure out what the new string length would be, taking into
   // account user selections.
-  NSUInteger newStringLength =
+  int newStringLength =
     [[textView string] length] - affectedCharRange.length +
     [replacementString length];
   if (newStringLength > maximumLength_) {
@@ -1091,7 +1088,7 @@ shouldChangeTextInRange:(NSRange)affectedCharRange
   NSText* fieldEditor = [self currentEditor];
   if (fieldEditor != nil) {
     // Check for a single "Command" modifier
-    NSUInteger modifiers = [event modifierFlags];
+    unsigned int modifiers = [event modifierFlags];
     modifiers &= NSDeviceIndependentModifierFlagsMask;
     if (modifiers == NSCommandKeyMask) {
       // Now, check for Select All, Cut, Copy, or Paste key equivalents.

@@ -66,15 +66,13 @@
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
 
-using namespace mozilla::dom;
-
 /**
  * Implementation of &lt;option&gt;
  */
 
 nsGenericHTMLElement*
 NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        FromParser aFromParser)
+                        PRUint32 aFromParser)
 {
   /*
    * nsHTMLOptionElement's will be created without a nsINodeInfo passed in
@@ -340,10 +338,10 @@ nsHTMLOptionElement::SetText(const nsAString& aText)
   return nsContentUtils::SetNodeTextContent(this, aText, PR_TRUE);
 }
 
-nsEventStates
+PRInt32
 nsHTMLOptionElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLElement::IntrinsicState();
   // Nasty hack because we need to call an interface method, and one that
   // toggles some of our hidden internal state at that!  Would that we could
   // use |mutable|.
@@ -359,7 +357,9 @@ nsHTMLOptionElement::IntrinsicState() const
     state |= NS_EVENT_STATE_DEFAULT;
   }
 
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRBool disabled;
+  GetBoolAttr(nsGkAtoms::disabled, &disabled);
+  if (disabled) {
     state |= NS_EVENT_STATE_DISABLED;
     state &= ~NS_EVENT_STATE_ENABLED;
   } else {

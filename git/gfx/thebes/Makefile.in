@@ -19,7 +19,6 @@ EXPORTS	= \
 	gfxCachedTempSurface.h \
 	gfxColor.h \
 	gfxContext.h \
-	gfxDrawable.h \
 	gfxFont.h \
 	gfxFontConstants.h \
 	gfxFontUtils.h \
@@ -35,11 +34,11 @@ EXPORTS	= \
 	gfxTypes.h \
 	gfxTextRunCache.h \
 	gfxTextRunWordCache.h \
+	gfxThebesUtils.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
 	GLDefs.h \
 	GLContext.h \
-	GLContextSymbols.h \
 	GLContextProvider.h \
 	GLContextProviderImpl.h \
 	nsCoreAnimationSupport.h \
@@ -122,7 +121,6 @@ EXPORTS += \
 	gfxQPainterSurface.h \
 	gfxQtNativeRenderer.h \
 	gfxQtPlatform.h \
-	gfxPDFSurface.h \
 	$(NULL)
 
 ifdef MOZ_X11
@@ -152,6 +150,7 @@ ifdef WINCE
 EXPORTS += \
 	gfxFT2Fonts.h \
 	gfxFT2FontBase.h \
+	gfxDDrawSurface.h \
 	$(NULL)
 else
 EXPORTS += \
@@ -167,7 +166,6 @@ CPPSRCS	= \
 	gfxBlur.cpp \
 	gfxCachedTempSurface.cpp \
 	gfxContext.cpp \
-	gfxDrawable.cpp \
 	gfxImageSurface.cpp \
 	gfxFont.cpp \
 	gfxFontMissingGlyphs.cpp \
@@ -183,6 +181,7 @@ CPPSRCS	= \
 	gfxSkipChars.cpp \
 	gfxTextRunCache.cpp \
 	gfxTextRunWordCache.cpp \
+	gfxThebesUtils.cpp \
 	gfxUserFontSet.cpp \
 	gfxUtils.cpp \
 	gfxUnicodeProperties.cpp \
@@ -196,15 +195,6 @@ ifdef MOZ_IPC
 CPPSRCS += \
 	gfxSharedImageSurface.cpp \
 	$(NULL)
-endif
-
-ifeq (86,$(findstring 86,$(OS_TEST)))
-ifdef __GNUC__
-gfxAlphaRecovery.$(OBJ_SUFFIX): MODULE_OPTIMIZE_FLAGS += -msse2
-endif
-ifdef SOLARIS_SUNPRO_CXX
-gfxAlphaRecovery.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
-endif
 endif
 
 SHARED_LIBRARY_LIBS += \
@@ -229,7 +219,6 @@ EXTRA_DSO_LDOPTS += \
 	$(ZLIB_LIBS) \
 	$(QCMS_LIBS) \
 	$(MOZ_HARFBUZZ_LIBS) \
-	$(MOZ_OTS_LIBS) \
 	$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
@@ -243,6 +232,7 @@ ifdef WINCE
 CPPSRCS	+= gfxFT2Fonts.cpp \
 	   gfxFT2FontBase.cpp \
 	   gfxFT2Utils.cpp \
+	   gfxDDrawSurface.cpp \
 	   gfxFT2FontList.cpp \
 	   $(NULL)
 
@@ -264,7 +254,7 @@ CPPSRCS	+= gfxGDIFont.cpp \
 	   gfxGDIShaper.cpp \
 	   gfxUniscribeShaper.cpp \
 	   $(NULL)
-_OS_LIBS = usp10 msimg32 ole32
+_OS_LIBS = usp10 msimg32
 endif
 
 CPPSRCS +=	gfxPDFSurface.cpp
@@ -278,24 +268,16 @@ ifdef MOZ_ENABLE_D3D9_LAYER
 DEFINES +=	-DMOZ_ENABLE_D3D9_LAYER
 endif
 
-ifdef MOZ_ENABLE_D3D10_LAYER
-DEFINES +=	-DMOZ_ENABLE_D3D10_LAYER
-endif
-
 ACDEFINES +=	-UWIN32_LEAN_AND_MEAN
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS	+= \
-	gfxPDFSurface.h \
-	$(NULL)
 CPPSRCS += \
 	gfxAndroidPlatform.cpp \
 	gfxFT2Fonts.cpp \
 	gfxFT2FontBase.cpp \
 	gfxFT2Utils.cpp \
 	gfxFT2FontList.cpp \
-	gfxPDFSurface.cpp \
 	nsUnicodeRange.cpp \
 	$(NULL)
 endif
@@ -352,7 +334,6 @@ CPPSRCS +=	gfxFT2FontBase.cpp
 CPPSRCS +=	gfxFT2Utils.cpp
 CPPSRCS +=	gfxFontconfigUtils.cpp
 CPPSRCS +=	nsUnicodeRange.cpp
-CPPSRCS +=	gfxPDFSurface.cpp
 EXTRA_DSO_LDOPTS += $(MOZ_PANGO_LIBS) $(ZLIB_LIBS) $(XLDFLAGS) $(XLIBS) $(CAIRO_FT_LIBS) $(XEXT_LIBS)
 endif
 
@@ -431,11 +412,6 @@ ifeq ($(GL_PROVIDER),CGL)
 CMMSRCS += GLContextProvider$(GL_PROVIDER).mm
 else
 CPPSRCS += GLContextProvider$(GL_PROVIDER).cpp
-endif
-
-# Win32 is a special snowflake, for ANGLE
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-CPPSRCS += GLContextProviderEGL.cpp
 endif
 
 DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT

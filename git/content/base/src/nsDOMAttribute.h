@@ -65,8 +65,7 @@ class nsDOMAttribute : public nsIAttribute,
 public:
   nsDOMAttribute(nsDOMAttributeMap* aAttrMap,
                  already_AddRefed<nsINodeInfo> aNodeInfo,
-                 const nsAString& aValue,
-                 PRBool aNsAware);
+                 const nsAString& aValue);
   virtual ~nsDOMAttribute();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -128,7 +127,7 @@ public:
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
   {
-    return GetContentInternal();
+    return GetContentInternal()->AsElement();
   }
 
   static PRBool sInitialized;
@@ -138,18 +137,13 @@ private:
 
   void EnsureChildState();
 
-  /**
-   * Really removing the attribute child (unbind and release).
-   */
-  void doRemoveChild(bool aNotify);
-
   nsString mValue;
   // XXX For now, there's only a single child - a text element
   // representing the value.  This is strong ref, but we use a raw
   // pointer so we can implement GetChildArray().
   nsIContent* mChild;
 
-  mozilla::dom::Element *GetContentInternal() const
+  nsIContent *GetContentInternal() const
   {
     return mAttrMap ? mAttrMap->GetContent() : nsnull;
   }

@@ -60,8 +60,6 @@ public:
   // nsIAccessibilityService
   virtual nsAccessible* GetAccessibleInShell(nsINode* aNode,
                                              nsIPresShell* aPresShell);
-  virtual nsAccessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  PRBool aCanCreate);
 
   virtual already_AddRefed<nsAccessible>
     CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
@@ -84,7 +82,8 @@ public:
   virtual already_AddRefed<nsAccessible>
     CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
-    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell,
+                           const nsAString& aBulletText);
   virtual already_AddRefed<nsAccessible>
     CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
@@ -110,22 +109,15 @@ public:
   virtual nsAccessible* AddNativeRootAccessible(void* aAtkAccessible);
   virtual void RemoveNativeRootAccessible(nsAccessible* aRootAccessible);
 
-  virtual void ContentRangeInserted(nsIPresShell* aPresShell,
-                                    nsIContent* aContainer,
-                                    nsIContent* aStartChild,
-                                    nsIContent* aEndChild);
-
-  virtual void ContentRemoved(nsIPresShell* aPresShell, nsIContent* aContainer,
-                              nsIContent* aChild);
+  virtual nsresult InvalidateSubtreeFor(nsIPresShell *aPresShell,
+                                        nsIContent *aContent,
+                                        PRUint32 aChangeType);
 
   virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget);
 
   virtual void PresShellDestroyed(nsIPresShell* aPresShell);
 
-  virtual void RecreateAccessible(nsIPresShell* aPresShell,
-                                  nsIContent* aContent);
-
-  virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget);
+  virtual nsresult FireAccessibleEvent(PRUint32 aEvent, nsIAccessible *aTarget);
 
   // nsAccessibiltiyService
 
@@ -138,16 +130,16 @@ public:
    * Return an accessible for the given DOM node from the cache or create new
    * one.
    *
-   * @param  aNode             [in] the given node
-   * @param  aPresShell        [in] the pres shell of the node
-   * @param  aWeakShell        [in] the weak shell for the pres shell
-   * @param  aIsSubtreeHidden  [out, optional] indicates whether the node's
-   *                             frame and its subtree is hidden
+   * @param  aNode       [in] the given node
+   * @param  aPresShell  [in] the pres shell of the node
+   * @param  aWeakShell  [in] the weak shell for the pres shell
+   * @param  aIsHidden   [out, optional] indicates whether the node's frame is
+   *                       hidden
    */
   already_AddRefed<nsAccessible>
     GetOrCreateAccessible(nsINode* aNode, nsIPresShell* aPresShell,
                           nsIWeakReference* aWeakShell,
-                          bool* aIsSubtreeHidden = nsnull);
+                          PRBool* aIsHidden = nsnull);
 
   /**
    * Return an accessible for the given DOM node.
@@ -186,21 +178,24 @@ public:
   }
 
   /**
-   * Return cached accessible for the given DOM node or cached container
-   * accessible if there's no cached accessible for the given node.
-   */
-  nsAccessible* GetCachedAccessibleOrContainer(nsINode* aNode);
-
-  /**
    * Return the first cached accessible parent of a DOM node.
    *
    * @param aDOMNode    [in] the DOM node to get an accessible for
    */
-  inline nsAccessible* GetCachedContainerAccessible(nsINode *aNode)
-  {
-    return aNode ?
-      GetCachedAccessibleOrContainer(aNode->GetNodeParent()) : nsnull;
-  }
+  nsAccessible* GetCachedContainerAccessible(nsINode *aNode);
+
+  /**
+   * Initialize an accessible and cache it. The method should be called for
+   * every created accessible.
+   *
+   * @param  aAccessible    [in] accessible to initialize.
+   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
+   *                          if none
+   *
+   * @return true if the accessible was initialized, otherwise false
+   */
+  PRBool InitAccessible(nsAccessible *aAccessible,
+                        nsRoleMapEntry *aRoleMapEntry);
 
 protected:
   /**
@@ -446,8 +441,7 @@ static const char kRoleNames[][20] = {
   "listbox",             //ROLE_LISTBOX
   "flat equation",       //ROLE_FLAT_EQUATION
   "gridcell",            //ROLE_GRID_CELL
-  "embedded object",     //ROLE_EMBEDDED_OBJECT
-  "note"                 //ROLE_NOTE
+  "embedded object"      //ROLE_EMBEDDED_OBJECT
 };
 
 /**

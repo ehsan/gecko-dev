@@ -139,6 +139,9 @@ public:
   AddHeadersToChannel(const char *aHeadersData, PRUint32 aHeadersDataLen, 
                       nsIChannel *aGenericChannel);
 
+  nsresult
+  AddUnusedLibrary(PRLibrary * aLibrary);
+
   static nsresult GetPluginTempDir(nsIFile **aDir);
 
   // Writes updated plugins settings to disk and unloads the plugin
@@ -174,16 +177,6 @@ public:
   // Return the tag for |aLibrary| if found, nsnull if not.
   nsPluginTag* FindTagForLibrary(PRLibrary* aLibrary);
 
-  // The guts of InstantiateEmbeddedPlugin.  The last argument should
-  // be false if we already have an in-flight stream and don't need to
-  // set up a new stream.
-  nsresult DoInstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
-                                       nsIPluginInstanceOwner* aOwner,
-                                       PRBool aAllowOpeningStreams);
-
-  // Does not accept NULL and should never fail.
-  nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
-
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
@@ -208,6 +201,9 @@ private:
 
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+
+  // Does not accept NULL and should never fail.
+  nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 
   nsresult
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
@@ -251,6 +247,9 @@ private:
 
   nsresult EnsurePrivateDirServiceProvider();
 
+  // calls PostPluginUnloadEvent for each library in mUnusedLibraries
+  void UnloadUnusedLibraries();
+
   void OnPluginInstanceDestroyed(nsPluginTag* aPluginTag);
 
   nsRefPtr<nsPluginTag> mPlugins;
@@ -268,6 +267,8 @@ private:
   // Any instances in this array will have valid plugin objects via GetPlugin().
   // When removing an instance it might not die - be sure to null out it's plugin.
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > mInstances;
+
+  nsTArray<PRLibrary*> mUnusedLibraries;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
   nsCOMPtr<nsIPrefBranch> mPrefService;

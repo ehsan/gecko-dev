@@ -49,7 +49,7 @@
  **/
 
 #if defined(MOZ_MEMORY)
-#  if defined(XP_WIN) || defined(SOLARIS) || defined(ANDROID)
+#  if defined(XP_WIN) || defined(SOLARIS)
 #    define HAVE_JEMALLOC_STATS 1
 #    include "jemalloc.h"
 #  elif defined(XP_LINUX)
@@ -59,6 +59,10 @@
 // with it.  So if we tried to use jemalloc_stats directly here, it
 // wouldn't be defined.  Instead, we don't include the jemalloc header
 // and weakly link against jemalloc_stats.
+//
+// NB: we don't null-check this symbol at runtime because we expect it
+// to have been resolved.  If it hasn't, the crash jumping to NULL
+// will indicate the bug.
 extern "C" {
 extern void jemalloc_stats(jemalloc_stats_t* stats)
   NS_VISIBILITY_DEFAULT __attribute__((weak));
@@ -215,10 +219,6 @@ NS_IMPL_ISUPPORTS1(nsMemoryReporterManager, nsIMemoryReporterManager)
 NS_IMETHODIMP
 nsMemoryReporterManager::Init()
 {
-#if HAVE_JEMALLOC_STATS && defined(XP_LINUX)
-    if (!jemalloc_stats)
-        return NS_ERROR_FAILURE;
-#endif
     /*
      * Register our core reporters
      */

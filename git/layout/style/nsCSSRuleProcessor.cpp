@@ -92,7 +92,6 @@
 #include "nsNetCID.h"
 #include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
-#include "nsGenericElement.h"
 
 using namespace mozilla::dom;
 
@@ -102,10 +101,6 @@ static PRBool gSupportVisitedPseudo = PR_TRUE;
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 static nsTArray< nsCOMPtr<nsIAtom> >* sSystemMetrics = 0;
-
-#ifdef XP_WIN
-PRUint8 nsCSSRuleProcessor::sWinThemeId = nsILookAndFeel::eWindowsTheme_Generic;
-#endif
 
 /**
  * A struct representing a given CSS rule and a particular selector
@@ -152,7 +147,7 @@ RuleHash_CIHashKey(PLDHashTable *table, const void *key)
 
   nsAutoString str;
   atom->ToString(str);
-  nsContentUtils::ASCIIToLower(str);
+  ToUpperCase(str);
   return HashString(str);
 }
 
@@ -818,7 +813,7 @@ struct RuleCascadeData {
   RuleHash*
     mPseudoElementRuleHashes[nsCSSPseudoElements::ePseudo_PseudoElementCount];
   nsTArray<nsCSSSelector*> mStateSelectors;
-  nsEventStates            mSelectorDocumentStates;
+  PRUint32                 mSelectorDocumentStates;
   PLDHashTable             mClassSelectors;
   nsTArray<nsCSSSelector*> mPossiblyNegatedClassSelectors;
   nsTArray<nsCSSSelector*> mIDSelectors;
@@ -1040,36 +1035,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
   }
 
-#ifdef XP_WIN
-  if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsThemeIdentifier,
-                                          metricResult))) {
-    nsCSSRuleProcessor::SetWindowsThemeIdentifier(static_cast<PRUint8>(metricResult));
-    switch(metricResult) {
-      case nsILookAndFeel::eWindowsTheme_Aero:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero);
-        break;
-      case nsILookAndFeel::eWindowsTheme_LunaBlue:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
-        break;
-      case nsILookAndFeel::eWindowsTheme_LunaOlive:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_olive);
-        break;
-      case nsILookAndFeel::eWindowsTheme_LunaSilver:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_silver);
-        break;
-      case nsILookAndFeel::eWindowsTheme_Royale:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_royale);
-        break;
-      case nsILookAndFeel::eWindowsTheme_Zune:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_zune);
-        break;
-      case nsILookAndFeel::eWindowsTheme_Generic:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_generic);
-        break;
-    }
-  }
-#endif
-
   return PR_TRUE;
 }
 
@@ -1096,16 +1061,6 @@ nsCSSRuleProcessor::HasSystemMetric(nsIAtom* aMetric)
   }
   return sSystemMetrics->IndexOf(aMetric) != sSystemMetrics->NoIndex;
 }
-
-#ifdef XP_WIN
-/* static */ PRUint8
-nsCSSRuleProcessor::GetWindowsThemeIdentifier()
-{
-  if (!sSystemMetrics)
-    InitSystemMetrics();
-  return sWinThemeId;
-}
-#endif
 
 RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
                                      Element* aElement, 
@@ -1228,7 +1183,7 @@ const nsString* RuleProcessorData::GetLang()
   return mLanguage;
 }
 
-nsEventStates
+PRUint32
 RuleProcessorData::ContentState()
 {
   if (!mGotContentState) {
@@ -1243,15 +1198,15 @@ RuleProcessorData::ContentState()
     // expose that :visited support is disabled to the Web page.
     if ((!gSupportVisitedPseudo ||
         gPrivateBrowsingObserver->InPrivateBrowsing()) &&
-        mContentState.HasState(NS_EVENT_STATE_VISITED)) {
-      mContentState &= ~NS_EVENT_STATE_VISITED;
-      mContentState |= NS_EVENT_STATE_UNVISITED;
+        (mContentState & NS_EVENT_STATE_VISITED)) {
+      mContentState = (mContentState & ~PRUint32(NS_EVENT_STATE_VISITED)) |
+                      NS_EVENT_STATE_UNVISITED;
     }
   }
   return mContentState;
 }
 
-nsEventStates
+PRUint32
 RuleProcessorData::DocumentState()
 {
   return mElement->GetOwnerDoc()->GetDocumentState();
@@ -1260,19 +1215,20 @@ RuleProcessorData::DocumentState()
 PRBool
 RuleProcessorData::IsLink()
 {
-  nsEventStates state = ContentState();
-  return state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED);
+  PRUint32 state = ContentState();
+  return (state & (NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED)) != 0;
 }
 
-nsEventStates
+PRUint32
 RuleProcessorData::GetContentStateForVisitedHandling(
                      nsRuleWalker::VisitedHandlingType aVisitedHandling,
                      PRBool aIsRelevantLink)
 {
-  nsEventStates contentState = ContentState();
-  if (contentState.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED)) {
+  PRUint32 contentState = ContentState();
+  if (contentState & (NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED)) {
     NS_ABORT_IF_FALSE(IsLink(), "IsLink() should match state");
-    contentState &= ~(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED);
+    contentState &=
+      ~PRUint32(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED);
     if (aIsRelevantLink) {
       switch (aVisitedHandling) {
         case nsRuleWalker::eRelevantLinkUnvisited:
@@ -1414,7 +1370,7 @@ struct NodeMatchContext {
   // we do separate notifications then we might determine the style is
   // not state-dependent when it really is (e.g., determining that a
   // :hover:active rule no longer matches when both states are unset).
-  const nsEventStates mStateMask;
+  const PRInt32 mStateMask;
 
   // Is this link the unique link whose visitedness can affect the style
   // of the node being matched?  (That link is the nearest link to the
@@ -1427,7 +1383,7 @@ struct NodeMatchContext {
   // mForStyling is false, we have to assume we don't know.)
   const PRBool mIsRelevantLink;
 
-  NodeMatchContext(nsEventStates aStateMask, PRBool aIsRelevantLink)
+  NodeMatchContext(PRInt32 aStateMask, PRBool aIsRelevantLink)
     : mStateMask(aStateMask)
     , mIsRelevantLink(aIsRelevantLink)
   {
@@ -1505,7 +1461,7 @@ static PRBool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
     return PR_FALSE;
 
   const nsDefaultStringComparator defaultComparator;
-  const nsASCIICaseInsensitiveStringComparator ciComparator;
+  const nsCaseInsensitiveStringComparator ciComparator;
   const nsStringComparator& comparator =
       (aAttrSelector->mCaseSensitive || !isHTML)
                 ? static_cast<const nsStringComparator&>(defaultComparator)
@@ -1629,21 +1585,21 @@ checkGenericEmptyMatches(RuleProcessorData& data,
   return (child == nsnull);
 }
 
-// An array of the states that are relevant for various pseudoclasses.
-static const nsEventStates sPseudoClassStates[] = {
+// An array of the bits that are relevant for various pseudoclasses.
+static const PRUint32 sPseudoClassBits[] = {
 #define CSS_PSEUDO_CLASS(_name, _value)         \
-  nsEventStates(),
-#define CSS_STATE_PSEUDO_CLASS(_name, _value, _states) \
-  _states,
+  0,
+#define CSS_STATE_PSEUDO_CLASS(_name, _value, _bit) \
+  _bit,
 #include "nsCSSPseudoClassList.h"
 #undef CSS_STATE_PSEUDO_CLASS
 #undef CSS_PSEUDO_CLASS
   // Add more entries for our fake values to make sure we can't
   // index out of bounds into this array no matter what.
-  nsEventStates(),
-  nsEventStates()
+  0,
+  0
 };
-PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sPseudoClassStates) ==
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sPseudoClassBits) ==
                    nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1);
 
 // |aDependence| has two functions:
@@ -1740,7 +1696,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
   // generally quick to test, and thus earlier).  If they were later,
   // we'd probably avoid setting those bits in more cases where setting
   // them is unnecessary.
-  NS_ASSERTION(aNodeMatchContext.mStateMask.IsEmpty() ||
+  NS_ASSERTION(aNodeMatchContext.mStateMask == 0 ||
                !aTreeMatchContext.mForStyling,
                "mForStyling must be false if we're just testing for "
                "state-dependence");
@@ -1748,8 +1704,8 @@ static PRBool SelectorMatches(RuleProcessorData &data,
   // test for pseudo class match
   for (nsPseudoClassList* pseudoClass = aSelector->mPseudoClassList;
        pseudoClass; pseudoClass = pseudoClass->mNext) {
-    nsEventStates statesToCheck = sPseudoClassStates[pseudoClass->mType];
-    if (statesToCheck.IsEmpty()) {
+    PRInt32 statesToCheck = sPseudoClassBits[pseudoClass->mType];
+    if (!statesToCheck) {
       // keep the cases here in the same order as the list in
       // nsCSSPseudoClassList.h
       switch (pseudoClass->mType) {
@@ -1806,7 +1762,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         if (lang && !lang->IsEmpty()) { // null check for out-of-memory
           if (!nsStyleUtil::DashMatchCompare(*lang,
                                              nsDependentString(pseudoClass->u.mString),
-                                             nsASCIICaseInsensitiveStringComparator())) {
+                                             nsCaseInsensitiveStringComparator())) {
             return PR_FALSE;
           }
           // This pseudo-class matched; move on to the next thing
@@ -1834,7 +1790,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
             if (nsStyleUtil::DashMatchCompare(Substring(language, begin,
                                                         end-begin),
                                               langString,
-                                              nsASCIICaseInsensitiveStringComparator())) {
+                                              nsCaseInsensitiveStringComparator())) {
               break;
             }
             begin = end + 1;
@@ -2025,7 +1981,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
       case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir:
         {
           PRBool docIsRTL =
-            data.DocumentState().HasState(NS_DOCUMENT_STATE_RTL_LOCALE);
+            (data.DocumentState() & NS_DOCUMENT_STATE_RTL_LOCALE) != 0;
 
           nsDependentString dirString(pseudoClass->u.mString);
           NS_ASSERTION(dirString.EqualsLiteral("ltr") ||
@@ -2069,23 +2025,8 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         break;
 
       case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive:
-        if (!data.DocumentState().HasState(NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
+        if ((data.DocumentState() & NS_DOCUMENT_STATE_WINDOW_INACTIVE) == 0) {
           return PR_FALSE;
-        }
-        break;
-
-      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero:
-        {
-          if (!data.mIsHTMLContent || data.mContentTag != nsGkAtoms::table) {
-            return PR_FALSE;
-          }
-          nsGenericElement *ge = static_cast<nsGenericElement*>(data.mElement);
-          const nsAttrValue *val = ge->GetParsedAttr(nsGkAtoms::border);
-          if (!val ||
-              (val->Type() == nsAttrValue::eInteger &&
-               val->GetIntegerValue() == 0)) {
-            return PR_FALSE;
-          }
         }
         break;
 
@@ -2094,7 +2035,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
       }
     } else {
       // Bit-based pseudo-classes
-      if (statesToCheck.HasAtLeastOneOfStates(NS_EVENT_STATE_HOVER | NS_EVENT_STATE_ACTIVE) &&
+      if ((statesToCheck & (NS_EVENT_STATE_HOVER | NS_EVENT_STATE_ACTIVE)) &&
           data.mCompatMode == eCompatibility_NavQuirks &&
           // global selector (but don't check .class):
           !aSelector->HasTagSelector() && !aSelector->mIDList && 
@@ -2111,14 +2052,14 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         // selectors ":hover" and ":active".
         return PR_FALSE;
       } else {
-        if (aNodeMatchContext.mStateMask.HasAtLeastOneOfStates(statesToCheck)) {
+        if (aNodeMatchContext.mStateMask & statesToCheck) {
           if (aDependence)
             *aDependence = PR_TRUE;
         } else {
-          nsEventStates contentState = data.GetContentStateForVisitedHandling(
-                                         aTreeMatchContext.mVisitedHandling,
-                                         aNodeMatchContext.mIsRelevantLink);
-          if (!contentState.HasAtLeastOneOfStates(statesToCheck)) {
+          PRUint32 contentState = data.GetContentStateForVisitedHandling(
+                                    aTreeMatchContext.mVisitedHandling,
+                                    aNodeMatchContext.mIsRelevantLink);
+          if (!(contentState & statesToCheck)) {
             return PR_FALSE;
           }
         }
@@ -2295,8 +2236,7 @@ static PRBool SelectorMatchesTree(RuleProcessorData& aPrevData,
     if (! data) {
       return PR_FALSE;
     }
-    NodeMatchContext nodeContext(nsEventStates(), aLookForRelevantLink &&
-                                                  data->IsLink());
+    NodeMatchContext nodeContext(0, aLookForRelevantLink && data->IsLink());
     if (nodeContext.mIsRelevantLink) {
       // If we find an ancestor of the matched node that is a link
       // during the matching process, then it's the relevant link (see
@@ -2353,7 +2293,7 @@ static void ContentEnumFunc(nsICSSStyleRule* aRule, nsCSSSelector* aSelector,
   RuleProcessorData* data = (RuleProcessorData*)aData;
 
   TreeMatchContext treeContext(PR_TRUE, data->mRuleWalker->VisitedHandling());
-  NodeMatchContext nodeContext(nsEventStates(), data->IsLink());
+  NodeMatchContext nodeContext(0, data->IsLink());
   if (nodeContext.mIsRelevantLink) {
     treeContext.mHaveRelevantLink = PR_TRUE;
   }
@@ -2455,7 +2395,10 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
       nsTArray<RuleValue>& rules = entry->mRules;
       for (RuleValue *value = rules.Elements(), *end = value + rules.Length();
            value != end; ++value) {
-        if (aData->mComparator->PseudoMatches(value->mSelector)) {
+        PRBool matches = PR_TRUE;
+        aData->mComparator->PseudoMatches(aData->mPseudoTag, value->mSelector,
+                                          &matches);
+        if (matches) {
           ContentEnumFunc(value->mRule, value->mSelector->mNext,
                           static_cast<RuleProcessorData*>(aData));
         }
@@ -2522,7 +2465,7 @@ nsCSSRuleProcessor::HasDocumentStateDependentStyle(StateRuleProcessorData* aData
 {
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
 
-  return cascade && cascade->mSelectorDocumentStates.HasAtLeastOneOfStates(aData->mStateMask);
+  return cascade && (cascade->mSelectorDocumentStates & aData->mStateMask) != 0;
 }
 
 struct AttributeEnumData {
@@ -2546,7 +2489,7 @@ AttributeEnumFunc(nsCSSSelector* aSelector, AttributeEnumData* aData)
   // enumData->change won't change.
   TreeMatchContext treeContext(PR_FALSE,
                                nsRuleWalker::eLinksVisitedOrUnvisited);
-  NodeMatchContext nodeContext(nsEventStates(), PR_FALSE);
+  NodeMatchContext nodeContext(0, PR_FALSE);
   if ((possibleChange & ~(aData->change)) &&
       SelectorMatches(*data, aSelector, nodeContext, treeContext) &&
       SelectorMatchesTree(*data, aSelector->mNext, treeContext, PR_FALSE)) {
@@ -2698,11 +2641,25 @@ PRBool IsStateSelector(nsCSSSelector& aSelector)
     if (pseudoClass->mType >= nsCSSPseudoClasses::ePseudoClass_Count) {
       continue;
     }
-    if (!sPseudoClassStates[pseudoClass->mType].IsEmpty()) {
+    if (sPseudoClassBits[pseudoClass->mType]) {
       return PR_TRUE;
     }
   }
   return PR_FALSE;
+}
+
+inline
+void AddSelectorDocumentStates(nsCSSSelector& aSelector, PRUint32* aStateMask)
+{
+  for (nsPseudoClassList* pseudoClass = aSelector.mPseudoClassList;
+       pseudoClass; pseudoClass = pseudoClass->mNext) {
+    if (pseudoClass->mAtom == nsCSSPseudoClasses::mozLocaleDir) {
+      *aStateMask |= NS_DOCUMENT_STATE_RTL_LOCALE;
+    }
+    else if (pseudoClass->mAtom == nsCSSPseudoClasses::mozWindowInactive) {
+      *aStateMask |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+    }
+  }
 }
 
 static PRBool
@@ -2712,32 +2669,8 @@ AddSelector(RuleCascadeData* aCascade,
             // The part we should look through (might be in :not or :-moz-any())
             nsCSSSelector* aSelectorPart)
 {
-  // Track both document states and attribute dependence in pseudo-classes.
-  for (nsPseudoClassList* pseudoClass = aSelectorPart->mPseudoClassList;
-       pseudoClass; pseudoClass = pseudoClass->mNext) {
-    switch (pseudoClass->mType) {
-      case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir: {
-        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_RTL_LOCALE;
-        break;
-      }
-      case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive: {
-        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-        break;
-      }
-      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero: {
-        nsTArray<nsCSSSelector*> *array =
-          aCascade->AttributeListFor(nsGkAtoms::border);
-        if (!array) {
-          return PR_FALSE;
-        }
-        array->AppendElement(aSelectorInTopLevel);
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
+  // Track the selectors that depend on document states.
+  AddSelectorDocumentStates(*aSelectorPart, &aCascade->mSelectorDocumentStates);
 
   // Build mStateSelectors.
   if (IsStateSelector(*aSelectorPart))
@@ -2774,7 +2707,8 @@ AddSelector(RuleCascadeData* aCascade,
     }
     array->AppendElement(aSelectorInTopLevel);
     if (attr->mLowercaseAttr != attr->mCasedAttr) {
-      array = aCascade->AttributeListFor(attr->mLowercaseAttr);
+      nsTArray<nsCSSSelector*> *array =
+        aCascade->AttributeListFor(attr->mLowercaseAttr);
       if (!array) {
         return PR_FALSE;
       }
@@ -3160,7 +3094,7 @@ nsCSSRuleProcessor::SelectorListMatches(RuleProcessorData& aData,
     NS_ASSERTION(!sel->IsPseudoElement(), "Shouldn't have been called");
     TreeMatchContext treeContext(PR_FALSE,
                                  nsRuleWalker::eRelevantLinkUnvisited);
-    NodeMatchContext nodeContext(nsEventStates(), PR_FALSE);
+    NodeMatchContext nodeContext(0, PR_FALSE);
     if (SelectorMatches(aData, sel, nodeContext, treeContext)) {
       nsCSSSelector* next = sel->mNext;
       if (!next || SelectorMatchesTree(aData, next, treeContext, PR_FALSE)) {

@@ -45,7 +45,7 @@
 #include "nsIViewManager.h"
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
-#include "nsIDocShellTreeOwner.h"
+#include "nsIWidget.h"
 
 class nsPresContext;
 
@@ -71,12 +71,12 @@ public:
 
   // Data Members
   nsCOMPtr<nsIDocShell>    mDocShell;
-  nsCOMPtr<nsIDocShellTreeOwner> mTreeOwner;
   nsCOMPtr<nsIDocument>    mDocument;
 
   nsRefPtr<nsPresContext>  mPresContext;
   nsCOMPtr<nsIPresShell>   mPresShell;
   nsCOMPtr<nsIViewManager> mViewManager;
+  nsCOMPtr<nsIWidget>      mWindow;
 
   nsCOMPtr<nsIContent>     mContent;
   PrintObjectType  mFrameType;

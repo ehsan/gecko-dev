@@ -45,8 +45,6 @@
 #include <gtk/gtk.h>
 #include <unistd.h>
 
-#include "mozilla/IntentionalCrash.h"
-
  using namespace std;
 
 struct _PlatformData {
@@ -167,14 +165,13 @@ pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
   int y = instanceData->hasWidget ? 0 : window.y;
   int width = window.width;
   int height = window.height;
-  
-  notifyDidPaint(instanceData);
 
   if (instanceData->scriptableObject->drawMode == DM_SOLID_COLOR) {
     // drawing a solid color for reftests
     pluginDrawSolid(instanceData, gdkWindow,
                     invalidRect.x, invalidRect.y,
                     invalidRect.width, invalidRect.height);
+    notifyDidPaint(instanceData);
     return;
   }
 
@@ -220,6 +217,8 @@ pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
   g_object_unref(pangoTextLayout);
 
   g_object_unref(gdkContext);
+
+  notifyDidPaint(instanceData);
 }
 
 static gboolean
@@ -701,7 +700,7 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
 
   // we'll be crashing soon, note that fact now to avoid messing with
   // timing too much
-  mozilla::NoteIntentionalCrash("plugin");
+  NoteIntentionalCrash();
 
   // schedule the crasher thread ...
   pthread_t crasherThread;
@@ -724,28 +723,5 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
   }
 
   // if we get here without crashing, then we'll trigger a test failure
-  return true;
-}
-
-static int
-SleepThenDie(Display* display)
-{
-  mozilla::NoteIntentionalCrash("plugin");
-  fprintf(stderr, "[testplugin:%d] SleepThenDie: sleeping\n", getpid());
-  sleep(1);
-
-  fprintf(stderr, "[testplugin:%d] SleepThenDie: dying\n", getpid());
-  _exit(1);
-}
-
-bool
-pluginDestroySharedGfxStuff(InstanceData* instanceData)
-{
-  // Closing the X socket results in the gdk error handler being
-  // invoked, which exit()s us.  We want to give the parent process a
-  // little while to do whatever it wanted to do, so steal the IO
-  // handler from gdk and set up our own that delays seppuku.
-  XSetIOErrorHandler(SleepThenDie);
-  close(ConnectionNumber(GDK_DISPLAY()));
   return true;
 }

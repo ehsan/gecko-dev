@@ -109,7 +109,6 @@
 #include "nsIEventListenerManager.h"
 #include "nsIDOMEventGroup.h"
 #include "nsIDOMDragEvent.h"
-#include "nsIConstraintValidation.h"
 
 //
 // GetEventReceiver
@@ -1104,19 +1103,6 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
   PRBool lookingForSVGTitle = PR_TRUE;
   PRBool found = PR_FALSE;
   nsCOMPtr<nsIDOMNode> current ( aNode );
-
-  // If the element implement the constraint validation API and has no title,
-  // show the validation message, if any.
-  nsCOMPtr<nsIConstraintValidation> cvElement = do_QueryInterface(current);
-  if (cvElement) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(cvElement);
-    nsCOMPtr<nsIAtom> titleAtom = do_GetAtom("title");
-    if (content->HasAttr(kNameSpaceID_None, titleAtom)) {
-      cvElement->GetValidationMessage(outText);
-      found = !outText.IsEmpty();
-    }
-  }
-
   while ( !found && current ) {
     nsCOMPtr<nsIDOMElement> currElement ( do_QueryInterface(current) );
     if ( currElement ) {

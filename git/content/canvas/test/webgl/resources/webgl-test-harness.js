@@ -12,7 +12,7 @@
 //      return true;
 //    }
 //
-//    var fileListURL = '00_test_list.txt';
+//    var fileListURL = 'test_list.txt';
 //    var testHarness = new WebGLTestHarnessModule.TestHarness(
 //        iframe,
 //        fileListURL,
@@ -149,14 +149,13 @@ var TestHarness = function(iframe, filelistUrl, reportFunc) {
   this.window = window;
   this.iframe = iframe;
   this.reportFunc = reportFunc;
-  var files = getFileList(filelistUrl);
+  var files = getFileList('test_list.txt');
   this.files = [];
   for (var ii = 0; ii < files.length; ++ii) {
     this.files.push(new TestFile(files[ii]));
     this.reportFunc(TestHarness.reportType.ADD_PAGE, files[ii], undefined);
   }
   this.nextFileIndex = files.length;
-  this.timeoutDelay = 3000;
 };
 
 TestHarness.reportType = {
@@ -176,7 +175,7 @@ TestHarness.prototype.setTimeout = function() {
   var that = this;
   this.timeoutId = this.window.setTimeout(function() {
       that.timeout();
-    }, this.timeoutDelay);
+    }, 3000);
 };
 
 TestHarness.prototype.clearTimeout = function() {
@@ -224,10 +223,6 @@ TestHarness.prototype.timeout = function() {
   log(url + ": timeout");
   this.reportFunc(TestHarness.reportType.FINISH_PAGE, url, undefined);
   this.startNextFile();
-};
-
-TestHarness.prototype.setTimeoutDelay = function(x) {
-  this.timeoutDelay = x;
 };
 
 return {

@@ -49,7 +49,6 @@
 #include "nsMediaStream.h"
 #include "nsMathUtils.h"
 #include "prlog.h"
-#include "nsIPrivateBrowsingService.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaCacheLog;
@@ -71,7 +70,7 @@ static const double NONSEEKABLE_READAHEAD_MAX = 0.5;
 static const PRUint32 REPLAY_DELAY = 30;
 
 // When looking for a reusable block, scan forward this many blocks
-// from the desired "best" block location to look for free blocks,
+// from the desired "best" block location to look for free blocks, 
 // before we resort to scanning the whole cache. The idea is to try to
 // store runs of stream blocks close-to-consecutively in the cache if we
 // can.
@@ -89,42 +88,6 @@ using mozilla::TimeDuration;
 // relaxed if we wanted to manage multiple caches with independent
 // size limits).
 static nsMediaCache* gMediaCache;
-
-class nsMediaCacheFlusher : public nsIObserver,
-                            public nsSupportsWeakReference {
-  nsMediaCacheFlusher() {}
-  ~nsMediaCacheFlusher();
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  static void Init();
-};
-
-static nsMediaCacheFlusher* gMediaCacheFlusher;
-
-NS_IMPL_ISUPPORTS2(nsMediaCacheFlusher, nsIObserver, nsISupportsWeakReference)
-
-nsMediaCacheFlusher::~nsMediaCacheFlusher()
-{
-  gMediaCacheFlusher = nsnull;
-}
-
-void nsMediaCacheFlusher::Init()
-{
-  if (gMediaCacheFlusher) {
-    return;
-  }
-
-  gMediaCacheFlusher = new nsMediaCacheFlusher();
-  NS_ADDREF(gMediaCacheFlusher);
-
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->AddObserver(gMediaCacheFlusher, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-  }
-}
 
 class nsMediaCache {
 public:
@@ -156,9 +119,7 @@ public:
     MOZ_COUNT_DTOR(nsMediaCache);
   }
 
-  // Main thread only. Creates the backing cache file. If this fails,
-  // then the cache is still in a semi-valid state; mFD will be null,
-  // so all I/O on the cache file will fail.
+  // Main thread only. Creates the backing cache file.
   nsresult Init();
   // Shut down the global cache if it's no longer needed. We shut down
   // the cache as soon as there are no streams. This means that during
@@ -166,10 +127,6 @@ public:
   // many times, but that's OK since starting it up is cheap and
   // shutting it down cleans things up and releases disk space.
   static void MaybeShutdown();
-
-  // Brutally flush the cache contents. Main thread only.
-  static void Flush();
-  void FlushInternal();
 
   // Cache-file access methods. These are the lowest-level cache methods.
   // mMonitor must be held; these can be called on any thread.
@@ -371,16 +328,6 @@ protected:
 #endif
 };
 
-NS_IMETHODIMP
-nsMediaCacheFlusher::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar const *aData)
-{
-  if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0 &&
-      NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
-    nsMediaCache::Flush();
-  }
-  return NS_OK;
-}
-
 void nsMediaCacheStream::BlockList::AddFirstBlock(PRInt32 aBlock)
 {
   NS_ASSERTION(!mEntries.GetEntry(aBlock), "Block already in list");
@@ -547,7 +494,6 @@ nsresult
 nsMediaCache::Init()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  NS_ASSERTION(!mFD, "Cache file already open?");
 
   if (!mMonitor) {
     // the constructor failed
@@ -556,41 +502,21 @@ nsMediaCache::Init()
 
   nsCOMPtr<nsIFile> tmp;
   nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmp));
-  NS_ENSURE_SUCCESS(rv,rv);
-
+  if (NS_FAILED(rv))
+    return rv;
   nsCOMPtr<nsILocalFile> tmpFile = do_QueryInterface(tmp);
-  NS_ENSURE_TRUE(tmpFile != nsnull, NS_ERROR_FAILURE);
-
-  // We put the media cache file in
-  // ${TempDir}/mozilla-media-cache/media_cache
-  rv = tmpFile->AppendNative(nsDependentCString("mozilla-media-cache"));
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  rv = tmpFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
-  if (rv == NS_ERROR_FILE_ALREADY_EXISTS) {
-    // Ensure the permissions are 0700. If not, we won't be able to create,
-    // read to and write from the media cache file in its subdirectory on
-    // non-Windows platforms.
-    PRUint32 perms;
-    rv = tmpFile->GetPermissions(&perms);
-    NS_ENSURE_SUCCESS(rv,rv);
-    if (perms != 0700) {
-      rv = tmpFile->SetPermissions(0700);
-      NS_ENSURE_SUCCESS(rv,rv);
-    }
-  } else {
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-
-  rv = tmpFile->AppendNative(nsDependentCString("media_cache"));
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  rv = tmpFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0700);
-  NS_ENSURE_SUCCESS(rv,rv);
-
+  if (!tmpFile)
+    return NS_ERROR_FAILURE;
+  rv = tmpFile->AppendNative(nsDependentCString("moz_media_cache"));
+  if (NS_FAILED(rv))
+    return rv;
+  rv = tmpFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  if (NS_FAILED(rv))
+    return rv;
   rv = tmpFile->OpenNSPRFileDesc(PR_RDWR | nsILocalFile::DELETE_ON_CLOSE,
                                  PR_IRWXU, &mFD);
-  NS_ENSURE_SUCCESS(rv,rv);
+  if (NS_FAILED(rv))
+    return rv;
 
 #ifdef PR_LOGGING
   if (!gMediaCacheLog) {
@@ -598,45 +524,13 @@ nsMediaCache::Init()
   }
 #endif
 
-  nsMediaCacheFlusher::Init();
-
   return NS_OK;
-}
-
-void
-nsMediaCache::Flush()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-
-  if (!gMediaCache)
-    return;
-
-  gMediaCache->FlushInternal();
-}
-
-void
-nsMediaCache::FlushInternal()
-{
-  nsAutoMonitor mon(mMonitor);
-
-  for (PRUint32 blockIndex = 0; blockIndex < mIndex.Length(); ++blockIndex) {
-    FreeBlock(blockIndex);
-  }
-
-  // Truncate file, close it, and reopen
-  Truncate();
-  NS_ASSERTION(mIndex.Length() == 0, "Blocks leaked?");
-  if (mFD) {
-    PR_Close(mFD);
-    mFD = nsnull;
-  }
-  Init();
 }
 
 void
 nsMediaCache::MaybeShutdown()
 {
-  NS_ASSERTION(NS_IsMainThread(),
+  NS_ASSERTION(NS_IsMainThread(), 
                "nsMediaCache::MaybeShutdown called on non-main thread");
   if (!gMediaCache->mStreams.IsEmpty()) {
     // Don't shut down yet, streams are still alive
@@ -648,7 +542,6 @@ nsMediaCache::MaybeShutdown()
   // This function is static so we don't have to delete 'this'.
   delete gMediaCache;
   gMediaCache = nsnull;
-  NS_IF_RELEASE(gMediaCacheFlusher);
 }
 
 static void
@@ -1311,13 +1204,11 @@ nsMediaCache::Update()
         for (PRUint32 j = 0; j < i; ++j) {
           nsMediaCacheStream* other = mStreams[j];
           if (other->mResourceID == stream->mResourceID &&
-              !other->mClient->IsSuspended() &&
+              !other->mCacheSuspended &&
               other->mChannelOffset/BLOCK_SIZE == desiredOffset/BLOCK_SIZE) {
             // This block is already going to be read by the other stream.
             // So don't try to read it from this stream as well.
             enableReading = PR_FALSE;
-            LOG(PR_LOG_DEBUG, ("Stream %p waiting on same block (%lld) from stream %p",
-                               stream, desiredOffset/BLOCK_SIZE, other));
             break;
           }
         }
@@ -1504,7 +1395,7 @@ nsMediaCache::AllocateAndWriteBlock(nsMediaCacheStream* aStream, const void* aDa
   if (blockIndex >= 0) {
     FreeBlock(blockIndex);
 
-    Block* block = &mIndex[blockIndex];
+    Block* block = &mIndex[blockIndex];    
     LOG(PR_LOG_DEBUG, ("Allocated block %d to stream %p block %d(%lld)",
         blockIndex, aStream, streamBlockIndex, (long long)streamBlockIndex*BLOCK_SIZE));
 
@@ -1560,9 +1451,6 @@ nsMediaCache::OpenStream(nsMediaCacheStream* aStream)
   LOG(PR_LOG_DEBUG, ("Stream %p opened", aStream));
   mStreams.AppendElement(aStream);
   aStream->mResourceID = mNextResourceID++;
-
-  // Queue an update since a new stream has been opened.
-  gMediaCache->QueueUpdate();
 }
 
 void
@@ -1711,7 +1599,7 @@ nsMediaCacheStream::NotifyDataLength(PRInt64 aLength)
 }
 
 void
-nsMediaCacheStream::NotifyDataStarted(PRInt64 aOffset)
+nsMediaCacheStream::NotifyDataStarted(PRInt64 aOffset) 
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
@@ -1831,7 +1719,7 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
 }
 
 void
-nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
+nsMediaCacheStream::NotifyDataEnded(nsresult aStatus) 
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
@@ -1995,7 +1883,7 @@ nsMediaCacheStream::GetNextCachedDataInternal(PRInt64 aOffset)
   PR_ASSERT_CURRENT_THREAD_IN_MONITOR(gMediaCache->Monitor());
   if (aOffset == mStreamLength)
     return -1;
-
+  
   PRUint32 startBlockIndex = aOffset/BLOCK_SIZE;
   PRUint32 channelBlockIndex = mChannelOffset/BLOCK_SIZE;
 
@@ -2236,7 +2124,7 @@ nsMediaCacheStream::ReadFromCache(char* aBuffer,
     streamOffset += bytes;
     count += bytes;
   }
-
+  
   return NS_OK;
 }
 

@@ -63,8 +63,6 @@
 #include "nsTArray.h"
 #include "nsCycleCollectionParticipant.h"
 
-using namespace mozilla::dom;
-
 class nsXMLFragmentContentSink : public nsXMLContentSink,
                                  public nsIFragmentContentSink
 {
@@ -119,7 +117,7 @@ protected:
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                  nsIContent** aResult, PRBool* aAppendContent,
-                                 mozilla::dom::FromParser aFromParser);
+                                 PRUint32 aFromParser);
   virtual nsresult CloseElement(nsIContent* aContent);
 
   virtual void MaybeStartLayout(PRBool aIgnorePendingSheets);
@@ -261,14 +259,14 @@ nsresult
 nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                         nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                         nsIContent** aResult, PRBool* aAppendContent,
-                                        FromParser /*aFromParser*/)
+                                        PRUint32 aFromParser)
 {
   // Claim to not be coming from parser, since we don't do any of the
   // fancy CloseElement stuff.
   nsresult rv = nsXMLContentSink::CreateElement(aAtts, aAttsCount,
                                                 aNodeInfo, aLineNumber,
                                                 aResult, aAppendContent,
-                                                NOT_FROM_PARSER);
+                                                PR_FALSE);
 
   // When we aren't grabbing all of the content we, never open a doc
   // element, we run into trouble on the first element, so we don't append,

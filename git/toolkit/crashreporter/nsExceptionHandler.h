@@ -52,10 +52,6 @@
 #include <windows.h>
 #endif
 
-#if defined(XP_MACOSX)
-#include <mach/mach.h>
-#endif
-
 namespace CrashReporter {
 nsresult SetExceptionHandler(nsILocalFile* aXREDirectory, bool force=false);
 nsresult UnsetExceptionHandler();
@@ -98,12 +94,9 @@ nsresult SetSubmitReports(PRBool aSubmitReport);
 bool TakeMinidumpForChild(PRUint32 childPid,
                           nsILocalFile** dump NS_OUTPARAM);
 
-#if defined(XP_WIN)
+#ifdef XP_WIN
 typedef HANDLE ProcessHandle;
 typedef DWORD ThreadId;
-#elif defined(XP_MACOSX)
-typedef task_t ProcessHandle;
-typedef mach_port_t ThreadId;
 #else
 typedef int ProcessHandle;
 typedef int ThreadId;
@@ -130,7 +123,7 @@ bool CreatePairedMinidumps(ProcessHandle childPid,
                            nsILocalFile** childDump NS_OUTPARAM,
                            nsILocalFile** parentDump NS_OUTPARAM);
 
-#  if defined(XP_WIN32) || defined(XP_MACOSX)
+#  if defined(XP_WIN32)
 // Parent-side API for children
 const char* GetChildNotificationPipe();
 
@@ -153,33 +146,15 @@ bool CreateNotificationPipeForChild(int* childCrashFd, int* childCrashRemapFd);
 // Child-side API
 bool SetRemoteExceptionHandler();
 
+#  elif defined(XP_MACOSX)
+// When OOP crash reporting is implemented for Mac, it will almost
+// certainly use the same interface as the linux code above.  Until
+// then, we provide stubs.
+void CreateNotificationPipeForChild();
 #endif  // XP_WIN32
 
 bool UnsetRemoteExceptionHandler();
 #endif // MOZ_IPC
-
-#if defined(__ANDROID__)
-// Android builds use a custom library loader, so /proc/<pid>/maps
-// will just show anonymous mappings for all the non-system
-// shared libraries. This API is to work around that by providing
-// info about the shared libraries that are mapped into these anonymous
-// mappings.
-void AddLibraryMapping(const char* library_name,
-                       const char* file_id,
-                       uintptr_t   start_address,
-                       size_t      mapping_length,
-                       size_t      file_offset);
-
-#if defined(MOZ_IPC)
-void AddLibraryMappingForChild(PRUint32    childPid,
-                               const char* library_name,
-                               const char* file_id,
-                               uintptr_t   start_address,
-                               size_t      mapping_length,
-                               size_t      file_offset);
-void RemoveLibraryMappingsForChild(PRUint32 childPid);
-#endif
-#endif
 }
 
 #endif /* nsExceptionHandler_h__ */

@@ -41,7 +41,6 @@
 #ifdef XP_WIN
 #include <windows.h>
 #include "nsWindowsRegKey.h"
-#include "nsSetDllDirectory.h"
 #ifdef DEBUG
 #include "pure.h"
 #endif
@@ -277,12 +276,11 @@ void XXXNeverCalled()
     }
 
     nsXPCOMCycleCollectionParticipant();
-    nsCycleCollector_collect(nsnull);
+    nsCycleCollector_collect();
 #ifdef XP_WIN
     sXPCOMHasLoadedNewDLLs = !sXPCOMHasLoadedNewDLLs;
     NS_SetHasLoadedNewDLLs();
     NS_NewWindowsRegKey(nsnull);
-    NS_SetDllDirectory(nsnull);
 #if defined (DEBUG) && !defined (WINCE)
     PurePrintf(0);
 #endif

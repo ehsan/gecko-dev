@@ -318,12 +318,26 @@ gfxContext::CurrentMatrix() const
     return gfxMatrix(*reinterpret_cast<gfxMatrix*>(&mat));
 }
 
+static void NudgeToInteger(double *aVal)
+{
+    float f = float(*aVal);
+    float r = NS_roundf(f);
+    if (f == r) {
+        *aVal = r;
+    }
+}
+
 void
 gfxContext::NudgeCurrentMatrixToIntegers()
 {
     cairo_matrix_t mat;
     cairo_get_matrix(mCairo, &mat);
-    gfxMatrix(*reinterpret_cast<gfxMatrix*>(&mat)).NudgeToIntegers();
+    NudgeToInteger(&mat.xx);
+    NudgeToInteger(&mat.xy);
+    NudgeToInteger(&mat.yx);
+    NudgeToInteger(&mat.yy);
+    NudgeToInteger(&mat.x0);
+    NudgeToInteger(&mat.y0);
     cairo_set_matrix(mCairo, &mat);
 }
 
@@ -405,15 +419,11 @@ gfxContext::UserToDevicePixelSnapped(gfxRect& rect, PRBool ignoreScale) const
     // if we're not at 1.0 scale, don't snap, unless we're
     // ignoring the scale.  If we're not -just- a scale,
     // never snap.
-    const gfxFloat epsilon = 0.0000001;
-#define WITHIN_E(a,b) (fabs((a)-(b)) < epsilon)
     cairo_matrix_t mat;
     cairo_get_matrix(mCairo, &mat);
     if (!ignoreScale &&
-        (!WITHIN_E(mat.xx,1.0) || !WITHIN_E(mat.yy,1.0) ||
-         !WITHIN_E(mat.xy,0.0) || !WITHIN_E(mat.yx,0.0)))
+        (mat.xx != 1.0 || mat.yy != 1.0 || mat.xy != 0.0 || mat.yx != 0.0))
         return PR_FALSE;
-#undef WITHIN_E
 
     gfxPoint p1 = UserToDevice(rect.pos);
     gfxPoint p2 = UserToDevice(rect.pos + gfxSize(rect.size.width, 0.0));

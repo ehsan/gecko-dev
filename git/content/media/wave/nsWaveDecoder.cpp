@@ -49,7 +49,6 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsWaveDecoder.h"
-#include "nsTimeRanges.h"
 
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
@@ -147,15 +146,6 @@ public:
   // before metadata validation has completed.  Threadsafe.
   float GetDuration();
 
-  // Returns the number of channels extracted from the metadata.  Returns 0
-  // if called before metadata validation has completed.  Threadsafe.
-  PRUint32 GetChannels();
-
-  // Returns the audio sample rate (number of samples per second) extracted
-  // from the metadata.  Returns 0 if called before metadata validation has
-  // completed.  Threadsafe.
-  PRUint32 GetSampleRate();
-
   // Returns true if the state machine is seeking.  Threadsafe.
   PRBool IsSeeking();
 
@@ -178,8 +168,6 @@ public:
   // currently queued and return the current time. This is called from the
   // main thread.
   float GetTimeForPositionChange();
-
-  nsresult GetBuffered(nsTimeRanges* aBuffered);
 
 private:
   // Returns PR_TRUE if we're in shutdown state. Threadsafe.
@@ -295,7 +283,7 @@ private:
   // Our audio stream.  Created on demand when entering playback state.  It
   // is destroyed when seeking begins and will not be reinitialized until
   // playback resumes, so it is possible for this to be null.
-  nsRefPtr<nsAudioStream> mAudioStream;
+  nsAutoPtr<nsAudioStream> mAudioStream;
 
   // Maximum time to spend waiting for data during buffering.
   TimeDuration mBufferingWait;
@@ -371,10 +359,6 @@ private:
 
   // True if paused.  Tracks only the play/paused state.
   PRPackedBool mPaused;
-
-  // True if playback of the audio stream has finished, and the audio stream
-  // has been drained. This means playback of the file has ended.
-  PRPackedBool mPlaybackEnded;
 };
 
 nsWaveStateMachine::nsWaveStateMachine(nsWaveDecoder* aDecoder,
@@ -399,8 +383,7 @@ nsWaveStateMachine::nsWaveStateMachine(nsWaveDecoder* aDecoder,
     mSeekTime(0.0f),
     mMetadataValid(PR_FALSE),
     mPositionChangeQueued(PR_FALSE),
-    mPaused(mNextState == STATE_PAUSED),
-    mPlaybackEnded(PR_FALSE)
+    mPaused(mNextState == STATE_PAUSED)
 {
   mMonitor = nsAutoMonitor::NewMonitor("nsWaveStateMachine");
 }
@@ -421,7 +404,6 @@ nsWaveStateMachine::Play()
 {
   nsAutoMonitor monitor(mMonitor);
   mPaused = PR_FALSE;
-  mPlaybackEnded = PR_FALSE;
   if (mState == STATE_ENDED) {
     Seek(0);
     return;
@@ -460,7 +442,6 @@ void
 nsWaveStateMachine::Seek(float aTime)
 {
   nsAutoMonitor monitor(mMonitor);
-  mPlaybackEnded = PR_FALSE;
   mSeekTime = aTime;
   if (mSeekTime < 0.0f) {
     mSeekTime = 0.0f;
@@ -487,26 +468,6 @@ nsWaveStateMachine::GetDuration()
   return std::numeric_limits<float>::quiet_NaN();
 }
 
-PRUint32
-nsWaveStateMachine::GetChannels()
-{
-  nsAutoMonitor monitor(mMonitor);
-  if (mMetadataValid) {
-    return mChannels;
-  }
-  return 0;
-}
-
-PRUint32
-nsWaveStateMachine::GetSampleRate()
-{
-  nsAutoMonitor monitor(mMonitor);
-  if (mMetadataValid) {
-    return mSampleRate;
-  }
-  return 0;
-}
-
 PRBool
 nsWaveStateMachine::IsSeeking()
 {
@@ -518,7 +479,7 @@ PRBool
 nsWaveStateMachine::IsEnded()
 {
   nsAutoMonitor monitor(mMonitor);
-  return mPlaybackEnded;
+  return mState == STATE_ENDED || mState == STATE_SHUTDOWN;
 }
 
 nsHTMLMediaElement::NextFrameStatus
@@ -709,20 +670,6 @@ nsWaveStateMachine::Run()
         mSeekTime = NS_MIN(mSeekTime, GetDuration());
         float seekTime = mSeekTime;
 
-        // Calculate relative offset within PCM data.
-        PRInt64 position = RoundDownToSample(TimeToBytes(seekTime));
-        NS_ABORT_IF_FALSE(position >= 0 && position <= GetDataLength(),
-                          "Invalid seek position");
-        // Convert to absolute offset within stream.
-        position += mWavePCMOffset;
-
-        // If in the midst of a seek, report the requested seek time
-        // as the current time as required by step 8 of 4.8.10.9 'Seeking'
-        // in the WHATWG spec.
-        PRInt64 oldPosition = mPlaybackPosition;
-        mPlaybackPosition = position;
-        FirePositionChanged(PR_TRUE);
-
         monitor.Exit();
         nsCOMPtr<nsIRunnable> startEvent =
           NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStarted);
@@ -733,14 +680,22 @@ nsWaveStateMachine::Run()
           break;
         }
 
+        // Calculate relative offset within PCM data.
+        PRInt64 position = RoundDownToSample(TimeToBytes(seekTime));
+        NS_ABORT_IF_FALSE(position >= 0 && position <= GetDataLength(),
+                          "Invalid seek position");
+        // Convert to absolute offset within stream.
+        position += mWavePCMOffset;
+
         monitor.Exit();
         nsresult rv;
         rv = mStream->Seek(nsISeekableStream::NS_SEEK_SET, position);
-        monitor.Enter();
         if (NS_FAILED(rv)) {
           NS_WARNING("Seek failed");
-          mPlaybackPosition = oldPosition;
-          FirePositionChanged(PR_TRUE);
+        }
+        monitor.Enter();
+        if (NS_SUCCEEDED(rv)) {
+          mPlaybackPosition = position;
         }
 
         if (mState == STATE_SHUTDOWN) {
@@ -771,6 +726,8 @@ nsWaveStateMachine::Run()
           ChangeState(nextState);
         }
 
+        FirePositionChanged(PR_TRUE);
+
         monitor.Exit();
         nsCOMPtr<nsIRunnable> stopEvent =
           NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStopped);
@@ -796,19 +753,14 @@ nsWaveStateMachine::Run()
         CloseAudioStream();
       }
 
-      mPlaybackEnded = PR_TRUE;
-
       if (mState == STATE_ENDED) {
         nsCOMPtr<nsIRunnable> event =
           NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::PlaybackEnded);
         NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 
-        // We've finished playback. Shutdown the state machine thread, 
-        // in order to save memory on thread stacks, particuarly on Linux.
-        event = new ShutdownThreadEvent(mDecoder->mPlaybackThread);
-        NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-        mDecoder->mPlaybackThread = nsnull;
-        return NS_OK;
+        do {
+          monitor.Wait();
+        } while (mState == STATE_ENDED);
       }
       break;
 
@@ -827,7 +779,6 @@ nsWaveStateMachine::Run()
       break;
 
     case STATE_SHUTDOWN:
-      mPlaybackEnded = PR_TRUE;
       CloseAudioStream();
       return NS_OK;
     }
@@ -906,7 +857,7 @@ nsWaveStateMachine::ChangeState(State aState)
 void
 nsWaveStateMachine::OpenAudioStream()
 {
-  mAudioStream = nsAudioStream::AllocateStream();
+  mAudioStream = new nsAudioStream();
   if (!mAudioStream) {
     LOG(PR_LOG_ERROR, ("Could not create audio stream"));
   } else {
@@ -1226,20 +1177,6 @@ nsWaveStateMachine::FirePositionChanged(PRBool aCoalesce)
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
-nsresult
-nsWaveStateMachine::GetBuffered(nsTimeRanges* aBuffered)
-{
-  PRInt64 startOffset = mStream->GetNextCachedData(mWavePCMOffset);
-  while (startOffset >= 0) {
-    PRInt64 endOffset = mStream->GetCachedDataEnd(startOffset);
-    // Bytes [startOffset..endOffset] are cached.
-    aBuffered->Add(BytesToTime(startOffset - mWavePCMOffset),
-                   BytesToTime(endOffset - mWavePCMOffset));
-    startOffset = mStream->GetNextCachedData(endOffset);
-  }
-  return NS_OK;
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsWaveDecoder, nsIObserver)
 
 nsWaveDecoder::nsWaveDecoder()
@@ -1264,7 +1201,6 @@ nsWaveDecoder::nsWaveDecoder()
 nsWaveDecoder::~nsWaveDecoder()
 {
   MOZ_COUNT_DTOR(nsWaveDecoder);
-  UnpinForSeek();
 }
 
 PRBool
@@ -1304,26 +1240,11 @@ nsWaveDecoder::GetCurrentTime()
 }
 
 nsresult
-nsWaveDecoder::StartStateMachineThread()
-{
-  NS_ASSERTION(mPlaybackStateMachine, "Must have state machine");
-  if (mPlaybackThread) {
-    return NS_OK;
-  }
-  nsresult rv = NS_NewThread(getter_AddRefs(mPlaybackThread));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return mPlaybackThread->Dispatch(mPlaybackStateMachine, NS_DISPATCH_NORMAL);
-}
-
-nsresult
 nsWaveDecoder::Seek(float aTime)
 {
   if (mPlaybackStateMachine) {
-    mEnded = PR_FALSE;
-    PinForSeek();
     mPlaybackStateMachine->Seek(aTime);
-    return StartStateMachineThread();
+    return NS_OK;
   }
 
   return NS_ERROR_FAILURE;
@@ -1365,9 +1286,8 @@ nsresult
 nsWaveDecoder::Play()
 {
   if (mPlaybackStateMachine) {
-    mEnded = PR_FALSE;
     mPlaybackStateMachine->Play();
-    return StartStateMachineThread();
+    return NS_OK;
   }
 
   return NS_ERROR_FAILURE;
@@ -1401,8 +1321,7 @@ nsWaveDecoder::Stop()
 }
 
 nsresult
-nsWaveDecoder::Load(nsMediaStream* aStream, nsIStreamListener** aStreamListener,
-                    nsMediaDecoder* aCloneDonor)
+nsWaveDecoder::Load(nsMediaStream* aStream, nsIStreamListener** aStreamListener)
 {
   NS_ASSERTION(aStream, "A stream should be provided");
 
@@ -1434,8 +1353,7 @@ nsWaveDecoder::MetadataLoaded()
   }
 
   if (mElement) {
-    mElement->MetadataLoaded(mPlaybackStateMachine->GetChannels(),
-                             mPlaybackStateMachine->GetSampleRate());
+    mElement->MetadataLoaded();
     mElement->FirstFrameLoaded(mResourceLoaded);
   }
 
@@ -1458,7 +1376,6 @@ nsWaveDecoder::PlaybackEnded()
   if (!mPlaybackStateMachine->IsEnded()) {
     return;
   }
-  mEnded = PR_TRUE;
 
   // Update ready state; now that we've finished playback, we should
   // switch to HAVE_CURRENT_DATA.
@@ -1484,6 +1401,7 @@ nsWaveDecoder::ResourceLoaded()
 
   if (mElement) {
     // Ensure the final progress event gets fired
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
     mElement->ResourceLoaded();
   }
 
@@ -1514,6 +1432,9 @@ nsWaveDecoder::IsSeeking() const
 PRBool
 nsWaveDecoder::IsEnded() const
 {
+  if (mPlaybackStateMachine) {
+    return mPlaybackStateMachine->IsEnded();
+  }
   return mEnded;
 }
 
@@ -1547,10 +1468,8 @@ nsWaveDecoder::NotifyDownloadEnded(nsresult aStatus)
 {
   if (NS_SUCCEEDED(aStatus)) {
     ResourceLoaded();
-  } else if (aStatus == NS_BINDING_ABORTED) {
-    // Download has been cancelled by user.
-    mElement->LoadAborted();
-  } else if (aStatus != NS_BASE_STREAM_CLOSED) {
+  } else if (aStatus != NS_BASE_STREAM_CLOSED &&
+             aStatus != NS_BINDING_ABORTED) {
     NetworkError();
   }
   UpdateReadyStateForData();
@@ -1651,7 +1570,6 @@ nsWaveDecoder::SeekingStarted()
 void
 nsWaveDecoder::SeekingStopped()
 {
-  UnpinForSeek();
   if (mShuttingDown) {
     return;
   }
@@ -1689,7 +1607,7 @@ nsWaveDecoder::PlaybackPositionChanged()
 
   if (mElement && lastTime != mCurrentTime) {
     UpdateReadyStateForData();
-    FireTimeUpdate();
+    mElement->DispatchSimpleEvent(NS_LITERAL_STRING("timeupdate"));
   }
 }
 
@@ -1734,11 +1652,4 @@ nsWaveDecoder::MoveLoadsToBackground()
   if (mStream) {
     mStream->MoveLoadsToBackground();
   }
-}
-
-nsresult
-nsWaveDecoder::GetBuffered(nsTimeRanges* aBuffered)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  return mPlaybackStateMachine->GetBuffered(aBuffered);
 }

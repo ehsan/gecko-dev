@@ -1,10 +1,10 @@
 ;
-;  Copyright (c) 2010 The WebM project authors. All Rights Reserved.
+;  Copyright (c) 2010 The VP8 project authors. All Rights Reserved.
 ;
-;  Use of this source code is governed by a BSD-style license
+;  Use of this source code is governed by a BSD-style license 
 ;  that can be found in the LICENSE file in the root of the source
 ;  tree. An additional intellectual property rights grant can be found
-;  in the file PATENTS.  All contributing project authors may
+;  in the file PATENTS.  All contributing project authors may 
 ;  be found in the AUTHORS file in the root of the source tree.
 ;
 
@@ -26,7 +26,6 @@ sym(vp8_post_proc_down_and_across_xmm):
     push        rbp
     mov         rbp, rsp
     SHADOW_ARGS_TO_STACK 7
-    SAVE_XMM
     GET_GOT     rbx
     push        rsi
     push        rdi
@@ -36,12 +35,12 @@ sym(vp8_post_proc_down_and_across_xmm):
     ALIGN_STACK 16, rax
     ; move the global rd onto the stack, since we don't have enough registers
     ; to do PIC addressing
-    movdqa      xmm0, [GLOBAL(rd42)]
+    movdqa      xmm0, [rd42 GLOBAL]
     sub         rsp, 16
     movdqa      [rsp], xmm0
 %define RD42 [rsp]
 %else
-%define RD42 [GLOBAL(rd42)]
+%define RD42 [rd42 GLOBAL]
 %endif
 
 
@@ -241,7 +240,6 @@ acrossnextcol:
     pop rdi
     pop rsi
     RESTORE_GOT
-    RESTORE_XMM
     UNSHADOW_ARGS
     pop         rbp
     ret
@@ -256,7 +254,6 @@ sym(vp8_mbpost_proc_down_xmm):
     push        rbp
     mov         rbp, rsp
     SHADOW_ARGS_TO_STACK 5
-    SAVE_XMM
     GET_GOT     rbx
     push        rsi
     push        rdi
@@ -275,7 +272,7 @@ sym(vp8_mbpost_proc_down_xmm):
 %define flimit4 [rsp+128]
 
 %if ABI_IS_32BIT=0
-    lea         r8,       [GLOBAL(sym(vp8_rv))]
+    lea         r8,       [sym(vp8_rv) GLOBAL]
 %endif
 
     ;rows +=8;
@@ -393,7 +390,7 @@ loop_row:
             and         rcx,        127
 %if ABI_IS_32BIT=1 && CONFIG_PIC=1
             push        rax
-            lea         rax,        [GLOBAL(sym(vp8_rv))]
+            lea         rax,        [sym(vp8_rv) GLOBAL]
             movdqu      xmm4,       [rax + rcx*2] ;vp8_rv[rcx*2]
             pop         rax
 %elif ABI_IS_32BIT=0
@@ -442,7 +439,6 @@ loop_row:
     pop rdi
     pop rsi
     RESTORE_GOT
-    RESTORE_XMM
     UNSHADOW_ARGS
     pop         rbp
     ret
@@ -456,7 +452,6 @@ sym(vp8_mbpost_proc_across_ip_xmm):
     push        rbp
     mov         rbp, rsp
     SHADOW_ARGS_TO_STACK 5
-    SAVE_XMM
     GET_GOT     rbx
     push        rsi
     push        rdi
@@ -579,7 +574,7 @@ nextcol4:
             punpcklwd   xmm1,   xmm0
 
             paddd       xmm1,   xmm6
-            paddd       xmm1,   [GLOBAL(four8s)]
+            paddd       xmm1,   [four8s GLOBAL]
 
             psrad       xmm1,   4
             packssdw    xmm1,   xmm0
@@ -617,7 +612,6 @@ nextcol4:
     pop rdi
     pop rsi
     RESTORE_GOT
-    RESTORE_XMM
     UNSHADOW_ARGS
     pop         rbp
     ret

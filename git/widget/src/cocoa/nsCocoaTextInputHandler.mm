@@ -682,17 +682,6 @@ nsCocoaIMEHandler::DebugPrintAllIMEModes(PRLogModuleInfo* aLogModuleInfo)
   ::CFRelease(list);
 }
 
-//static
-TSMDocumentID
-nsCocoaIMEHandler::GetCurrentTSMDocumentID()
-{
-  // On OS X 10.6.x at least, ::TSMGetActiveDocument() has a bug that prevents
-  // it from returning accurate results unless
-  // [NSInputManager currentInputManager] is called first.
-  // So, we need to call [NSInputManager currentInputManager] first here.
-  [NSInputManager currentInputManager];
-  return ::TSMGetActiveDocument();
-}
 
 #pragma mark -
 
@@ -717,8 +706,8 @@ nsCocoaIMEHandler::ResetIMEWindowLevel()
 #ifdef DEBUG_IME_HANDLER
   DebugPrintPointer(this);
   NSLog(@"nsCocoaIMEHandler::ResetIMEWindowLevel");
-  NSLog(@"  IsFocused:%s GetCurrentTSMDocumentID():%p",
-        TrueOrFalse(IsFocused()), GetCurrentTSMDocumentID());
+  NSLog(@"  IsFocused:%s ::TSMGetActiveDocument():%p",
+        TrueOrFalse(IsFocused()), ::TSMGetActiveDocument());
 #endif // DEBUG_IME_HANDLER
 
   if (!mView)
@@ -730,7 +719,7 @@ nsCocoaIMEHandler::ResetIMEWindowLevel()
     return;
   }
 
-  TSMDocumentID doc = GetCurrentTSMDocumentID();
+  TSMDocumentID doc = ::TSMGetActiveDocument();
   if (!doc) {
     // retry
     mPendingMethods |= kResetIMEWindowLevel;
@@ -763,7 +752,7 @@ nsCocoaIMEHandler::ResetIMEWindowLevel()
   if (windowLevel == NSNormalWindowLevel)
     windowLevel++;
 
-  ::TSMSetDocumentProperty(GetCurrentTSMDocumentID(),
+  ::TSMSetDocumentProperty(::TSMGetActiveDocument(),
                            kTSMDocumentWindowLevelPropertyTag,
                            sizeof(windowLevel), &windowLevel);
 
@@ -814,8 +803,8 @@ nsCocoaIMEHandler::SyncASCIICapableOnly()
 #ifdef DEBUG_IME_HANDLER
   DebugPrintPointer(this);
   NSLog(@"nsCocoaIMEHandler::SyncASCIICapableOnly");
-  NSLog(@"  IsFocused:%s GetCurrentTSMDocumentID():%p",
-        TrueOrFalse(IsFocused()), GetCurrentTSMDocumentID());
+  NSLog(@"  IsFocused:%s ::TSMGetActiveDocument():%p",
+        TrueOrFalse(IsFocused()), ::TSMGetActiveDocument());
 #endif
 
   if (!mView)
@@ -827,7 +816,7 @@ nsCocoaIMEHandler::SyncASCIICapableOnly()
     return;
   }
 
-  TSMDocumentID doc = GetCurrentTSMDocumentID();
+  TSMDocumentID doc = ::TSMGetActiveDocument();
   if (!doc) {
     // retry
     mPendingMethods |= kSyncASCIICapableOnly;
@@ -858,9 +847,12 @@ nsCocoaIMEHandler::ResetTimer()
                "There are not pending methods, why this is called?");
   if (mTimer) {
     mTimer->Cancel();
-  } else {
-    mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
-    NS_ENSURE_TRUE(mTimer, );
+    return;
+  }
+  mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
+  if (!mTimer) {
+    NS_ERROR("mTimer is null");
+    return;
   }
   mTimer->InitWithFuncCallback(FlushPendingMethods, this, 0,
                                nsITimer::TYPE_ONE_SHOT);
@@ -870,11 +862,6 @@ void
 nsCocoaIMEHandler::ExecutePendingMethods()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (mTimer) {
-    mTimer->Cancel();
-    mTimer = nsnull;
-  }
 
   if (![[NSApplication sharedApplication] isActive]) {
     mIsInFocusProcessing = PR_FALSE;
@@ -886,6 +873,10 @@ nsCocoaIMEHandler::ExecutePendingMethods()
   // First, reset the pending method flags because if each methods cannot
   // run now, they can reentry to the pending flags by theirselves.
   mPendingMethods = 0;
+  if (mTimer) {
+    mTimer->Cancel();
+    mTimer = nsnull;
+  }
 
   if (pendingMethods & kDiscardIMEComposition)
     DiscardIMEComposition();
@@ -1173,8 +1164,7 @@ nsCocoaIMEHandler::IsFocused()
   NS_ENSURE_TRUE(mView, PR_FALSE);
   NSWindow* window = [mView window];
   NS_ENSURE_TRUE(window, PR_FALSE);
-  return [window firstResponder] == mView &&
-         ([window isMainWindow] || [window isSheet]) &&
+  return [window firstResponder] == mView && [window isMainWindow] &&
          [[NSApplication sharedApplication] isActive];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(PR_FALSE);

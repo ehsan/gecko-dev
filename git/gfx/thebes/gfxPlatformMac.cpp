@@ -71,21 +71,16 @@ gfxPlatformMac::~gfxPlatformMac()
 gfxPlatformFontList*
 gfxPlatformMac::CreatePlatformFontList()
 {
-    gfxPlatformFontList* list = new gfxMacPlatformFontList();
-    if (NS_SUCCEEDED(list->InitFontList())) {
-        return list;
-    }
-    gfxPlatformFontList::Shutdown();
-    return nsnull;
+    return new gfxMacPlatformFontList();
 }
 
 already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
-                                       gfxASurface::gfxContentType contentType)
+                                       gfxASurface::gfxImageFormat imageFormat)
 {
     gfxASurface *newSurface = nsnull;
 
-    newSurface = new gfxQuartzSurface(size, gfxASurface::FormatFromContent(contentType));
+    newSurface = new gfxQuartzSurface(size, imageFormat);
 
     NS_IF_ADDREF(newSurface);
     return newSurface;

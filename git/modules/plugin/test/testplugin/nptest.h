@@ -99,7 +99,6 @@ typedef struct InstanceData {
   bool hasWidget;
   bool npnNewStream;
   bool throwOnNextInvoke;
-  bool runScriptOnPaint;
   uint32_t timerID[2];
   bool timerTestResult;
   bool asyncCallbackResult;
@@ -140,5 +139,7 @@ typedef struct InstanceData {
 } InstanceData;
 
 void notifyDidPaint(InstanceData* instanceData);
+
+void NoteIntentionalCrash();
 
 #endif // nptest_h_

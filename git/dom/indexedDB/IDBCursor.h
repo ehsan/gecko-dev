@@ -40,21 +40,16 @@
 #ifndef mozilla_dom_indexeddb_idbcursor_h__
 #define mozilla_dom_indexeddb_idbcursor_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
-
 #include "nsIIDBCursor.h"
 
-#include "nsCycleCollectionParticipant.h"
-
 class nsIRunnable;
-class nsIScriptContext;
-class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class IDBIndex;
 class IDBRequest;
+class IDBObjectStore;
 class IDBTransaction;
 
 struct KeyValuePair
@@ -71,15 +66,14 @@ struct KeyKeyPair
 
 class ContinueRunnable;
 
-class IDBCursor : public nsIIDBCursor
+class IDBCursor : public IDBRequest::Generator,
+                  public nsIIDBCursor
 {
   friend class ContinueRunnable;
 
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIIDBCURSOR
-
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
 
   static
   already_AddRefed<IDBCursor>
@@ -112,11 +106,6 @@ public:
     INDEXOBJECT
   };
 
-  IDBTransaction* Transaction()
-  {
-    return mTransaction;
-  }
-
 protected:
   IDBCursor();
   ~IDBCursor();
@@ -132,15 +121,12 @@ protected:
   nsRefPtr<IDBObjectStore> mObjectStore;
   nsRefPtr<IDBIndex> mIndex;
 
-  nsCOMPtr<nsIScriptContext> mScriptContext;
-  nsCOMPtr<nsPIDOMWindow> mOwner;
-
   PRUint16 mDirection;
 
   nsCOMPtr<nsIVariant> mCachedKey;
   jsval mCachedValue;
   bool mHaveCachedValue;
-  bool mValueRooted;
+  JSRuntime* mJSRuntime;
 
   bool mContinueCalled;
   PRUint32 mDataIndex;

@@ -15,22 +15,19 @@
 #include <d3d9.h>
 
 #include "common/angleutils.h"
-#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {
-class Renderbuffer;
 class Colorbuffer;
 class Depthbuffer;
 class Stencilbuffer;
-class DepthStencilbuffer;
 
 class Framebuffer
 {
   public:
     Framebuffer();
 
-    virtual ~Framebuffer();
+    ~Framebuffer();
 
     void setColorbuffer(GLenum type, GLuint colorbuffer);
     void setDepthbuffer(GLenum type, GLuint depthbuffer);
@@ -44,11 +41,10 @@ class Framebuffer
 
     unsigned int getRenderTargetSerial();
     unsigned int getDepthbufferSerial();
-    unsigned int getStencilbufferSerial();
 
     Colorbuffer *getColorbuffer();
-    DepthStencilbuffer *getDepthbuffer();
-    DepthStencilbuffer *getStencilbuffer();
+    Depthbuffer *getDepthbuffer();
+    Stencilbuffer *getStencilbuffer();
 
     GLenum getColorbufferType();
     GLenum getDepthbufferType();
@@ -58,39 +54,20 @@ class Framebuffer
     GLuint getDepthbufferHandle();
     GLuint getStencilbufferHandle();
 
-    bool hasStencil();
-    bool isMultisample();
-    int getSamples();
-
-    virtual GLenum completeness();
-
-  protected:
-    GLenum mColorbufferType;
-    BindingPointer<Renderbuffer> mColorbufferPointer;
-
-    GLenum mDepthbufferType;
-    BindingPointer<Renderbuffer> mDepthbufferPointer;
-
-    GLenum mStencilbufferType;
-    BindingPointer<Renderbuffer> mStencilbufferPointer;
+    GLenum completeness();
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Framebuffer);
 
-    Renderbuffer *lookupRenderbuffer(GLenum type, GLuint handle) const;
+    GLuint mColorbufferHandle;
+    GLenum mColorbufferType;
+
+    GLuint mDepthbufferHandle;
+    GLenum mDepthbufferType;
+
+    GLuint mStencilbufferHandle;
+    GLenum mStencilbufferType;
 };
-
-class DefaultFramebuffer : public Framebuffer
-{
-  public:
-    DefaultFramebuffer(Colorbuffer *color, DepthStencilbuffer *depthStencil);
-
-    virtual GLenum completeness();
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(DefaultFramebuffer);
-};
-
 }
 
 #endif   // LIBGLESV2_FRAMEBUFFER_H_

@@ -48,7 +48,7 @@ public:
 
     virtual ~gfxQuartzImageSurface();
 
-    already_AddRefed<gfxImageSurface> GetAsImageSurface();
+    already_AddRefed<gfxImageSurface> GetImageSurface();
 };
 
 #endif /* GFX_QUARTZIMAGESURFACE_H */

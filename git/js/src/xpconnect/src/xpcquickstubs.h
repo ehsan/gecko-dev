@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -56,7 +56,7 @@ struct xpc_qsPropertySpec {
 
 struct xpc_qsFunctionSpec {
     const char *name;
-    JSNative native;
+    JSFastNative native;
     uintN arity;
 };
 
@@ -78,87 +78,78 @@ struct xpc_qsHashEntry {
     size_t chain;
 };
 
-inline nsISupports*
-ToSupports(nsISupports *p)
-{
-    return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsISupports* p)
-{
-  return nsnull;
-}
-
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 2) || \
-    _MSC_FULL_VER >= 140050215
-
-/* Use a compiler intrinsic if one is available. */
-
-#define QS_CASTABLE_TO(_interface, _class) __is_base_of(_interface, _class)
-
-#else
-
-/* The generic version of this predicate relies on the overload resolution
- * rules.  If |_class| inherits from |_interface|, the |_interface*|
- * overload of DOMCI_CastableTo<_interface>::p() will be chosen, otherwise
- * the |void*| overload will be chosen.  There is no definition of these
- * functions; we determine which overload was selected by inspecting the
- * size of the return type.
- */
-
-template <typename Interface> struct QS_CastableTo {
-  struct false_type { int x[1]; };
-  struct true_type { int x[2]; };
-  static false_type p(void*);
-  static true_type p(Interface*);
-};
-
-#define QS_CASTABLE_TO(_interface, _class)                                 \
-  (sizeof(QS_CastableTo<_interface>::p(static_cast<_class*>(0))) ==        \
-   sizeof(QS_CastableTo<_interface>::true_type))
-
-#endif
-
-#define QS_IS_NODE(_class)                                                 \
-  QS_CASTABLE_TO(nsINode, _class) ||                                       \
-  QS_CASTABLE_TO(nsIDOMNode, _class)
-
-class qsObjectHelper : public xpcObjectHelper
+class qsObjectHelper
 {
 public:
-  template <class T>
-  inline
-  qsObjectHelper(T *aObject, nsWrapperCache *aCache)
-  : xpcObjectHelper(ToSupports(aObject), ToCanonicalSupports(aObject),
-                    aCache, QS_IS_NODE(T))
-  {}
-  template <class T>
-  inline
-  qsObjectHelper(nsCOMPtr<T>& aObject, nsWrapperCache *aCache)
-  : xpcObjectHelper(ToSupports(aObject.get()),
-                    ToCanonicalSupports(aObject.get()), aCache, QS_IS_NODE(T))
+  qsObjectHelper(nsISupports* aObject)
+  : mObject(aObject),
+    mCanonical(nsnull),
+    mCanonicalIsStrong(PR_FALSE),
+    mNode(nsnull)  {}
+
+  ~qsObjectHelper()
   {
-    if (mCanonical)
-    {
-        // Transfer the strong reference.
-        mCanonicalStrong = dont_AddRef(mCanonical);
-        aObject.forget();
+    if (mCanonicalIsStrong) {
+      NS_RELEASE(mCanonical);
     }
   }
-  template <class T>
-  inline
-  qsObjectHelper(nsRefPtr<T>& aObject, nsWrapperCache *aCache)
-  : xpcObjectHelper(ToSupports(aObject.get()),
-                    ToCanonicalSupports(aObject.get()), aCache, QS_IS_NODE(T))
+
+  void SetCanonical(already_AddRefed<nsISupports> aCanonical)
   {
-    if (mCanonical)
-    {
-        // Transfer the strong reference.
-        mCanonicalStrong = dont_AddRef(mCanonical);
-        aObject.forget();
+    mCanonical = aCanonical.get();
+    if (mCanonical) {
+      mCanonicalIsStrong = PR_TRUE;
     }
   }
+
+  void SetCanonical(nsISupports* aCanonical) { mCanonical = aCanonical; }
+
+  void SetNode(nsINode* aNode) { mNode = aNode; }
+
+  void SetNode(void* /*aDummy*/) { }
+  
+  nsISupports* Object() { return mObject; }
+
+  nsISupports* GetCanonical()
+  {
+    if (!mCanonical) {
+      CallQueryInterface(mObject, &mCanonical);
+      mCanonicalIsStrong = PR_TRUE;
+    }
+    return mCanonical;
+  }
+
+  already_AddRefed<nsISupports> TakeCanonical()
+  {
+    nsISupports* retval = mCanonical;
+    if (mCanonicalIsStrong) {
+      mCanonicalIsStrong = PR_FALSE;
+    } else {
+      NS_IF_ADDREF(mCanonical);
+    }
+    mCanonical = nsnull;
+    return retval;
+  }
+
+  already_AddRefed<nsXPCClassInfo> GetXPCClassInfo()
+  {
+    nsRefPtr<nsXPCClassInfo> ci;
+    if (mNode) {
+      ci = mNode->GetClassInfo();
+    } else {
+      CallQueryInterface(mObject, getter_AddRefs(ci));
+    }
+    return ci.forget();
+  }
+
+private:
+  qsObjectHelper(qsObjectHelper& aOther) {}
+  qsObjectHelper() {}
+
+  nsISupports*           mObject;
+  nsISupports*           mCanonical;
+  PRBool                 mCanonicalIsStrong;
+  nsINode*               mNode;
 };
 
 JSBool
@@ -185,7 +176,7 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
  */
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, jsid memberId);
+                              JSObject *obj, jsval memberId);
 
 /**
  * Fail after an XPCOM method returned rv.
@@ -225,29 +216,34 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
  */
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          jsid propId);
+                          jsval propId);
 
 
 JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
 inline JSBool
 xpc_qsInt32ToJsval(JSContext *cx, PRInt32 i, jsval *rv)
 {
-    *rv = INT_TO_JSVAL(i);
-    return JS_TRUE;
+    if(INT_FITS_IN_JSVAL(i))
+    {
+        *rv = INT_TO_JSVAL(i);
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, i, rv);
 }
 
 inline JSBool
 xpc_qsUint32ToJsval(JSContext *cx, PRUint32 u, jsval *rv)
 {
     if(u <= JSVAL_INT_MAX)
+    {
         *rv = INT_TO_JSVAL(u);
-    else
-        *rv = DOUBLE_TO_JSVAL(u);
-    return JS_TRUE;
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, u, rv);
 }
 
 #ifdef HAVE_LONG_LONG
@@ -313,6 +309,33 @@ public:
         return *Ptr();
     }
 
+protected:
+    /*
+     * Neither field is initialized; that is left to the derived class
+     * constructor. However, the destructor destroys the string object
+     * stored in mBuf, if mValid is true.
+     */
+    void *mBuf[JS_HOWMANY(sizeof(implementation_type), sizeof(void *))];
+    JSBool mValid;
+};
+
+/**
+ * Class for converting a jsval to DOMString.
+ *
+ *     xpc_qsDOMString arg0(cx, &argv[0]);
+ *     if (!arg0.IsValid())
+ *         return JS_FALSE;
+ *
+ * The second argument to the constructor is an in-out parameter. It must
+ * point to a rooted jsval, such as a JSNative argument or return value slot.
+ * The value in the jsval on entry is converted to a string. The constructor
+ * may overwrite that jsval with a string value, to protect the characters of
+ * the string from garbage collection. The caller must leave the jsval alone
+ * for the lifetime of the xpc_qsDOMString.
+ */
+class xpc_qsDOMString : public xpc_qsBasicString<nsAString, nsDependentString>
+{
+public:
     /* Enum that defines how JS |null| and |undefined| should be treated.  See
      * the WebIDL specification.  eStringify means convert to the string "null"
      * or "undefined" respectively, via the standard JS ToString() operation;
@@ -333,88 +356,6 @@ public:
         eDefaultUndefinedBehavior = eStringify
     };
 
-protected:
-    /*
-     * Neither field is initialized; that is left to the derived class
-     * constructor. However, the destructor destroys the string object
-     * stored in mBuf, if mValid is true.
-     */
-    void *mBuf[JS_HOWMANY(sizeof(implementation_type), sizeof(void *))];
-    JSBool mValid;
-
-    /*
-     * If null is returned, then we either failed or fully initialized
-     * |this|; in either case the caller should return immediately
-     * without doing anything else. Otherwise, the JSString* created
-     * from |v| will be returned.  It'll be rooted, as needed, in
-     * *pval.  nullBehavior and undefinedBehavior control what happens
-     * when |v| is JSVAL_IS_NULL and JSVAL_IS_VOID respectively.
-     */
-    template<class traits>
-    JSString* InitOrStringify(JSContext* cx, jsval v, jsval* pval,
-                              StringificationBehavior nullBehavior,
-                              StringificationBehavior undefinedBehavior) {
-        JSString *s;
-        if(JSVAL_IS_STRING(v))
-        {
-            s = JSVAL_TO_STRING(v);
-        }
-        else
-        {
-            StringificationBehavior behavior = eStringify;
-            if(JSVAL_IS_NULL(v))
-            {
-                behavior = nullBehavior;
-            }
-            else if(JSVAL_IS_VOID(v))
-            {
-                behavior = undefinedBehavior;
-            }
-
-            // If pval is null, that means the argument was optional and
-            // not passed; turn those into void strings if they're
-            // supposed to be stringified.
-            if (behavior != eStringify || !pval)
-            {
-                // Here behavior == eStringify implies !pval, so both eNull and
-                // eStringify should end up with void strings.
-                (new(mBuf) implementation_type(
-                    traits::sEmptyBuffer, PRUint32(0)))->
-                    SetIsVoid(behavior != eEmpty);
-                mValid = JS_TRUE;
-                return nsnull;
-            }
-
-            s = JS_ValueToString(cx, v);
-            if(!s)
-            {
-                mValid = JS_FALSE;
-                return nsnull;
-            }
-            *pval = STRING_TO_JSVAL(s);  // Root the new string.
-        }
-
-        return s;
-    }
-};
-
-/**
- * Class for converting a jsval to DOMString.
- *
- *     xpc_qsDOMString arg0(cx, &argv[0]);
- *     if (!arg0.IsValid())
- *         return JS_FALSE;
- *
- * The second argument to the constructor is an in-out parameter. It must
- * point to a rooted jsval, such as a JSNative argument or return value slot.
- * The value in the jsval on entry is converted to a string. The constructor
- * may overwrite that jsval with a string value, to protect the characters of
- * the string from garbage collection. The caller must leave the jsval alone
- * for the lifetime of the xpc_qsDOMString.
- */
-class xpc_qsDOMString : public xpc_qsBasicString<nsAString, nsDependentString>
-{
-public:
     xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
                     StringificationBehavior nullBehavior,
                     StringificationBehavior undefinedBehavior);
@@ -442,16 +383,6 @@ public:
     xpc_qsACString(JSContext *cx, jsval v, jsval *pval);
 };
 
-/**
- * And similar for AUTF8String.
- */
-class xpc_qsAUTF8String :
-  public xpc_qsBasicString<nsACString, NS_ConvertUTF16toUTF8>
-{
-public:
-  xpc_qsAUTF8String(JSContext* cx, jsval v, jsval *pval);
-};
-
 struct xpc_qsSelfRef
 {
     xpc_qsSelfRef() : ptr(nsnull) {}
@@ -477,15 +408,16 @@ struct xpc_qsArgValArray
  * Convert a jsval to char*, returning JS_TRUE on success.
  *
  * @param cx
- *     A context.
- * @param v
- *     A value to convert.
- * @param bytes
- *     Out. On success it receives the converted string unless v is null or
- *     undefinedin which case bytes->ptr() remains null.
+ *      A context.
+ * @param pval
+ *     In/out. *pval is the jsval to convert; the function may write to *pval,
+ *     using it as a GC root (like xpc_qsDOMString's constructor).
+ * @param pstr
+ *     Out. On success *pstr receives the converted string or NULL if *pval is
+ *     null or undefined. Unicode data is garbled as with JS_GetStringBytes.
  */
 JSBool
-xpc_qsJsvalToCharStr(JSContext *cx, jsval v, JSAutoByteString *bytes);
+xpc_qsJsvalToCharStr(JSContext *cx, jsval v, jsval *pval, char **pstr);
 
 JSBool
 xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
@@ -497,10 +429,6 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
  */
 JSBool
 xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval);
-
-/** Convert an nsString to JSString, returning JS_TRUE on success. This will sometimes modify |str| to be empty. */
-JSBool
-xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
 
 nsresult
 getWrapper(JSContext *cx,
@@ -591,7 +519,7 @@ castNativeFromWrapper(JSContext *cx,
     if(wrapper)
     {
         native = wrapper->GetIdentityObject();
-        cur = wrapper->GetFlatJSObjectAndMark();
+        cur = wrapper->GetFlatJSObject();
     }
     else
     {
@@ -691,12 +619,6 @@ xpc_qsGetWrapperCache(nsWrapperCache *cache)
     return cache;
 }
 
-// nsGlobalWindow implements nsWrapperCache, but doesn't always use it. Don't
-// try to use it without fixing that first.
-class nsGlobalWindow;
-inline nsWrapperCache*
-xpc_qsGetWrapperCache(nsGlobalWindow *not_allowed);
-
 inline nsWrapperCache*
 xpc_qsGetWrapperCache(void *p)
 {
@@ -709,7 +631,8 @@ xpc_qsGetWrapperCache(void *p)
  */
 JSBool
 xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
-                         qsObjectHelper &aHelper,
+                         qsObjectHelper* aHelper,
+                         nsWrapperCache *cache,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
                          jsval *rval);
@@ -722,64 +645,16 @@ xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
                      nsIVariant *p,
                      jsval *rval);
 
-/**
- * Convert a jsval to PRInt64. Return JS_TRUE on success.
- */
-inline JSBool
-xpc_qsValueToInt64(JSContext *cx,
-                   jsval v,
-                   PRInt64 *result)
+inline nsISupports*
+ToSupports(nsISupports *p)
 {
-    if (JSVAL_IS_INT(v)) {
-        int32 intval;
-        if (!JS_ValueToECMAInt32(cx, v, &intval))
-            return JS_FALSE;
-        *result = static_cast<PRInt64>(intval);
-    }
-    else {
-        jsdouble doubleval;
-        if (!JS_ValueToNumber(cx, v, &doubleval))
-            return JS_FALSE;
-        *result = static_cast<PRInt64>(doubleval);
-    }
-    return JS_TRUE;
+    return p;
 }
 
-/**
- * Convert a jsdouble to PRUint64. Needed for traceable quickstubs too.
- */
-inline PRUint64
-xpc_qsDoubleToUint64(jsdouble doubleval)
+inline nsISupports*
+ToCanonicalSupports(nsISupports* p)
 {
-#ifdef XP_WIN
-    // Note: Win32 can't handle double to uint64 directly
-    return static_cast<PRUint64>(static_cast<PRInt64>(doubleval));
-#else
-    return static_cast<PRUint64>(doubleval);
-#endif
-}
-
-/**
- * Convert a jsval to PRUint64. Return JS_TRUE on success.
- */
-inline JSBool
-xpc_qsValueToUint64(JSContext *cx,
-                    jsval v,
-                    PRUint64 *result)
-{
-    if (JSVAL_IS_INT(v)) {
-        uint32 intval;
-        if (!JS_ValueToECMAUint32(cx, v, &intval))
-            return JS_FALSE;
-        *result = static_cast<PRUint64>(intval);
-    }
-    else {
-        jsdouble doubleval;
-        if (!JS_ValueToNumber(cx, v, &doubleval))
-            return JS_FALSE;
-        *result = xpc_qsDoubleToUint64(doubleval);
-    }
-    return JS_TRUE;
+  return nsnull;
 }
 
 #ifdef DEBUG

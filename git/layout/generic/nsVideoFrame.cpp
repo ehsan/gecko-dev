@@ -58,14 +58,12 @@
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsDisplayList.h"
-#include "nsCSSRendering.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
 #include "nsIAccessibilityService.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 nsIFrame*
@@ -128,7 +126,11 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                           kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  NS_TrustedNewXULElement(getter_AddRefs(mVideoControls), nodeInfo.forget());
+  nsresult rv = NS_NewElement(getter_AddRefs(mVideoControls),
+                              kNameSpaceID_XUL,
+                              nodeInfo.forget(),
+                              PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
   if (!aElements.AppendElement(mVideoControls))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -136,8 +138,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                       PRUint32 aFliter)
+nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mPosterImage);
   aElements.MaybeAppendElement(mVideoControls);
@@ -178,21 +179,13 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                          LayerManager* aManager,
                          nsDisplayItem* aItem)
 {
-  nsRect area = GetContentRect() - GetPosition() + aItem->ToReferenceFrame();
+  nsRect area = GetContentRect() + aBuilder->ToReferenceFrame(GetParent());
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   nsIntSize videoSize = element->GetVideoSize(nsIntSize(0, 0));
   if (videoSize.width <= 0 || videoSize.height <= 0 || area.IsEmpty())
     return nsnull;
 
   nsRefPtr<ImageContainer> container = element->GetImageContainer();
-  // If we have a container with a different layer manager, try to hand
-  // off the container to the new one.
-  if (container && container->Manager() != aManager) {
-    // we don't care about the return type here -- if the set didn't take, it'll
-    // be handled when we next check the manager
-    container->SetLayerManager(aManager);
-  }
-
   // If we have a container with the right layer manager already, we don't
   // need to do anything here. Otherwise we need to set up a temporary
   // ImageContainer, capture the video data and store it in the temp
@@ -209,10 +202,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
       // Get video from the existing container. It was created for a
       // different layer manager, so we do fallback through cairo.
       imageSurface = container->GetCurrentAsSurface(&cairoData.mSize);
-      if (!imageSurface) {
-        // we couldn't do fallback, so we've got nothing to do here
-        return nsnull;
-      }
       cairoData.mSurface = imageSurface;
     } else {
       // We're probably printing.
@@ -251,10 +240,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.width),
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
-  r.Round();
-  gfxIntSize scaleHint(static_cast<PRInt32>(r.Width()),
-                       static_cast<PRInt32>(r.Height()));
-  container->SetScaleHint(scaleHint);
 
   nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
     (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
@@ -340,7 +325,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
                                        aReflowState.ComputedHeight()));
     }
   }
-  aMetrics.SetOverflowAreasToDesiredBounds();
+  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
 
   FinishAndStoreOverflow(&aMetrics);
 
@@ -358,8 +343,8 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
 
 class nsDisplayVideo : public nsDisplayItem {
 public:
-  nsDisplayVideo(nsDisplayListBuilder* aBuilder, nsVideoFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
+  nsDisplayVideo(nsVideoFrame* aFrame)
+    : nsDisplayItem(aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplayVideo);
   }
@@ -382,7 +367,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
     nsIFrame* f = GetUnderlyingFrame();
-    return f->GetContentRect() - f->GetPosition() + ToReferenceFrame();
+    return f->GetContentRect() + aBuilder->ToReferenceFrame(f->GetParent());
   }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
@@ -394,19 +379,10 @@ public:
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager)
   {
-    if (aManager->GetBackendType() != LayerManager::LAYERS_BASIC) {
-      // For non-basic layer managers we can assume that compositing
-      // layers is very cheap, and since ImageLayers don't require
-      // additional memory of the video frames we have to have anyway,
-      // we can't save much by making layers inactive. Also, for many
-      // accelerated layer managers calling
-      // imageContainer->GetCurrentAsSurface can be very expensive. So
-      // just always be active for these managers.
-      return LAYER_ACTIVE;
-    }
     nsHTMLMediaElement* elem =
       static_cast<nsHTMLMediaElement*>(mFrame->GetContent());
-    return elem->IsPotentiallyPlaying() ? LAYER_ACTIVE : LAYER_INACTIVE;
+    return elem->IsPotentiallyPlaying() ? mozilla::LAYER_ACTIVE :
+      mozilla::LAYER_INACTIVE;
   }
 };
 
@@ -423,11 +399,9 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDisplayList replacedContent;
-
   if (HasVideoElement() && !ShouldDisplayPoster()) {
-    rv = replacedContent.AppendNewToTop(
-      new (aBuilder) nsDisplayVideo(aBuilder, this));
+    rv = aLists.Content()->AppendNewToTop(
+      new (aBuilder) nsDisplayVideo(this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -439,17 +413,15 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (child->GetType() == nsGkAtoms::imageFrame && ShouldDisplayPoster()) {
       rv = child->BuildDisplayListForStackingContext(aBuilder,
                                                      aDirtyRect - child->GetOffsetTo(this),
-                                                     &replacedContent);
+                                                     aLists.Content());
       NS_ENSURE_SUCCESS(rv,rv);
     } else if (child->GetType() == nsGkAtoms::boxFrame) {
       rv = child->BuildDisplayListForStackingContext(aBuilder,
                                                      aDirtyRect - child->GetOffsetTo(this),
-                                                     &replacedContent);
+                                                     aLists.Content());
       NS_ENSURE_SUCCESS(rv,rv);
     }
   }
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 
   return NS_OK;
 }
@@ -564,9 +536,8 @@ nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
     if (child && child->GetType() == nsGkAtoms::imageFrame) {
       nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
       nsSize imgsize;
-      if (NS_SUCCEEDED(imageFrame->GetIntrinsicImageSize(imgsize))) {
-        return imgsize;
-      }
+      imageFrame->GetIntrinsicImageSize(imgsize);
+      return imgsize;
     }
   }
 

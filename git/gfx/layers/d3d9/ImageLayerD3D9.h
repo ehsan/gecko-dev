@@ -40,7 +40,6 @@
 
 #include "LayerManagerD3D9.h"
 #include "ImageLayers.h"
-#include "yuv_convert.h"
 #include "mozilla/Mutex.h"
 
 namespace mozilla {
@@ -62,8 +61,6 @@ public:
   virtual already_AddRefed<gfxASurface> GetCurrentAsSurface(gfxIntSize* aSize);
 
   virtual gfxIntSize GetCurrentSize();
-
-  virtual PRBool SetLayerManager(LayerManager *aManager);
 
 private:
   typedef mozilla::Mutex Mutex;
@@ -130,7 +127,6 @@ public:
   nsRefPtr<IDirect3DTexture9> mCrTexture;
   nsRefPtr<IDirect3DTexture9> mCbTexture;
   PRPackedBool mHasData;
-  gfx::YUVType mType; 
 };
 
 
@@ -148,17 +144,8 @@ public:
 
   virtual already_AddRefed<gfxASurface> GetAsSurface();
 
-  /**
-   * Uploading a texture may fail if the screen is locked. If this happens,
-   * we need to save the backing surface and retry when we are asked to paint.
-   */
-  virtual IDirect3DTexture9* GetOrCreateTexture();
-  const gfxIntSize& GetSize() { return mSize; }
-
-private:
-  gfxIntSize mSize;
-  nsRefPtr<gfxASurface> mCachedSurface;
   nsRefPtr<IDirect3DTexture9> mTexture;
+  gfxIntSize mSize;
   LayerManagerD3D9 *mManager;
 };
 

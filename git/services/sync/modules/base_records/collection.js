@@ -151,6 +151,7 @@ Collection.prototype = {
         // Deserialize a record from json and give it to the callback
         let record = new coll._recordObj();
         record.deserialize(json);
+        record.baseUri = coll.uri;
         onRecord(record);
       }
     };

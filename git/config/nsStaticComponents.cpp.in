@@ -59,13 +59,15 @@
 
 
 #define MODULE(_name) \
-    &NSMODULE_NAME(_name),
+    NSMODULE_NAME(_name),
 
 /**
  * The nsStaticModuleInfo
  */
-const mozilla::Module *const *const kPStaticModules[] = {
+static const mozilla::Module *const kStaticModules[] = {
 	%MODULE_LIST%
 #line 70 "nsStaticComponents.cpp.in"
         NULL
 };
+
+mozilla::Module const *const *const kPStaticModules = kStaticModules;

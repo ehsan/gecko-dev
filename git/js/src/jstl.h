@@ -40,18 +40,17 @@
 #ifndef jstl_h_
 #define jstl_h_
 
-#include "jsbit.h"
-#include "jsstaticcheck.h"
-
-#include <new>
-#include <string.h>
-
 /* Gross special case for Gecko, which defines malloc/calloc/free. */
 #ifdef mozilla_mozalloc_macro_wrappers_h
-#  define JSSTL_UNDEFD_MOZALLOC_WRAPPERS
+#  define JS_UNDEFD_MOZALLOC_WRAPPERS
 /* The "anti-header" */
 #  include "mozilla/mozalloc_undef_macro_wrappers.h"
 #endif
+
+#include "jsbit.h"
+
+#include <new>
+#include <string.h>
 
 namespace js {
 
@@ -213,7 +212,6 @@ class ReentrancyGuard
  * Round x up to the nearest power of 2.  This function assumes that the most
  * significant bit of x is not set, which would lead to overflow.
  */
-STATIC_POSTCONDITION_ASSUME(return >= x)
 JS_ALWAYS_INLINE size_t
 RoundUpPow2(size_t x)
 {
@@ -344,13 +342,6 @@ class LazilyConstructed
         constructed = true;
     }
 
-    template <class T1, class T2, class T3, class T4>
-    void construct(const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4) {
-        JS_ASSERT(!constructed);
-        new(storage.addr()) T(t1, t2, t3, t4);
-        constructed = true;
-    }
-
     T *addr() {
         JS_ASSERT(constructed);
         return &asT();
@@ -384,91 +375,36 @@ class Conditionally {
 };
 
 template <class T>
-class AlignedPtrAndFlag
+JS_ALWAYS_INLINE static void
+PodZero(T *t)
 {
-    uintptr_t bits;
-
-  public:
-    AlignedPtrAndFlag(T *t, bool flag) {
-        JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | uintptr_t(flag);
-    }
-
-    T *ptr() const {
-        return (T *)(bits & ~uintptr_t(1));
-    }
-
-    bool flag() const {
-        return (bits & 1) != 0;
-    }
-
-    void setPtr(T *t) {
-        JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | uintptr_t(flag());
-    }
-
-    void setFlag() {
-        bits |= 1;
-    }
-
-    void unsetFlag() {
-        bits &= ~uintptr_t(1);
-    }
-
-    void set(T *t, bool flag) {
-        JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | flag;
-    }
-};
-
-template <class T>
-static inline void
-Reverse(T *beg, T *end)
-{
-    while (beg != end) {
-        if (--end == beg)
-            return;
-        T tmp = *beg;
-        *beg = *end;
-        *end = tmp;
-        ++beg;
-    }
-}
-
-template <typename InputIterT, typename CallableT>
-void
-ForEach(InputIterT begin, InputIterT end, CallableT f)
-{
-    for (; begin != end; ++begin)
-        f(*begin);
+    memset(t, 0, sizeof(T));
 }
 
 template <class T>
-static inline T
-Min(T t1, T t2)
+JS_ALWAYS_INLINE static void
+PodZero(T *t, size_t nelem)
 {
-    return t1 < t2 ? t1 : t2;
+    memset(t, 0, nelem * sizeof(T));
 }
 
-template <class T>
-static inline T
-Max(T t1, T t2)
-{
-    return t1 > t2 ? t1 : t2;
-}
+/*
+ * Arrays implicitly convert to pointers to their first element, which is
+ * dangerous when combined with the above PodZero definitions. Adding an
+ * overload for arrays is ambiguous, so we need another identifier. The
+ * ambiguous overload is left to catch mistaken uses of PodZero; if you get a
+ * compile error involving PodZero and array types, use PodArrayZero instead.
+ */
+template <class T, size_t N> static void PodZero(T (&)[N]);          /* undefined */
+template <class T, size_t N> static void PodZero(T (&)[N], size_t);  /* undefined */
 
-/* Allows a const variable to be initialized after its declaration. */
-template <class T>
-static T&
-InitConst(const T &t)
+template <class T, size_t N>
+JS_ALWAYS_INLINE static void
+PodArrayZero(T (&t)[N])
 {
-    return const_cast<T &>(t);
+    memset(t, 0, N * sizeof(T));
 }
 
 } /* namespace js */
-
-#ifdef JSSTL_UNDEFD_MOZALLOC_WRAPPERS
-#  include "mozilla/mozalloc_macro_wrappers.h"
-#endif
 
 #endif /* jstl_h_ */

@@ -92,7 +92,6 @@ public:
   NS_IMETHOD AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, PRBool *aCancel, PRBool *aHandled);
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult);
-  NS_IMETHOD DocumentModified();
 
   // nsIHTMLEditRules methods
   
@@ -301,7 +300,6 @@ protected:
   nsresult MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode, PRBool aStarts);
   nsresult AlignBlock(nsIDOMElement * aElement, const nsAString * aAlignType, PRBool aContentsOnly);
   nsresult RelativeChangeIndentationOfElementNode(nsIDOMNode *aNode, PRInt8 aRelativeChange);
-  void DocumentModifiedWorker();
 
 // data members
 protected:
@@ -311,7 +309,6 @@ protected:
   PRPackedBool            mReturnInEmptyLIKillsList;
   PRPackedBool            mDidDeleteSelection;
   PRPackedBool            mDidRangedDelete;
-  PRPackedBool            mRestoreContentEditableCount;
   nsCOMPtr<nsIDOMRange>   mUtilRange;
   PRUint32                mJoinOffset;  // need to remember an int across willJoin/didJoin...
   nsCOMPtr<nsIDOMNode>    mNewBlock;

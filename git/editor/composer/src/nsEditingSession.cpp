@@ -145,12 +145,12 @@ nsEditingSession::MakeWindowEditable(nsIDOMWindow *aWindow,
 {
   mEditorType.Truncate();
   mEditorFlags = 0;
+  mWindowToBeEdited = do_GetWeakReference(aWindow);
 
   // disable plugins
   nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  mDocShell = do_GetWeakReference(docShell);
   mInteractive = aInteractive;
   mMakeWholeDocumentEditable = aMakeWholeDocumentEditable;
 
@@ -451,13 +451,8 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
   nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(docShell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Try to reuse an existing editor
-  nsCOMPtr<nsIEditor> editor = do_QueryReferent(mExistingEditor);
-  if (!editor) {
-    editor = do_CreateInstance(classString, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mExistingEditor = do_GetWeakReference(editor);
-  }
+  nsCOMPtr<nsIEditor> editor = do_CreateInstance(classString, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   // set the editor on the docShell. The docShell now owns it.
   rv = editorDocShell->SetEditor(editor);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -914,8 +909,12 @@ nsEditingSession::OnSecurityChange(nsIWebProgress *aWebProgress,
 PRBool
 nsEditingSession::IsProgressForTargetDocument(nsIWebProgress *aWebProgress)
 {
-  nsCOMPtr<nsIWebProgress> editedWebProgress = do_QueryReferent(mDocShell);
-  return editedWebProgress == aWebProgress;
+  nsCOMPtr<nsIDOMWindow> domWindow;
+  if (aWebProgress)
+    aWebProgress->GetDOMWindow(getter_AddRefs(domWindow));
+  nsCOMPtr<nsIDOMWindow> editedDOMWindow = do_QueryReferent(mWindowToBeEdited);
+
+  return (domWindow && (domWindow == editedDOMWindow));
 }
 
 
@@ -1031,9 +1030,9 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
     {
       // To keep pre Gecko 1.9 behavior, setup editor always when
       // mMakeWholeDocumentEditable.
-      bool needsSetup = false;
+      PRBool needsSetup;
       if (mMakeWholeDocumentEditable) {
-        needsSetup = true;
+        needsSetup = PR_TRUE;
       } else {
         // do we already have an editor here?
         nsCOMPtr<nsIEditor> editor;
@@ -1061,6 +1060,7 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
           NS_ENSURE_SUCCESS(rv, rv);
 
           mEditorStatus = eEditorCreationInProgress;
+          mDocShell = do_GetWeakReference(docShell);
           mLoadBlankDocTimer->InitWithFuncCallback(
                                           nsEditingSession::TimerCallback,
                                           static_cast<void*> (mDocShell.get()),
@@ -1426,7 +1426,7 @@ nsEditingSession::DetachFromWindow(nsIDOMWindow* aWindow)
 
   // Kill our weak reference to our original window, in case
   // it changes on restore, or otherwise dies.
-  mDocShell = nsnull;
+  mWindowToBeEdited = nsnull;
 
   return NS_OK;
 }
@@ -1442,9 +1442,7 @@ nsEditingSession::ReattachToWindow(nsIDOMWindow* aWindow)
   // old editor ot the window.
   nsresult rv;
 
-  nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
-  mDocShell = do_GetWeakReference(docShell);
+  mWindowToBeEdited = do_GetWeakReference(aWindow);
 
   // Disable plugins.
   if (!mInteractive)

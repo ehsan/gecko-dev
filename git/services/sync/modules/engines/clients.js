@@ -129,15 +129,13 @@ ClientEngine.prototype = {
 
     // Generate a client name if we don't have a useful one yet
     let user = Svc.Env.get("USER") || Svc.Env.get("USERNAME") ||
-               Svc.Prefs.get("account") || Svc.Prefs.get("username");
+               Svc.Prefs.get("username");
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
     let app = brand.get("brandShortName");
+    let os = Cc["@mozilla.org/network/protocol;1?name=http"].
+             getService(Ci.nsIHttpProtocolHandler).oscpu;
 
-    let system = Svc.SysInfo.get("device") ||
-                 Cc["@mozilla.org/network/protocol;1?name=http"]
-                   .getService(Ci.nsIHttpProtocolHandler).oscpu;
-
-    return this.localName = Str.sync.get("client.name2", [user, app, system]);
+    return this.localName = Str.sync.get("client.name2", [user, app, os]);
   },
   set localName(value) Svc.Prefs.set("client.name", value),
 
@@ -180,17 +178,17 @@ ClientStore.prototype = {
       this._remoteClients[record.id] = record.cleartext;
   },
 
-  createRecord: function createRecord(id, collection) {
-    let record = new ClientsRec(collection, id);
+  createRecord: function createRecord(guid) {
+    let record = new ClientsRec();
 
     // Package the individual components into a record for the local client
-    if (id == Clients.localID) {
+    if (guid == Clients.localID) {
       record.name = Clients.localName;
       record.type = Clients.localType;
       record.commands = Clients.localCommands;
     }
     else
-      record.cleartext = this._remoteClients[id];
+      record.cleartext = this._remoteClients[guid];
 
     return record;
   },

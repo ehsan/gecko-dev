@@ -8,15 +8,17 @@
 
 #include "compiler/OutputHLSL.h"
 
-TranslatorHLSL::TranslatorHLSL(ShShaderType type, ShShaderSpec spec)
-    : TCompiler(type, spec)
+TranslatorHLSL::TranslatorHLSL(EShLanguage language, int debugOptions)
+    : TCompiler(language), debugOptions(debugOptions)
 {
 }
 
-void TranslatorHLSL::translate(TIntermNode *root)
+bool TranslatorHLSL::compile(TIntermNode *root)
 {
     TParseContext& parseContext = *GetGlobalParseContext();
     sh::OutputHLSL outputHLSL(parseContext);
 
     outputHLSL.output();
+    
+    return true;
 }

@@ -10,7 +10,6 @@ Use of this source code is governed by a BSD-style license that can be
 <title>WebGL texImage2D conformance test.</title>
 <link rel="stylesheet" href="../resources/js-test-style.css"/>
 <script src="../resources/js-test-pre.js"></script>
-<script src="resources/webgl-test.js"> </script>
 <script src="resources/webgl-test-utils.js"> </script>
 </head>
 <body>
@@ -24,7 +23,7 @@ var canvas = document.getElementById("example");
 var gl = wtu.create3DContext(canvas);
 var program = wtu.setupTexturedQuad(gl);
 
-glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup.");
+assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup.");
 
 var imgURLs = [
   'resources/gray-ramp-256-with-128-alpha.png',
@@ -37,17 +36,7 @@ var imgURLs = [
   'resources/gray-ramp-gamma9.0.png',
   'resources/gray-ramp.png',
   'resources/zero-alpha.png',
-  'resources/3x3.png',
-  'resources/blue-1x1.jpg',
-  'resources/green-2x2-16bit.png',
-  'resources/small-square-with-colorspin-profile.jpg',
-  'resources/small-square-with-colorspin-profile.png',
-  'resources/small-square-with-cie-rgb-profile.png',
-  'resources/small-square-with-colormatch-profile.png',
-  'resources/small-square-with-e-srgb-profile.png',
-  'resources/small-square-with-smpte-c-profile.png',
-  'resources/small-square-with-srgb-iec61966-2.1-profile.png'];
-
+  'resources/3x3.png'];
 
 wtu.loadImagesAsync(imgURLs, runTests);
 
@@ -82,28 +71,6 @@ function runTests(imgs) {
     testPassed(msg);
   }
 
-  function checkPixelRange(buf, x, y, color, allowedRange) {
-    var off = (y * width + x) * 4;
-    var msg = "pixel " + x + ", " + y + " should be within " +
-              allowedRange + " units of " +
-              color[0] + ", " +
-              color[1] + ", " +
-              color[2] + ", " +
-              color[3] + " was " +
-              buf[off + 0] + ", " +
-              buf[off + 1] + ", " +
-              buf[off + 2] + ", " +
-              buf[off + 3];
-
-    for (var ii = 0; ii < 4; ++ii) {
-      if (Math.abs(buf[off + ii] - color[ii]) > allowedRange) {
-        testFailed(msg);
-        return;
-      }
-    }
-    testPassed(msg);
-  }
-
   var tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -117,16 +84,16 @@ function runTests(imgs) {
   debug("check pixels are NOT pre-multiplied");
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
                 imgs['resources/zero-alpha.png']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
+  assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup");
   wtu.drawQuad(gl);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
   var left = 0;
   var middle = Math.floor(width / 2);
   var right = width - 1;
-  var bottom = 0;
+  var top = 0;
   var center = Math.floor(height / 2);
-  var top = height - 1;
+  var bottom = height - 1;
   checkPixel(buf, left,   top,    [  0,   0,   0, 255]);
   checkPixel(buf, middle, top,    [255,   0, 255, 255]);
   checkPixel(buf, right,  top,    [  0,   0, 255, 255]);
@@ -149,7 +116,7 @@ function runTests(imgs) {
     gl.texImage2D(
         gl.TEXTURE_2D, 0, info.format, info.format, info.type,
         imgs['resources/gray-ramp-256.png']);
-    glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup.");
+    assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup.");
     wtu.drawQuad(gl);
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
     var counts = [{ }, { }, { }, { }];
@@ -176,10 +143,9 @@ function runTests(imgs) {
 
   debug("");
   debug("Check that gamma settings don't effect 8bit pngs");
-  gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
                 imgs['resources/gray-ramp-default-gamma.png']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup.");
+  assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup.");
   wtu.drawQuad(gl);
   var ref = new Uint8Array(width * height * 4);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, ref);
@@ -217,7 +183,7 @@ function runTests(imgs) {
   ctx.fillRect(0, 0, 256, 1);
   ctx.drawImage(imgs['resources/gray-ramp-256-with-128-alpha.png'], 0, 0);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, canvas2d);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup.");
+  assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup.");
   wtu.drawQuad(gl);
   var ref = new Uint8Array(width * height * 4);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, ref);
@@ -252,7 +218,7 @@ function runTests(imgs) {
   // TODO(gman): use different texture that won't pass on failure
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
                 imgs['resources/zero-alpha.png']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
+  assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup");
   wtu.drawQuad(gl);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
@@ -271,7 +237,7 @@ function runTests(imgs) {
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
                 imgs['resources/3x3.png']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
+  assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors from setup");
   wtu.drawQuad(gl);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
@@ -285,75 +251,7 @@ function runTests(imgs) {
   checkPixel(buf, middle, bottom, [  0,   0, 255, 255]);
   checkPixel(buf, right,  bottom, [255,   0,   0, 255]);
 
-  debug("");
-  debug("check uploading of images with no alpha channel works");
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
-                imgs['resources/blue-1x1.jpg']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
-  wtu.drawQuad(gl);
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-  checkPixelRange(buf, middle, center, [   0,   0, 255, 255], 10);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors");
-
-  debug("");
-  debug("check uploading of 16-bit images");
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
-                imgs['resources/green-2x2-16bit.png']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
-  wtu.drawQuad(gl);
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-  checkPixelRange(buf, middle, center, [   15, 121,   0, 255], 10);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors");
-
-  debug("");
-  debug("check uploading of images with ICC profiles");
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
-                imgs['resources/small-square-with-colorspin-profile.jpg']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
-  wtu.drawQuad(gl);
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-  // The image is red.  However, if we ignore the color profile, it is blue.
-  checkPixelRange(buf, middle, center, [ 0, 0, 255, 255], 10);
-
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
-                imgs['resources/small-square-with-colorspin-profile.png']);
-  glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
-  wtu.drawQuad(gl);
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-  // The image is red.  However, if we ignore the color profile, it is blue.
-  checkPixelRange(buf, middle, center, [ 0, 0, 255, 255], 10);
-
-  var iccPNGs = [
-    'resources/small-square-with-cie-rgb-profile.png',
-    'resources/small-square-with-colormatch-profile.png',
-    'resources/small-square-with-e-srgb-profile.png',
-    'resources/small-square-with-smpte-c-profile.png',
-    'resources/small-square-with-srgb-iec61966-2.1-profile.png'];
-  for (var ii = 0; ii < iccPNGs.length; ++ii) {
-    var buf2 = new Uint8Array(width * height * 4);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE,
-                  imgs[iccPNGs[ii]]);
-    glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors from setup");
-    wtu.drawQuad(gl);
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf2);
-    glErrorShouldBe(gl, gl.NO_ERROR, "Should be no errors");
-    var same = true;
-    for (var jj = 0; jj < buf.length; ++jj) {
-      if (buf[jj] != buf2[jj]) {
-        same = false;
-        break;
-      }
-    }
-    assertMsg(same, "uploading PNGs with same data but various ICC profiles should generate the same results");
-  }
+  assertMsg(gl.getError() == gl.NO_ERROR, "Should be no errors");
 
   debug("");
   successfullyParsed = true;

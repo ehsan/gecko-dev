@@ -45,17 +45,6 @@
  * getInterface on a DOMWindow.
  */
 
-%{C++
-#include "nsColor.h"
-#include "nsRect.h"
-#include "gfxContext.h"
-%}
-
-[ref] native nsConstRect(const nsRect);
-native nscolor(nscolor);
-[ptr] native gfxContext(gfxContext);
-
-interface nsICycleCollectorListener;
 interface nsIDOMNode;
 interface nsIDOMNodeList;
 interface nsIDOMElement;
@@ -63,9 +52,8 @@ interface nsIDOMHTMLCanvasElement;
 interface nsIDOMEvent;
 interface nsITransferable;
 interface nsIQueryContentEventResult;
-interface nsIDOMWindow;
 
-[scriptable, uuid(85fa978a-fc91-4513-9f11-8911e671577f)]
+[scriptable, uuid(1e042706-0343-4cba-a549-6a83eefb1835)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -95,12 +83,6 @@ interface nsIDOMWindowUtils : nsISupports {
   readonly attribute boolean docCharsetIsForced;
 
   /**
-   * Get current cursor type from this window
-   * @return the current value of nsCursor
-   */
-  short getCursorType();
-
-  /**
    * Function to get metadata associated with the window's current document
    * @param aName the name of the metadata.  This should be all lowercase.
    * @return the value of the metadata, or the empty string if it's not set
@@ -118,72 +100,8 @@ interface nsIDOMWindowUtils : nsISupports {
    */
   unsigned long redraw([optional] in unsigned long aCount);
 
-  /**
-   * Set the CSS viewport to be |widthPx| x |heightPx| in units of CSS
-   * pixels, regardless of the size of the enclosing widget/view.
-   * This will trigger reflow.
-   *
-   * The caller of this method must have UniversalXPConnect
-   * privileges.
-   */
-  void setCSSViewport(in float aWidthPx, in float aHeightPx);
-
-  /**
-   * Set the "displayport" to be <xPx, yPx, widthPx, heightPx> in
-   * units of CSS pixels, regardless of the size of the enclosing
-   * widget/view.  This will *not* trigger reflow.
-   *
-   * <x, y> is relative to the top-left of the CSS viewport.  This
-   * means that the pixels rendered to the displayport take scrolling
-   * into account, for example.
-   *
-   * The displayport will be used as the window's visible region for
-   * the purposes of invalidation and painting.  The displayport can
-   * approximately be thought of as a "persistent" drawWindow()
-   * (albeit with coordinates relative to the CSS viewport): the
-   * bounds are remembered by the platform, and layer pixels are
-   * retained and updated inside the viewport bounds.
-   *
-   * It's legal to set a displayport that extends beyond the CSS
-   * viewport in any direction (left/right/top/bottom).
-   * 
-   * It's also legal to set a displayport that extends beyond the
-   * document's bounds.  The value of the pixels rendered outside the
-   * document bounds is not yet defined.
-   *
-   * The caller of this method must have UniversalXPConnect
-   * privileges.
-   */
-  void setDisplayPort(in float aXPx, in float aYPx,
-                      in float aWidthPx, in float aHeightPx);
-
-  /**
-   * Get/set the resolution at which rescalable web content is drawn.
-   * Currently this is only (some) thebes content.
-   *
-   * Setting a new resolution does *not* trigger reflow.  This API is
-   * entirely separate from textZoom and fullZoom; a resolution scale
-   * can be applied together with both textZoom and fullZoom.
-   *
-   * The effect of is API for gfx code to allocate more or fewer
-   * pixels for rescalable content by a factor of |resolution| in
-   * either or both dimensions.  setResolution() together with
-   * setDisplayport() can be used to implement a non-reflowing
-   * scale-zoom in concert with another entity that can draw with a
-   * scale.  For example, to scale a content |window| inside a
-   * <browser> by a factor of 2.0
-   *
-   *   window.setDisplayport(x, y, oldW / 2.0, oldH / 2.0);
-   *   window.setResolution(2.0, 2.0);
-   *   // elsewhere
-   *   browser.setViewportScale(2.0, 2.0);
-   *
-   * The caller of this method must have UniversalXPConnect
-   * privileges.
-   */
-  void setResolution(in float aXResolution, in float aYResolution);
-
-  /** Synthesize a mouse event. The event types supported are:
+  /** Synthesize a mouse event for a window. The event types supported
+   *  are: 
    *    mousedown, mouseup, mousemove, mouseover, mouseout, contextmenu
    *
    * Events are sent in coordinates offset by aX and aY from the window.
@@ -201,10 +119,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * Will throw a DOM security error if called without UniversalXPConnect
    * privileges.
    *
-   * The event is dispatched via the toplevel window, so it could go to any
-   * window under the toplevel window, in some cases it could never reach this
-   * window at all.
-   *
    * @param aType event type
    * @param aX x offset in CSS pixels
    * @param aY y offset in CSS pixels
@@ -221,17 +135,6 @@ interface nsIDOMWindowUtils : nsISupports {
                       in long aClickCount,
                       in long aModifiers,
                       [optional] in boolean aIgnoreRootScrollFrame);
-
-  /** The same as sendMouseEvent but ensures that the event is dispatched to
-   *  this DOM window or one of its children.
-   */
-  void sendMouseEventToWindow(in AString aType,
-                              in float aX,
-                              in float aY,
-                              in long aButton,
-                              in long aClickCount,
-                              in long aModifiers,
-                              [optional] in boolean aIgnoreRootScrollFrame);
 
   /** Synthesize a mouse scroll event for a window. The event types supported
    *  are: 
@@ -350,16 +253,13 @@ interface nsIDOMWindowUtils : nsISupports {
   void focus(in nsIDOMElement aElement);
 
   /**
-   * Force a garbage collection followed by a cycle collection.
+   * Force a garbage collection. This will run the cycle-collector twice to
+   * make sure all garbage is collected.
    *
    * Will throw a DOM security error if called without UniversalXPConnect
    * privileges in non-debug builds. Available to all callers in debug builds.
-   *
-   * @param aListener listener that receives information about the CC graph
-   *                  (see @mozilla.org/cycle-collector-logger;1 for a logger
-   *                   component)
    */
-  void garbageCollect([optional] in nsICycleCollectorListener aListener);
+  void garbageCollect();
 
   /**
    * Force processing of any queued paints
@@ -474,6 +374,17 @@ interface nsIDOMWindowUtils : nsISupports {
    * @see nsIDOMWindow::scrollX/Y
    */
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
+
+  /**
+   * Creates a ChromeObjectWrapper for the object and returns it.
+   *
+   * @param scope The JavaScript object whose scope we'll use as the
+   *        parent of the wrapper.
+   * @param objToWrap The JavaScript object to wrap.
+   * @return the wrapped object.
+   */
+
+  void getCOWForObject(/* scope, objToWrap */);
 
   /**
    * Get IME open state. TRUE means 'Open', otherwise, 'Close'.
@@ -786,46 +697,4 @@ interface nsIDOMWindowUtils : nsISupports {
    */
   void suspendTimeouts();
   void resumeTimeouts();
-
-  /**
-   * What type of layer manager the widget associated with this window is
-   * using. "Basic" is unaccelerated; other types are accelerated. Throws an
-   * error if there is no widget associated with this window.
-   */
-  readonly attribute AString layerManagerType;
-
-  /**
-   * The DPI of the display
-   */
-  readonly attribute float displayDPI;
-
-  /**
-   * Return the outer window with the given ID, if any.  Can return null.
-   */
-  nsIDOMWindow getOuterWindowWithId(in unsigned long long aOuterWindowID);
-
-  [noscript] void RenderDocument(in nsConstRect aRect,
-                                 in PRUint32 aFlags,
-                                 in nscolor aBackgroundColor,
-                                 in gfxContext aThebesContext);
-
-  /**
-   * Method for testing nsStyleAnimation::ComputeDistance.
-   *
-   * Returns the distance between the two values as reported by
-   * nsStyleAnimation::ComputeDistance for the given element and
-   * property.
-   */
-  double computeAnimationDistance(in nsIDOMElement element,
-                                  in AString property,
-                                  in AString value1,
-                                  in AString value2);
-};
-
-[scriptable, uuid(3a0334aa-b9cc-4b32-9b6c-599cd4e40d5b)]
-interface nsIDOMWindowUtils_MOZILLA_2_0_BRANCH : nsISupports {
-  /**
-   * Get the type of the currently focused html input, if any.
-   */
-  readonly attribute string focusedInputType;
 };

@@ -47,7 +47,6 @@
 #include "nsDebug.h"
 #include "gfxContext.h"
 #include "nsSVGUtils.h"
-#include "gfxPlatform.h"
 
 class nsSVGElement;
 class nsIContent;
@@ -62,9 +61,9 @@ public:
   // coordinates in the <animateMotion> from/by/to/values attributes.
   class PathGenerator {
   public:
-    PathGenerator(const nsSVGElement* aSVGElement)
+    PathGenerator(nsSVGElement* aSVGElement)
       : mSVGElement(aSVGElement),
-        mGfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface()),
+        mGfxContext(nsSVGUtils::GetThebesComputationalSurface()),
         mHaveReceivedCommands(PR_FALSE)
     {}
 
@@ -91,7 +90,7 @@ public:
                                float& aXVal, float& aYVal);
 
     // Member data
-    const nsSVGElement* mSVGElement; // context for converting to user units
+    nsSVGElement* mSVGElement; // context for converting out of relative units
     gfxContext    mGfxContext;
     PRPackedBool  mHaveReceivedCommands;
   };

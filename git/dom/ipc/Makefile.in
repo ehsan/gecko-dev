@@ -47,33 +47,26 @@ LIBXUL_LIBRARY = 1
 FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
 
-ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-DIRS = tests
-endif
+EXPORTS = TabMessageUtils.h
 
-EXPORTS = TabMessageUtils.h PCOMContentPermissionRequestChild.h
+EXPORTS_NAMESPACES = mozilla mozilla/dom
 
-EXPORTS_NAMESPACES = mozilla/dom
+EXPORTS_mozilla = \
+  TabTypes.h \
+  $(NULL)
 
 EXPORTS_mozilla/dom = \
-  AudioChild.h \
-  AudioParent.h \
   ContentChild.h \
   ContentParent.h \
   ContentProcess.h \
-  CrashReporterChild.h \
-  CrashReporterParent.h \
   TabParent.h \
   TabChild.h \
   $(NULL)
 
 CPPSRCS = \
-  AudioChild.cpp \
-  AudioParent.cpp \
   ContentProcess.cpp \
   ContentParent.cpp \
   ContentChild.cpp \
-  CrashReporterParent.cpp \
   TabParent.cpp \
   TabChild.cpp \
   TabMessageUtils.cpp \
@@ -87,19 +80,10 @@ LOCAL_INCLUDES += \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/events/src \
 		-I$(srcdir)/../../toolkit/components/places/src \
+		-I$(srcdir)/../src/geolocation \
 		-I$(topsrcdir)/chrome/src \
-		-I$(topsrcdir)/uriloader/exthandler \
-		-I$(srcdir)/../../netwerk/base/src \
-		-I$(srcdir)/../src/base \
-		-I$(srcdir)/../src/storage \
-		-I$(srcdir)/../../xpcom/base \
-		-I$(topsrcdir)/extensions/cookie \
 		$(NULL)
 
-DEFINES += -DBIN_SUFFIX='"$(BIN_SUFFIX)"'
-
-ifdef MOZ_PERMISSIONS
-DEFINES += -DMOZ_PERMISSIONS
-endif
-
 CXXFLAGS += $(TK_CFLAGS)
+
+DEFINES += -DBIN_SUFFIX='"$(BIN_SUFFIX)"'

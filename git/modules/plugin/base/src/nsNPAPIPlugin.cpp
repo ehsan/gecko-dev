@@ -76,7 +76,6 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsIPrincipal.h"
-#include "nsWildCard.h"
 
 #include "nsIXPConnect.h"
 
@@ -105,8 +104,6 @@
 #include "nsJSNPRuntime.h"
 #include "nsIHttpAuthManager.h"
 #include "nsICookieService.h"
-
-#include "nsNetUtil.h"
 
 #include "mozilla/PluginLibrary.h"
 using mozilla::PluginLibrary;
@@ -180,10 +177,7 @@ static NPNetscapeFuncs sBrowserFuncs = {
   _scheduletimer,
   _unscheduletimer,
   _popupcontextmenu,
-  _convertpoint,
-  NULL, // handleevent, unimplemented
-  NULL, // unfocusinstance, unimplemented
-  NULL  // urlredirectresponse, unimplemented
+  _convertpoint
 };
 
 static PRLock *sPluginThreadAsyncCallLock = nsnull;
@@ -242,13 +236,14 @@ nsNPAPIPlugin::nsNPAPIPlugin()
 
   memset((void*)&mPluginFuncs, 0, sizeof(mPluginFuncs));
   mPluginFuncs.size = sizeof(mPluginFuncs);
-  mPluginFuncs.version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
 
   mLibrary = nsnull;
 }
 
 nsNPAPIPlugin::~nsNPAPIPlugin()
 {
+  // reset the callbacks list
+  memset((void*) &mPluginFuncs, 0, sizeof(mPluginFuncs));
   delete mLibrary;
   mLibrary = nsnull;
 }
@@ -270,6 +265,8 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
   host->PluginCrashed(this, pluginDumpID, browserDumpID);
 }
 #endif
+
+namespace {
 
 #ifdef MOZ_IPC
 
@@ -313,14 +310,10 @@ static PRBool GMA9XXGraphics()
 }
 #endif
 
-PRBool
-nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
+inline PRBool
+RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_PLUGINS")) {
-    return PR_FALSE;
-  }
-
-  if (!aPluginTag) {
     return PR_FALSE;
   }
 
@@ -332,7 +325,8 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // Blacklist Flash 10.0 or lower since it may try to negotiate Carbon/Quickdraw
   // which are not supported out of process. Also blacklist Flash 10.1 if this
   // machine has an Intel GMA9XX GPU because Flash will negotiate Quickdraw graphics.
-  if (aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
+  if (aPluginTag && 
+      aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
     // If the first '.' is before position 2 or the version 
     // starts with 10.0 then we are dealing with Flash 10 or less.
     if (aPluginTag->mVersion.FindChar('.') < 2) {
@@ -371,116 +365,51 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // Get per-library whitelist/blacklist pref string
   // "dom.ipc.plugins.enabled.filename.dll" and fall back to the default value
   // of "dom.ipc.plugins.enabled"
-  // The "filename.dll" part can contain shell wildcard pattern
 
-  nsCAutoString prefFile(aPluginTag->mFullPath.get());
-  PRInt32 slashPos = prefFile.RFindCharInSet("/\\");
+  nsCAutoString pluginLibPref(aFilePath);
+  PRInt32 slashPos = pluginLibPref.RFindCharInSet("/\\");
   if (kNotFound == slashPos)
     return PR_FALSE;
-  prefFile.Cut(0, slashPos + 1);
-  ToLowerCase(prefFile);
-
-#ifdef XP_MACOSX
-#if defined(__i386__)
-  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.i386.");
-#elif defined(__x86_64__)
-  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.x86_64.");
-#elif defined(__ppc__)
-  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.ppc.");
-#endif
-#else
-  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.");
-#endif
-
-  // Java plugins include a number of different file names,
-  // so use the mime type (mIsJavaPlugin) and a special pref.
-  PRBool javaIsEnabled;
-  if (aPluginTag->mIsJavaPlugin &&
-      NS_SUCCEEDED(prefs->GetBoolPref("dom.ipc.plugins.java.enabled", &javaIsEnabled)) &&
-      !javaIsEnabled) {
-    return PR_FALSE;
-  }
-
-  PRUint32 prefCount;
-  char** prefNames;
-  nsresult rv = prefs->GetChildList(prefGroupKey.get(),
-                                    &prefCount, &prefNames);
+  pluginLibPref.Cut(0, slashPos + 1);
+  ToLowerCase(pluginLibPref);
+  pluginLibPref.Insert("dom.ipc.plugins.enabled.", 0);
 
   PRBool oopPluginsEnabled = PR_FALSE;
-  PRBool prefSet = PR_FALSE;
+  if (NS_SUCCEEDED(prefs->GetBoolPref(pluginLibPref.get(),
+                                      &oopPluginsEnabled)))
+    return oopPluginsEnabled;
 
-  if (NS_SUCCEEDED(rv) && prefCount > 0) {
-    PRUint32 prefixLength = prefGroupKey.Length();
-    for (PRUint32 currentPref = 0; currentPref < prefCount; currentPref++) {
-      // Get the mask
-      const char* maskStart = prefNames[currentPref] + prefixLength;
-      PRBool match = PR_FALSE;
-
-      int valid = NS_WildCardValid(maskStart);
-      if (valid == INVALID_SXP) {
-         continue;
-      }
-      else if(valid == NON_SXP) {
-        // mask is not a shell pattern, compare it as normal string
-        match = (strcmp(prefFile.get(), maskStart) == 0);
-      }
-      else {
-        match = (NS_WildCardMatch(prefFile.get(), maskStart, 0) == MATCH);
-      }
-
-      if (match && NS_SUCCEEDED(prefs->GetBoolPref(prefNames[currentPref],
-                                                   &oopPluginsEnabled))) {
-        prefSet = PR_TRUE;
-        break;
-      }
-    }
-    NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(prefCount, prefNames);
-  }
-
-  if (!prefSet) {
-    oopPluginsEnabled = PR_FALSE;
-#ifdef XP_MACOSX
-#if defined(__i386__)
-    prefs->GetBoolPref("dom.ipc.plugins.enabled.i386", &oopPluginsEnabled);
-#elif defined(__x86_64__)
-    prefs->GetBoolPref("dom.ipc.plugins.enabled.x86_64", &oopPluginsEnabled);
-#elif defined(__ppc__)
-    prefs->GetBoolPref("dom.ipc.plugins.enabled.ppc", &oopPluginsEnabled);
-#endif
-#else
-    prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
-#endif
-  }
-
+  oopPluginsEnabled = PR_FALSE;
+  prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
   return oopPluginsEnabled;
 }
 
 #endif // MOZ_IPC
 
 inline PluginLibrary*
-GetNewPluginLibrary(nsPluginTag *aPluginTag)
+GetNewPluginLibrary(const char* aFilePath,
+                    PRLibrary* aLibrary)
 {
-  if (!aPluginTag) {
-    return nsnull;
-  }
-
 #ifdef MOZ_IPC
-  if (nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
-    return PluginModuleParent::LoadModule(aPluginTag->mFullPath.get());
+  nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
+  nsPluginTag* tag = host->FindTagForLibrary(aLibrary);
+  if (tag) {
+    if (aFilePath && RunPluginOOP(aFilePath, tag)) {
+      return PluginModuleParent::LoadModule(aFilePath);
+    }
   }
 #endif
-  return new PluginPRLibrary(aPluginTag->mFullPath.get(), aPluginTag->mLibrary);
+  return new PluginPRLibrary(aFilePath, aLibrary);
 }
+
+} /* anonymous namespace */
 
 // Creates an nsNPAPIPlugin object. One nsNPAPIPlugin object exists per plugin (not instance).
 nsresult
-nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult)
+nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
+                            nsIPlugin** aResult)
 {
   *aResult = nsnull;
-
-  if (!aPluginTag) {
-    return NS_ERROR_FAILURE;
-  }
 
   CheckClassInitialized();
 
@@ -488,7 +417,7 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult)
   if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  PluginLibrary* pluginLib = GetNewPluginLibrary(aPluginTag);
+  PluginLibrary* pluginLib = GetNewPluginLibrary(aFilePath, aLibrary);
   if (!pluginLib) {
     return NS_ERROR_FAILURE;
   }
@@ -502,6 +431,14 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult)
 
   plugin->mLibrary = pluginLib;
   pluginLib->SetPlugin(plugin);
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+  // Do not initialize if the file path is NULL.
+  if (!aFilePath) {
+    *aResult = plugin.forget().get();
+    return NS_OK;
+  }
+#endif
 
   NPError pluginCallError;
   nsresult rv;
@@ -586,6 +523,29 @@ nsNPAPIPlugin::Shutdown()
   return NS_OK;
 }
 
+nsresult
+nsNPAPIPlugin::GetMIMEDescription(const char* *resultingDesc)
+{
+  nsresult gmdResult = mLibrary->NP_GetMIMEDescription(resultingDesc);
+  if (gmdResult != NS_OK) {
+    return gmdResult;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsNPAPIPlugin::GetValue(NPPVariable variable, void *value)
+{
+  PLUGIN_LOG(PLUGIN_LOG_NORMAL,
+  ("nsNPAPIPlugin::GetValue called: this=%p, variable=%d\n", this, variable));
+
+  NPError gvError;
+  mLibrary->NP_GetValue(nsnull, variable, value, &gvError);
+
+  return gvError;
+}
+
 // Create a new NPP GET or POST (given in the type argument) url
 // stream that may have a notify callback
 NPError
@@ -609,15 +569,10 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   if (!pluginHost) return NPERR_GENERIC_ERROR;
 
   nsCOMPtr<nsIPluginStreamListener> listener;
-  // Set aCallNotify here to false.  If pluginHost->GetURL or PostURL fail,
-  // the listener's destructor will do the notification while we are about to
-  // return a failure code.
-  // Call SetCallNotify(true) bellow after we are sure we cannot return a failure 
-  // code.
   if (!target)
     ((nsNPAPIPluginInstance*)inst)->NewNotifyStream(getter_AddRefs(listener),
                                                     notifyData,
-                                                    PR_FALSE, relativeURL);
+                                                    bDoNotify, relativeURL);
 
   switch (type) {
   case eNPPStreamTypeInternal_Get:
@@ -635,15 +590,6 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
     }
   default:
     NS_ERROR("how'd I get here");
-  }
-
-  if (listener) {
-    // SetCallNotify(bDoNotify) here, see comment above.
-    // XXX Not sure of this cast here, we should probably have an interface API
-    // for this.
-    nsNPAPIPluginStreamListener* npAPIPluginStreamListener = 
-      static_cast<nsNPAPIPluginStreamListener*>(listener.get());
-    npAPIPluginStreamListener->SetCallNotify(bDoNotify);
   }
 
   return NPERR_NO_ERROR;
@@ -759,7 +705,7 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   if (!str)
     return NULL;
 
-  return StringToNPIdentifier(str);
+  return (NPIdentifier)STRING_TO_JSVAL(str);
 }
 
 #if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
@@ -870,7 +816,7 @@ nsPluginThreadRunnable::Run()
   if (mFunc) {
     PluginDestructionGuard guard(mInstance);
 
-    NS_TRY_SAFE_CALL_VOID(mFunc(mUserData), nsnull);
+    NS_TRY_SAFE_CALL_VOID(mFunc(mUserData), nsnull, nsnull);
   }
 
   return NS_OK;
@@ -1422,23 +1368,25 @@ _getintidentifier(int32_t intid)
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifier called from the wrong thread\n"));
   }
-  return IntToNPIdentifier(intid);
+  return (NPIdentifier)INT_TO_JSVAL(intid);
 }
 
 NPUTF8* NP_CALLBACK
-_utf8fromidentifier(NPIdentifier id)
+_utf8fromidentifier(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_utf8fromidentifier called from the wrong thread\n"));
   }
-  if (!id)
+  if (!identifier)
     return NULL;
 
-  if (!NPIdentifierIsString(id)) {
+  jsval v = (jsval)identifier;
+
+  if (!JSVAL_IS_STRING(v)) {
     return nsnull;
   }
 
-  JSString *str = NPIdentifierToString(id);
+  JSString *str = JSVAL_TO_STRING(v);
 
   return
     ToNewUTF8String(nsDependentString((PRUnichar *)::JS_GetStringChars(str),
@@ -1446,27 +1394,29 @@ _utf8fromidentifier(NPIdentifier id)
 }
 
 int32_t NP_CALLBACK
-_intfromidentifier(NPIdentifier id)
+_intfromidentifier(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_intfromidentifier called from the wrong thread\n"));
   }
+  jsval v = (jsval)identifier;
 
-  if (!NPIdentifierIsInt(id)) {
+  if (!JSVAL_IS_INT(v)) {
     return PR_INT32_MIN;
   }
 
-  return NPIdentifierToInt(id);
+  return JSVAL_TO_INT(v);
 }
 
 bool NP_CALLBACK
-_identifierisstring(NPIdentifier id)
+_identifierisstring(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_identifierisstring called from the wrong thread\n"));
   }
+  jsval v = (jsval)identifier;
 
-  return NPIdentifierIsString(id);
+  return JSVAL_IS_STRING(v);
 }
 
 NPObject* NP_CALLBACK
@@ -1614,8 +1564,6 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   JSContext *cx = GetJSContextFromDoc(doc);
   NS_ENSURE_TRUE(cx, false);
 
-  JSAutoRequest req(cx);
-
   nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
   NS_ENSURE_TRUE(scx, false);
 
@@ -1625,8 +1573,6 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   if (!obj) {
     return false;
   }
-
-  OBJ_TO_INNER_OBJECT(cx, obj);
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
@@ -1707,92 +1653,7 @@ _getproperty(NPP npp, NPObject* npobj, NPIdentifier property,
                  ("NPN_GetProperty(npp %p, npobj %p, property %p) called\n",
                   npp, npobj, property));
 
-  if (!npobj->_class->getProperty(npobj, property, result))
-    return false;
-
-  // If a Java plugin tries to get the document.URL or document.documentURI
-  // property from us, don't pass back a value that Java won't be able to
-  // understand -- one that will make the URL(String) constructor throw a
-  // MalformedURL exception.  Passing such a value causes Java Plugin2 to
-  // crash (to throw a RuntimeException in Plugin2Manager.getDocumentBase()).
-  // Also don't pass back a value that Java is likely to mishandle.
-
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*) npp->ndata;
-  if (!inst)
-    return false;
-  nsNPAPIPlugin* plugin = inst->GetPlugin();
-  if (!plugin)
-    return false;
-  nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-  nsPluginTag* pluginTag = host->TagForPlugin(plugin);
-  if (!pluginTag->mIsJavaPlugin)
-    return true;
-
-  if (!NPVARIANT_IS_STRING(*result))
-    return true;
-
-  NPUTF8* propertyName = _utf8fromidentifier(property);
-  if (!propertyName)
-    return true;
-  bool notURL =
-    (PL_strcasecmp(propertyName, "URL") &&
-     PL_strcasecmp(propertyName, "documentURI"));
-  _memfree(propertyName);
-  if (notURL)
-    return true;
-
-  NPObject* window_obj = _getwindowobject(npp);
-  if (!window_obj)
-    return true;
-
-  NPVariant doc_v;
-  NPObject* document_obj = nsnull;
-  NPIdentifier doc_id = _getstringidentifier("document");
-  bool ok = npobj->_class->getProperty(window_obj, doc_id, &doc_v);
-  _releaseobject(window_obj);
-  if (ok) {
-    if (NPVARIANT_IS_OBJECT(doc_v)) {
-      document_obj = NPVARIANT_TO_OBJECT(doc_v);
-    } else {
-      _releasevariantvalue(&doc_v);
-      return true;
-    }
-  } else {
-    return true;
-  }
-  _releaseobject(document_obj);
-  if (document_obj != npobj)
-    return true;
-
-  NPString urlnp = NPVARIANT_TO_STRING(*result);
-  nsXPIDLCString url;
-  url.Assign(urlnp.UTF8Characters, urlnp.UTF8Length);
-
-  PRBool javaCompatible = PR_FALSE;
-  if (NS_FAILED(NS_CheckIsJavaCompatibleURLString(url, &javaCompatible)))
-    javaCompatible = PR_FALSE;
-  if (javaCompatible)
-    return true;
-
-  // If Java won't be able to interpret the original value of document.URL or
-  // document.documentURI, or is likely to mishandle it, pass back something
-  // that Java will understand but won't be able to use to access the network,
-  // and for which same-origin checks will always fail.
-
-  if (inst->mFakeURL.IsVoid()) {
-    // Abort (do an error return) if NS_MakeRandomInvalidURLString() fails.
-    if (NS_FAILED(NS_MakeRandomInvalidURLString(inst->mFakeURL))) {
-      _releasevariantvalue(result);
-      return false;
-    }
-  }
-
-  _releasevariantvalue(result);
-  char* fakeurl = (char *) _memalloc(inst->mFakeURL.Length() + 1);
-  strcpy(fakeurl, inst->mFakeURL);
-  STRINGZ_TO_NPVARIANT(fakeurl, *result);
-
-  return true;
+  return npobj->_class->getProperty(npobj, property, result);
 }
 
 bool NP_CALLBACK

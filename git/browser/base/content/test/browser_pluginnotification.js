@@ -1,5 +1,4 @@
-var rootDir = getRootDirectory(gTestPath);
-const gTestRoot = rootDir;
+const gTestRoot = "chrome://mochikit/content/browser/browser/base/content/test/";
 
 var gTestBrowser = null;
 var gNextTest = null;
@@ -128,7 +127,7 @@ function test3() {
   new TabOpenListener("about:addons", test4, prepareTest5);
 
   EventUtils.synthesizeMouse(gTestBrowser.contentDocument.getElementById("test"),
-                             5, 5, {}, gTestBrowser.contentWindow);
+                             0, 0, {}, gTestBrowser.contentWindow);
 }
 
 function test4(tab, win) {

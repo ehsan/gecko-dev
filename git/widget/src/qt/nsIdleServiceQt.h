@@ -41,8 +41,6 @@
 #define nsIdleServiceQt_h__
 
 #include "nsIdleService.h"
-
-#ifndef MOZ_PLATFORM_MAEMO
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -54,7 +52,6 @@ typedef struct {
     unsigned long idle;         // milliseconds idle
     unsigned long event_mask;   // event stuff
 } XScreenSaverInfo;
-#endif
 
 class nsIdleServiceQt : public nsIdleService
 {
@@ -66,9 +63,7 @@ public:
 
 private:
     ~nsIdleServiceQt();
-#ifndef MOZ_PLATFORM_MAEMO
     XScreenSaverInfo* mXssInfo;
-#endif
 
 protected:
     bool UsePollMode();

@@ -363,7 +363,7 @@ FT_BEGIN_HEADER
 
 #endif /* __arm__ && !__thumb__ && !( __CC_ARM || __ARMCC__ ) */
 
-#if defined( __i386__ )
+#if defined( i386 )
 #define FT_MULFIX_ASSEMBLER  FT_MulFix_i386
 
   /* documentation is in freetype.h */

@@ -93,7 +93,7 @@ public:
   nsRawReader(nsBuiltinDecoder* aDecoder);
   ~nsRawReader();
 
-  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
+  virtual nsresult Init();
   virtual nsresult ResetDecode();
   virtual PRBool DecodeAudioData();
 
@@ -111,9 +111,8 @@ public:
   }
 
   virtual nsresult ReadMetadata();
-  virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime);
+  virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime);
   virtual PRInt64 FindEndTime(PRInt64 aEndOffset);
-  virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
 
 private:
   PRBool ReadFromStream(nsMediaStream *aStream, PRUint8 *aBuf,

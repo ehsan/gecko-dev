@@ -294,7 +294,10 @@ gfxDWriteFontEntry::ReadCMAP()
                                     isUnicode,
                                     isSymbol);
     }
-    fontFace->ReleaseFontTable(tableContext);
+
+    if (tableContext) {
+        fontFace->ReleaseFontTable(tableContext);
+    }
 
     mCmapInitialized = PR_TRUE;
     mHasCmapTable = NS_SUCCEEDED(rv);
@@ -467,7 +470,7 @@ gfxDWriteFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     return entry;
 }
 
-nsresult
+void
 gfxDWriteFontList::InitFontList()
 {
     HRESULT hr;
@@ -485,10 +488,6 @@ gfxDWriteFontList::InitFontList()
     hr = gfxWindowsPlatform::GetPlatform()->GetDWriteFactory()->
         GetSystemFontCollection(getter_AddRefs(systemFonts));
     NS_ASSERTION(SUCCEEDED(hr), "GetSystemFontCollection failed!");
-
-    if (FAILED(hr)) {
-        return NS_ERROR_FAILURE;
-    }
 
     for (UINT32 i = 0; i < systemFonts->GetFontFamilyCount(); i++) {
         nsRefPtr<IDWriteFontFamily> family;
@@ -547,8 +546,6 @@ gfxDWriteFontList::InitFontList()
     GetFontSubstitutes();
 
     StartLoader(kDelayBeforeLoadingFonts, kIntervalBetweenLoadingFonts);
-
-    return NS_OK;
 }
 
 static void

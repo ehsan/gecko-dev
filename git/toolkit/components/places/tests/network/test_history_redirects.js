@@ -219,10 +219,9 @@ ChannelListener.prototype = {
   },
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
+  onChannelRedirect: function (aOldChannel, aNewChannel, aFlags) {
     print("onChannelRedirect");
     this._got_onchannelredirect = true;
     ghist3.addDocumentRedirect(aOldChannel, aNewChannel, aFlags, true);
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 };

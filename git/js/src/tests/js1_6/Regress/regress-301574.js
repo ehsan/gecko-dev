@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-301574.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 301574;
 var summary = 'E4X should be enabled even when e4x=1 not specified';

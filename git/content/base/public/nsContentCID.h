@@ -69,6 +69,11 @@
  0x5d0fcdd0, 0x4daa, 0x11d2,                      \
  {0xb3, 0x28, 0x00, 0x80, 0x5f, 0x8a, 0x38, 0x59}}
 
+#define NS_WYCIWYGPROTOCOLHANDLER_CID             \
+{ /* e7509b46-2eB2-410a-9d7c-c3ce73284d01 */      \
+  0xe7509b46, 0x2eb2, 0x410a,                     \
+  {0x9d, 0x7c, 0xc3, 0xce, 0x73, 0x28, 0x4d, 0x01}}
+
 #define NS_XMLDOCUMENT_CID                        \
 { /* a6cf9063-15b3-11d2-932e-00805f8add32 */      \
  0xa6cf9063, 0x15b3, 0x11d2,                      \
@@ -310,26 +315,8 @@
 #define NS_GLOBALMESSAGEMANAGER_CONTRACTID \
   "@mozilla.org/globalmessagemanager;1"
 
-#define NS_PARENTPROCESSMESSAGEMANAGER_CID             \
- { /* 2a058404-fb85-44ec-8cfd-e8cbdc988dc1 */          \
-    0x2a058404, 0xfb85, 0x44ec,                        \
-  { 0x8c, 0xfd, 0xe8, 0xcb, 0xdc, 0x98, 0x8d, 0xc1 } }
-#define NS_PARENTPROCESSMESSAGEMANAGER_CONTRACTID \
-  "@mozilla.org/parentprocessmessagemanager;1"
-
-  #define NS_CHILDPROCESSMESSAGEMANAGER_CID           \
- { /* fe0ff7c3-8e97-448b-9a8a-86afdb9fbbb6 */         \
-    0xfe0ff7c3, 0x8e97, 0x448b,                       \
-  { 0x9a, 0x8a, 0x86, 0xaf, 0xdb, 0x9f, 0xbb, 0xb6 } }
-#define NS_CHILDPROCESSMESSAGEMANAGER_CONTRACTID \
-  "@mozilla.org/childprocessmessagemanager;1"
-  
 // {f96f5ec9-755b-447e-b1f3-717d1a84bb41}
 #define NS_PLUGINDOCUMENT_CID \
 { 0xf96f5ec9, 0x755b, 0x447e, { 0xb1, 0xf3, 0x71, 0x7d, 0x1a, 0x84, 0xbb, 0x41 } }
-
-// {08c6cc8b-cfb0-421d-b1f7-683ff2989681}
-#define THIRDPARTYUTIL_CID \
- {0x08c6cc8b, 0xcfb0, 0x421d, {0xb1, 0xf7, 0x68, 0x3f, 0xf2, 0x98, 0x96, 0x81}}
 
 #endif /* nsContentCID_h__ */

@@ -43,26 +43,16 @@
  * The nsIDOMHTMLButtonElement interface is the interface to a [X]HTML
  * button element.
  *
- * This interface is trying to follow the DOM Level 2 HTML specification:
+ * For more information on this interface please see
  * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-interface nsIDOMValidityState;
-
-[scriptable, uuid(bcae78a1-9f9b-46bf-abb5-a3fe410d97ae)]
+[scriptable, uuid(dfed25e8-07e8-41a9-8f9e-9fbf59c539ea)]
 interface nsIDOMHTMLButtonElement : nsIDOMHTMLElement
 {
            attribute boolean               autofocus;
            attribute boolean               disabled;
   readonly attribute nsIDOMHTMLFormElement form;
-           attribute DOMString             formAction;
-           attribute DOMString             formEnctype;
-           attribute DOMString             formMethod;
-           attribute boolean               formNoValidate;
-           attribute DOMString             formTarget;
 
            attribute DOMString             name;
            attribute DOMString             type;
@@ -74,13 +64,5 @@ interface nsIDOMHTMLButtonElement : nsIDOMHTMLElement
   void                      blur();
   void                      focus();
   void                      click();
-
-  // The following lines are parte of the constraint validation API, see:
-  // http://www.whatwg.org/specs/web-apps/current-work/#the-constraint-validation-api
-  readonly attribute boolean             willValidate;
-  readonly attribute nsIDOMValidityState validity;
-  readonly attribute DOMString           validationMessage;
-  boolean checkValidity();
-  void setCustomValidity(in DOMString error);
 };
 

@@ -41,7 +41,6 @@
 #include "nscore.h"
 #include "nsISupports.h"
 #include "nsTArray.h"
-#include "prenv.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "plstr.h"
@@ -69,7 +68,7 @@
 
 #include "mozilla/BlockingResourceBase.h"
 
-#ifdef HAVE_DLOPEN
+#ifdef HAVE_LIBDL
 #include <dlfcn.h>
 #endif
 
@@ -157,29 +156,10 @@ struct nsTraceRefcntStats {
 };
 
   // I hope to turn this on for everybody once we hit it a little less.
-#ifdef DEBUG
-static const char kStaticCtorDtorWarning[] =
-  "XPCOM objects created/destroyed from static ctor/dtor";
-
-static void
-AssertActivityIsLegal()
-{
-  if (gActivityTLS == BAD_TLS_INDEX ||
-      NS_PTR_TO_INT32(PR_GetThreadPrivate(gActivityTLS)) != 0) {
-    if (PR_GetEnv("MOZ_FATAL_STATIC_XPCOM_CTORS_DTORS")) {
-      NS_RUNTIMEABORT(kStaticCtorDtorWarning);
-    } else {
-      NS_WARNING(kStaticCtorDtorWarning);
-    }
-  }
-}
-#  define ASSERT_ACTIVITY_IS_LEGAL              \
-  PR_BEGIN_MACRO                                \
-    AssertActivityIsLegal();                    \
-  PR_END_MACRO
-#else
-#  define ASSERT_ACTIVITY_IS_LEGAL PR_BEGIN_MACRO PR_END_MACRO
-#endif  // DEBUG
+#define ASSERT_ACTIVITY_IS_LEGAL                                             \
+  NS_WARN_IF_FALSE(gActivityTLS != BAD_TLS_INDEX &&                          \
+             NS_PTR_TO_INT32(PR_GetThreadPrivate(gActivityTLS)) == 0,        \
+             "XPCOM objects created/destroyed from static ctor/dtor");
 
 // These functions are copied from nsprpub/lib/ds/plhash.c, with changes
 // to the functions not called Default* to free the serialNumberRecord or
@@ -730,7 +710,7 @@ static void InitTraceLog(void)
   if (defined) {
     gLogToLeaky = PR_TRUE;
     PRFuncPtr p = nsnull, q = nsnull;
-#ifdef HAVE_DLOPEN
+#ifdef HAVE_LIBDL
     {
       PRLibrary *lib = nsnull;
       p = PR_FindFunctionSymbolAndLibrary("__log_addref", &lib);

@@ -50,7 +50,6 @@
 pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
-pref("general.useragent.compatMode.firefox", false);
 
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
@@ -60,13 +59,8 @@ pref("general.warnOnAboutConfig", true);
 pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
-// Is this the first-time smartsizing has been introduced?
-pref("browser.cache.disk.smart_size.first_run", true);
-// Does the user want smart-sizing?
-pref("browser.cache.disk.smart_size.enabled", true);
-// Size explicitly set by the user. Used when smart_size.enabled == false
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         256000);
+pref("browser.cache.disk.capacity",         51200);
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -95,11 +89,6 @@ pref("browser.cache.offline.capacity", 15000);
 pref("offline-apps.quota.max",          7000);
 pref("offline-apps.quota.warn",         4000);
 #endif
-
-// Whether or not indexedDB is enabled.
-pref("dom.indexedDB.enabled", true);
-// Space to allow indexedDB databases before prompting (in MB).
-pref("dom.indexedDB.warningQuota", 50);
 
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
@@ -189,17 +178,13 @@ pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
-pref("gfx.3d_video.enabled", false);
-
 pref("gfx.downloadable_fonts.enabled", true);
-pref("gfx.downloadable_fonts.sanitize", true);
-#ifdef XP_MACOSX
-pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", false);
-#else
-pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", true);
-#endif
 
-pref("gfx.font_rendering.harfbuzz.level", 2);
+#ifdef XP_MACOSX
+pref("gfx.font_rendering.harfbuzz.level", 1);
+#else
+pref("gfx.font_rendering.harfbuzz.level", 0);
+#endif
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -237,7 +222,6 @@ pref("accessibility.tabfocus_applies_to_xul", true);
 pref("accessibility.usetexttospeech", "");
 pref("accessibility.usebrailledisplay", "");
 pref("accessibility.accesskeycausesactivation", true);
-pref("accessibility.mouse_focuses_formcontrol", false);
 
 // Type Ahead Find
 pref("accessibility.typeaheadfind", true);
@@ -588,18 +572,14 @@ pref("javascript.options.strict",           false);
 pref("javascript.options.strict.debug",     true);
 #endif
 pref("javascript.options.relimit",          true);
-pref("javascript.options.tracejit.content",  true);
-pref("javascript.options.tracejit.chrome",   true);
-pref("javascript.options.methodjit.content", true);
-pref("javascript.options.methodjit.chrome",  false);
-pref("javascript.options.jitprofiling.content", true);
-pref("javascript.options.jitprofiling.chrome",  false);
+pref("javascript.options.jit.content",      true);
+pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
 // Comment 32.
 pref("javascript.options.mem.high_water_mark", 32);
-pref("javascript.options.mem.gc_frequency",   300);
+pref("javascript.options.mem.gc_frequency",   1600);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -649,6 +629,9 @@ pref("network.protocol-handler.expose-all", true);
 
 // Example: make IMAP an exposed protocol
 // pref("network.protocol-handler.expose.imap", true);
+
+pref("network.hosts.smtp_server",           "mail");
+pref("network.hosts.pop_server",            "mail");
 
 // <http>
 pref("network.http.version", "1.1");	  // default
@@ -737,11 +720,6 @@ pref("network.http.prompt-temp-redirect", true);
 // Section 4.8 "High-Throughput Data Service Class"
 pref("network.http.qos", 0);
 
-// The number of milliseconds after sending a SYN for an HTTP connection,
-// to wait before trying a different connection. 0 means do not use a second
-// connection.
-pref("network.http.connection-retry-timeout", 250);
-
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
 // Section 4.8 "High-Throughput Data Service Class", and 80 (0x50, or AF22)
@@ -790,7 +768,6 @@ pref("network.IDN.whitelist.es", true);
 pref("network.IDN.whitelist.fi", true);
 pref("network.IDN.whitelist.gr", true);
 pref("network.IDN.whitelist.hu", true);
-pref("network.IDN.whitelist.il", true);
 pref("network.IDN.whitelist.io", true);
 pref("network.IDN.whitelist.ir", true);
 pref("network.IDN.whitelist.is", true);
@@ -814,28 +791,12 @@ pref("network.IDN.whitelist.vn", true);
 // IDN ccTLDs
 // ae, UAE, .<Emarat>
 pref("network.IDN.whitelist.xn--mgbaam7a8h", true); 
-// cn, China, .<China> with variants
-pref("network.IDN.whitelist.xn--fiqz9s", true); // Traditional
-pref("network.IDN.whitelist.xn--fiqs8s", true); // Simplified
-// hk, Hong Kong, .<Hong Kong>
-pref("network.IDN.whitelist.xn--j6w193g", true);
-// ir, Iran, <.Iran> with variants
-pref("network.IDN.whitelist.xn--mgba3a4f16a", true);
-pref("network.IDN.whitelist.xn--mgba3a4fra", true);
-// jo, Jordan, .<Al-Ordon>
-pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
-// qa, Qatar, .<Qatar>
-pref("network.IDN.whitelist.xn--wgbl6a", true);
+// sa, Saudi Arabia, .<al-Saudiah>
+pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
 // ru, Russian Federation, .<RF>
 pref("network.IDN.whitelist.xn--p1ai", true);
-// sa, Saudi Arabia, .<al-Saudiah> with variants
-pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
-pref("network.IDN.whitelist.xn--mgberp4a5d4a87g", true);
-pref("network.IDN.whitelist.xn--mgbqly7c0a67fbc", true);
-pref("network.IDN.whitelist.xn--mgbqly7cvafr", true);
-// tw, Taiwan, <.Taiwan> with variants
-pref("network.IDN.whitelist.xn--kpry57d", true);  // Traditional
-pref("network.IDN.whitelist.xn--kprw13d", true);  // Simplified
+// jo, Jordan, .<Al-Ordon>
+pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
 
 // gTLDs
 pref("network.IDN.whitelist.biz", true);
@@ -993,11 +954,11 @@ pref("intl.accept_charsets",                "iso-8859-1,*,utf-8");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.static",     "chrome://global/locale/intl.properties");
-pref("intl.charsetmenu.browser.more1",      "ISO-8859-1, ISO-8859-15, IBM850, x-mac-roman, windows-1252, ISO-8859-14, ISO-8859-7, x-mac-greek, windows-1253, x-mac-icelandic, ISO-8859-10, ISO-8859-3");
-pref("intl.charsetmenu.browser.more2",      "ISO-8859-4, ISO-8859-13, windows-1257, IBM852, ISO-8859-2, x-mac-ce, windows-1250, x-mac-croatian, IBM855, ISO-8859-5, ISO-IR-111, KOI8-R, x-mac-cyrillic, windows-1251, IBM866, KOI8-U, x-mac-ukrainian, ISO-8859-16, x-mac-romanian");
-pref("intl.charsetmenu.browser.more3",      "GB2312, x-gbk, gb18030, HZ-GB-2312, ISO-2022-CN, Big5, Big5-HKSCS, x-euc-tw, EUC-JP, ISO-2022-JP, Shift_JIS, EUC-KR, x-windows-949, x-johab, ISO-2022-KR");
-pref("intl.charsetmenu.browser.more4",      "armscii-8, GEOSTD8, TIS-620, ISO-8859-11, windows-874, IBM857, ISO-8859-9, x-mac-turkish, windows-1254, x-viet-tcvn5712, VISCII, x-viet-vps, windows-1258, x-mac-devanagari, x-mac-gujarati, x-mac-gurmukhi");
-pref("intl.charsetmenu.browser.more5",      "ISO-8859-6, windows-1256, IBM864, ISO-8859-8-I, windows-1255, ISO-8859-8, IBM862");
+pref("intl.charsetmenu.browser.more1",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more2",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more3",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more4",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more5",      "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.unicode",    "UTF-8, UTF-16LE, UTF-16BE, UTF-32, UTF-32LE, UTF-32BE");
 pref("intl.charsetmenu.mailedit",           "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.cache",      "");
@@ -1035,7 +996,6 @@ pref("security.xpconnect.plugin.unrestricted", true);
 pref("security.dialog_enable_delay", 2000);
 
 pref("security.csp.enable", true);
-pref("security.csp.debug", false);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -1233,19 +1193,17 @@ pref("layout.css.report_errors", true);
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
 
-// Override DPI. A value of -1 means use the maximum of 96 and the system DPI.
+// Override DPI. A value of -1 means use the maxium of 96 and the system DPI.
 // A value of 0 means use the system DPI. A positive value is used as the DPI.
 // This sets the physical size of a device pixel and thus controls the
 // interpretation of physical units such as "pt".
 pref("layout.css.dpi", -1);
 
 // Set the number of device pixels per CSS pixel. A value <= 0 means choose
-// automatically based on user settings for the platform (e.g., "UI scale factor"
-// on Mac). A positive value is used as-is. This effectively controls the size
-// of a CSS "px". This is only used for windows on the screen, not for printing.
-// XXX the default value here should be 0, but before we can set it to 0,
-// we have to get this feature working on all platforms.
-pref("layout.css.devPixelsPerPx", "1.0");
+// automatically based on the DPI. A positive value is used as-is. This effectively
+// controls the size of a CSS "px". This is only used for pixel-based
+// (screen) output devices.
+pref("layout.css.devPixelsPerPx", "-1");
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1253,23 +1211,6 @@ pref("layout.css.devPixelsPerPx", "1.0");
 // 2 = right
 // 3 = left
 pref("layout.scrollbar.side", 0);
-
-// pref to control browser frame rate, in Hz. A value <= 0 means choose
-// automatically based on knowledge of the platform (or 60Hz if no platform-
-// specific information is available).
-pref("layout.frame_rate", -1);
-
-// pref to control precision of the frame rate timer. When true,
-// we use a "precise" timer, which means each notification fires
-// Nms after the start of the last notification. That means if the
-// processing of the notification is slow, the timer can fire immediately
-// after we've just finished processing the last notification, which might
-// lead to starvation problems.
-// When false, we use a "slack" timer which fires Nms after the *end*
-// of the last notification. This can give less tight frame rates
-// but provides more time for other operations when the browser is
-// heavily loaded.
-pref("layout.frame_rate.precise", false);
 
 // pref to permit users to make verified SOAP calls by default
 pref("capability.policy.default.SOAPCall.invokeVerifySourceHeader", "allAccess");
@@ -1317,23 +1258,13 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
-#ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
+#ifndef DEBUG
 pref("dom.ipc.plugins.timeoutSecs", 45);
-// How long a plugin launch is allowed to take before
-// we consider it failed.
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
-#endif
-
-#ifdef XP_WIN
-// Disable oopp for java on windows. They run their own
-// process isolation which conflicts with our implementation.
-pref("dom.ipc.plugins.java.enabled", false);
 #endif
 
 #ifndef ANDROID
@@ -1770,6 +1701,9 @@ pref("network.autodial-helper.enabled", true);
 // and we're not already running).
 pref("advanced.system.supportDDEExec", true);
 
+// Use CP932 compatible map for JIS X 0208
+pref("intl.jis0208.map", "CP932");
+
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
 
@@ -1796,15 +1730,10 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
 // set this to true.  Then, gecko processes them as mouse wheel messages.
 pref("mousewheel.emulate_at_wm_scroll", false);
 
+// Bug 514927
 // Enables or disabled the TrackPoint hack, -1 is autodetect, 0 is off,
 // and 1 is on.  Set this to 1 if TrackPoint scrolling is not working.
 pref("ui.trackpoint_hack.enabled", -1);
-
-// Setting this to a non-empty string overrides the Win32 "window class" used
-// for "normal" windows. Setting this to MozillaUIWindowClass might make
-// some trackpad drivers behave better.
-pref("ui.window_class_override", "");
-
 # WINNT
 #endif
 
@@ -2422,6 +2351,9 @@ pref("applications.telnet.port", "-p %port%");
 
 pref("mail.compose.max_recycled_windows", 0);
 
+// Use IBM943 compatible map for JIS X 0208
+pref("intl.jis0208.map", "IBM943");
+
 // Disable IPv6 name lookups by default.
 // This is because OS/2 doesn't support IPv6
 pref("network.dns.disableIPv6", true);
@@ -2534,6 +2466,8 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 
 #ifdef ANDROID
 // Handled differently under Mac/Windows
+pref("network.hosts.smtp_server", "localhost");
+pref("network.hosts.pop_server", "pop");
 pref("network.protocol-handler.warn-external.file", false);
 pref("browser.drag_out_of_frame_style", 1);
 
@@ -2808,6 +2742,8 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 #ifndef XP_MACOSX
 #ifdef XP_UNIX
 // Handled differently under Mac/Windows
+pref("network.hosts.smtp_server", "localhost");
+pref("network.hosts.pop_server", "pop");
 pref("network.protocol-handler.warn-external.file", false);
 pref("browser.drag_out_of_frame_style", 1);
 
@@ -3179,7 +3115,7 @@ pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 
 // Discards inactive image frames and re-decodes them on demand from
 // compressed data.
-pref("image.mem.discardable", true);
+pref("image.mem.discardable", false);
 
 // Prevents images from automatically being decoded on load, instead allowing
 // them to be decoded on demand when they are drawn.
@@ -3190,29 +3126,11 @@ pref("image.mem.decodeondraw", false);
 // value and twice this value.
 pref("image.mem.min_discard_timeout_ms", 10000);
 
-// Chunk size for calls to the image decoders
-pref("image.mem.decode_bytes_at_a_time", 200000);
-
-// The longest time we can spend in an iteration of an async decode
-pref("image.mem.max_ms_before_yield", 400);
-
-// The maximum source data size for which we auto sync decode
-pref("image.mem.max_bytes_for_sync_decode", 150000);
-
 // WebGL prefs
-// keep disabled on linux until bug 578877 is fixed
-// This is not an ideal define, but it gets the right set of
-// build machines.
-#ifdef MOZ_WIDGET_GTK2
 pref("webgl.enabled_for_all_sites", false);
-#else
-pref("webgl.enabled_for_all_sites", true);
-#endif
-pref("webgl.shader_validator", true);
-pref("webgl.force_osmesa", false);
-pref("webgl.mochitest_native_gl", false);
+pref("webgl.shader_validator", false);
+pref("webgl.software_render", false);
 pref("webgl.osmesalib", "");
-pref("webgl.verbose", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -3226,30 +3144,15 @@ pref("mozilla.widget.disable-native-theme", true);
 pref("gfx.color_management.mode", 0);
 #endif
 
-// Default value of acceleration for all widgets.
-#ifdef XP_WIN
-pref("layers.accelerate-all", true);
-#else
-#ifdef XP_MACOSX
-pref("layers.accelerate-all", true);
-#else
-pref("layers.accelerate-all", false);
-#endif
-#endif
+// Initialize default render-mode.
+pref("mozilla.widget.render-mode", -1);
 
-// Whether to allow acceleration on layers at all.
-pref("layers.accelerate-none", false);
+// Initialize default accelerated layers
+pref("mozilla.widget.accelerated-layers", true);
 
 #ifdef XP_WIN
 #ifndef WINCE
-// Whether to disable the automatic detection and use of direct2d.
-pref("gfx.direct2d.disabled", false);
-// Whether to attempt to enable Direct2D regardless of automatic detection or
-// blacklisting
-pref("gfx.direct2d.force-enabled", false);
-
-pref("layers.prefer-opengl", false);
-pref("layers.prefer-d3d9", false);
+pref("mozilla.layers.prefer-opengl", false);
 #endif
 #endif
 
@@ -3279,7 +3182,6 @@ pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
-pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);

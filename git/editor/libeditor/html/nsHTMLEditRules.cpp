@@ -86,7 +86,6 @@
 #include "nsIDOM3Node.h"
 #include "nsContentUtils.h"
 #include "nsTArray.h"
-#include "nsIHTMLDocument.h"
 
 //const static char* kMOZEditorBogusNodeAttr="MOZ_EDITOR_BOGUS_NODE";
 //const static char* kMOZEditorBogusNodeValue="TRUE";
@@ -198,7 +197,6 @@ mDocChangeRange(nsnull)
 ,mReturnInEmptyLIKillsList(PR_TRUE)
 ,mDidDeleteSelection(PR_FALSE)
 ,mDidRangedDelete(PR_FALSE)
-,mRestoreContentEditableCount(PR_FALSE)
 ,mUtilRange(nsnull)
 ,mJoinOffset(0)
 {
@@ -321,7 +319,7 @@ nsHTMLEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
   nsAutoLockRulesSniffing lockIt((nsTextEditRules*)this);
   mDidExplicitlySetInterline = PR_FALSE;
 
-  if (!mActionNesting++)
+  if (!mActionNesting)
   {
     // clear our flag about if just deleted a range
     mDidRangedDelete = PR_FALSE;
@@ -379,23 +377,13 @@ nsHTMLEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
       res = CacheInlineStyles(selNode);
       NS_ENSURE_SUCCESS(res, res);
     }
-
-    // Stabilize the document against contenteditable count changes
-    nsCOMPtr<nsIDOMDocument> doc;
-    res = mHTMLEditor->GetDocument(getter_AddRefs(doc));
-    NS_ENSURE_SUCCESS(res, res);
-    nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(doc);
-    NS_ENSURE_TRUE(htmlDoc, NS_ERROR_FAILURE);
-    if (htmlDoc->GetEditingState() == nsIHTMLDocument::eContentEditable) {
-      htmlDoc->ChangeContentEditableCount(nsnull, +1);
-      mRestoreContentEditableCount = PR_TRUE;
-    }
-
+    
     // check that selection is in subtree defined by body node
     ConfirmSelectionInBody();
     // let rules remember the top level action
     mTheAction = action;
   }
+  mActionNesting++;
   return NS_OK;
 }
 
@@ -435,19 +423,6 @@ nsHTMLEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
       if (frameSelection) {
         frameSelection->UndefineCaretBidiLevel();
       }
-    }
-
-    // Reset the contenteditable count to its previous value
-    if (mRestoreContentEditableCount) {
-      nsCOMPtr<nsIDOMDocument> doc;
-      res = mHTMLEditor->GetDocument(getter_AddRefs(doc));
-      NS_ENSURE_SUCCESS(res, res);
-      nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(doc);
-      NS_ENSURE_TRUE(htmlDoc, NS_ERROR_FAILURE);
-      if (htmlDoc->GetEditingState() == nsIHTMLDocument::eContentEditable) {
-        htmlDoc->ChangeContentEditableCount(nsnull, -1);
-      }
-      mRestoreContentEditableCount = PR_FALSE;
     }
   }
 
@@ -510,7 +485,22 @@ nsHTMLEditRules::AfterEditInner(PRInt32 action, nsIEditor::EDirection aDirection
       res = mHTMLEditor->CollapseAdjacentTextNodes(mDocChangeRange);
       NS_ENSURE_SUCCESS(res, res);
     }
-
+    
+    // replace newlines with breaks.
+    // MOOSE:  This is buttUgly.  A better way to 
+    // organize the action enum is in order.
+    if (// (action == nsEditor::kOpInsertText) || 
+        // (action == nsEditor::kOpInsertIMEText) ||
+        (action == nsHTMLEditor::kOpInsertElement) ||
+        (action == nsHTMLEditor::kOpInsertQuotation) ||
+        (action == nsEditor::kOpInsertNode) ||
+        (action == nsHTMLEditor::kOpHTMLPaste ||
+        (action == nsHTMLEditor::kOpLoadHTML)))
+    {
+      res = ReplaceNewlines(mDocChangeRange);
+      NS_ENSURE_SUCCESS(res, res);
+    }
+    
     // clean up any empty nodes in the selection
     res = RemoveEmptyNodes();
     NS_ENSURE_SUCCESS(res, res);
@@ -5832,7 +5822,7 @@ nsHTMLEditRules::GetNodesForOperation(nsCOMArray<nsIDOMRange>& inArrayOfRanges,
     NS_ASSERTION(rangeCount == rangeItemArray.Length(), "How did that happen?");
 
     // first register ranges for special editor gravity
-    for (i = 0; i < rangeCount; i++)
+    for (i = 0; i < (PRInt32)rangeCount; i++)
     {
       opRange = inArrayOfRanges[0];
       nsRangeStore *item = rangeItemArray.Elements() + i;
@@ -6055,15 +6045,10 @@ nsHTMLEditRules::GetListActionNodes(nsCOMArray<nsIDOMNode> &outArrayOfNodes,
     // selection spans multiple lists but with no common list parent.
     if (outArrayOfNodes.Count()) return NS_OK;
   }
-
-  {
-    // We don't like other people messing with our selection!
-    nsAutoTxnsConserveSelection dontSpazMySelection(mHTMLEditor);
-
-    // contruct a list of nodes to act on.
-    res = GetNodesFromSelection(selection, kMakeList, outArrayOfNodes, aDontTouchContent);
-    NS_ENSURE_SUCCESS(res, res);
-  }
+  
+  // contruct a list of nodes to act on.
+  res = GetNodesFromSelection(selection, kMakeList, outArrayOfNodes, aDontTouchContent);
+  NS_ENSURE_SUCCESS(res, res);                                 
                
   // pre process our list of nodes...                      
   PRInt32 listCount = outArrayOfNodes.Count();
@@ -6693,12 +6678,7 @@ nsHTMLEditRules::SplitParagraph(nsIDOMNode *aPara,
     res = mHTMLEditor->DeleteNode(aBRNode);  
     NS_ENSURE_SUCCESS(res, res);
   }
-
-  // remove ID attribute on the paragraph we just created
-  nsCOMPtr<nsIDOMElement> rightElt = do_QueryInterface(rightPara);
-  res = mHTMLEditor->RemoveAttribute(rightElt, NS_LITERAL_STRING("id"));
-  NS_ENSURE_SUCCESS(res, res);
-
+  
   // check both halves of para to see if we need mozBR
   res = InsertMozBRIfNeeded(leftPara);
   NS_ENSURE_SUCCESS(res, res);
@@ -9190,31 +9170,4 @@ nsHTMLEditRules::WillRelativeChangeZIndex(nsISelection *aSelection,
   nsCOMPtr<nsIHTMLAbsPosEditor> absPosHTMLEditor = mHTMLEditor;
   PRInt32 zIndex;
   return absPosHTMLEditor->RelativeChangeElementZIndex(elt, aChange, &zIndex);
-}
-
-NS_IMETHODIMP
-nsHTMLEditRules::DocumentModified()
-{
-  nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, &nsHTMLEditRules::DocumentModifiedWorker));
-  return NS_OK;
-}
-
-void
-nsHTMLEditRules::DocumentModifiedWorker()
-{
-  nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(mHTMLEditor);
-
-  nsCOMPtr<nsISelection> selection;
-  nsresult res = mHTMLEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, );
-
-  // Delete our bogus node, if we have one, since the document might not be
-  // empty any more.
-  if (mBogusNode) {
-    mEditor->DeleteNode(mBogusNode);
-    mBogusNode = nsnull;
-  }
-
-  // Try to recreate the bogus node if needed.
-  CreateBogusNodeIfNeeded(selection);
 }

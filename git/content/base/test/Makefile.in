@@ -78,7 +78,7 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug276037-2.xhtml \
 		test_bug298064.html \
 		bug298064-subframe.html \
-		test_xhr_forbidden_headers.html \
+		test_bug308484.html \
 		test_bug311681.xml \
 		test_bug322317.html \
 		test_bug330925.xhtml \
@@ -148,7 +148,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug401662.html \
 		test_bug403852.html \
 		test_fileapi.html \
-		test_fileapi_slice.html \
 		test_bug403868.xml \
 		test_bug405182.html \
 		test_bug403841.html \
@@ -176,8 +175,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug421602.html \
 		test_bug422537.html \
 		test_bug424359-1.html \
-		test_bug499656.html \
-		test_bug499656.xhtml \
 		file_htmlserializer_1.html \
 		file_htmlserializer_1_bodyonly.html \
 		file_htmlserializer_1_format.html \
@@ -213,8 +210,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		file_XHR_pass3.txt^headers^ \
 		file_XHR_fail1.txt \
 		file_XHR_fail1.txt^headers^ \
-		file_XHR_binary1.bin \
-		file_XHR_binary1.bin^headers^ \
 		test_bug428847.html \
 		file_bug428847-1.xhtml \
 		file_bug428847-2.xhtml \
@@ -248,11 +243,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug454325.html \
 		file_bug391728_2.html \
 		test_bug456262.html \
-		test_bug590870.html \
-		file_bug590870.html \
-		test_bug590812.html \
-		file_bug590812.xml \
-		file_bug590812-ref.xhtml \
 		test_bug368972.html \
 		test_bug448993.html \
 		test_bug450160.html \
@@ -260,8 +250,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug454326.html \
 		test_bug505783.html \
 		test_bug457746.html \
-		test_bug587931.html \
-		test_bug592829.html \
 		test_bug518104.html \
 		bug457746.sjs \
 		test_CrossSiteXHR.html \
@@ -312,8 +300,6 @@ _TEST_FILES2 = \
 		file_xhtmlserializer_2_latin1.xhtml \
 		test_bug500937.html \
 		test_htmlcopyencoder.html \
-		test_bug313646.html \
-		bug313646.txt \
 		test_htmlcopyencoder.xhtml \
 		test_bug270145.xhtml \
 		test_elementTraversal.html \
@@ -349,12 +335,11 @@ _TEST_FILES2 = \
 		test_classList.html \
 		test_bug514487.html \
 		test_range_bounds.html \
-		test_mozfiledataurl.html \
-		file_mozfiledataurl_audio.ogg \
-		file_mozfiledataurl_img.jpg \
-		file_mozfiledataurl_inner.html \
-		file_mozfiledataurl_doc.html \
-		file_mozfiledataurl_text.txt \
+		test_bug543870.html \
+		file_bug543870_img.jpg \
+		file_bug543870_inner.html \
+		file_bug543870_doc.html \
+		file_bug543870_text.txt \
 		test_bug475156.html \
 		bug475156.sjs \
 		test_bug544642.html \
@@ -370,17 +355,17 @@ _TEST_FILES2 = \
 		file_CSP_main.html \
 		file_CSP_main.html^headers^ \
 		file_CSP_main.js \
-		test_CSP_frameancestors.html \
-		file_CSP_frameancestors.sjs \
-		file_CSP_frameancestors_main.html \
-		file_CSP_frameancestors_main.js \
-		test_CSP_inlinescript.html \
-		file_CSP_inlinescript_main.html \
-		file_CSP_inlinescript_main.html^headers^ \
-		test_CSP_evalscript.html \
-		file_CSP_evalscript_main.html \
-		file_CSP_evalscript_main.html^headers^ \
-		file_CSP_evalscript_main.js \
+ 		test_CSP_frameancestors.html \
+ 		file_CSP_frameancestors.sjs \
+ 		file_CSP_frameancestors_main.html \
+ 		file_CSP_frameancestors_main.js \
+ 		test_CSP_inlinescript.html \
+ 		file_CSP_inlinescript_main.html \
+ 		file_CSP_inlinescript_main.html^headers^ \
+ 		test_CSP_evalscript.html \
+ 		file_CSP_evalscript_main.html \
+ 		file_CSP_evalscript_main.html^headers^ \
+ 		file_CSP_evalscript_main.js \
 		test_bug540854.html \
 		bug540854.sjs \
 		test_bug548463.html \
@@ -417,38 +402,10 @@ _TEST_FILES2 = \
 		test_websocket.html \
 		file_websocket_wsh.py \
 		file_websocket_http_resource.txt \
+		test_bug574596.html \
 		test_x-frame-options.html \
 		file_x-frame-options_main.html \
 		file_x-frame-options_page.sjs \
-		test_createHTMLDocument.html \
-		test_bug564047.html \
-		test_bug567350.html \
-		test_bug574596.html \
-		test_bug578096.html \
-		test_bug597345.html \
-		script-1_bug597345.sjs \
-		script-2_bug597345.js \
-		test_bug598877.html \
-		test_bug599588.html \
-		test_bug600466.html \
-		test_bug600468.html \
-		test_bug600471.html \
-		test_bug601803.html \
-		file_bug601803a.html \
-		file_bug601803b.html \
-		test_bug602838.html \
-		script_bug602838.sjs \
-		test_bug604660.html \
-		file_bug604660-1.xml \
-		file_bug604660-2.xsl \
-		file_bug604660-3.js \
-		file_bug604660-4.js \
-		file_bug604660-5.xml \
-		file_bug604660-6.xsl \
-		test_bug605982.html \
-		test_bug606729.html \
-		test_treewalker_nextsibling.xml \
-		test_bug614058.html \
 		$(NULL)
 
 # This test fails on the Mac for some reason
@@ -468,15 +425,8 @@ endif
 #		test_bug503473.html \
 #		file_bug503473-frame.sjs \
 
-_BROWSER_TEST_FILES = \
-		browser_bug593387.js \
-		$(NULL)
-
 libs:: $(_TEST_FILES1)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 
 libs:: $(_TEST_FILES2)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_BROWSER_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

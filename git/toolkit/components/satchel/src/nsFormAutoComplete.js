@@ -421,10 +421,6 @@ FormAutoCompleteResult.prototype = {
         return this.entries[index].text;
     },
 
-    getLabelAt: function(index) {
-        return getValueAt(index);
-    },
-
     getCommentAt : function (index) {
         this._checkIndexBounds(index);
         return "";

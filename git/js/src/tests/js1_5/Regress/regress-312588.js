@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-312588.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 312588;
 var summary = 'Do not crash creating infinite array';

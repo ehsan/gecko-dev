@@ -61,35 +61,21 @@ const PRUint32 kIdleThreadTimeoutMs = 30000;
 TransactionThreadPool* gInstance = nsnull;
 bool gShutdown = false;
 
-inline
-nsresult
-CheckOverlapAndMergeObjectStores(nsTArray<nsString>& aLockedStores,
-                                 const nsTArray<nsString>& aObjectStores,
-                                 bool aShouldMerge,
-                                 bool* aStoresOverlap)
-{
-  PRUint32 length = aObjectStores.Length();
-
-  bool overlap = false;
-
-  for (PRUint32 index = 0; index < length; index++) {
-    const nsString& storeName = aObjectStores[index];
-    if (aLockedStores.Contains(storeName)) {
-      overlap = true;
-    }
-    else if (aShouldMerge && !aLockedStores.AppendElement(storeName)) {
-      NS_WARNING("Out of memory!");
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  *aStoresOverlap = overlap;
-  return NS_OK;
-}
-
 } // anonymous namespace
 
 BEGIN_INDEXEDDB_NAMESPACE
+
+struct QueuedDispatchInfo
+{
+  QueuedDispatchInfo()
+  : finish(false)
+  { }
+
+  nsRefPtr<IDBTransaction> transaction;
+  nsCOMPtr<nsIRunnable> runnable;
+  nsCOMPtr<nsIRunnable> finishRunnable;
+  bool finish;
+};
 
 class FinishTransactionRunnable : public nsIRunnable
 {
@@ -116,8 +102,7 @@ TransactionThreadPool::TransactionThreadPool()
 TransactionThreadPool::~TransactionThreadPool()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(gInstance == this, "Different instances!");
-  gInstance = nsnull;
+  NS_ASSERTION(!gInstance, "More than one instance!");
 }
 
 // static
@@ -126,20 +111,21 @@ TransactionThreadPool::GetOrCreate()
 {
   if (!gInstance && !gShutdown) {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    nsAutoPtr<TransactionThreadPool> pool(new TransactionThreadPool());
+    nsRefPtr<TransactionThreadPool> pool(new TransactionThreadPool());
 
     nsresult rv = pool->Init();
     NS_ENSURE_SUCCESS(rv, nsnull);
 
-    gInstance = pool.forget();
-  }
-  return gInstance;
-}
+    nsCOMPtr<nsIObserverService> obs =
+      do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
-// static
-TransactionThreadPool*
-TransactionThreadPool::Get()
-{
+    rv = obs->AddObserver(pool, "xpcom-shutdown-threads", PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, nsnull);
+
+    // The observer service now owns us.
+    gInstance = pool;
+  }
   return gInstance;
 }
 
@@ -155,7 +141,6 @@ TransactionThreadPool::Shutdown()
     if (NS_FAILED(gInstance->Cleanup())) {
       NS_WARNING("Failed to shutdown thread pool!");
     }
-    delete gInstance;
     gInstance = nsnull;
   }
 }
@@ -191,25 +176,14 @@ TransactionThreadPool::Cleanup()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
+  if (mTransactionsInProgress.Count()) {
+    // This is actually really bad, but if we don't force everything awake then
+    // we will deadlock on shutdown...
+    NS_ERROR("Transactions still in progress!");
+  }
+
   nsresult rv = mThreadPool->Shutdown();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Make sure the pool is still accessible while any callbacks generated from
-  // the other threads are processed.
-  rv = NS_ProcessPendingEvents(nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!mCompleteCallbacks.IsEmpty()) {
-    // Run all callbacks manually now.
-    for (PRUint32 index = 0; index < mCompleteCallbacks.Length(); index++) {
-      mCompleteCallbacks[index].mCallback->Run();
-    }
-    mCompleteCallbacks.Clear();
-
-    // And make sure they get processed.
-    rv = NS_ProcessPendingEvents(nsnull);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   return NS_OK;
 }
@@ -234,96 +208,59 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
   nsTArray<TransactionInfo>& transactionsInProgress =
     dbTransactionInfo->transactions;
 
-  PRUint32 transactionCount = transactionsInProgress.Length();
+  PRUint32 count = transactionsInProgress.Length();
 
 #ifdef DEBUG
-  if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+  if (aTransaction->mMode == IDBTransaction::FULL_LOCK) {
     NS_ASSERTION(dbTransactionInfo->locked, "Should be locked!");
-    NS_ASSERTION(transactionCount == 1,
-                 "More transactions running than should be!");
+    NS_ASSERTION(count == 1, "More transactions running than should be!");
   }
 #endif
 
-  if (transactionCount == 1) {
+  if (count == 1) {
 #ifdef DEBUG
     {
       TransactionInfo& info = transactionsInProgress[0];
       NS_ASSERTION(info.transaction == aTransaction, "Transaction mismatch!");
+      NS_ASSERTION(info.mode == aTransaction->mMode, "Mode mismatch!");
     }
 #endif
     mTransactionsInProgress.Remove(databaseId);
-
-    // See if we need to fire any complete callbacks.
-    for (PRUint32 index = 0; index < mCompleteCallbacks.Length(); index++) {
-      MaybeFireCallback(index);
-    }
   }
   else {
-    // We need to rebuild the locked object store list.
-    nsTArray<nsString> storesWriting, storesReading;
-
-    for (PRUint32 index = 0, count = transactionCount; index < count; index++) {
-      IDBTransaction* transaction = transactionsInProgress[index].transaction;
-      if (transaction == aTransaction) {
-        NS_ASSERTION(count == transactionCount, "More than one match?!");
-
+    for (PRUint32 index = 0; index < count; index++) {
+      TransactionInfo& info = transactionsInProgress[index];
+      if (info.transaction == aTransaction) {
         transactionsInProgress.RemoveElementAt(index);
-        index--;
-        count--;
-
-        continue;
-      }
-
-      const nsTArray<nsString>& objectStores = transaction->mObjectStoreNames;
-
-      bool dummy;
-      if (transaction->mMode == nsIIDBTransaction::READ_WRITE) {
-        if (NS_FAILED(CheckOverlapAndMergeObjectStores(storesWriting,
-                                                       objectStores,
-                                                       true, &dummy))) {
-          NS_WARNING("Out of memory!");
-        }
-      }
-      else if (transaction->mMode == nsIIDBTransaction::READ_ONLY) {
-        if (NS_FAILED(CheckOverlapAndMergeObjectStores(storesReading,
-                                                       objectStores,
-                                                       true, &dummy))) {
-          NS_WARNING("Out of memory!");
-        }
-      }
-      else {
-        NS_NOTREACHED("Unknown mode!");
+        break;
       }
     }
 
-    NS_ASSERTION(transactionsInProgress.Length() == transactionCount - 1,
+    NS_ASSERTION(transactionsInProgress.Length() == count - 1,
                  "Didn't find the transaction we were looking for!");
-
-    dbTransactionInfo->storesWriting.SwapElements(storesWriting);
-    dbTransactionInfo->storesReading.SwapElements(storesReading);
   }
 
   // Try to dispatch all the queued transactions again.
   nsTArray<QueuedDispatchInfo> queuedDispatch;
   queuedDispatch.SwapElements(mDelayedDispatchQueue);
 
-  transactionCount = queuedDispatch.Length();
-  for (PRUint32 index = 0; index < transactionCount; index++) {
-    if (NS_FAILED(Dispatch(queuedDispatch[index]))) {
+  count = queuedDispatch.Length();
+  for (PRUint32 index = 0; index < count; index++) {
+    QueuedDispatchInfo& info = queuedDispatch[index];
+    if (NS_FAILED(Dispatch(info.transaction, info.runnable, info.finish,
+                           info.finishRunnable))) {
       NS_WARNING("Dispatch failed!");
     }
   }
 }
 
-nsresult
+bool
 TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
-                                         bool* aCanRun,
-                                         TransactionQueue** aExistingQueue)
+                                         TransactionQueue** aQueue)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aTransaction, "Null pointer!");
-  NS_ASSERTION(aCanRun, "Null pointer!");
-  NS_ASSERTION(aExistingQueue, "Null pointer!");
+  NS_ASSERTION(aQueue, "Null pointer!");
 
   const PRUint32 databaseId = aTransaction->mDatabase->Id();
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
@@ -333,62 +270,123 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
   DatabaseTransactionInfo* dbTransactionInfo;
   if (!mTransactionsInProgress.Get(databaseId, &dbTransactionInfo)) {
     // First transaction for this database, fine to run.
-    *aCanRun = true;
-    *aExistingQueue = nsnull;
-    return NS_OK;
+    *aQueue = nsnull;
+    return true;
   }
 
   nsTArray<TransactionInfo>& transactionsInProgress =
     dbTransactionInfo->transactions;
 
   PRUint32 transactionCount = transactionsInProgress.Length();
-  NS_ASSERTION(transactionCount, "Should never be 0!");
 
-  if (mode == IDBTransaction::VERSION_CHANGE) {
-    dbTransactionInfo->lockPending = true;
-  }
+  if (mode == IDBTransaction::FULL_LOCK) {
+    switch (transactionCount) {
+      case 0: {
+        *aQueue = nsnull;
+        return true;
+      }
 
-  for (PRUint32 index = 0; index < transactionCount; index++) {
-    // See if this transaction is in out list of current transactions.
-    const TransactionInfo& info = transactionsInProgress[index];
-    if (info.transaction == aTransaction) {
-      *aCanRun = true;
-      *aExistingQueue = info.queue;
-      return NS_OK;
+      case 1: {
+        if (transactionsInProgress[0].transaction == aTransaction) {
+          *aQueue = transactionsInProgress[0].queue;
+          return true;
+        }
+        return false;
+      }
+
+      default: {
+        dbTransactionInfo->lockPending = true;
+        return false;
+      }
     }
   }
 
-  if (dbTransactionInfo->locked || dbTransactionInfo->lockPending) {
-    *aCanRun = false;
-    *aExistingQueue = nsnull;
-    return NS_OK;
+  bool locked = dbTransactionInfo->locked || dbTransactionInfo->lockPending;
+
+  bool mayRun = true;
+
+  // Another transaction for this database is already running. See if we can
+  // run at the same time.
+  for (PRUint32 transactionIndex = 0;
+       transactionIndex < transactionCount;
+       transactionIndex++) {
+    TransactionInfo& transactionInfo = transactionsInProgress[transactionIndex];
+
+    if (transactionInfo.transaction == aTransaction) {
+      // Same transaction, already running.
+      *aQueue = transactionInfo.queue;
+      return true;
+    }
+
+    if (locked) {
+      // Full lock in place or requested, no need to check objectStores.
+      continue;
+    }
+
+    // Not our transaction. See if the objectStores overlap.
+    nsTArray<TransactionObjectStoreInfo>& objectStoreInfoArray =
+      transactionInfo.objectStoreInfo;
+
+    PRUint32 objectStoreCount = objectStoreInfoArray.Length();
+    for (PRUint32 objectStoreIndex = 0;
+         objectStoreIndex < objectStoreCount;
+         objectStoreIndex++) {
+      TransactionObjectStoreInfo& objectStoreInfo =
+        objectStoreInfoArray[objectStoreIndex];
+
+      if (objectStoreNames.Contains(objectStoreInfo.objectStoreName)) {
+        // Overlapping name, see if the modes are compatible.
+        switch (mode) {
+          case nsIIDBTransaction::READ_WRITE: {
+            // Someone else is reading or writing to this table, we can't
+            // run now. Mark that we're waiting for it though.
+            objectStoreInfo.writerWaiting = true;
+
+            // We need to mark all overlapping transactions, not just the first
+            // one we find. Set the retval to false here but don't return until
+            // we've gone through the rest of the open transactions.
+            mayRun = false;
+          } break;
+
+          case nsIIDBTransaction::READ_ONLY: {
+            if (objectStoreInfo.writing || objectStoreInfo.writerWaiting) {
+              // Someone else is writing to this table, we can't run now.
+              return false;
+            }
+          } break;
+
+          case nsIIDBTransaction::SNAPSHOT_READ: {
+            NS_NOTYETIMPLEMENTED("Not implemented!");
+          } break;
+
+          default: {
+            NS_NOTREACHED("Should never get here!");
+          }
+        }
+      }
+
+      // Continue on to the next TransactionObjectStoreInfo.
+    }
+
+    // Continue on to the next TransactionInfo.
   }
 
-  bool writeOverlap;
-  nsresult rv =
-    CheckOverlapAndMergeObjectStores(dbTransactionInfo->storesWriting,
-                                     objectStoreNames,
-                                     mode == nsIIDBTransaction::READ_WRITE,
-                                     &writeOverlap);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool readOverlap;
-  rv = CheckOverlapAndMergeObjectStores(dbTransactionInfo->storesReading,
-                                        objectStoreNames,
-                                        mode == nsIIDBTransaction::READ_ONLY,
-                                        &readOverlap);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (writeOverlap ||
-      (readOverlap && mode == nsIIDBTransaction::READ_WRITE)) {
-    *aCanRun = false;
-    *aExistingQueue = nsnull;
-    return NS_OK;
+  if (locked) {
+    // If we got here then this is a new transaction and we won't allow it to
+    // start.
+    return false;
   }
 
-  *aCanRun = true;
-  *aExistingQueue = nsnull;
-  return NS_OK;
+  if (!mayRun) {
+    // If we got here then there are conflicting transactions and we can't run
+    // yet.
+    return false;
+  }
+
+  // If we got here then there are no conflicting transactions and we should
+  // be fine to run.
+  *aQueue = nsnull;
+  return true;
 }
 
 nsresult
@@ -401,16 +399,8 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   NS_ASSERTION(aTransaction, "Null pointer!");
   NS_ASSERTION(aRunnable, "Null pointer!");
 
-  if (aTransaction->mDatabase->IsInvalidated() && !aFinish) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  bool canRun;
   TransactionQueue* existingQueue;
-  nsresult rv = TransactionCanRun(aTransaction, &canRun, &existingQueue);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!canRun) {
+  if (!TransactionCanRun(aTransaction, &existingQueue)) {
     QueuedDispatchInfo* info = mDelayedDispatchQueue.AppendElement();
     NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
 
@@ -433,7 +423,7 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
 #ifdef DEBUG
-  if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+  if (aTransaction->mMode == IDBTransaction::FULL_LOCK) {
     NS_ASSERTION(!mTransactionsInProgress.Get(databaseId, nsnull),
                  "Shouldn't have anything in progress!");
   }
@@ -448,21 +438,9 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
     dbTransactionInfo = autoDBTransactionInfo;
   }
 
-  if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+  if (aTransaction->mMode == IDBTransaction::FULL_LOCK) {
     NS_ASSERTION(!dbTransactionInfo->locked, "Already locked?!");
     dbTransactionInfo->locked = true;
-  }
-
-  const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
-
-  nsTArray<nsString>& storesInUse =
-    aTransaction->mMode == nsIIDBTransaction::READ_WRITE ?
-    dbTransactionInfo->storesWriting :
-    dbTransactionInfo->storesReading;
-
-  if (!storesInUse.AppendElements(objectStoreNames)) {
-    NS_WARNING("Out of memory!");
-    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   nsTArray<TransactionInfo>& transactionInfoArray =
@@ -476,16 +454,23 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   if (aFinish) {
     transactionInfo->queue->Finish(aFinishRunnable);
   }
+  transactionInfo->mode = aTransaction->mMode;
 
-  if (!transactionInfo->objectStoreNames.AppendElements(objectStoreNames)) {
-    NS_WARNING("Out of memory!");
-    return NS_ERROR_OUT_OF_MEMORY;
+  const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
+  PRUint32 count = objectStoreNames.Length();
+  for (PRUint32 index = 0; index < count; index++) {
+    TransactionObjectStoreInfo* info =
+      transactionInfo->objectStoreInfo.AppendElement();
+    NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
+
+    info->objectStoreName = objectStoreNames[index];
+    info->writing = transactionInfo->mode == nsIIDBTransaction::READ_WRITE;
   }
 
   if (autoDBTransactionInfo) {
     if (!mTransactionsInProgress.Put(databaseId, autoDBTransactionInfo)) {
-      NS_WARNING("Failed to put!");
-      return NS_ERROR_OUT_OF_MEMORY;
+      NS_ERROR("Failed to put!");
+      return NS_ERROR_FAILURE;
     }
     autoDBTransactionInfo.forget();
   }
@@ -493,49 +478,19 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
   return mThreadPool->Dispatch(transactionInfo->queue, NS_DISPATCH_NORMAL);
 }
 
-bool
-TransactionThreadPool::WaitForAllDatabasesToComplete(
-                                   nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
-                                   nsIRunnable* aCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(TransactionThreadPool, nsIObserver)
+
+NS_IMETHODIMP
+TransactionThreadPool::Observe(nsISupports* /* aSubject */,
+                               const char*  aTopic,
+                               const PRUnichar* /* aData */)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(!aDatabases.IsEmpty(), "No databases to wait on!");
-  NS_ASSERTION(aCallback, "Null pointer!");
+  NS_ASSERTION(!strcmp("xpcom-shutdown-threads", aTopic), "Wrong topic!");
 
-  DatabasesCompleteCallback* callback = mCompleteCallbacks.AppendElement();
-  if (!callback) {
-    NS_WARNING("Out of memory!");
-    return false;
-  }
+  Shutdown();
 
-  callback->mCallback = aCallback;
-  if (!callback->mDatabases.SwapElements(aDatabases)) {
-    NS_ERROR("This should never fail!");
-  }
-
-  MaybeFireCallback(mCompleteCallbacks.Length() - 1);
-  return true;
-}
-
-void
-TransactionThreadPool::MaybeFireCallback(PRUint32 aCallbackIndex)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  DatabasesCompleteCallback& callback = mCompleteCallbacks[aCallbackIndex];
-
-  bool freeToRun = true;
-  for (PRUint32 index = 0; index < callback.mDatabases.Length(); index++) {
-    if (mTransactionsInProgress.Get(callback.mDatabases[index]->Id(), nsnull)) {
-      freeToRun = false;
-      break;
-    }
-  }
-
-  if (freeToRun) {
-    callback.mCallback->Run();
-    mCompleteCallbacks.RemoveElementAt(aCallbackIndex);
-  }
+  return NS_OK;
 }
 
 TransactionThreadPool::

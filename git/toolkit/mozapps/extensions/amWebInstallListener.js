@@ -52,14 +52,6 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-// Installation can begin from any of these states
-const READY_STATES = [
-  AddonManager.STATE_AVAILABLE,
-  AddonManager.STATE_DOWNLOAD_FAILED,
-  AddonManager.STATE_INSTALL_FAILED,
-  AddonManager.STATE_CANCELLED
-];
-
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
   this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
@@ -103,7 +95,7 @@ function Installer(aWindow, aUrl, aInstalls) {
     aInstall.addListener(this);
 
     // Start downloading if it hasn't already begun
-    if (READY_STATES.indexOf(aInstall.state) != -1)
+    if (aInstall.state == AddonManager.STATE_AVAILABLE)
       aInstall.install();
   }, this);
 
@@ -145,23 +137,9 @@ Installer.prototype = {
           failed.push(install);
         else
           installs.push(install);
-
-        if (install.linkedInstalls) {
-          install.linkedInstalls.forEach(function(aInstall) {
-            aInstall.addListener(this);
-            // App disabled items are not compatible and so fail to install
-            if (aInstall.addon.appDisabled)
-              failed.push(aInstall);
-            else
-              installs.push(aInstall);
-          }, this);
-        }
-        break;
-      case AddonManager.STATE_CANCELLED:
-        // Just ignore cancelled downloads
         break;
       default:
-        WARN("Download of " + install.sourceURI.spec + " in unexpected state " +
+        WARN("Download of " + install.sourceURI + " in unexpected state " +
              install.state);
       }
     }
@@ -264,14 +242,6 @@ Installer.prototype = {
   onInstallEnded: function(aInstall) {
     aInstall.removeListener(this);
     this.installed.push(aInstall);
-
-    // If installing a theme that is disabled and can be enabled then enable it
-    if (aInstall.addon.type == "theme" &&
-        aInstall.addon.userDisabled == true &&
-        aInstall.addon.appDisabled == false) {
-      aInstall.addon.userDisabled = false;
-    }
-
     this.checkAllInstalled();
   }
 };
@@ -280,20 +250,6 @@ function extWebInstallListener() {
 }
 
 extWebInstallListener.prototype = {
-  /**
-   * @see amIWebInstallListener.idl
-   */
-  onWebInstallDisabled: function(aWindow, aUri, aInstalls) {
-    let info = {
-      originatingWindow: aWindow,
-      originatingURI: aUri,
-      installs: aInstalls,
-
-      QueryInterface: XPCOMUtils.generateQI([Ci.amIWebInstallInfo])
-    };
-    Services.obs.notifyObservers(info, "addon-install-disabled", null);
-  },
-
   /**
    * @see amIWebInstallListener.idl
    */

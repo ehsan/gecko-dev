@@ -89,7 +89,7 @@ public:
 
 protected:
   nsPresContext* mPresContext;
-  nsCOMPtr<nsIPresShell> mPresShell;
+  nsIPresShell* mPresShell;
   nsCOMPtr<nsISelection> mSelection;
   nsCOMPtr<nsIRange> mFirstSelectedRange;
   nsCOMPtr<nsIContent> mRootContent;

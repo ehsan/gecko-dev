@@ -40,17 +40,11 @@
 #include "ContentParent.h"
 
 #include "TabParent.h"
-#include "CrashReporterParent.h"
 #include "History.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "nsHashPropertyBag.h"
-#include "nsIFilePicker.h"
-#include "nsIWindowWatcher.h"
-#include "nsIDOMWindow.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIPrefService.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -59,28 +53,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsChromeRegistryChrome.h"
-#include "nsExternalHelperAppService.h"
-#include "nsCExternalHandlerService.h"
-#include "nsFrameMessageManager.h"
-#include "nsIAlertsService.h"
-#include "nsToolkitCompsCID.h"
-#include "nsIDOMGeoGeolocation.h"
-#include "nsIConsoleService.h"
-#include "nsIScriptError.h"
-#include "nsConsoleMessage.h"
-#include "AudioParent.h"
-
-#ifdef MOZ_PERMISSIONS
-#include "nsPermissionManager.h"
-#endif
-
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
-#include "mozilla/dom/ExternalHelperAppParent.h"
-#include "mozilla/dom/StorageParent.h"
-#include "nsAccelerometer.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -124,34 +96,9 @@ ContentParent::GetSingleton(PRBool aForceNew)
                 threadInt->GetObserver(getter_AddRefs(parent->mOldObserver));
                 threadInt->SetObserver(parent);
             }
-            if (obs) {
-                obs->NotifyObservers(nsnull, "ipc:content-created", nsnull);
-            }
         }
     }
     return gSingleton;
-}
-
-void
-ContentParent::OnChannelConnected(int32 pid)
-{
-    ProcessHandle handle;
-    if (!base::OpenPrivilegedProcessHandle(pid, &handle)) {
-        NS_WARNING("Can't open handle to child process.");
-    }
-    else {
-        SetOtherProcess(handle);
-    }
-}
-
-namespace {
-void
-DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
-{
-    XRE_GetIOMessageLoop()
-        ->PostTask(FROM_HERE,
-                   new DeleteTask<GeckoChildProcessHost>(aSubprocess));
-}
 }
 
 void
@@ -171,41 +118,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         mRunToCompletionDepth = 0;
 
     mIsAlive = false;
-
-    if (obs) {
-        nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
-        props->Init();
-
-        if (AbnormalShutdown == why) {
-            props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), PR_TRUE);
-
-#ifdef MOZ_CRASHREPORTER
-            nsAutoString dumpID;
-
-            nsCOMPtr<nsILocalFile> crashDump;
-            TakeMinidump(getter_AddRefs(crashDump)) &&
-                CrashReporter::GetIDFromMinidump(crashDump, dumpID);
-
-            if (!dumpID.IsEmpty()) {
-                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"),
-                                            dumpID);
-
-                CrashReporter::AnnotationTable notes;
-                notes.Init();
-                notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
-                // TODO: Additional per-process annotations.
-                CrashReporter::AppendExtraData(dumpID, notes);
-            }
-#endif
-
-            obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nsnull);
-        }
-    }
-
-    MessageLoop::current()->
-        PostTask(FROM_HERE,
-                 NewRunnableFunction(DelayedDeleteSubprocess, mSubprocess));
-    mSubprocess = NULL;
 }
 
 TabParent*
@@ -228,7 +140,6 @@ ContentParent::DestroyTestShell(TestShellParent* aTestShell)
 
 ContentParent::ContentParent()
     : mMonitor("ContentParent::mMonitor")
-    , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
@@ -246,9 +157,6 @@ ContentParent::ContentParent()
 
 ContentParent::~ContentParent()
 {
-    if (OtherProcess())
-        base::CloseProcessHandle(OtherProcess());
-
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     //If the previous content process has died, a new one could have
     //been started since.
@@ -263,10 +171,118 @@ ContentParent::IsAlive()
 }
 
 bool
-ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
+ContentParent::RecvGetPrefType(const nsCString& prefName,
+                               PRInt32* retValue, nsresult* rv)
+{
+    *retValue = 0;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetPrefType(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvGetBoolPref(const nsCString& prefName,
+                               PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetBoolPref(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvGetIntPref(const nsCString& prefName,
+                              PRInt32* retValue, nsresult* rv)
+{
+    *retValue = 0;
+
+    EnsurePrefService();
+    *rv = mPrefService->GetIntPref(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvGetCharPref(const nsCString& prefName,
+                               nsCString* retValue, nsresult* rv)
 {
     EnsurePrefService();
-    mPrefService->MirrorPreferences(prefs);
+    *rv = mPrefService->GetCharPref(prefName.get(), getter_Copies(*retValue));
+    return true;
+}
+
+bool
+ContentParent::RecvGetPrefLocalizedString(const nsCString& prefName,
+                                          nsString* retValue, nsresult* rv)
+{
+    EnsurePrefService();
+    nsCOMPtr<nsIPrefLocalizedString> string;
+    *rv = mPrefService->GetComplexValue(prefName.get(),
+            NS_GET_IID(nsIPrefLocalizedString), getter_AddRefs(string));
+
+    if (NS_SUCCEEDED(*rv))
+      string->GetData(getter_Copies(*retValue));
+
+    return true;
+}
+
+bool
+ContentParent::RecvPrefHasUserValue(const nsCString& prefName,
+                                    PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->PrefHasUserValue(prefName.get(), retValue);
+    return true;
+}
+
+bool
+ContentParent::RecvPrefIsLocked(const nsCString& prefName,
+                                PRBool* retValue, nsresult* rv)
+{
+    *retValue = PR_FALSE;
+
+    EnsurePrefService();
+    *rv = mPrefService->PrefIsLocked(prefName.get(), retValue);
+        
+    return true;
+}
+
+bool
+ContentParent::RecvGetChildList(const nsCString& domain,
+                                nsTArray<nsCString>* list, nsresult* rv)
+{
+    EnsurePrefService();
+
+    PRUint32 count;
+    char **childArray;
+    *rv = mPrefService->GetChildList(domain.get(), &count, &childArray);
+
+    if (NS_SUCCEEDED(*rv)) {
+      list->SetCapacity(count);
+      for (PRUint32 i = 0; i < count; ++i)
+        *(list->AppendElement()) = childArray[i];
+    }
+        
+    return true;
+}
+
+bool
+ContentParent::RecvTestPermission(const IPC::URI&  aUri,
+                                   const nsCString& aType,
+                                   const PRBool&    aExact,
+                                   PRUint32*        retValue)
+{
+    EnsurePermissionService();
+
+    nsCOMPtr<nsIURI> uri = aUri;
+    if (aExact) {
+        mPermissionService->TestExactPermission(uri, aType.get(), retValue);
+    } else {
+        mPermissionService->TestPermission(uri, aType.get(), retValue);
+    }
     return true;
 }
 
@@ -281,54 +297,29 @@ ContentParent::EnsurePrefService()
     }
 }
 
-bool
-ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions)
+void
+ContentParent::EnsurePermissionService()
 {
-#ifdef MOZ_PERMISSIONS
-    nsRefPtr<nsPermissionManager> permissionManager =
-        nsPermissionManager::GetSingleton();
-    NS_ABORT_IF_FALSE(permissionManager,
-                 "We have no permissionManager in the Chrome process !");
-
-    nsCOMPtr<nsISimpleEnumerator> enumerator;
-    nsresult rv = permissionManager->GetEnumerator(getter_AddRefs(enumerator));
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Could not get enumerator!");
-    while(1) {
-        PRBool hasMore;
-        enumerator->HasMoreElements(&hasMore);
-        if (!hasMore)
-            break;
-
-        nsCOMPtr<nsISupports> supp;
-        enumerator->GetNext(getter_AddRefs(supp));
-        nsCOMPtr<nsIPermission> perm = do_QueryInterface(supp);
-
-        nsCString host;
-        perm->GetHost(host);
-        nsCString type;
-        perm->GetType(type);
-        PRUint32 capability;
-        perm->GetCapability(&capability);
-        PRUint32 expireType;
-        perm->GetExpireType(&expireType);
-        PRInt64 expireTime;
-        perm->GetExpireTime(&expireTime);
-
-        aPermissions->AppendElement(IPC::Permission(host, type, capability,
-                                                    expireType, expireTime));
+    nsresult rv;
+    if (!mPermissionService) {
+        mPermissionService = do_GetService(
+            NS_PERMISSIONMANAGER_CONTRACTID, &rv);
+        NS_ASSERTION(NS_SUCCEEDED(rv), 
+                     "We lost permissionService in the Chrome process !");
     }
-
-    // Ask for future changes
-    permissionManager->ChildRequestPermissions();
-#endif
-
-    return true;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
+NS_IMPL_THREADSAFE_ISUPPORTS2(ContentParent,
                               nsIObserver,
-                              nsIThreadObserver,
-                              nsIDOMGeoPositionCallback)
+                              nsIThreadObserver)
+
+namespace {
+void
+DeleteSubprocess(GeckoChildProcessHost* aSubprocess)
+{
+    delete aSubprocess;
+}
+}
 
 NS_IMETHODIMP
 ContentParent::Observe(nsISupports* aSubject,
@@ -345,10 +336,11 @@ ContentParent::Observe(nsISupports* aSubject,
             }
         }
 
-        RecvRemoveGeolocationListener();
-            
         Close();
-        NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
+        XRE_GetIOMessageLoop()->PostTask(
+            FROM_HERE,
+            NewRunnableFunction(DeleteSubprocess, mSubprocess));
+        mSubprocess = nsnull;
     }
 
     if (!mIsAlive || !mSubprocess)
@@ -358,14 +350,7 @@ ContentParent::Observe(nsISupports* aSubject,
     if (!strcmp(aTopic, "nsPref:changed")) {
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
-
-        PrefTuple pref;
-        nsCOMPtr<nsIPrefServiceInternal> prefService =
-          do_GetService("@mozilla.org/preferences-service;1");
-
-        prefService->MirrorPreference(strData, &pref);
-
-        if (!SendPreferenceUpdate(pref))
+        if (!SendNotifyRemotePrefObserver(strData))
             return NS_ERROR_NOT_AVAILABLE;
     }
     else if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC)) {
@@ -373,13 +358,6 @@ ContentParent::Observe(nsISupports* aSubject,
       const char *offline = dataStr.get();
       if (!SendSetOffline(!strcmp(offline, "true") ? true : false))
           return NS_ERROR_NOT_AVAILABLE;
-    }
-    // listening for alert notifications
-    else if (!strcmp(aTopic, "alertfinished") ||
-             !strcmp(aTopic, "alertclickcallback") ) {
-        if (!SendNotifyAlertsObserver(nsDependentCString(aTopic),
-                                      nsDependentString(aData)))
-            return NS_ERROR_NOT_AVAILABLE;
     }
     return NS_OK;
 }
@@ -402,19 +380,6 @@ ContentParent::DeallocPBrowser(PBrowserParent* frame)
   return true;
 }
 
-PCrashReporterParent*
-ContentParent::AllocPCrashReporter()
-{
-  return new CrashReporterParent();
-}
-
-bool
-ContentParent::DeallocPCrashReporter(PCrashReporterParent* crashreporter)
-{
-  delete crashreporter;
-  return true;
-}
-
 PTestShellParent*
 ContentParent::AllocPTestShell()
 {
@@ -427,24 +392,6 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
   delete shell;
   return true;
 }
- 
-PAudioParent*
-ContentParent::AllocPAudio(const PRInt32& numChannels,
-                           const PRInt32& rate,
-                           const PRInt32& format)
-{
-    AudioParent *parent = new AudioParent(numChannels, rate, format);
-    NS_ADDREF(parent);
-    return parent;
-}
-
-bool
-ContentParent::DeallocPAudio(PAudioParent* doomed)
-{
-    AudioParent *parent = static_cast<AudioParent*>(doomed);
-    NS_RELEASE(parent);
-    return true;
-}
 
 PNeckoParent* 
 ContentParent::AllocPNecko()
@@ -456,41 +403,6 @@ bool
 ContentParent::DeallocPNecko(PNeckoParent* necko)
 {
     delete necko;
-    return true;
-}
-
-PExternalHelperAppParent*
-ContentParent::AllocPExternalHelperApp(const IPC::URI& uri,
-                                       const nsCString& aMimeContentType,
-                                       const nsCString& aContentDisposition,
-                                       const bool& aForceSave,
-                                       const PRInt64& aContentLength,
-                                       const IPC::URI& aReferrer)
-{
-    ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
-    parent->AddRef();
-    parent->Init(this, aMimeContentType, aContentDisposition, aForceSave, aReferrer);
-    return parent;
-}
-
-bool
-ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
-{
-    ExternalHelperAppParent *parent = static_cast<ExternalHelperAppParent *>(aService);
-    parent->Release();
-    return true;
-}
-
-PStorageParent*
-ContentParent::AllocPStorage(const StorageConstructData& aData)
-{
-    return new StorageParent(aData);
-}
-
-bool
-ContentParent::DeallocPStorage(PStorageParent* aActor)
-{
-    delete aActor;
     return true;
 }
 
@@ -523,7 +435,7 @@ ContentParent::RequestRunToCompletion()
 bool
 ContentParent::RecvStartVisitedQuery(const IPC::URI& aURI)
 {
-    nsCOMPtr<nsIURI> newURI(aURI);
+    nsCOMPtr<nsIURI> newURI = aURI;
     IHistory *history = nsContentUtils::GetHistory(); 
     history->RegisterVisitedCallback(newURI, nsnull);
     return true;
@@ -535,104 +447,10 @@ ContentParent::RecvVisitURI(const IPC::URI& uri,
                                    const IPC::URI& referrer,
                                    const PRUint32& flags)
 {
-    nsCOMPtr<nsIURI> ourURI(uri);
-    nsCOMPtr<nsIURI> ourReferrer(referrer);
+    nsCOMPtr<nsIURI> ourURI = uri;
+    nsCOMPtr<nsIURI> ourReferrer = referrer;
     IHistory *history = nsContentUtils::GetHistory(); 
     history->VisitURI(ourURI, ourReferrer, flags);
-    return true;
-}
-
-
-bool
-ContentParent::RecvSetURITitle(const IPC::URI& uri,
-                                      const nsString& title)
-{
-    nsCOMPtr<nsIURI> ourURI(uri);
-    IHistory *history = nsContentUtils::GetHistory(); 
-    history->SetURITitle(ourURI, title);
-    return true;
-}
-
-bool
-ContentParent::RecvShowFilePicker(const PRInt16& mode,
-                                  const PRInt16& selectedType,
-                                  const nsString& title,
-                                  const nsString& defaultFile,
-                                  const nsString& defaultExtension,
-                                  const InfallibleTArray<nsString>& filters,
-                                  const InfallibleTArray<nsString>& filterNames,
-                                  InfallibleTArray<nsString>* files,
-                                  PRInt16* retValue,
-                                  nsresult* result)
-{
-    nsCOMPtr<nsIFilePicker> filePicker = do_CreateInstance("@mozilla.org/filepicker;1");
-    if (!filePicker) {
-        *result = NS_ERROR_NOT_AVAILABLE;
-        return true;
-    }
-
-    // as the parent given to the content process would be meaningless in this
-    // process, always use active window as the parent
-    nsCOMPtr<nsIWindowWatcher> ww = do_GetService(NS_WINDOWWATCHER_CONTRACTID);
-    nsCOMPtr<nsIDOMWindow> window;
-    ww->GetActiveWindow(getter_AddRefs(window));
-
-    // initialize the "real" picker with all data given
-    *result = filePicker->Init(window, title, mode);
-    if (NS_FAILED(*result))
-        return true;
-    
-    PRUint32 count = filters.Length();
-    for (PRUint32 i = 0; i < count; ++i) {
-        filePicker->AppendFilter(filterNames[i], filters[i]);
-    }
-
-    filePicker->SetDefaultString(defaultFile);
-    filePicker->SetDefaultExtension(defaultExtension);
-    filePicker->SetFilterIndex(selectedType);
-
-    // and finally open the dialog
-    *result = filePicker->Show(retValue);
-    if (NS_FAILED(*result))
-        return true;
-
-    if (mode == nsIFilePicker::modeOpenMultiple) {
-        nsCOMPtr<nsISimpleEnumerator> fileIter;
-        *result = filePicker->GetFiles(getter_AddRefs(fileIter));
-
-        nsCOMPtr<nsILocalFile> singleFile;
-        PRBool loop = PR_TRUE;
-        while (NS_SUCCEEDED(fileIter->HasMoreElements(&loop)) && loop) {
-            fileIter->GetNext(getter_AddRefs(singleFile));
-            if (singleFile) {
-                nsAutoString filePath;
-                singleFile->GetPath(filePath);
-                files->AppendElement(filePath);
-            }
-        }
-        return true;
-    }
-    nsCOMPtr<nsILocalFile> file;
-    filePicker->GetFile(getter_AddRefs(file));
-
-    // even with NS_OK file can be null if nothing was selected 
-    if (file) {                                 
-        nsAutoString filePath;
-        file->GetPath(filePath);
-        files->AppendElement(filePath);
-    }
-
-    return true;
-}
-
-bool
-ContentParent::RecvLoadURIExternal(const IPC::URI& uri)
-{
-    nsCOMPtr<nsIExternalProtocolService> extProtService(do_GetService(NS_EXTERNALPROTOCOLSERVICE_CONTRACTID));
-    if (!extProtService)
-        return true;
-    nsCOMPtr<nsIURI> ourURI(uri);
-    extProtService->LoadURI(ourURI, nsnull);
     return true;
 }
 
@@ -682,146 +500,6 @@ ContentParent::AfterProcessNextEvent(nsIThreadInternal *thread,
 
     return NS_OK;
 }
-
-bool
-ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
-                                         const nsString& aText, const PRBool& aTextClickable,
-                                         const nsString& aCookie, const nsString& aName)
-{
-    nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_ALERTSERVICE_CONTRACTID));
-    if (sysAlerts) {
-        sysAlerts->ShowAlertNotification(aImageUrl, aTitle, aText, aTextClickable,
-                                         aCookie, this, aName);
-    }
-
-    return true;
-}
-
-bool
-ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                               InfallibleTArray<nsString>* aRetvals)
-{
-  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
-  if (ppm) {
-    ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg,PR_TRUE, aJSON, nsnull, aRetvals);
-  }
-  return true;
-}
-
-bool
-ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
-{
-  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
-  if (ppm) {
-    ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
-  }
-  return true;
-}
-
-bool
-ContentParent::RecvAddGeolocationListener()
-{
-  if (mGeolocationWatchID == -1) {
-    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-    if (!geo) {
-      return true;
-    }
-    geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
-  }
-  return true;
-}
-
-bool
-ContentParent::RecvRemoveGeolocationListener()
-{
-  if (mGeolocationWatchID != -1) {
-    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-    if (!geo) {
-      return true;
-    }
-    geo->ClearWatch(mGeolocationWatchID);
-    mGeolocationWatchID = -1;
-  }
-  return true;
-}
-
-bool
-ContentParent::RecvAddAccelerometerListener()
-{
-    nsCOMPtr<nsIAccelerometer> ac = 
-        do_GetService(NS_ACCELEROMETER_CONTRACTID);
-    if (ac)
-        ac->AddListener(this);
-    return true;
-}
-
-bool
-ContentParent::RecvRemoveAccelerometerListener()
-{
-    nsCOMPtr<nsIAccelerometer> ac = 
-        do_GetService(NS_ACCELEROMETER_CONTRACTID);
-    if (ac)
-        ac->RemoveListener(this);
-    return true;
-}
-
-NS_IMETHODIMP
-ContentParent::HandleEvent(nsIDOMGeoPosition* postion)
-{
-  SendGeolocationUpdate(GeoPosition(postion));
-  return NS_OK;
-}
-
-bool
-ContentParent::RecvConsoleMessage(const nsString& aMessage)
-{
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (!svc)
-    return true;
-  
-  nsRefPtr<nsConsoleMessage> msg(new nsConsoleMessage(aMessage.get()));
-  svc->LogMessage(msg);
-  return true;
-}
-
-bool
-ContentParent::RecvScriptError(const nsString& aMessage,
-                                      const nsString& aSourceName,
-                                      const nsString& aSourceLine,
-                                      const PRUint32& aLineNumber,
-                                      const PRUint32& aColNumber,
-                                      const PRUint32& aFlags,
-                                      const nsCString& aCategory)
-{
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (!svc)
-      return true;
-
-  nsCOMPtr<nsIScriptError> msg(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
-  nsresult rv = msg->Init(aMessage.get(), aSourceName.get(), aSourceLine.get(),
-                          aLineNumber, aColNumber, aFlags, aCategory.get());
-  if (NS_FAILED(rv))
-    return true;
-
-  svc->LogMessage(msg);
-  return true;
-}
-
-NS_IMETHODIMP
-ContentParent::OnAccelerationChange(nsIAcceleration *aAcceleration)
-{
-    double x, y, z;
-    aAcceleration->GetX(&x);
-    aAcceleration->GetY(&y);
-    aAcceleration->GetZ(&z);
-
-    mozilla::dom::ContentParent::GetSingleton()->
-        SendAccelerationChanged(x, y, z);
-    return NS_OK;
-}
-
-
+    
 } // namespace dom
 } // namespace mozilla

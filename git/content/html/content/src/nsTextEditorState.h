@@ -51,7 +51,6 @@ class nsISelectionController;
 class nsFrameSelection;
 class nsIEditor;
 class nsITextControlElement;
-struct SelectionState;
 
 /**
  * nsTextEditorState is a class which is responsible for managing the state of
@@ -161,14 +160,14 @@ public:
   void EmptyValue() { if (mValue) mValue->Truncate(); }
   PRBool IsEmpty() const { return mValue ? mValue->IsEmpty() : PR_TRUE; }
 
-  nsresult CreatePlaceholderNode();
-
   nsIContent* GetRootNode() {
     if (!mRootNode)
       CreateRootNode();
     return mRootNode;
   }
   nsIContent* GetPlaceholderNode() {
+    if (!mPlaceholderDiv)
+      CreatePlaceholderNode();
     return mPlaceholderDiv;
   }
 
@@ -217,40 +216,15 @@ private:
   void operator= (const nsTextEditorState&);
 
   nsresult CreateRootNode();
+  nsresult CreatePlaceholderNode();
 
   void ValueWasChanged(PRBool aNotify);
 
   void DestroyEditor();
   void Clear();
 
-  class InitializationGuard {
-  public:
-    explicit InitializationGuard(nsTextEditorState& aState) :
-      mState(aState),
-      mGuardSet(PR_FALSE)
-    {
-      if (!mState.mInitializing) {
-        mGuardSet = PR_TRUE;
-        mState.mInitializing = PR_TRUE;
-      }
-    }
-    ~InitializationGuard() {
-      if (mGuardSet) {
-        mState.mInitializing = PR_FALSE;
-      }
-    }
-    PRBool IsInitializingRecursively() const {
-      return !mGuardSet;
-    }
-  private:
-    nsTextEditorState& mState;
-    PRBool mGuardSet;
-  };
-  friend class InitializationGuard;
-
   nsITextControlElement* const mTextCtrlElement;
   nsRefPtr<nsTextInputSelectionImpl> mSelCon;
-  nsAutoPtr<SelectionState> mSelState;
   nsCOMPtr<nsIEditor> mEditor;
   nsCOMPtr<nsIContent> mRootNode;
   nsCOMPtr<nsIContent> mPlaceholderDiv;
@@ -260,7 +234,6 @@ private:
   nsRefPtr<nsAnonDivObserver> mMutationObserver;
   mutable nsString mCachedValue; // Caches non-hard-wrapped value on a multiline control.
   PRPackedBool mEditorInitialized;
-  PRPackedBool mInitializing; // Whether we're in the process of initialization
 };
 
 #endif

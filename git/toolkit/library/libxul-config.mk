@@ -58,10 +58,10 @@ RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
+DEFINES += -DZLIB_INTERNAL
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
@@ -79,6 +79,7 @@ CPPSRCS += \
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
+DEFINES += -DZLIB_INTERNAL
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -87,7 +88,6 @@ RCFLAGS += -i $(topsrcdir)/widget/src/os2
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/os2
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 # dependent libraries
@@ -139,7 +139,6 @@ COMPONENT_LIBS += \
 	i18n \
 	chardet \
 	jar$(VERSION_NUMBER) \
-        startupcache \
 	pref \
 	htmlpars \
 	imglib2 \
@@ -150,6 +149,7 @@ COMPONENT_LIBS += \
 	nsappshell \
 	txmgr \
 	commandlines \
+	extensions \
 	toolkitcomps \
 	pipboot \
 	pipnss \
@@ -165,8 +165,6 @@ COMPONENT_LIBS += \
 	jsctypes \
 	$(NULL)
 endif
-
-COMPONENT_LIBS += jsperf
 
 ifdef MOZ_PLUGINS
 DEFINES += -DMOZ_PLUGINS
@@ -245,7 +243,7 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
-ifeq (,$(filter android qt beos os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 COMPONENT_LIBS += fileview
 DEFINES += -DMOZ_FILEVIEW
@@ -263,13 +261,13 @@ STATIC_LIBS += morkreader_s
 COMPONENT_LIBS += \
 	places \
 	$(NULL)
-endif
-
+else
 ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
 	$(NULL)
+endif
 endif
 endif
 
@@ -294,8 +292,7 @@ STATIC_LIBS += gtkxtbin
 endif
 endif
 
-# Platform-specific icon channel stuff - supported mostly-everywhere
-ifneq (,$(filter beos windows os2 mac cocoa gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
@@ -306,12 +303,8 @@ endif
 
 STATIC_LIBS += thebes ycbcr
 
-ifneq ($(OS_ARCH),Linux)
+ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
 STATIC_LIBS += angle
-else
-ifdef FORCE_BUILD_ANGLE
-STATIC_LIBS += angle
-endif
 endif
 
 COMPONENT_LIBS += gkgfxthebes
@@ -356,10 +349,6 @@ COMPONENT_LIBS += gkdebug
 endif
 endif
 
-ifdef MOZ_APP_COMPONENT_LIBS
-COMPONENT_LIBS += $(MOZ_APP_COMPONENT_LIBS)
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 OS_LIBS += -framework OpenGL -lcups
 endif
@@ -373,8 +362,6 @@ EXTRA_DSO_LDOPTS += \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
 	$(MOZ_HARFBUZZ_LIBS) \
-	$(MOZ_OTS_LIBS) \
-	$(MOZ_APP_EXTRA_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB
@@ -389,10 +376,6 @@ endif
 
 ifdef MOZ_NATIVE_LIBEVENT
 EXTRA_DSO_LDOPTS += $(MOZ_LIBEVENT_LIBS)
-endif
-
-ifdef MOZ_NATIVE_LIBVPX
-EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
 ifdef MOZ_SYDNEYAUDIO

@@ -254,9 +254,8 @@ MAKEFILES_content="
   content/xbl/public/Makefile
   content/xbl/src/Makefile
   content/xbl/builtin/Makefile
-  content/xbl/builtin/emacs/Makefile
+  content/xbl/builtin/gtk2/Makefile
   content/xbl/builtin/mac/Makefile
-  content/xbl/builtin/unix/Makefile
   content/xslt/Makefile
   content/xslt/public/Makefile
   content/xslt/src/Makefile
@@ -316,13 +315,6 @@ MAKEFILES_libvorbis="
   media/libvorbis/include/vorbis/Makefile
 "
 
-MAKEFILES_libtremor="
-  media/libtremor/Makefile
-  media/libtremor/lib/Makefile
-  media/libtremor/include/Makefile
-  media/libtremor/include/tremor/Makefile
-"
-
 MAKEFILES_libvpx="
   media/libvpx/Makefile
 "
@@ -362,6 +354,10 @@ MAKEFILES_plugin="
   modules/plugin/sdk/samples/common/Makefile
   modules/plugin/sdk/samples/basic/windows/Makefile
   modules/plugin/sdk/samples/winless/windows/Makefile
+"
+
+MAKEFILES_freetype2="
+  modules/freetype2/Makefile
 "
 
 MAKEFILES_netwerk="
@@ -729,6 +725,10 @@ MAKEFILES_libpr0n="
   modules/libpr0n/public/Makefile
   modules/libpr0n/src/Makefile
   modules/libpr0n/decoders/Makefile
+  modules/libpr0n/decoders/gif/Makefile
+  modules/libpr0n/decoders/png/Makefile
+  modules/libpr0n/decoders/jpeg/Makefile
+  modules/libpr0n/decoders/bmp/Makefile
   modules/libpr0n/decoders/icon/Makefile
   modules/libpr0n/decoders/icon/mac/Makefile
   modules/libpr0n/decoders/icon/win/Makefile
@@ -778,10 +778,6 @@ MAKEFILES_extensions="
   extensions/pref/autoconfig/src/Makefile
 "
 
-MAKEFILES_startupcache="
-  startupcache/Makefile
-"
-
 add_makefiles "
   $MAKEFILES_db
   $MAKEFILES_dom
@@ -823,7 +819,6 @@ add_makefiles "
   $MAKEFILES_libmar
   $MAKEFILES_lib7z
   $MAKEFILES_extensions
-  $MAKEFILES_startupcache
 "
 
 #
@@ -930,7 +925,6 @@ if [ "$ENABLE_TESTS" ]; then
     parser/htmlparser/tests/mochitest/Makefile
     parser/xml/test/Makefile
     rdf/tests/triplescat/Makefile
-    startupcache/test/Makefile
     testing/mochitest/Makefile
     testing/mochitest/MochiKit/Makefile
     testing/mochitest/chrome/Makefile
@@ -943,7 +937,6 @@ if [ "$ENABLE_TESTS" ]; then
     testing/mochitest/tests/MochiKit-1.4.2/tests/SimpleTest/Makefile
     testing/mochitest/tests/SimpleTest/Makefile
     testing/mochitest/tests/browser/Makefile
-    testing/tools/screenshot/Makefile
     testing/xpcshell/Makefile
     testing/xpcshell/example/Makefile
     toolkit/components/alerts/test/Makefile
@@ -1007,15 +1000,10 @@ fi
 if [ "$MOZ_TREE_CAIRO" ] ; then
   add_makefiles "
     gfx/cairo/Makefile
+    gfx/cairo/libpixman/src/Makefile
     gfx/cairo/cairo/src/Makefile
     gfx/cairo/cairo/src/cairo-features.h
   "
-  if [ "$MOZ_TREE_PIXMAN" ] ; then
-    add_makefiles "
-      gfx/cairo/libpixman/src/Makefile
-    "
-  fi
-
 fi
 
 if [ "$MOZ_UNIVERSALCHARDET" ] ; then
@@ -1220,13 +1208,6 @@ if [ "$MOZ_VORBIS" ]; then
  "
 fi
 
-if [ "$MOZ_TREMOR" ]; then
- add_makefiles "
-   $MAKEFILES_libtremor
-   $MAKEFILES_libogg
- "
-fi
-
 if [ "$MOZ_OGG" ]; then
  add_makefiles "
    $MAKEFILES_libtheora
@@ -1251,5 +1232,11 @@ fi
 if [ "$MOZ_SYDNEYAUDIO" ]; then
  add_makefiles "
    $MAKEFILES_libsydneyaudio
+ "
+fi
+
+if [ "$MOZ_TREE_FREETYPE" ]; then
+ add_makefiles "
+   $MAKEFILES_freetype2
  "
 fi

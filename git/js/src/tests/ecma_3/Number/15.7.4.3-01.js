@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '15.7.4.3-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = "412068";
 var summary = "num.toLocaleString incorrectly accesses its first argument " +

@@ -5,6 +5,7 @@
  * Contributor: Bob Clary
  */
 
+var gTestfile = 'regress-58116.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 58116;
 var summary = 'Compute Daylight savings time correctly regardless of year';

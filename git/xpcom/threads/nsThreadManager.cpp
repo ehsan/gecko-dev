@@ -43,13 +43,12 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsAutoLock.h"
-#include "nsCycleCollectorUtils.h"
 
 #ifdef XP_WIN
 #include <windows.h>
-DWORD gTLSThreadIDIndex = TlsAlloc();
+DWORD gTLSIsMainThreadIndex = TlsAlloc();
 #elif defined(NS_TLS)
-NS_TLS mozilla::threads::ID gTLSThreadID = mozilla::threads::Generic;
+NS_TLS bool gTLSIsMainThread = false;
 #endif
 
 typedef nsTArray< nsRefPtr<nsThread> > nsThreadArray;
@@ -114,9 +113,9 @@ nsThreadManager::Init()
   mMainThread->GetPRThread(&mMainPRThread);
 
 #ifdef XP_WIN
-  TlsSetValue(gTLSThreadIDIndex, (void*) mozilla::threads::Main);
+  TlsSetValue(gTLSIsMainThreadIndex, (void*) 1);
 #elif defined(NS_TLS)
-  gTLSThreadID = mozilla::threads::Main;
+  gTLSIsMainThread = true;
 #endif
 
   mInitialized = PR_TRUE;
@@ -304,12 +303,5 @@ nsThreadManager::GetIsMainThread(PRBool *result)
   // This method may be called post-Shutdown
 
   *result = (PR_GetCurrentThread() == mMainPRThread);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThreadManager::GetIsCycleCollectorThread(PRBool *result)
-{
-  *result = PRBool(NS_IsCycleCollectorThread());
   return NS_OK;
 }

@@ -2,7 +2,6 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 function install(data, reason) {
   Services.prefs.setIntPref("bootstraptest.installed_version", 3);
-  Services.prefs.setIntPref("bootstraptest.install_reason", reason);
 }
 
 function startup(data, reason) {
@@ -17,5 +16,4 @@ function shutdown(data, reason) {
 
 function uninstall(data, reason) {
   Services.prefs.setIntPref("bootstraptest.installed_version", 0);
-  Services.prefs.setIntPref("bootstraptest.uninstall_reason", reason);
 }

@@ -22,16 +22,13 @@
       let event = yield;
 
       let db = event.result;
-      db.onerror = function(event) {
-        event.preventDefault();
-      };
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let objectStore = db.createObjectStore("foo", "");
+      let objectStore = event.result;
 
       request = objectStore.add({}, null);
       request.onerror = errorHandler;

@@ -56,14 +56,10 @@ public:
   virtual ~NeckoParent();
 
 protected:
-  virtual PHttpChannelParent* AllocPHttpChannel(PBrowserParent* browser);
+  virtual PHttpChannelParent* AllocPHttpChannel(PBrowserParent* iframeEmbedding);
   virtual bool DeallocPHttpChannel(PHttpChannelParent*);
   virtual PCookieServiceParent* AllocPCookieService();
   virtual bool DeallocPCookieService(PCookieServiceParent*);
-  virtual PWyciwygChannelParent* AllocPWyciwygChannel();
-  virtual bool DeallocPWyciwygChannel(PWyciwygChannelParent*);
-  virtual PFTPChannelParent* AllocPFTPChannel();
-  virtual bool DeallocPFTPChannel(PFTPChannelParent*);
   virtual bool RecvHTMLDNSPrefetch(const nsString& hostname,
                                    const PRUint16& flags);
 };

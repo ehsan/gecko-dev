@@ -4,8 +4,6 @@ pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "https://services.mozilla.com/tos/");
 pref("services.sync.privacyURL", "https://services.mozilla.com/privacy-policy/");
-pref("services.sync.statusURL", "https://services.mozilla.com/status/");
-pref("services.sync.syncKeyHelpURL", "https://services.mozilla.com/help/synckey");
 
 pref("services.sync.lastversion", "firstrun");
 pref("services.sync.autoconnect", true);
@@ -20,7 +18,6 @@ pref("services.sync.engine.tabs.filteredUrls", "^(about:.*|chrome://weave/.*|wyc
 pref("services.sync.log.appender.console", "Warn");
 pref("services.sync.log.appender.dump", "Error");
 pref("services.sync.log.appender.debugLog", "Trace");
-pref("services.sync.log.appender.debugLog.enabled", false);
 pref("services.sync.log.rootLogger", "Debug");
 pref("services.sync.log.logger.service.main", "Debug");
 pref("services.sync.log.logger.authenticator", "Debug");

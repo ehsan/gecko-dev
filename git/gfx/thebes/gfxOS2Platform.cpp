@@ -84,7 +84,7 @@ gfxOS2Platform::~gfxOS2Platform()
 
 already_AddRefed<gfxASurface>
 gfxOS2Platform::CreateOffscreenSurface(const gfxIntSize& aSize,
-                                       gfxASurface::gfxContentType contentType)
+                                       gfxASurface::gfxImageFormat aImageFormat)
 {
 #ifdef DEBUG_thebes_2
     printf("gfxOS2Platform::CreateOffscreenSurface(%d/%d, %d)\n",
@@ -94,12 +94,13 @@ gfxOS2Platform::CreateOffscreenSurface(const gfxIntSize& aSize,
 
     // we only ever seem to get aImageFormat=0 or ImageFormatARGB32 but
     // I don't really know if we need to differ between ARGB32 and RGB24 here
-    if (contentType == gfxASurface::CONTENT_COLOR_ALPHA ||
-        contentType == gfxASurface::CONTENT_COLOR)
+    if (aImageFormat == gfxASurface::ImageFormatARGB32 ||
+        aImageFormat == gfxASurface::ImageFormatRGB24)
     {
-        newSurface = new gfxOS2Surface(aSize, gfxASurface::FormatFromContent(contentType));
-    } else if (contentType == gfxASurface::CONTENT_ALPHA) {
-        newSurface = new gfxImageSurface(aSize, gfxASurface::FormatFromContent(contentType));
+        newSurface = new gfxOS2Surface(aSize, aImageFormat);
+    } else if (aImageFormat == gfxASurface::ImageFormatA8 ||
+               aImageFormat == gfxASurface::ImageFormatA1) {
+        newSurface = new gfxImageSurface(aSize, aImageFormat);
     } else {
         return nsnull;
     }
@@ -219,4 +220,23 @@ gfxOS2Platform::FindFontForChar(PRUint32 aCh, gfxOS2Font *aFont)
     // no match found, so add to the set of non-matching codepoints
     mCodepointsWithNoFonts.set(aCh);
     return nsnull;
+}
+
+void
+gfxOS2Platform::InitDisplayCaps()
+{
+    // create DC compatible with the screen
+    HDC dc = DevOpenDC((HAB)1, OD_MEMORY,"*",0L, NULL, NULLHANDLE);
+    if (dc > 0) {
+        // we do have a DC and we can query the DPI setting from it
+        LONG lDPI;
+        if (DevQueryCaps(dc, CAPS_VERTICAL_FONT_RES, 1, &lDPI))
+            gfxPlatform::sDPI = lDPI;
+        DevCloseDC(dc);
+    }
+
+    if (gfxPlatform::sDPI <= 0) {
+        // Fall back to something sane
+        gfxPlatform::sDPI = 96;
+    }
 }

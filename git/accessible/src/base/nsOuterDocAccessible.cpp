@@ -60,10 +60,11 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsOuterDocAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public (DON'T add methods here)
 
-PRUint32
-nsOuterDocAccessible::NativeRole()
+nsresult
+nsOuterDocAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_INTERNAL_FRAME;
+  *aRole = nsIAccessibleRole::ROLE_INTERNAL_FRAME;
+  return NS_OK;
 }
 
 nsresult
@@ -169,7 +170,7 @@ nsOuterDocAccessible::Shutdown()
   if (childAcc) {
     NS_LOG_ACCDOCDESTROY("outerdoc's child document shutdown",
                          childAcc->GetDocumentNode())
-    childAcc->Shutdown();
+    GetAccService()->ShutdownDocAccessiblesInTree(childAcc->GetDocumentNode());
   }
 
   nsAccessibleWrap::Shutdown();
@@ -190,19 +191,14 @@ nsOuterDocAccessible::InvalidateChildren()
   // then allow nsAccDocManager to handle this case since the document
   // accessible is created and appended as a child when it's requested.
 
-  mChildrenFlags = eChildrenUninitialized;
+  mAreChildrenInitialized = PR_FALSE;
 }
 
 PRBool
 nsOuterDocAccessible::AppendChild(nsAccessible *aAccessible)
 {
-  // We keep showing the old document for a bit after creating the new one,
-  // and while building the new DOM and frame tree. That's done on purpose
-  // to avoid weird flashes of default background color.
-  // The old viewer will be destroyed after the new one is created.
-  // For a11y, it should be safe to shut down the old document now.
-  if (mChildren.Length())
-    mChildren[0]->Shutdown();
+  NS_ASSERTION(!mChildren.Length(),
+               "Previous child document of outerdoc accessible wasn't removed!");
 
   if (!nsAccessible::AppendChild(aAccessible))
     return PR_FALSE;

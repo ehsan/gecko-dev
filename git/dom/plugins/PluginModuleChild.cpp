@@ -57,9 +57,6 @@
 #include "nsPluginsDir.h"
 #include "nsXULAppAPI.h"
 
-#ifdef MOZ_X11
-# include "mozilla/X11Util.h"
-#endif
 #include "mozilla/plugins/PluginInstanceChild.h"
 #include "mozilla/plugins/StreamNotifyChild.h"
 #include "mozilla/plugins/BrowserStreamChild.h"
@@ -70,19 +67,12 @@
 
 #ifdef XP_WIN
 #include "COMMessageFilter.h"
-#include "nsWindowsDllInterceptor.h"
-#endif
-
-#ifdef OS_MACOSX
-#include "PluginInterposeOSX.h"
-#include "PluginUtilsOSX.h"
 #endif
 
 using namespace mozilla::plugins;
 
 #if defined(XP_WIN)
 const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
-const PRUnichar * kMozillaWindowClass = L"MozillaWindowClass";
 #endif
 
 namespace {
@@ -98,18 +88,12 @@ static PRLibrary *sGtkLib = nsnull;
 #ifdef XP_WIN
 // Used with fix for flash fullscreen window loosing focus.
 static bool gDelayFlashFocusReplyUntilEval = false;
-// Used to fix GetWindowInfo problems with internal flash settings dialogs
-static WindowsDllInterceptor sUser32Intercept;
-typedef BOOL (WINAPI *GetWindowInfoPtr)(HWND hwnd, PWINDOWINFO pwi);
-static GetWindowInfoPtr sGetWindowInfoPtrStub = NULL;
-static HWND sBrowserHwnd = NULL;
 #endif
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
     mShutdownFunc(0),
-    mInitializeFunc(0),
-    mQuirks(QUIRKS_NOT_INITIALIZED)
+    mInitializeFunc(0)
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -126,9 +110,6 @@ PluginModuleChild::PluginModuleChild() :
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-#ifdef XP_MACOSX
-    mac_plugin_interposing::child::SetUpCocoaInterposing();
-#endif
 }
 
 PluginModuleChild::~PluginModuleChild()
@@ -204,7 +185,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     nsPluginFile lib(pluginIfile);
 
-    nsresult rv = lib.LoadPlugin(&mLibrary);
+    nsresult rv = lib.LoadPlugin(mLibrary);
     NS_ASSERTION(NS_OK == rv, "trouble with mPluginFile");
     NS_ASSERTION(mLibrary, "couldn't open shared object");
 
@@ -213,7 +194,6 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     memset((void*) &mFunctions, 0, sizeof(mFunctions));
     mFunctions.size = sizeof(mFunctions);
-    mFunctions.version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
 
     // TODO: use PluginPRLibrary here
 
@@ -868,10 +848,7 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_scheduletimer,
     mozilla::plugins::child::_unscheduletimer,
     mozilla::plugins::child::_popupcontextmenu,
-    mozilla::plugins::child::_convertpoint,
-    NULL, // handleevent, unimplemented
-    NULL, // unfocusinstance, unimplemented
-    NULL  // urlredirectresponse, unimplemented
+    mozilla::plugins::child::_convertpoint
 };
 
 PluginInstanceChild*
@@ -1538,67 +1515,13 @@ _unscheduletimer(NPP npp, uint32_t timerID)
     InstCast(npp)->UnscheduleTimer(timerID);
 }
 
-
-#ifdef OS_MACOSX
-static void ProcessBrowserEvents(void* pluginModule) {
-    PluginModuleChild* pmc = static_cast<PluginModuleChild*>(pluginModule);
-
-    if (!pmc)
-        return;
-
-    pmc->CallProcessSomeEvents();
-}
-#endif
-
 NPError NP_CALLBACK
 _popupcontextmenu(NPP instance, NPMenu* menu)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
-
-#ifdef OS_MACOSX
-    double pluginX, pluginY; 
-    double screenX, screenY;
-
-    const NPCocoaEvent* currentEvent = InstCast(instance)->getCurrentEvent();
-    if (!currentEvent) {
-        return NPERR_GENERIC_ERROR;
-    }
-
-    // Ensure that the events has an x/y value.
-    if (currentEvent->type != NPCocoaEventMouseDown    &&
-        currentEvent->type != NPCocoaEventMouseUp      &&
-        currentEvent->type != NPCocoaEventMouseMoved   &&
-        currentEvent->type != NPCocoaEventMouseEntered &&
-        currentEvent->type != NPCocoaEventMouseExited  &&
-        currentEvent->type != NPCocoaEventMouseDragged) {
-        return NPERR_GENERIC_ERROR;
-    }
-
-    pluginX = currentEvent->data.mouse.pluginX;
-    pluginY = currentEvent->data.mouse.pluginY;
-
-    if ((pluginX < 0.0) || (pluginY < 0.0))
-        return NPERR_GENERIC_ERROR;
-
-    NPBool success = _convertpoint(instance, 
-                                  pluginX,  pluginY, NPCoordinateSpacePlugin, 
-                                 &screenX, &screenY, NPCoordinateSpaceScreen);
-
-    if (success) {
-        return mozilla::plugins::PluginUtilsOSX::ShowCocoaContextMenu(menu,
-                                    screenX, screenY,
-                                    PluginModuleChild::current(),
-                                    ProcessBrowserEvents);
-    } else {
-        NS_WARNING("Convertpoint failed, could not created contextmenu.");
-        return NPERR_GENERIC_ERROR;
-    }
-
-#else
-    NS_WARNING("Not supported on this platform!");
+    NS_WARNING("Not yet implemented!");
     return NPERR_GENERIC_ERROR;
-#endif
 }
 
 NPBool NP_CALLBACK
@@ -1646,13 +1569,6 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 
 #ifdef OS_WIN
     SetEventHooks();
-#endif
-
-#ifdef MOZ_X11
-    // Send the parent a dup of our X socket, to act as a proxy
-    // reference for our X resources
-    int xSocketFd = ConnectionNumber(DefaultXDisplay());
-    SendBackUpXResources(FileDescriptor(xSocketFd, false/*don't close*/));
 #endif
 
 #if defined(OS_LINUX)
@@ -1717,58 +1633,18 @@ PluginModuleChild::DeallocPPluginIdentifier(PPluginIdentifierChild* aActor)
     return true;
 }
 
-#if defined(XP_WIN)
-BOOL WINAPI
-PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
-{
-  if (!pwi)
-      return FALSE;
-
-  if (!sGetWindowInfoPtrStub) {
-     NS_ASSERTION(FALSE, "Something is horribly wrong in PMCGetWindowInfoHook!");
-     return FALSE;
-  }
-
-  if (!sBrowserHwnd) {
-      PRUnichar szClass[20];
-      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
-          !wcscmp(szClass, kMozillaWindowClass)) {
-          sBrowserHwnd = hWnd;
-      }
-  }
-  // Oddity: flash does strange rect comparisons for mouse input destined for
-  // it's internal settings window. Post removing sub widgets for tabs, touch
-  // this up so they get the rect they expect.
-  // XXX potentially tie this to a specific major version?
-  BOOL result = sGetWindowInfoPtrStub(hWnd, pwi);
-  if (sBrowserHwnd && sBrowserHwnd == hWnd)
-      pwi->rcWindow = pwi->rcClient;
-  return result;
-}
-#endif
-
 PPluginInstanceChild*
 PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
                                         const uint16_t& aMode,
-                                        const InfallibleTArray<nsCString>& aNames,
-                                        const InfallibleTArray<nsCString>& aValues,
+                                        const nsTArray<nsCString>& aNames,
+                                        const nsTArray<nsCString>& aValues,
                                         NPError* rv)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
 
-    InitQuirksModes(aMimeType);
-
-#ifdef XP_WIN
-    if (mQuirks & QUIRK_FLASH_HOOK_GETWINDOINFO) {
-        sUser32Intercept.Init("user32.dll");
-        sUser32Intercept.AddHook("GetWindowInfo", PMCGetWindowInfoHook,
-                                 (void**) &sGetWindowInfoPtrStub);
-    }
-#endif
-
     nsAutoPtr<PluginInstanceChild> childInstance(
-        new PluginInstanceChild(&mFunctions));
+        new PluginInstanceChild(&mFunctions, aMimeType));
     if (!childInstance->Initialize()) {
         *rv = NPERR_GENERIC_ERROR;
         return 0;
@@ -1776,40 +1652,12 @@ PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
     return childInstance.forget();
 }
 
-void
-PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
-{
-    if (mQuirks != QUIRKS_NOT_INITIALIZED)
-      return;
-    mQuirks = 0;
-    // application/x-silverlight
-    // application/x-silverlight-2
-    NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
-    if (FindInReadable(silverlight, aMimeType)) {
-        mQuirks |= QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT;
-#ifdef OS_WIN
-        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
-#endif
-    }
-
-#ifdef OS_WIN
-    // application/x-shockwave-flash
-    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
-    if (FindInReadable(flash, aMimeType)) {
-        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
-        mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
-        mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
-        mQuirks |= QUIRK_FLASH_HOOK_GETWINDOINFO;
-    }
-#endif
-}
-
 bool
 PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor,
                                                     const nsCString& aMimeType,
                                                     const uint16_t& aMode,
-                                                    const InfallibleTArray<nsCString>& aNames,
-                                                    const InfallibleTArray<nsCString>& aValues,
+                                                    const nsTArray<nsCString>& aNames,
+                                                    const nsTArray<nsCString>& aValues,
                                                     NPError* rv)
 {
     PLUGIN_LOG_DEBUG_METHOD;
@@ -1847,17 +1695,6 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
     if (NPERR_NO_ERROR != *rv) {
         return false;
     }
-
-#if defined(XP_MACOSX) && defined(__i386__)
-    // If an i386 Mac OS X plugin has selected the Carbon event model then
-    // we have to fail. We do not support putting Carbon event model plugins
-    // out of process. Note that Carbon is the default model so out of process
-    // plugins need to actively negotiate something else in order to work
-    // out of process.
-    if (childInstance->EventModel() == NPEventModelCarbon) {
-        *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
-    }
-#endif
 
     return true;
 }
@@ -2188,12 +2025,5 @@ PluginModuleChild::ResetEventHooks()
     if (mGlobalCallWndProcHook)
         UnhookWindowsHookEx(mGlobalCallWndProcHook);
     mGlobalCallWndProcHook = NULL;
-}
-#endif
-
-#ifdef OS_MACOSX
-void
-PluginModuleChild::ProcessNativeEvents() {
-    CallProcessSomeEvents();    
 }
 #endif

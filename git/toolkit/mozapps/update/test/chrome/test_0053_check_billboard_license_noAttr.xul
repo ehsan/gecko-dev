@@ -16,7 +16,7 @@
 <script type="application/javascript"
         src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
 <script type="application/javascript"
-        src="utils.js"/>
+        src="chrome://mochikit/content/chrome/toolkit/mozapps/update/test/chrome/utils.js"/>
 
 <script type="application/javascript">
 <![CDATA[
@@ -40,11 +40,12 @@ const TESTS = [ {
 } ];
 
 function runTest() {
-  debugDump("entering");
+  debugDump("Entering runTest");
 
   let url = URL_UPDATE + "?showBillboard=1&showLicense=1&remoteNoTypeAttr=1" +
             "&showDetails=1" + getVersionParams();
   setUpdateURLOverride(url);
+  debugDump("Update URL: " + url);
 
   gUP.checkForUpdates();
 }

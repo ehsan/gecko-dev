@@ -57,7 +57,6 @@
 #include "nsIContentSniffer.h"
 #include "nsCategoryCache.h"
 #include "nsINetworkLinkService.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 #define NS_N(x) (sizeof(x)/sizeof(*x))
 
@@ -96,9 +95,8 @@ public:
 
     // Called by channels before a redirect happens. This notifies the global
     // redirect observers.
-    nsresult AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                                    PRUint32 flags,
-                                    nsAsyncRedirectVerifyHelper *helper);
+    nsresult OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+                               PRUint32 flags);
 
     // Gets the array of registered content sniffers
     const nsCOMArray<nsIContentSniffer>& GetContentSniffers() {
@@ -107,10 +105,6 @@ public:
 
     PRBool IsOffline() { return mOffline; }
     PRBool IsLinkUp();
-
-    PRBool IsComingOnline() const {
-      return mOffline && mSettingOffline && !mSetOfflineValue;
-    }
 
 private:
     // These shouldn't be called directly:
@@ -132,8 +126,6 @@ private:
     NS_HIDDEN_(void) PrefsChanged(nsIPrefBranch *prefs, const char *pref = nsnull);
     NS_HIDDEN_(void) GetPrefBranch(nsIPrefBranch2 **);
     NS_HIDDEN_(void) ParsePortList(nsIPrefBranch *prefBranch, const char *pref, PRBool remove);
-
-    nsresult InitializeSocketTransportService();
 
 private:
     PRPackedBool                         mOffline;

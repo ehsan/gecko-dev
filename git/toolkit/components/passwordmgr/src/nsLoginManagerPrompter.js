@@ -20,8 +20,6 @@
  * Contributor(s):
  *  Justin Dolske <dolske@mozilla.com> (original author)
  *  Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *  Frank Yan <fyan@mozilla.com>
- *  Margaret Leibovic <margaret.leibovic@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,8 +52,6 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  */
 function LoginManagerPromptFactory() {
     Services.obs.addObserver(this, "quit-application-granted", true);
-    Services.obs.addObserver(this, "passwordmgr-crypto-login", true);
-    Services.obs.addObserver(this, "passwordmgr-crypto-loginCanceled", true);
 }
 
 LoginManagerPromptFactory.prototype = {
@@ -68,16 +64,19 @@ LoginManagerPromptFactory.prototype = {
     _asyncPromptInProgress : false,
 
     observe : function (subject, topic, data) {
-        this.log("Observed: " + topic);
         if (topic == "quit-application-granted") {
-            this._cancelPendingPrompts();
-        } else if (topic == "passwordmgr-crypto-login") {
-            // Start processing the deferred prompters.
-            this._doAsyncPrompt();
-        } else if (topic == "passwordmgr-crypto-loginCanceled") {
-            // User canceled a Master Password prompt, so go ahead and cancel
-            // all pending auth prompts to avoid nagging over and over.
-            this._cancelPendingPrompts();
+            var asyncPrompts = this._asyncPrompts;
+            this.__proto__._asyncPrompts = {};
+            for each (var asyncPrompt in asyncPrompts) {
+                for each (var consumer in asyncPrompt.consumers) {
+                    if (consumer.callback) {
+                        this.log("Canceling async auth prompt callback " + consumer.callback);
+                        try {
+                          consumer.callback.onAuthCancelled(consumer.context, true);
+                        } catch (e) { /* Just ignore exceptions from the callback */ }
+                    }
+                }
+            }
         }
     },
 
@@ -106,37 +105,24 @@ LoginManagerPromptFactory.prototype = {
             return;
         }
 
-        // If login manger has logins for this host, defer prompting if we're
-        // already waiting on a master password entry.
-        var prompt = this._asyncPrompts[hashKey];
-        var prompter = prompt.prompter;
-        var [hostname, httpRealm] = prompter._getAuthTarget(prompt.channel, prompt.authInfo);
-        var hasLogins = (prompter._pwmgr.countLogins(hostname, null, httpRealm) > 0);
-        if (hasLogins && prompter._pwmgr.uiBusy) {
-            this.log("_doAsyncPrompt:run bypassed, master password UI busy");
-            return;
-        }
-
         this._asyncPromptInProgress = true;
-        prompt.inProgress = true;
-
         var self = this;
 
         var runnable = {
             run : function() {
                 var ok = false;
+                var prompt = self._asyncPrompts[hashKey];
                 try {
                     self.log("_doAsyncPrompt:run - performing the prompt for '" + hashKey + "'");
-                    ok = prompter.promptAuth(prompt.channel,
-                                             prompt.level,
-                                             prompt.authInfo);
+                    ok = prompt.prompter.promptAuth(prompt.channel,
+                                                    prompt.level,
+                                                    prompt.authInfo);
                 } catch (e) {
                     Components.utils.reportError("LoginManagerPrompter: " +
                         "_doAsyncPrompt:run: " + e + "\n");
                 }
 
                 delete self._asyncPrompts[hashKey];
-                prompt.inProgress = false;
                 self._asyncPromptInProgress = false;
 
                 for each (var consumer in prompt.consumers) {
@@ -160,34 +146,6 @@ LoginManagerPromptFactory.prototype = {
         Services.tm.mainThread.dispatch(runnable, Ci.nsIThread.DISPATCH_NORMAL);
         this.log("_doAsyncPrompt:run dispatched");
     },
-
-
-    _cancelPendingPrompts : function() {
-        this.log("Canceling all pending prompts...");
-        var asyncPrompts = this._asyncPrompts;
-        this.__proto__._asyncPrompts = {};
-
-        for each (var prompt in asyncPrompts) {
-            // Watch out! If this prompt is currently prompting, let it handle
-            // notifying the callbacks of success/failure, since it's already
-            // asking the user for input. Reusing a callback can be crashy.
-            if (prompt.inProgress) {
-                this.log("skipping a prompt in progress");
-                continue;
-            }
-
-            for each (var consumer in prompt.consumers) {
-                if (!consumer.callback)
-                    continue;
-
-                this.log("Canceling async auth prompt callback " + consumer.callback);
-                try {
-                    consumer.callback.onAuthCancelled(consumer.context, true);
-                } catch (e) { /* Just ignore exceptions from the callback */ }
-            }
-        }
-    },
-
 
     log : function (message) {
         if (!this._debug)
@@ -574,7 +532,9 @@ LoginManagerPrompter.prototype = {
             // If the user submits a login but it fails, we need to remove the
             // notification bar that was displayed. Conveniently, the user will
             // be prompted for authentication again, which brings us here.
-            this._removeLoginNotifications();
+            var notifyBox = this._getNotifyBox();
+            if (notifyBox)
+                this._removeLoginNotifications(notifyBox);
 
             var [hostname, httpRealm] = this._getAuthTarget(aChannel, aAuthInfo);
 
@@ -606,9 +566,8 @@ LoginManagerPrompter.prototype = {
             var canRememberLogin = this._pwmgr.getLoginSavingEnabled(hostname);
             if (this._inPrivateBrowsing)
               canRememberLogin = false;
-
+        
             // if checkboxLabel is null, the checkbox won't be shown at all.
-            var notifyBox = this._getNotifyBox();
             if (canRememberLogin && !notifyBox)
                 checkboxLabel = this._getLocalizedString("rememberPassword");
         } catch (e) {
@@ -654,9 +613,8 @@ LoginManagerPrompter.prototype = {
                                createInstance(Ci.nsILoginInfo);
                 newLogin.init(hostname, null, httpRealm,
                               username, password, "", "");
-                var notifyObj = this._getPopupNote() || notifyBox;
-                if (notifyObj)
-                    this._showSaveLoginNotification(notifyObj, newLogin);
+                if (notifyBox)
+                    this._showSaveLoginNotification(notifyBox, newLogin);
                 else
                     this._pwmgr.addLogin(newLogin);
 
@@ -664,9 +622,8 @@ LoginManagerPrompter.prototype = {
 
                 this.log("Updating password for " + username +
                          " @ " + hostname + " (" + httpRealm + ")");
-                var notifyObj = this._getPopupNote() || notifyBox;
-                if (notifyObj)
-                    this._showChangeLoginNotification(notifyObj,
+                if (notifyBox)
+                    this._showChangeLoginNotification(notifyBox,
                                                       selectedLogin, password);
                 else
                     this._updateLogin(selectedLogin, password);
@@ -692,7 +649,9 @@ LoginManagerPrompter.prototype = {
             // If the user submits a login but it fails, we need to remove the
             // notification bar that was displayed. Conveniently, the user will
             // be prompted for authentication again, which brings us here.
-            this._removeLoginNotifications();
+            var notifyBox = this._getNotifyBox();
+            if (notifyBox)
+                this._removeLoginNotifications(notifyBox);
 
             cancelable = this._newAsyncPromptConsumer(aCallback, aContext);
 
@@ -713,7 +672,6 @@ LoginManagerPrompter.prototype = {
                 channel: aChannel,
                 authInfo: aAuthInfo,
                 level: aLevel,
-                inProgress : false,
                 prompter: this
             }
 
@@ -758,10 +716,10 @@ LoginManagerPrompter.prototype = {
      *
      */
     promptToSavePassword : function (aLogin) {
-        var notifyObj = this._getPopupNote() || this._getNotifyBox();
+        var notifyBox = this._getNotifyBox();
 
-        if (notifyObj)
-            this._showSaveLoginNotification(notifyObj, aLogin);
+        if (notifyBox)
+            this._showSaveLoginNotification(notifyBox, aLogin);
         else
             this._showSaveLoginDialog(aLogin);
     },
@@ -803,39 +761,43 @@ LoginManagerPrompter.prototype = {
     /*
      * _showSaveLoginNotification
      *
-     * Displays a notification bar or a popup notification, to allow the user
-     * to save the specified login. This allows the user to see the results of
+     * Displays a notification bar (rather than a popup), to allow the user to
+     * save the specified login. This allows the user to see the results of
      * their login, and only save a login which they know worked.
      *
-     * @param aNotifyObj
-     *        A notification box or a popup notification.
      */
-    _showSaveLoginNotification : function (aNotifyObj, aLogin) {
+    _showSaveLoginNotification : function (aNotifyBox, aLogin) {
 
         // Ugh. We can't use the strings from the popup window, because they
         // have the access key marked in the string (eg "Mo&zilla"), along
         // with some weird rules for handling access keys that do not occur
         // in the string, for L10N. See commonDialog.js's setLabelForNode().
         var neverButtonText =
-              this._getLocalizedString("notifyBarNeverRememberButtonText");
+              this._getLocalizedString("notifyBarNeverForSiteButtonText");
         var neverButtonAccessKey =
-              this._getLocalizedString("notifyBarNeverRememberButtonAccessKey");
+              this._getLocalizedString("notifyBarNeverForSiteButtonAccessKey");
         var rememberButtonText =
-              this._getLocalizedString("notifyBarRememberPasswordButtonText");
+              this._getLocalizedString("notifyBarRememberButtonText");
         var rememberButtonAccessKey =
-              this._getLocalizedString("notifyBarRememberPasswordButtonAccessKey");
+              this._getLocalizedString("notifyBarRememberButtonAccessKey");
+        var notNowButtonText =
+              this._getLocalizedString("notifyBarNotNowButtonText");
+        var notNowButtonAccessKey =
+              this._getLocalizedString("notifyBarNotNowButtonAccessKey");
 
+        var brandShortName =
+              this._brandBundle.GetStringFromName("brandShortName");
         var displayHost = this._getShortDisplayHost(aLogin.hostname);
         var notificationText;
         if (aLogin.username) {
             var displayUser = this._sanitizeUsername(aLogin.username);
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordText",
-                                        [displayUser, displayHost]);
+                                        "saveLoginText",
+                                        [brandShortName, displayUser, displayHost]);
         } else {
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordTextNoUsername",
-                                        [displayHost]);
+                                        "saveLoginTextNoUsername",
+                                        [brandShortName, displayHost]);
         }
 
         // The callbacks in |buttons| have a closure to access the variables
@@ -843,75 +805,39 @@ LoginManagerPrompter.prototype = {
         // without a getService() call.
         var pwmgr = this._pwmgr;
 
-        // Notification is a PopupNotification
-        if (aNotifyObj == this._getPopupNote()) {
+
+        var buttons = [
             // "Remember" button
-            var mainAction = {
+            {
                 label:     rememberButtonText,
                 accessKey: rememberButtonAccessKey,
-                callback: function(aNotifyObj, aButton) {
+                popup:     null,
+                callback: function(aNotificationBar, aButton) {
                     pwmgr.addLogin(aLogin);
                 }
-            };
+            },
 
-            var secondaryActions = [
-                // "Never for this site" button
-                {
-                    label:     neverButtonText,
-                    accessKey: neverButtonAccessKey,
-                    callback: function(aNotifyObj, aButton) {
-                        pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
-                    }
+            // "Never for this site" button
+            {
+                label:     neverButtonText,
+                accessKey: neverButtonAccessKey,
+                popup:     null,
+                callback: function(aNotificationBar, aButton) {
+                    pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
                 }
-            ];
+            },
 
-            var notifyWin = this._getNotifyWindow();
-            var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
-            var browser = chromeWin.gBrowser.
-                                    getBrowserForDocument(this._window.top.document);
+            // "Not now" button
+            {
+                label:     notNowButtonText,
+                accessKey: notNowButtonAccessKey,
+                popup:     null,
+                callback:  function() { /* NOP */ } 
+            }
+        ];
 
-            aNotifyObj.show(browser, "password-save", notificationText,
-                            "password-notification-icon", mainAction,
-                            secondaryActions, { timeout: Date.now() + 10000,
-                                                persistWhileVisible: true });
-        } else {
-            var notNowButtonText =
-                  this._getLocalizedString("notifyBarNotNowButtonText");
-            var notNowButtonAccessKey =
-                  this._getLocalizedString("notifyBarNotNowButtonAccessKey");
-            var buttons = [
-                // "Remember" button
-                {
-                    label:     rememberButtonText,
-                    accessKey: rememberButtonAccessKey,
-                    popup:     null,
-                    callback: function(aNotifyObj, aButton) {
-                        pwmgr.addLogin(aLogin);
-                    }
-                },
-
-                // "Never for this site" button
-                {
-                    label:     neverButtonText,
-                    accessKey: neverButtonAccessKey,
-                    popup:     null,
-                    callback: function(aNotifyObj, aButton) {
-                        pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
-                    }
-                },
-
-                // "Not now" button
-                {
-                    label:     notNowButtonText,
-                    accessKey: notNowButtonAccessKey,
-                    popup:     null,
-                    callback:  function() { /* NOP */ }
-                }
-            ];
-
-            this._showLoginNotification(aNotifyObj, "password-save",
-                                        notificationText, buttons);
-        }
+        this._showLoginNotification(aNotifyBox, "password-save",
+             notificationText, buttons);
     },
 
 
@@ -919,26 +845,17 @@ LoginManagerPrompter.prototype = {
      * _removeLoginNotifications
      *
      */
-    _removeLoginNotifications : function () {
-        var popupNote = this._getPopupNote();
-        if (popupNote)
-            popupNote = popupNote.getNotification("password-save");
-        if (popupNote)
-            popupNote.remove();
+    _removeLoginNotifications : function (aNotifyBox) {
+        var oldBar = aNotifyBox.getNotificationWithValue("password-save");
+        if (oldBar) {
+            this.log("Removing save-password notification bar.");
+            aNotifyBox.removeNotification(oldBar);
+        }
 
-        var notifyBox = this._getNotifyBox();
-        if (notifyBox) {
-            var oldBar = notifyBox.getNotificationWithValue("password-save");
-            if (oldBar) {
-                this.log("Removing save-password notification bar.");
-                notifyBox.removeNotification(oldBar);
-            }
-
-            oldBar = notifyBox.getNotificationWithValue("password-change");
-            if (oldBar) {
-                this.log("Removing change-password notification bar.");
-                notifyBox.removeNotification(oldBar);
-            }
+        oldBar = aNotifyBox.getNotificationWithValue("password-change");
+        if (oldBar) {
+            this.log("Removing change-password notification bar.");
+            aNotifyBox.removeNotification(oldBar);
         }
     },
 
@@ -1012,11 +929,10 @@ LoginManagerPrompter.prototype = {
      *
      */
     promptToChangePassword : function (aOldLogin, aNewLogin) {
-        var notifyObj = this._getPopupNote() || this._getNotifyBox();
+        var notifyBox = this._getNotifyBox();
 
-        if (notifyObj)
-            this._showChangeLoginNotification(notifyObj, aOldLogin,
-                                              aNewLogin.password);
+        if (notifyBox)
+            this._showChangeLoginNotification(notifyBox, aOldLogin, aNewLogin.password);
         else
             this._showChangeLoginDialog(aOldLogin, aNewLogin.password);
     },
@@ -1025,82 +941,57 @@ LoginManagerPrompter.prototype = {
     /*
      * _showChangeLoginNotification
      *
-     * Shows the Change Password notification bar or popup notification.
+     * Shows the Change Password notification bar.
      *
-     * @param aNotifyObj
-     *        A notification box or a popup notification.
      */
-    _showChangeLoginNotification : function (aNotifyObj, aOldLogin, aNewPassword) {
+    _showChangeLoginNotification : function (aNotifyBox, aOldLogin, aNewPassword) {
         var notificationText;
         if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordText",
+                                          "passwordChangeText",
                                           [aOldLogin.username]);
         else
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordTextNoUser");
+                                          "passwordChangeTextNoUser");
 
         var changeButtonText =
-              this._getLocalizedString("notifyBarUpdateButtonText");
+              this._getLocalizedString("notifyBarChangeButtonText");
         var changeButtonAccessKey =
-              this._getLocalizedString("notifyBarUpdateButtonAccessKey");
+              this._getLocalizedString("notifyBarChangeButtonAccessKey");
+        var dontChangeButtonText =
+              this._getLocalizedString("notifyBarDontChangeButtonText");
+        var dontChangeButtonAccessKey =
+              this._getLocalizedString("notifyBarDontChangeButtonAccessKey");
 
         // The callbacks in |buttons| have a closure to access the variables
         // in scope here; set one to |this._pwmgr| so we can get back to pwmgr
         // without a getService() call.
         var self = this;
 
-        // Notification is a PopupNotification
-        if (aNotifyObj == this._getPopupNote()) {
+        var buttons = [
             // "Yes" button
-            var mainAction = {
+            {
                 label:     changeButtonText,
                 accessKey: changeButtonAccessKey,
                 popup:     null,
-                callback:  function(aNotifyObj, aButton) {
+                callback:  function(aNotificationBar, aButton) {
                     self._updateLogin(aOldLogin, aNewPassword);
                 }
-            };
+            },
 
-            var notifyWin = this._getNotifyWindow();
-            var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
-            var browser = chromeWin.gBrowser.
-                                    getBrowserForDocument(this._window.top.document);
-
-            aNotifyObj.show(browser, "password-change", notificationText,
-                            "password-notification-icon", mainAction,
-                            null, { timeout: Date.now() + 10000,
-                                    persistWhileVisible: true });
-        } else {
-            var dontChangeButtonText =
-                  this._getLocalizedString("notifyBarDontChangeButtonText");
-            var dontChangeButtonAccessKey =
-                  this._getLocalizedString("notifyBarDontChangeButtonAccessKey");
-            var buttons = [
-                // "Yes" button
-                {
-                    label:     changeButtonText,
-                    accessKey: changeButtonAccessKey,
-                    popup:     null,
-                    callback:  function(aNotifyObj, aButton) {
-                        self._updateLogin(aOldLogin, aNewPassword);
-                    }
-                },
-
-                // "No" button
-                {
-                    label:     dontChangeButtonText,
-                    accessKey: dontChangeButtonAccessKey,
-                    popup:     null,
-                    callback:  function(aNotifyObj, aButton) {
-                        // do nothing
-                    }
+            // "No" button
+            {
+                label:     dontChangeButtonText,
+                accessKey: dontChangeButtonAccessKey,
+                popup:     null,
+                callback:  function(aNotificationBar, aButton) {
+                    // do nothing
                 }
-            ];
+            }
+        ];
 
-            this._showLoginNotification(aNotifyObj, "password-change",
-                                        notificationText, buttons);
-        }
+        this._showLoginNotification(aNotifyBox, "password-change",
+             notificationText, buttons);
     },
 
 
@@ -1147,7 +1038,7 @@ LoginManagerPrompter.prototype = {
      * Note: The caller doesn't know the username for aNewLogin, so this
      *       function fills in .username and .usernameField with the values
      *       from the login selected by the user.
-     *
+     * 
      * Note; XPCOM stupidity: |count| is just |logins.length|.
      */
     promptToChangePasswordWithUsernames : function (logins, count, aNewLogin) {
@@ -1199,39 +1090,41 @@ LoginManagerPrompter.prototype = {
         this._pwmgr.modifyLogin(login, propBag);
     },
 
-
     /*
-     * _getChromeWindow
+     * _getNotifyBox
      *
-     * Given a content DOM window, returns the chrome window it's in.
+     * Returns the notification box to this prompter, or null if there isn't
+     * a notification box available.
      */
-    _getChromeWindow: function (aWindow) {
-        var chromeWin = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIWebNavigation)
-                               .QueryInterface(Ci.nsIDocShell)
-                               .chromeEventHandler.ownerDocument.defaultView;
-        return chromeWin;
-    },
+    _getNotifyBox : function () {
+        var notifyBox = null;
 
-
-    /*
-     * _getNotifyWindow
-     */
-    _getNotifyWindow: function () {
+        // Given a content DOM window, returns the chrome window it's in.
+        function getChromeWindow(aWindow) {
+            var chromeWin = aWindow 
+                                .QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIWebNavigation)
+                                .QueryInterface(Ci.nsIDocShellTreeItem)
+                                .rootTreeItem
+                                .QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindow)
+                                .QueryInterface(Ci.nsIDOMChromeWindow);
+            return chromeWin;
+        }
 
         try {
             // Get topmost window, in case we're in a frame.
-            var notifyWin = this._window.top;
+            var notifyWindow = this._window.top
 
             // Some sites pop up a temporary login window, when disappears
             // upon submission of credentials. We want to put the notification
             // bar in the opener window if this seems to be happening.
-            if (notifyWin.opener) {
-                var chromeDoc = this._getChromeWindow(notifyWin).
-                                     document.documentElement;
-                var webnav = notifyWin.
-                             QueryInterface(Ci.nsIInterfaceRequestor).
-                             getInterface(Ci.nsIWebNavigation);
+            if (notifyWindow.opener) {
+                var chromeDoc = getChromeWindow(notifyWindow)
+                                    .document.documentElement;
+                var webnav = notifyWindow
+                                    .QueryInterface(Ci.nsIInterfaceRequestor)
+                                    .getInterface(Ci.nsIWebNavigation);
 
                 // Check to see if the current window was opened with chrome
                 // disabled, and if so use the opener window. But if the window
@@ -1240,64 +1133,23 @@ LoginManagerPrompter.prototype = {
                 if (chromeDoc.getAttribute("chromehidden") &&
                     webnav.sessionHistory.count == 1) {
                     this.log("Using opener window for notification bar.");
-                    notifyWin = notifyWin.opener;
+                    notifyWindow = notifyWindow.opener;
                 }
             }
 
-            return notifyWin;
+
+            // Get the chrome window for the content window we're using.
+            // .wrappedJSObject needed here -- see bug 422974 comment 5.
+            var chromeWin = getChromeWindow(notifyWindow).wrappedJSObject;
+
+            if (chromeWin.getNotificationBox)
+                notifyBox = chromeWin.getNotificationBox(notifyWindow);
+            else
+                this.log("getNotificationBox() not available on window");
 
         } catch (e) {
             // If any errors happen, just assume no notification box.
-            this.log("Unable to get notify window");
-            return null;
-        }
-    },
-
-
-    /*
-     * _getPopupNote
-     *
-     * Returns the popup notification to this prompter,
-     * or null if there isn't one available.
-     */
-    _getPopupNote : function () {
-        let popupNote = null;
-
-        try {
-            let notifyWin = this._getNotifyWindow();
-
-            // Get the chrome window for the content window we're using.
-            // .wrappedJSObject needed here -- see bug 422974 comment 5.
-            let chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
-
-            popupNote = chromeWin.PopupNotifications;
-        } catch (e) {
-            this.log("Popup notifications not available on window");
-        }
-
-        return popupNote;
-    },
-
-
-    /*
-     * _getNotifyBox
-     *
-     * Returns the notification box to this prompter, or null if there isn't
-     * a notification box available.
-     */
-    _getNotifyBox : function () {
-        let notifyBox = null;
-
-        try {
-            let notifyWin = this._getNotifyWindow();
-
-            // Get the chrome window for the content window we're using.
-            // .wrappedJSObject needed here -- see bug 422974 comment 5.
-            let chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
-
-            notifyBox = chromeWin.getNotificationBox(notifyWin);
-        } catch (e) {
-            this.log("Notification bars not available on window");
+            this.log("No notification box available: " + e)
         }
 
         return notifyBox;
@@ -1318,7 +1170,7 @@ LoginManagerPrompter.prototype = {
         return null;
     },
 
-
+    
     /*
      * _getLocalizedString
      *
@@ -1331,7 +1183,7 @@ LoginManagerPrompter.prototype = {
      * Returns the localized string for the specified key,
      * formatted if required.
      *
-     */
+     */ 
     _getLocalizedString : function (key, formatArgs) {
         if (formatArgs)
             return this._strBundle.formatStringFromName(

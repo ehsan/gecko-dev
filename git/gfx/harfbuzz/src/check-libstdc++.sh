@@ -11,6 +11,7 @@ else
 fi
 
 test -z "$srcdir" && srcdir=.
+test -z "$MAKE" && MAKE=make
 stat=0
 
 so=.libs/libharfbuzz.so

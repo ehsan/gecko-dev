@@ -77,11 +77,10 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_LABEL; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
 
   NS_IMETHOD Focus();
-
-  virtual bool IsDisabled() const { return PR_FALSE; }
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -347,7 +346,8 @@ nsHTMLLabelElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
+nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                      nsIContent* aSubmitElement)
 {
   return NS_OK;
 }
@@ -361,8 +361,8 @@ nsHTMLLabelElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPref
   }
 
   nsresult rv =
-      nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
-                                        aNotify);
+      nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
+                                    aNotify);
 
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID &&
       !aValue.IsEmpty()) {
@@ -384,7 +384,7 @@ nsHTMLLabelElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
     UnsetFlags(NODE_HAS_ACCESSKEY);
   }
 
-  return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 void

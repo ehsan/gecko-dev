@@ -20,7 +20,6 @@
  * Contributor(s):
  *   Aakash Desai <adesai@mozilla.com>
  *   Henrik Skupin <hskupin@mozilla.com>
- *   Aaron Train <atrain@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,18 +36,16 @@
  * ***** END LICENSE BLOCK ***** */
 
 // Include necessary modules
-const RELATIVE_ROOT = '../../shared-modules';
-const MODULE_REQUIRES = ['PrefsAPI', 'TabbedBrowsingAPI', 'ToolbarAPI'];
+var RELATIVE_ROOT = '../../shared-modules';
+var MODULE_REQUIRES = ['PrefsAPI', 'TabbedBrowsingAPI'];
 
-const LOCAL_TEST_FOLDER = collector.addHttpResource('../test-files/');
-const LOCAL_TEST_PAGES = [
-  LOCAL_TEST_FOLDER + 'layout/mozilla.html',
-  LOCAL_TEST_FOLDER + 'layout/mozilla_mission.html'
-];
+const gDelay = 0;
+const gTimeout = 5000;
 
-var setupModule = function() {
-  controller = mozmill.getBrowserController();
-  locationBar = new ToolbarAPI.locationBar(controller);
+const homepage = 'http://www.mozilla.org/';
+
+var setupModule = function(module) {
+  module.controller = mozmill.getBrowserController();
 
   TabbedBrowsingAPI.closeAllTabs(controller);
 }
@@ -61,11 +58,11 @@ var teardownModule = function(module) {
  * Set homepage to current page
  */
 var testSetHomePage = function() {
-  // Go to the first local page and verify the correct page has loaded
-  controller.open(LOCAL_TEST_PAGES[0]);
+  // Go to the Mozilla.org website and verify the correct page has loaded
+  controller.open(homepage);
   controller.waitForPageLoad();
 
-  var link = new elementslib.Link(controller.tabs.activeTab, "Community");
+  var link = new elementslib.Link(controller.tabs.activeTab, "Mozilla");
   controller.assertNode(link);
 
   // Call Prefs Dialog and set Home Page
@@ -77,8 +74,8 @@ var testSetHomePage = function() {
  */
 var testHomeButton = function()
 {
-  // Open another local page before going to the home page
-  controller.open(LOCAL_TEST_PAGES[1]);
+  // Open another page before going to the home page
+  controller.open('http://www.yahoo.com/');
   controller.waitForPageLoad();
 
   // Go to the saved home page and verify it's the correct page
@@ -86,7 +83,8 @@ var testHomeButton = function()
   controller.waitForPageLoad();
 
   // Verify location bar with the saved home page
-  controller.assertValue(locationBar.urlbar, LOCAL_TEST_PAGES[0]);
+  var locationBar = new elementslib.ID(controller.window.document, "urlbar");
+  controller.assertValue(locationBar, homepage);
 }
 
 /**

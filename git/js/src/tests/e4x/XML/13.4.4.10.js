@@ -41,6 +41,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.4.10.js';
 
 var nTest = 0;
 

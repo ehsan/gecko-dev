@@ -53,8 +53,6 @@ EXPORTS_NAMESPACES = mozilla/dom/indexedDB
 
 CPPSRCS = \
   AsyncConnectionHelper.cpp \
-  CheckPermissionsHelper.cpp \
-  CheckQuotaHelper.cpp \
   DatabaseInfo.cpp \
   IDBCursor.cpp \
   IDBDatabase.cpp \
@@ -65,7 +63,6 @@ CPPSRCS = \
   IDBRequest.cpp \
   IDBTransaction.cpp \
   IDBFactory.cpp \
-  IndexedDatabaseManager.cpp \
   LazyIdleThread.cpp \
   TransactionThreadPool.cpp \
   $(NULL)
@@ -80,16 +77,12 @@ EXPORTS_mozilla/dom/indexedDB = \
   IDBRequest.h \
   IDBTransaction.h \
   IndexedDatabase.h \
-  IndexedDatabaseManager.h \
   IDBFactory.h \
-  Key.h \
   LazyIdleThread.h \
   $(NULL)
 
 LOCAL_INCLUDES = \
-  -I$(topsrcdir)/xpcom/build \
   -I$(topsrcdir)/dom/base \
-  -I$(topsrcdir)/dom/src/storage \
   -I$(topsrcdir)/content/base/src \
   -I$(topsrcdir)/content/events/src \
   $(NULL)
@@ -102,9 +95,8 @@ XPIDLSRCS = \
   nsIIDBCursor.idl \
   nsIIDBDatabase.idl \
   nsIIDBDatabaseException.idl \
-  nsIIDBErrorEvent.idl \
   nsIIDBEvent.idl \
-  nsIIDBFactory.idl \
+  nsIIDBErrorEvent.idl \
   nsIIDBIndex.idl \
   nsIIDBKeyRange.idl \
   nsIIDBObjectStore.idl \
@@ -112,9 +104,7 @@ XPIDLSRCS = \
   nsIIDBSuccessEvent.idl \
   nsIIDBTransaction.idl \
   nsIIDBTransactionEvent.idl \
-  nsIIDBVersionChangeEvent.idl \
-  nsIIDBVersionChangeRequest.idl \
-  nsIIndexedDatabaseManager.idl \
+  nsIIDBFactory.idl \
   $(NULL)
 
 ifdef ENABLE_TESTS

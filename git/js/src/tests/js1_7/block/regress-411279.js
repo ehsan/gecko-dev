@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-411279.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 411279;
 var summary = 'let declaration as direct child of switch body block';

@@ -148,7 +148,6 @@ CPPSRCS		= \
 		nsFileDataProtocolHandler.cpp \
 		nsFrameMessageManager.cpp \
 		nsInProcessTabChildGlobal.cpp \
-		ThirdPartyUtil.cpp \
 		$(NULL)
 
 GQI_SRCS = contentbase.gqi
@@ -165,13 +164,6 @@ EXTRA_COMPONENTS = \
 		contentAreaDropListener.js \
 		contentAreaDropListener.manifest \
 		$(NULL)
-
-ifdef MOZ_IPC
-EXTRA_COMPONENTS += \
-		messageWakeupService.js \
-		messageWakeupService.manifest \
-		$(NULL)
-endif
 
 EXTRA_JS_MODULES = \
 		CSPUtils.jsm \
@@ -198,5 +190,7 @@ INCLUDES	+= \
 		-I$(topsrcdir)/js/src/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
 		$(NULL)
+
+CXXFLAGS += $(TK_CFLAGS)
 
 DEFINES += -D_IMPL_NS_LAYOUT

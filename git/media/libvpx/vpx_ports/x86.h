@@ -1,10 +1,10 @@
 /*
- *  Copyright (c) 2010 The WebM project authors. All Rights Reserved.
+ *  Copyright (c) 2010 The VP8 project authors. All Rights Reserved.
  *
- *  Use of this source code is governed by a BSD-style license
+ *  Use of this source code is governed by a BSD-style license 
  *  that can be found in the LICENSE file in the root of the source
  *  tree. An additional intellectual property rights grant can be found
- *  in the file PATENTS.  All contributing project authors may
+ *  in the file PATENTS.  All contributing project authors may 
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
@@ -13,26 +13,6 @@
 #define VPX_PORTS_X86_H
 #include <stdlib.h>
 #include "config.h"
-
-typedef enum
-{
-    VPX_CPU_UNKNOWN = -1,
-    VPX_CPU_AMD,
-    VPX_CPU_AMD_OLD,
-    VPX_CPU_CENTAUR,
-    VPX_CPU_CYRIX,
-    VPX_CPU_INTEL,
-    VPX_CPU_NEXGEN,
-    VPX_CPU_NSC,
-    VPX_CPU_RISE,
-    VPX_CPU_SIS,
-    VPX_CPU_TRANSMETA,
-    VPX_CPU_TRANSMETA_OLD,
-    VPX_CPU_UMC,
-    VPX_CPU_VIA,
-
-    VPX_CPU_LAST
-}  vpx_cpu_t;
 
 #if defined(__GNUC__) && __GNUC__
 #if ARCH_X86_64
@@ -44,31 +24,12 @@ typedef enum
 #else
 #define cpuid(func,ax,bx,cx,dx)\
     __asm__ __volatile__ (\
-                          "mov %%ebx, %%edi   \n\t" \
-                          "cpuid              \n\t" \
-                          "xchg %%edi, %%ebx  \n\t" \
-                          : "=a" (ax), "=D" (bx), "=c" (cx), "=d" (dx) \
-                          : "a" (func));
-#endif
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-#if ARCH_X86_64
-#define cpuid(func,ax,bx,cx,dx)\
-    asm volatile (\
-                  "xchg %rsi, %rbx \n\t" \
-                  "cpuid           \n\t" \
-                  "movl %ebx, %edi \n\t" \
-                  "xchg %rsi, %rbx \n\t" \
-                  : "=a" (ax), "=D" (bx), "=c" (cx), "=d" (dx) \
-                  : "a"  (func));
-#else
-#define cpuid(func,ax,bx,cx,dx)\
-    asm volatile (\
-                  "pushl %ebx       \n\t" \
-                  "cpuid            \n\t" \
-                  "movl %ebx, %edi  \n\t" \
-                  "popl %ebx        \n\t" \
-                  : "=a" (ax), "=D" (bx), "=c" (cx), "=d" (dx) \
-                  : "a" (func));
+                          "pushl %%ebx     \n\t" \
+                          "cpuid           \n\t" \
+                          "movl  %%ebx, %1 \n\t" \
+                          "popl  %%ebx     \n\t" \
+                          : "=a" (ax), "=r" (bx), "=c" (cx), "=d" (dx) \
+                          : "a"  (func));
 #endif
 #else
 #if ARCH_X86_64
@@ -140,7 +101,6 @@ x86_simd_caps(void)
     return flags & mask;
 }
 
-vpx_cpu_t vpx_x86_vendor(void);
 
 #if ARCH_X86_64 && defined(_MSC_VER)
 unsigned __int64 __rdtsc(void);
@@ -152,10 +112,6 @@ x86_readtsc(void)
 #if defined(__GNUC__) && __GNUC__
     unsigned int tsc;
     __asm__ __volatile__("rdtsc\n\t":"=a"(tsc):);
-    return tsc;
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-    unsigned int tsc;
-    asm volatile("rdtsc\n\t":"=a"(tsc):);
     return tsc;
 #else
 #if ARCH_X86_64
@@ -170,9 +126,6 @@ x86_readtsc(void)
 #if defined(__GNUC__) && __GNUC__
 #define x86_pause_hint()\
     __asm__ __volatile__ ("pause \n\t")
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-#define x86_pause_hint()\
-    asm volatile ("pause \n\t")
 #else
 #if ARCH_X86_64
 /* No pause intrinsic for windows x64 */
@@ -194,19 +147,6 @@ x87_get_control_word(void)
 {
     unsigned short mode;
     __asm__ __volatile__("fstcw %0\n\t":"=m"(*&mode):);
-    return mode;
-}
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-static void
-x87_set_control_word(unsigned short mode)
-{
-    asm volatile("fldcw %0" : : "m"(*&mode));
-}
-static unsigned short
-x87_get_control_word(void)
-{
-    unsigned short mode;
-    asm volatile("fstcw %0\n\t":"=m"(*&mode):);
     return mode;
 }
 #elif ARCH_X86_64

@@ -132,12 +132,8 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * NS_EVENT_STATE_BROKEN, NS_EVENT_STATE_USERDISABLED and
      * NS_EVENT_STATE_SUPPRESSED representing the current state of the object.
      */
-    nsEventStates ObjectState() const;
+    PRInt32 ObjectState() const;
 
-    void SetIsNetworkCreated(PRBool aNetworkCreated)
-    {
-      mNetworkCreated = aNetworkCreated;
-    }
   protected:
     /**
      * Load the object from the given URI.
@@ -259,7 +255,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * @param aSync If a synchronous frame construction is required. If false,
      *              the construction may either be sync or async.
      */
-    void NotifyStateChanged(ObjectType aOldType, nsEventStates aOldState,
+    void NotifyStateChanged(ObjectType aOldType, PRInt32 aOldState,
                             PRBool aSync);
 
     /**
@@ -403,12 +399,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     // Blocking status from content policy
     PRPackedBool                mUserDisabled  : 1;
     PRPackedBool                mSuppressed    : 1;
-
-    // True when the object is created for an element which the parser has
-    // created using NS_FROM_PARSER_NETWORK flag. If the element is modified,
-    // it may lose the flag.
-    PRPackedBool                mNetworkCreated : 1;
-
     // A specific state that caused us to fallback
     PluginSupportState          mFallbackReason;
 

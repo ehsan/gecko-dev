@@ -36,30 +36,40 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ContainerLayerOGL.h"
-#include "gfxUtils.h"
 
 namespace mozilla {
 namespace layers {
 
-template<class Container>
-static void
-ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
+ContainerLayerOGL::ContainerLayerOGL(LayerManagerOGL *aManager)
+  : ContainerLayer(aManager, NULL)
+  , LayerOGL(aManager)
 {
-  aChild->SetParent(aContainer);
+  mImplData = static_cast<LayerOGL*>(this);
+}
+
+ContainerLayerOGL::~ContainerLayerOGL()
+{
+  while (mFirstChild) {
+    RemoveChild(mFirstChild);
+  }
+}
+
+void
+ContainerLayerOGL::InsertAfter(Layer* aChild, Layer* aAfter)
+{
+  aChild->SetParent(this);
   if (!aAfter) {
-    Layer *oldFirstChild = aContainer->GetFirstChild();
-    aContainer->mFirstChild = aChild;
+    Layer *oldFirstChild = GetFirstChild();
+    mFirstChild = aChild;
     aChild->SetNextSibling(oldFirstChild);
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
-    } else {
-      aContainer->mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
   }
-  for (Layer *child = aContainer->GetFirstChild(); 
+  for (Layer *child = GetFirstChild(); 
        child; child = child->GetNextSibling()) {
     if (aAfter == child) {
       Layer *oldNextSibling = child->GetNextSibling();
@@ -67,8 +77,6 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
-      } else {
-        aContainer->mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -78,16 +86,13 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
   NS_WARNING("Failed to find aAfter layer!");
 }
 
-template<class Container>
-static void
-ContainerRemoveChild(Container* aContainer, Layer* aChild)
+void
+ContainerLayerOGL::RemoveChild(Layer *aChild)
 {
-  if (aContainer->GetFirstChild() == aChild) {
-    aContainer->mFirstChild = aContainer->GetFirstChild()->GetNextSibling();
-    if (aContainer->mFirstChild) {
-      aContainer->mFirstChild->SetPrevSibling(nsnull);
-    } else {
-      aContainer->mLastChild = nsnull;
+  if (GetFirstChild() == aChild) {
+    mFirstChild = GetFirstChild()->GetNextSibling();
+    if (mFirstChild) {
+      mFirstChild->SetPrevSibling(nsnull);
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -96,15 +101,13 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
     return;
   }
   Layer *lastChild = nsnull;
-  for (Layer *child = aContainer->GetFirstChild(); child; 
+  for (Layer *child = GetFirstChild(); child; 
        child = child->GetNextSibling()) {
     if (child == aChild) {
       // We're sure this is not our first child. So lastChild != NULL.
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
-      } else {
-        aContainer->mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
@@ -116,200 +119,10 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
   }
 }
 
-template<class Container>
-static void
-ContainerDestroy(Container* aContainer)
- {
-  if (!aContainer->mDestroyed) {
-    while (aContainer->mFirstChild) {
-      aContainer->GetFirstChildOGL()->Destroy();
-      aContainer->RemoveChild(aContainer->mFirstChild);
-    }
-    aContainer->mDestroyed = PR_TRUE;
-  }
-}
-
-static inline LayerOGL*
-GetNextSibling(LayerOGL* aLayer)
+Layer*
+ContainerLayerOGL::GetLayer()
 {
-   Layer* layer = aLayer->GetLayer()->GetNextSibling();
-   return layer ? static_cast<LayerOGL*>(layer->
-                                         ImplData())
-                 : nsnull;
-}
-
-template<class Container>
-static void
-ContainerRender(Container* aContainer,
-                int aPreviousFrameBuffer,
-                const nsIntPoint& aOffset,
-                LayerManagerOGL* aManager)
-{
-  /**
-   * Setup our temporary texture for rendering the contents of this container.
-   */
-  GLuint containerSurface;
-  GLuint frameBuffer;
-
-  nsIntPoint childOffset(aOffset);
-  nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
-
-  nsIntRect cachedScissor = aContainer->gl()->ScissorRect();
-  aContainer->gl()->PushScissorRect();
-
-  float opacity = aContainer->GetEffectiveOpacity();
-  const gfx3DMatrix& transform = aContainer->GetEffectiveTransform();
-  bool needsFramebuffer = aContainer->UseIntermediateSurface();
-  if (needsFramebuffer) {
-    aManager->CreateFBOWithTexture(visibleRect.width,
-                                   visibleRect.height,
-                                   &frameBuffer,
-                                   &containerSurface);
-    childOffset.x = visibleRect.x;
-    childOffset.y = visibleRect.y;
-
-    aContainer->gl()->PushViewportRect();
-    aManager->SetupPipeline(visibleRect.width, visibleRect.height);
-
-    aContainer->gl()->fScissor(0, 0, visibleRect.width, visibleRect.height);
-    aContainer->gl()->fClearColor(0.0, 0.0, 0.0, 0.0);
-    aContainer->gl()->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
-  } else {
-    frameBuffer = aPreviousFrameBuffer;
-  }
-
-  /**
-   * Render this container's contents.
-   */
-  for (LayerOGL* layerToRender = aContainer->GetFirstChildOGL();
-       layerToRender != nsnull;
-       layerToRender = GetNextSibling(layerToRender)) {
-
-    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
-      continue;
-    }
-
-    nsIntRect scissorRect(visibleRect);
-
-    const nsIntRect *clipRect = layerToRender->GetLayer()->GetEffectiveClipRect();
-    if (clipRect) {
-      if (clipRect->IsEmpty()) {
-        continue;
-      }
-      scissorRect = *clipRect;
-    }
-
-    if (needsFramebuffer) {
-      scissorRect.MoveBy(- visibleRect.TopLeft());
-    } else {
-      if (!aPreviousFrameBuffer) {
-        /**
-         * glScissor coordinates are oriented with 0,0 being at the bottom left,
-         * the opposite to layout (0,0 at the top left).
-         * All rendering to an FBO is upside-down, making the coordinate systems
-         * match.
-         * When rendering directly to a window (No current or previous FBO),
-         * we need to flip the scissor rect.
-         */
-        aContainer->gl()->FixWindowCoordinateRect(scissorRect,
-                                                  aManager->GetWigetSize().height);
-      }
-
-      scissorRect.IntersectRect(scissorRect, cachedScissor);
-    }
-
-    /**
-     *  We can't clip to a visible region if theres no framebuffer since we might be transformed
-     */
-    if (needsFramebuffer || clipRect) {
-      aContainer->gl()->fScissor(scissorRect.x, 
-                                 scissorRect.y, 
-                                 scissorRect.width, 
-                                 scissorRect.height);
-    } else {
-      aContainer->gl()->fScissor(cachedScissor.x, 
-                                 cachedScissor.y, 
-                                 cachedScissor.width, 
-                                 cachedScissor.height);
-    }
-
-    layerToRender->RenderLayer(frameBuffer, childOffset);
-  }
-
-  aContainer->gl()->PopScissorRect();
-
-  if (needsFramebuffer) {
-    // Unbind the current framebuffer and rebind the previous one.
-    
-    // Restore the viewport
-    aContainer->gl()->PopViewportRect();
-    nsIntRect viewport = aContainer->gl()->ViewportRect();
-    aManager->SetupPipeline(viewport.width, viewport.height);
-
-    aContainer->gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
-    aContainer->gl()->fDeleteFramebuffers(1, &frameBuffer);
-
-    aContainer->gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-
-    aContainer->gl()->fBindTexture(aManager->FBOTextureTarget(), containerSurface);
-
-    ColorTextureLayerProgram *rgb = aManager->GetFBOLayerProgram();
-
-    rgb->Activate();
-    rgb->SetLayerQuadRect(visibleRect);
-    rgb->SetLayerTransform(transform);
-    rgb->SetLayerOpacity(opacity);
-    rgb->SetRenderOffset(aOffset);
-    rgb->SetTextureUnit(0);
-
-    if (rgb->GetTexCoordMultiplierUniformLocation() != -1) {
-      // 2DRect case, get the multiplier right for a sampler2DRect
-      float f[] = { float(visibleRect.width), float(visibleRect.height) };
-      rgb->SetUniform(rgb->GetTexCoordMultiplierUniformLocation(),
-                      2, f);
-    }
-
-    DEBUG_GL_ERROR_CHECK(aContainer->gl());
-
-    aManager->BindAndDrawQuad(rgb, aPreviousFrameBuffer == 0);
-
-    DEBUG_GL_ERROR_CHECK(aContainer->gl());
-
-    // Clean up resources.  This also unbinds the texture.
-    aContainer->gl()->fDeleteTextures(1, &containerSurface);
-
-    DEBUG_GL_ERROR_CHECK(aContainer->gl());
-  }
-}
-
-ContainerLayerOGL::ContainerLayerOGL(LayerManagerOGL *aManager)
-  : ContainerLayer(aManager, NULL)
-  , LayerOGL(aManager)
-{
-  mImplData = static_cast<LayerOGL*>(this);
-}
-
-ContainerLayerOGL::~ContainerLayerOGL()
-{
-  Destroy();
-}
-
-void
-ContainerLayerOGL::InsertAfter(Layer* aChild, Layer* aAfter)
-{
-  ContainerInsertAfter(this, aChild, aAfter);
-}
-
-void
-ContainerLayerOGL::RemoveChild(Layer *aChild)
-{
-  ContainerRemoveChild(this, aChild);
-}
-
-void
-ContainerLayerOGL::Destroy()
-{
-  ContainerDestroy(this);
+  return this;
 }
 
 LayerOGL*
@@ -325,60 +138,88 @@ void
 ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                                const nsIntPoint& aOffset)
 {
-  ContainerRender(this, aPreviousFrameBuffer, aOffset, mOGLManager);
+  /**
+   * Setup our temporary texture for rendering the contents of this container.
+   */
+  GLuint containerSurface;
+  GLuint frameBuffer;
+
+  nsIntPoint childOffset(aOffset);
+  bool needsFramebuffer = false;
+  nsIntRect visibleRect = mVisibleRegion.GetBounds();
+
+  float opacity = GetOpacity();
+  if (opacity != 1.0) {
+    mOGLManager->CreateFBOWithTexture(visibleRect.width,
+                                      visibleRect.height,
+                                      &frameBuffer,
+                                      &containerSurface);
+    childOffset.x = visibleRect.x;
+    childOffset.y = visibleRect.y;
+  } else {
+    frameBuffer = aPreviousFrameBuffer;
+  }
+
+  /**
+   * Render this container's contents.
+   */
+  LayerOGL *layerToRender = GetFirstChildOGL();
+  while (layerToRender) {
+    const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
+    if (clipRect) {
+      gl()->fScissor(clipRect->x - visibleRect.x,
+                     clipRect->y - visibleRect.y,
+                     clipRect->width,
+                     clipRect->height);
+    } else {
+      gl()->fScissor(0, 0, visibleRect.width, visibleRect.height);
+    }
+
+    layerToRender->RenderLayer(frameBuffer, childOffset);
+
+    Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
+    layerToRender = nextSibling ? static_cast<LayerOGL*>(nextSibling->
+                                                         ImplData())
+                                : nsnull;
+  }
+
+  if (opacity != 1.0) {
+    // Unbind the current framebuffer and rebind the previous one.
+    gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
+    gl()->fDeleteFramebuffers(1, &frameBuffer);
+
+    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+
+    gl()->fBindTexture(mOGLManager->FBOTextureTarget(), containerSurface);
+
+    ColorTextureLayerProgram *rgb = mOGLManager->GetFBOLayerProgram();
+
+    rgb->Activate();
+    rgb->SetLayerQuadRect(visibleRect);
+    rgb->SetLayerTransform(mTransform);
+    rgb->SetLayerOpacity(opacity);
+    rgb->SetRenderOffset(aOffset);
+    rgb->SetTextureUnit(0);
+
+    if (rgb->GetTexCoordMultiplierUniformLocation() != -1) {
+      // 2DRect case, get the multiplier right for a sampler2DRect
+      float f[] = { float(visibleRect.width), float(visibleRect.height) };
+      rgb->SetUniform(rgb->GetTexCoordMultiplierUniformLocation(),
+                      2, f);
+    }
+
+    DEBUG_GL_ERROR_CHECK(gl());
+
+    mOGLManager->BindAndDrawQuad(rgb);
+
+    DEBUG_GL_ERROR_CHECK(gl());
+
+    // Clean up resources.  This also unbinds the texture.
+    gl()->fDeleteTextures(1, &containerSurface);
+
+    DEBUG_GL_ERROR_CHECK(gl());
+  }
 }
-
-
-#ifdef MOZ_IPC
-
-ShadowContainerLayerOGL::ShadowContainerLayerOGL(LayerManagerOGL *aManager)
-  : ShadowContainerLayer(aManager, NULL)
-  , LayerOGL(aManager)
-{
-  mImplData = static_cast<LayerOGL*>(this);
-}
- 
-ShadowContainerLayerOGL::~ShadowContainerLayerOGL()
-{
-  Destroy();
-}
-
-void
-ShadowContainerLayerOGL::InsertAfter(Layer* aChild, Layer* aAfter)
-{
-  ContainerInsertAfter(this, aChild, aAfter);
-}
-
-void
-ShadowContainerLayerOGL::RemoveChild(Layer *aChild)
-{
-  ContainerRemoveChild(this, aChild);
-}
-
-void
-ShadowContainerLayerOGL::Destroy()
-{
-  ContainerDestroy(this);
-}
-
-LayerOGL*
-ShadowContainerLayerOGL::GetFirstChildOGL()
-{
-  if (!mFirstChild) {
-    return nsnull;
-   }
-  return static_cast<LayerOGL*>(mFirstChild->ImplData());
-}
- 
-void
-ShadowContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
-                                     const nsIntPoint& aOffset)
-{
-  ContainerRender(this, aPreviousFrameBuffer, aOffset, mOGLManager);
-}
-
-#endif  // MOZ_IPC
-
 
 } /* layers */
 } /* mozilla */

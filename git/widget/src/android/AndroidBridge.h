@@ -43,12 +43,10 @@
 
 #include "nsCOMPtr.h"
 #include "nsIRunnable.h"
-#include "nsIObserver.h"
 
 #include "AndroidJavaWrappers.h"
 
-#include "nsIMutableArray.h"
-#include "nsIMIMEInfo.h"
+#include "nsVoidArray.h"
 
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
@@ -61,13 +59,6 @@ namespace mozilla {
 class AndroidBridge
 {
 public:
-    enum {
-        NOTIFY_IME_RESETINPUTSTATE = 0,
-        NOTIFY_IME_SETOPENSTATE = 1,
-        NOTIFY_IME_CANCELCOMPOSITION = 2,
-        NOTIFY_IME_FOCUSCHANGE = 3
-    };
-
     static AndroidBridge *ConstructBridge(JNIEnv *jEnv,
                                           jclass jGeckoAppShellClass);
 
@@ -85,13 +76,7 @@ public:
     }
 
     static JNIEnv *JNIForThread() {
-        if (NS_LIKELY(sBridge))
-          return sBridge->AttachThread();
-        return nsnull;
-    }
-    
-    static jclass GetGeckoAppShellClass() {
-        return sBridge->mGeckoAppShellClass;
+        return sBridge->AttachThread();
     }
 
     // The bridge needs to be constructed via ConstructBridge first,
@@ -104,20 +89,13 @@ public:
     JNIEnv* AttachThread(PRBool asDaemon = PR_TRUE);
 
     /* These are all implemented in Java */
-    static void NotifyIME(int aType, int aState);
-
-    static void NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
-                                 const nsAString& aActionHint);
-
-    static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
+    void ShowIME(int aState);
 
     void EnableAccelerometer(bool aEnable);
 
     void EnableLocation(bool aEnable);
 
-    void ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen, int aSelStart, int aSelLen);
-
-    void NotifyAppShellReady();
+    void ReturnIMEQueryResult(const PRUnichar *result, PRUint32 len, int selectionStart, int selectionEnd);
 
     void NotifyXreExit();
 
@@ -126,66 +104,17 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    PRBool GetHandlersForProtocol(const char *aScheme, 
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    void GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray);
 
-    PRBool GetHandlersForMimeType(const char *aMimeType,
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    PRBool OpenUriExternal(nsCString& aUriSpec, nsCString& aMimeType);
 
-    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
-                           const nsAString& aPackageName = EmptyString(),
-                           const nsAString& aClassName = EmptyString(),
-                           const nsAString& aAction = EmptyString(),
-                           const nsAString& aTitle = EmptyString());
-
-    void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
+    void GetMimeTypeFromExtension(const nsCString& aFileExt, nsCString& aMimeType);
 
     void MoveTaskToBack();
 
-    bool GetClipboardText(nsAString& aText);
-
-    void SetClipboardText(const nsAString& aText);
-    
-    void EmptyClipboard();
-
-    bool ClipboardHasText();
-
-    void ShowAlertNotification(const nsAString& aImageUrl,
-                               const nsAString& aAlertTitle,
-                               const nsAString& aAlertText,
-                               const nsAString& aAlertData,
-                               nsIObserver *aAlertListener,
-                               const nsAString& aAlertName);
-
-    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
-                                           PRInt64 aProgress,
-                                           PRInt64 aProgressMax,
-                                           const nsAString& aAlertText);
-
-    void AlertsProgressListener_OnCancel(const nsAString& aAlertName);
-
-    int GetDPI();
-
-    void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
-
-    void PerformHapticFeedback(PRBool aIsLongPress);
-
-    void SetFullScreen(PRBool aFullScreen);
-
-    void ShowInputMethodPicker();
-
-    void HideProgressDialogOnce();
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
-            // Make sure there is enough space to store a local ref to the
-            // exception.  I am not completely sure this is needed, but does
-            // not hurt.
-            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries + 1);
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
         // Note! Calling Purge makes all previous local refs created in
         // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
@@ -195,12 +124,6 @@ public:
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
         ~AutoLocalJNIFrame() {
-            jthrowable exception =
-                AndroidBridge::Bridge()->JNI()->ExceptionOccurred();
-            if (exception) {
-                AndroidBridge::Bridge()->JNI()->ExceptionDescribe();
-                AndroidBridge::Bridge()->JNI()->ExceptionClear();
-            }
             AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
         }
         int mEntries;
@@ -208,8 +131,6 @@ public:
 
     /* See GLHelpers.java as to why this is needed */
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
-
-    bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
 protected:
     static AndroidBridge *sBridge;
@@ -233,32 +154,17 @@ protected:
     void EnsureJNIThread();
 
     // other things
-    jmethodID jNotifyIME;
-    jmethodID jNotifyIMEEnabled;
-    jmethodID jNotifyIMEChange;
+    jmethodID jShowIME;
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;
     jmethodID jReturnIMEQueryResult;
-    jmethodID jNotifyAppShellReady;
     jmethodID jNotifyXreExit;
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
     jmethodID jGetHandlersForMimeType;
-    jmethodID jGetHandlersForProtocol;
     jmethodID jOpenUriExternal;
-    jmethodID jGetMimeTypeFromExtensions;
+    jmethodID jGetMimeTypeFromExtension;
     jmethodID jMoveTaskToBack;
-    jmethodID jGetClipboardText;
-    jmethodID jSetClipboardText;
-    jmethodID jShowAlertNotification;
-    jmethodID jShowFilePicker;
-    jmethodID jAlertsProgressListener_OnProgress;
-    jmethodID jAlertsProgressListener_OnCancel;
-    jmethodID jGetDpi;
-    jmethodID jSetFullScreen;
-    jmethodID jShowInputMethodPicker;
-    jmethodID jHideProgressDialog;
-    jmethodID jPerformHapticFeedback;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
@@ -273,6 +179,5 @@ protected:
 
 extern "C" JNIEnv * GetJNIForThread();
 extern PRBool mozilla_AndroidBridge_SetMainThread(void *);
-extern jclass GetGeckoAppShellClass();
 
 #endif /* AndroidBridge_h__ */

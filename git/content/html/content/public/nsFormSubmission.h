@@ -52,7 +52,6 @@ class nsIDocShell;
 class nsIRequest;
 class nsISaveAsCharset;
 class nsIMultiplexInputStream;
-class nsIDOMBlob;
 
 /**
  * Class for form submissions; encompasses the function to call to submit as
@@ -79,10 +78,10 @@ public:
    * Submit a name/file pair
    *
    * @param aName the name of the parameter
-   * @param aBlob the file to submit
+   * @param aFile the file to submit
    */
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMBlob* aBlob) = 0;
+                                   nsIFile* aFile) = 0;
   
   /**
    * Reports whether the instance supports AddIsindex().
@@ -123,37 +122,26 @@ public:
     aCharset = mCharset;
   }
 
-  nsIContent* GetOriginatingElement() const
-  {
-    return mOriginatingElement.get();
-  }
-
 protected:
   /**
    * Can only be constructed by subclasses.
    *
    * @param aCharset the charset of the form as a string
-   * @param aOriginatingElement the originating element (can be null)
    */
-  nsFormSubmission(const nsACString& aCharset, nsIContent* aOriginatingElement)
+  nsFormSubmission(const nsACString& aCharset)
     : mCharset(aCharset)
-    , mOriginatingElement(aOriginatingElement)
   {
     MOZ_COUNT_CTOR(nsFormSubmission);
   }
 
   // The name of the encoder charset
   nsCString mCharset;
-
-  // Originating element.
-  nsCOMPtr<nsIContent> mOriginatingElement;
 };
 
 class nsEncodingFormSubmission : public nsFormSubmission
 {
 public:
-  nsEncodingFormSubmission(const nsACString& aCharset,
-                           nsIContent* aOriginatingElement);
+  nsEncodingFormSubmission(const nsACString& aCharset);
 
   virtual ~nsEncodingFormSubmission();
 
@@ -162,12 +150,9 @@ public:
    * if there is no encoder).
    * @param aStr the string to encode
    * @param aResult the encoded string [OUT]
-   * @param aHeaderEncode If true, turns all linebreaks into spaces and escapes
-   *                      all quotes
    * @throws an error if UnicodeToNewBytes fails
    */
-  nsresult EncodeVal(const nsAString& aStr, nsCString& aResult,
-                     bool aHeaderEncode);
+  nsresult EncodeVal(const nsAString& aStr, nsACString& aResult);
 
 private:
   // The encoder that will encode Unicode names and values
@@ -184,14 +169,13 @@ public:
   /**
    * @param aCharset the charset of the form as a string
    */
-  nsFSMultipartFormData(const nsACString& aCharset,
-                        nsIContent* aOriginatingElement);
+  nsFSMultipartFormData(const nsACString& aCharset);
   ~nsFSMultipartFormData();
  
   virtual nsresult AddNameValuePair(const nsAString& aName,
                                     const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMBlob* aBlob);
+                                   nsIFile* aFile);
   virtual nsresult GetEncodedSubmission(nsIURI* aURI,
                                         nsIInputStream** aPostDataStream);
 
@@ -239,11 +223,9 @@ private:
  * Get a submission object based on attributes in the form (ENCTYPE and METHOD)
  *
  * @param aForm the form to get a submission object based on
- * @param aOriginatingElement the originating element (can be null)
  * @param aFormSubmission the form submission object (out param)
  */
 nsresult GetSubmissionFromForm(nsGenericHTMLElement* aForm,
-                               nsGenericHTMLElement* aOriginatingElement,
                                nsFormSubmission** aFormSubmission);
 
 #endif /* nsIFormSubmission_h___ */

@@ -220,23 +220,23 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
     // if we have anchor colors, check if this is an anchor with an href
     if (tag == nsGkAtoms::a) {
       if (mLinkRule || mVisitedRule || mActiveRule) {
-        nsEventStates state = aData->GetContentStateForVisitedHandling(
+        PRUint32 state = aData->GetContentStateForVisitedHandling(
                                   ruleWalker->VisitedHandling(),
                                   // If the node being matched is a link,
                                   // it's the relevant link.
                                   aData->IsLink());
-        if (mLinkRule && state.HasState(NS_EVENT_STATE_UNVISITED)) {
+        if (mLinkRule && (state & NS_EVENT_STATE_UNVISITED)) {
           ruleWalker->Forward(mLinkRule);
           ruleWalker->SetHaveRelevantLink();
         }
-        else if (mVisitedRule && state.HasState(NS_EVENT_STATE_VISITED)) {
+        else if (mVisitedRule && (state & NS_EVENT_STATE_VISITED)) {
           ruleWalker->Forward(mVisitedRule);
           ruleWalker->SetHaveRelevantLink();
         }
 
         // No need to add to the active rule if it's not a link
         if (mActiveRule && aData->IsLink() &&
-            state.HasState(NS_EVENT_STATE_ACTIVE)) {
+            (state & NS_EVENT_STATE_ACTIVE)) {
           ruleWalker->Forward(mActiveRule);
         }
       } // end link/visited/active rules
@@ -275,9 +275,9 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
   if (aData->mIsHTMLContent &&
       aData->mContentTag == nsGkAtoms::a &&
       aData->IsLink() &&
-      ((mActiveRule && aData->mStateMask.HasState(NS_EVENT_STATE_ACTIVE)) ||
-       (mLinkRule && aData->mStateMask.HasState(NS_EVENT_STATE_VISITED)) ||
-       (mVisitedRule && aData->mStateMask.HasState(NS_EVENT_STATE_VISITED)))) {
+      ((mActiveRule && (aData->mStateMask & NS_EVENT_STATE_ACTIVE)) ||
+       (mLinkRule && (aData->mStateMask & NS_EVENT_STATE_VISITED)) ||
+       (mVisitedRule && (aData->mStateMask & NS_EVENT_STATE_VISITED)))) {
     return eRestyle_Self;
   }
   
@@ -316,13 +316,6 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 
   // Handle the content style rules.
   if (element->IsAttributeMapped(aData->mAttribute)) {
-    // cellpadding on tables is special and requires reresolving all
-    // the cells in the table
-    if (aData->mAttribute == nsGkAtoms::cellpadding &&
-        element->IsHTML() &&
-        aData->mContentTag == nsGkAtoms::table) {
-      return eRestyle_Subtree;
-    }
     return eRestyle_Self;
   }
 

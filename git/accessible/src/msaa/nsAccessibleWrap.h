@@ -307,10 +307,10 @@ public: // construction, destruction
                                            UINT *puArgErr);
 
   // nsAccessible
-  virtual nsresult HandleAccEvent(AccEvent* aEvent);
+  virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
 
   // Helper methods
-  static PRInt32 GetChildIDFor(nsAccessible* aAccessible);
+  static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
   static HWND GetHWNDFor(nsAccessible *aAccessible);
   static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
                                         BSTR *aIA2Attributes);
@@ -346,7 +346,7 @@ public: // construction, destruction
   void UnattachIEnumVariant();
 
 protected:
-  virtual nsresult FirePlatformEvent(AccEvent* aEvent);
+  virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
 
   // mEnumVARIANTPosition not the current accessible's position, but a "cursor" of 
   // where we are in the current list of children, with respect to

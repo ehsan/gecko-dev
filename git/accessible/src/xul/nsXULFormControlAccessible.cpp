@@ -43,7 +43,6 @@
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
 #include "nsRelUtils.h"
 
 // NOTE: alphabetically ordered
@@ -126,10 +125,11 @@ nsXULButtonAccessible::Init()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULButtonAccessible: nsAccessible
 
-PRUint32
-nsXULButtonAccessible::NativeRole()
+nsresult
+nsXULButtonAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
 }
 
 nsresult
@@ -212,7 +212,9 @@ nsXULButtonAccessible::CacheChildren()
 
   nsRefPtr<nsAccessible> child;
   while ((child = walker.GetNextChild())) {
-    PRUint32 role = child->Role();
+    // XXX: do not call nsAccessible::GetRole() while accessible not in tree
+    // (bug 574588).
+    PRUint32 role = nsAccUtils::Role(child);
 
     if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
       // Get an accessbile for menupopup or panel elements.
@@ -223,10 +225,6 @@ nsXULButtonAccessible::CacheChildren()
       // for it. Ignore dropmarker button what is placed as a last child.
       buttonAccessible.swap(child);
       break;
-
-    } else {
-      // Unbind rejected accessible from document.
-      GetDocAccessible()->UnbindFromDocument(child);
     }
   }
 
@@ -321,10 +319,14 @@ NS_IMETHODIMP nsXULDropmarkerAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-PRUint32
-nsXULDropmarkerAccessible::NativeRole()
+/**
+  * We are a pushbutton
+  */
+nsresult
+nsXULDropmarkerAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PUSHBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_PUSHBUTTON;
+  return NS_OK;
 }
 
 nsresult
@@ -360,10 +362,11 @@ nsXULCheckboxAccessible::
 {
 }
 
-PRUint32
-nsXULCheckboxAccessible::NativeRole()
+nsresult
+nsXULCheckboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_CHECKBUTTON;
+  *aRole = nsIAccessibleRole::ROLE_CHECKBUTTON;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsXULCheckboxAccessible::GetNumActions(PRUint8 *_retval)
@@ -447,10 +450,11 @@ nsXULGroupboxAccessible::
 {
 }
 
-PRUint32
-nsXULGroupboxAccessible::NativeRole()
+nsresult
+nsXULGroupboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GROUPING;
+  *aRole = nsIAccessibleRole::ROLE_GROUPING;
+  return NS_OK;
 }
 
 nsresult
@@ -481,7 +485,7 @@ nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
     PRInt32 childCount = GetChildCount();
     for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
       nsAccessible *childAcc = GetChildAt(childIdx);
-      if (childAcc->Role() == nsIAccessibleRole::ROLE_LABEL) {
+      if (nsAccUtils::Role(childAcc) == nsIAccessibleRole::ROLE_LABEL) {
         // Ensure that it's our label
         // XXX: we'll fail if group accessible expose more than one relation
         // targets.
@@ -517,10 +521,11 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULProgressMeterAccessible,
 
 // nsAccessible
 
-PRUint32
-nsXULProgressMeterAccessible::NativeRole()
+nsresult
+nsXULProgressMeterAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_PROGRESSBAR;
+  *aRole = nsIAccessibleRole::ROLE_PROGRESSBAR;
+  return NS_OK;
 }
 
 // nsIAccessibleValue
@@ -696,10 +701,11 @@ nsXULRadioGroupAccessible::
 { 
 }
 
-PRUint32
-nsXULRadioGroupAccessible::NativeRole()
+nsresult
+nsXULRadioGroupAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GROUPING;
+  *aRole = nsIAccessibleRole::ROLE_GROUPING;
+  return NS_OK;
 }
 
 nsresult
@@ -729,10 +735,11 @@ nsXULStatusBarAccessible::
 {
 }
 
-PRUint32
-nsXULStatusBarAccessible::NativeRole()
+nsresult
+nsXULStatusBarAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_STATUSBAR;
+  *aRole = nsIAccessibleRole::ROLE_STATUSBAR;
+  return NS_OK;
 }
 
 
@@ -803,10 +810,11 @@ nsXULToolbarAccessible::
 {
 }
 
-PRUint32
-nsXULToolbarAccessible::NativeRole()
+nsresult
+nsXULToolbarAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_TOOLBAR;
+  *aRole = nsIAccessibleRole::ROLE_TOOLBAR;
+  return NS_OK;
 }
 
 nsresult
@@ -834,10 +842,11 @@ nsXULToolbarSeparatorAccessible::
 {
 }
 
-PRUint32
-nsXULToolbarSeparatorAccessible::NativeRole()
+nsresult
+nsXULToolbarSeparatorAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_SEPARATOR;
+  *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
+  return NS_OK;
 }
 
 nsresult
@@ -967,13 +976,16 @@ nsXULTextFieldAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-PRUint32
-nsXULTextFieldAccessible::NativeRole()
+nsresult
+nsXULTextFieldAccessible::GetRoleInternal(PRUint32 *aRole)
 {
+  *aRole = nsIAccessibleRole::ROLE_ENTRY;
+
   if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
                             nsAccessibilityAtoms::password, eIgnoreCase))
-    return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
-  return nsIAccessibleRole::ROLE_ENTRY;
+    *aRole = nsIAccessibleRole::ROLE_PASSWORD_TEXT;
+
+  return NS_OK;
 }
 
 

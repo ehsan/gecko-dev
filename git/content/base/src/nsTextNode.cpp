@@ -49,7 +49,6 @@
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
 
-using namespace mozilla::dom;
 
 /**
  * class used to implement attr() generated content
@@ -222,7 +221,7 @@ nsTextNode::BindToAttribute(nsIAttribute* aAttr)
 nsresult
 nsTextNode::UnbindFromAttribute()
 {
-  NS_ASSERTION(GetNodeParent(), "Bind before unbinding!");
+  NS_ASSERTION(GetNodeParent(), "Bind before unbinging!");
   NS_ASSERTION(GetNodeParent() &&
                GetNodeParent()->IsNodeOfType(nsINode::eATTRIBUTE),
                "Use this method only to unbind from an attribute!");
@@ -238,7 +237,7 @@ nsTextNode::List(FILE* out, PRInt32 aIndent) const
   for (index = aIndent; --index >= 0; ) fputs("  ", out);
 
   fprintf(out, "Text@%p", static_cast<const void*>(this));
-  fprintf(out, " intrinsicstate=[%llx]", IntrinsicState().GetInternalValue());
+  fprintf(out, " intrinsicstate=[%08x]", IntrinsicState());
   fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
   fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));
   fprintf(out, " refcount=%d<", mRefCnt.get());
@@ -338,13 +337,13 @@ nsAttributeTextNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
 void
 nsAttributeTextNode::AttributeChanged(nsIDocument* aDocument,
-                                      Element* aElement,
+                                      nsIContent* aContent,
                                       PRInt32 aNameSpaceID,
                                       nsIAtom* aAttribute,
                                       PRInt32 aModType)
 {
   if (aNameSpaceID == mNameSpaceID && aAttribute == mAttrName &&
-      aElement == mGrandparent) {
+      aContent == mGrandparent) {
     // Since UpdateText notifies, do it when it's safe to run script.  Note
     // that if we get unbound while the event is up that's ok -- we'll just
     // have no grandparent when it fires, and will do nothing.

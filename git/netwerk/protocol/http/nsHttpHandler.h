@@ -55,13 +55,11 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIProxyObjectManager.h"
-#include "nsIPrivateBrowsingService.h"
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
 #include "nsIIDNService.h"
 #include "nsITimer.h"
-#include "nsIStrictTransportSecurityService.h"
 
 class nsHttpConnectionInfo;
 class nsHttpHeaderArray;
@@ -107,7 +105,6 @@ public:
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
     PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     PRUint8        GetQoSBits()              { return mQoSBits; }
-    PRUint16       GetIdleSynTimeout()       { return mIdleSynTimeout; }
     
     PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
 
@@ -170,9 +167,6 @@ public:
         return mConnMgr->GetSocketThreadTarget(target);
     }
 
-    // for anything that wants to know if we're in private browsing mode.
-    PRBool InPrivateBrowsingMode();
-
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
     // provides the following helper routines for accessing those services:
@@ -180,7 +174,6 @@ public:
     nsresult GetStreamConverterService(nsIStreamConverterService **);
     nsresult GetIOService(nsIIOService** service);
     nsICookieService * GetCookieService(); // not addrefed
-    nsIStrictTransportSecurityService * GetSTSService();
 
     // Called by the channel before writing a request
     void OnModifyRequest(nsIHttpChannel *chan)
@@ -217,6 +210,8 @@ public:
     static nsresult GenerateHostPort(const nsCString& host, PRInt32 port,
                                      nsCString& hostLine);
 
+    // The thread used to implement async cache-writes
+    nsCOMPtr<nsIThread> mCacheWriteThread;
 private:
 
     //
@@ -232,6 +227,8 @@ private:
     nsresult SetAcceptCharsets(const char *);
 
     nsresult InitConnectionMgr();
+    void     StartPruneDeadConnectionsTimer();
+    void     StopPruneDeadConnectionsTimer();
 
     void     NotifyObservers(nsIHttpChannel *chan, const char *event);
 
@@ -243,7 +240,7 @@ private:
     nsCOMPtr<nsIObserverService>        mObserverService;
     nsCOMPtr<nsICookieService>          mCookieService;
     nsCOMPtr<nsIIDNService>             mIDNConverter;
-    nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
+    nsCOMPtr<nsITimer>                  mTimer;
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
@@ -264,7 +261,6 @@ private:
     PRUint16 mIdleTimeout;
     PRUint16 mMaxRequestAttempts;
     PRUint16 mMaxRequestDelay;
-    PRUint16 mIdleSynTimeout;
 
     PRUint16 mMaxConnections;
     PRUint8  mMaxConnectionsPerServer;
@@ -284,13 +280,6 @@ private:
 
     PRPackedBool mPipeliningOverSSL;
 
-    // cached value of whether or not the browser is in private browsing mode.
-    enum {
-        PRIVATE_BROWSING_OFF = PR_FALSE,
-        PRIVATE_BROWSING_ON = PR_TRUE,
-        PRIVATE_BROWSING_UNKNOWN = 2
-    } mInPrivateBrowsingMode;
-
     nsCString mAccept;
     nsCString mAcceptLanguages;
     nsCString mAcceptEncodings;
@@ -303,17 +292,19 @@ private:
     PRUint32                  mSessionStartTime;
 
     // useragent components
-    nsCString      mLegacyAppName;
-    nsCString      mLegacyAppVersion;
+    nsXPIDLCString mAppName;
+    nsXPIDLCString mAppVersion;
     nsCString      mPlatform;
     nsCString      mOscpu;
     nsCString      mLanguage;
     nsCString      mMisc;
+    nsXPIDLCString mVendor;
+    nsXPIDLCString mVendorSub;
+    nsXPIDLCString mVendorComment;
     nsCString      mProduct;
     nsXPIDLCString mProductSub;
-    nsXPIDLCString mAppName;
-    nsXPIDLCString mAppVersion;
-    nsCString      mCompatFirefox;
+    nsXPIDLCString mProductComment;
+    nsCString      mExtraUA;
 
     nsCString      mUserAgent;
     nsXPIDLCString mUserAgentOverride;

@@ -215,13 +215,12 @@ var ctrlTab = {
     if (this._tabList)
       return this._tabList;
 
-    let list = gBrowser.visibleTabs;
+    var list = Array.slice(gBrowser.tabs);
 
     if (this._closing)
       this.detachTab(this._closing, list);
 
-    // Rotate the list until the selected tab is first
-    while (!list[0].selected)
+    for (let i = 0; i < gBrowser.tabContainer.selectedIndex; i++)
       list.push(list.shift());
 
     if (this.recentlyUsedLimit != 0) {
@@ -463,12 +462,11 @@ var ctrlTab = {
           } else if (!event.shiftKey) {
             event.preventDefault();
             event.stopPropagation();
-            let tabs = gBrowser.visibleTabs;
-            if (tabs.length > 2) {
+            if (gBrowser.tabs.length > 2) {
               this.open();
-            } else if (tabs.length == 2) {
-              let index = gBrowser.selectedTab == tabs[0] ? 1 : 0;
-              gBrowser.selectedTab = tabs[index];
+            } else if (gBrowser.tabs.length == 2) {
+              gBrowser.selectedTab = gBrowser.selectedTab.nextSibling ||
+                                     gBrowser.selectedTab.previousSibling;
             }
           }
         }
@@ -564,14 +562,6 @@ var ctrlTab = {
     // If we're not running, hide the "Show All Tabs" menu item,
     // as Shift+Ctrl+Tab will be handled by the tab bar.
     document.getElementById("menu_showAllTabs").hidden = !enable;
-
-    // Also disable the <key> to ensure Shift+Ctrl+Tab never triggers
-    // Show All Tabs.
-    var key_showAllTabs = document.getElementById("key_showAllTabs");
-    if (enable)
-      key_showAllTabs.removeAttribute("disabled");
-    else
-      key_showAllTabs.setAttribute("disabled", "true");
   }
 };
 
@@ -636,7 +626,6 @@ var allTabs = {
     var allTabsButton = document.getElementById("alltabs-button");
     if (!allTabsButton)
       return;
-
     if (gPrefService.getBoolPref(this.prefName)) {
       allTabsButton.removeAttribute("type");
       allTabsButton.setAttribute("command", "Browser:ShowAllTabs");
@@ -675,7 +664,7 @@ var allTabs = {
     Array.forEach(this.previews, function (preview) {
       var tab = preview._tab;
       var matches = 0;
-      if (filter.length && !tab.hidden) {
+      if (filter.length) {
         let tabstring = tab.linkedBrowser.currentURI.spec;
         try {
           tabstring = decodeURI(tabstring);
@@ -684,7 +673,7 @@ var allTabs = {
         for (let i = 0; i < filter.length; i++)
           matches += tabstring.indexOf(filter[i]) > -1;
       }
-      if (matches < filter.length || tab.hidden) {
+      if (matches < filter.length) {
         preview.hidden = true;
       }
       else {

@@ -79,34 +79,16 @@ function show() {
   waitForPaint(invalidate);
 }
 
-function doubleForDoublePass() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  if (SimpleTest.testPluginIsOOP())
-    return 1;
-
-  try {
-    if (Components.classes["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).D2DEnabled)
-      return 2;
-  }
-  catch (e) { }
-
-  return 1;
-}
-
 function invalidate() {
-  var paintCount = 1 * doubleForDoublePass();
+  is(clipped.getPaintCount(), 1, "partially clipped plugin painted once");
 
-  is(clipped.getPaintCount(), paintCount, "partially clipped plugin painted once");  
-  
   clipped.setColor("FF00FF00"); // plugin invalidates
 
   waitForPaint(done);
 }
 
 function done() {
-  var paintCount = 2 * doubleForDoublePass();
-  is(clipped.getPaintCount(), paintCount, "painted after invalidate");
-
+  is(clipped.getPaintCount(), 2, "painted after invalidate");
   SimpleTest.finish();  
 }
 
