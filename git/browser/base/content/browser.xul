@@ -779,10 +779,18 @@
                        ondrop="DownloadsIndicatorView.onDrop(event);"
                        ondragover="DownloadsIndicatorView.onDragOver(event);"
                        ondragenter="DownloadsIndicatorView.onDragOver(event);"
+                       xmlns:xbl="http://www.mozilla.org/xbl"
                        label="&downloads.label;"
                        removable="true"
                        customizableui-areatype="toolbar"
-                       tooltiptext="&downloads.tooltip;"/>
+                       tooltiptext="&downloads.tooltip;">
+          <!-- We need a different binding for the notification and progress bar, which means
+               we don't get these for free. Adding them in our binding loses them when dragging
+               to the customize window, so we add them in here as 'real' children -->
+          <image class="toolbarbutton-icon" xbl:inherits="validate,src=image,label"/>
+          <label class="toolbarbutton-text" crop="right" flex="1"
+                 xbl:inherits="value=label,accesskey,crop"/>
+        </toolbarbutton>
 
         <toolbarbutton id="home-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                        persist="class" removable="true"
