@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 var dialog;     // Quick access to document/form elements.
 var gFindInst;   // nsIWebBrowserFind that we're going to use
 var gFindInstData; // use this to update the find inst data
@@ -114,8 +112,7 @@ function onAccept()
   {
     if (!dialog.bundle)
       dialog.bundle = document.getElementById("findBundle");
-    Services.prompt.alert(window, dialog.bundle.getString("notFoundTitle"),
-                                  dialog.bundle.getString("notFoundWarning"));
+    window.alert(dialog.bundle.getString("notFoundWarning"));
     dialog.findKey.select();
     dialog.findKey.focus();
   } 

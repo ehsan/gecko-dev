@@ -32,9 +32,7 @@ function test() {
     instance = gBrowser.selectedTab.__responsiveUI;
     ok(instance, "instance of the module is attached to the tab.");
 
-    if (instance._floatingScrollbars) {
-      ensureScrollbarsAreFloating();
-    }
+    ensureScrollbarsAreFloating();
 
     instance.transitionsEnabled = false;
 

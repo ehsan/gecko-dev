@@ -377,19 +377,12 @@ ThreadActor.prototype = {
                message: "no actors were specified" };
     }
 
-    let res;
     for each (let actorID in aRequest.actors) {
       let actor = this.threadLifetimePool.get(actorID);
-      if (!actor) {
-        if (!res) {
-          res = { error: "notReleasable",
-                  message: "Only thread-lifetime actors can be released." };
-        }
-        continue;
-      }
-      actor.onRelease();
+      this.threadLifetimePool.objectActors.delete(actor.obj);
+      this.threadLifetimePool.removeActor(actorID);
     }
-    return res ? res : {};
+    return {};
   },
 
   /**
@@ -879,20 +872,13 @@ ThreadActor.prototype = {
   },
 
   /**
-   * Extend the lifetime of the provided object actor to thread lifetime.
+   * Create a grip for the given debuggee object with a thread lifetime.
    *
-   * @param aActor object
-   *        The object actor.
+   * @param aValue Debugger.Object
+   *        The debuggee object value.
    */
-  threadObjectGrip: function TA_threadObjectGrip(aActor) {
-    if (!this.threadLifetimePool.objectActors) {
-      this.threadLifetimePool.objectActors = new WeakMap();
-    }
-    // We want to reuse the existing actor ID, so we just remove it from the
-    // current pool's weak map and then let pool.addActor do the rest.
-    aActor.registeredPool.objectActors.delete(aActor.obj);
-    this.threadLifetimePool.addActor(aActor);
-    this.threadLifetimePool.objectActors.set(aActor.obj, aActor);
+  threadObjectGrip: function TA_threadObjectGrip(aValue) {
+    return this.objectGrip(aValue, this.threadLifetimePool);
   },
 
   /**
@@ -1395,7 +1381,7 @@ update(ObjectActor.prototype, {
    */
   release: function OA_release() {
     this.registeredPool.objectActors.delete(this.obj);
-    this.registeredPool.removeActor(this);
+    this.registeredPool.removeActor(this.actorID);
   },
 
   /**
@@ -1557,8 +1543,7 @@ update(ObjectActor.prototype, {
    *        The protocol request object.
    */
   onThreadGrip: PauseScopedActor.withPaused(function OA_onThreadGrip(aRequest) {
-    this.threadActor.threadObjectGrip(this);
-    return {};
+    return { threadGrip: this.threadActor.threadObjectGrip(this.obj) };
   }),
 
   /**
@@ -1570,7 +1555,7 @@ update(ObjectActor.prototype, {
   onRelease: PauseScopedActor.withPaused(function OA_onRelease(aRequest) {
     if (this.registeredPool !== this.threadActor.threadLifetimePool) {
       return { error: "notReleasable",
-               message: "Only thread-lifetime actors can be released." };
+               message: "only thread-lifetime actors can be released." };
     }
 
     this.release();
@@ -1812,7 +1797,7 @@ BreakpointActor.prototype = {
     let scriptBreakpoints = this.threadActor._breakpointStore[this.location.url];
     delete scriptBreakpoints[this.location.line];
     // Remove the actual breakpoint.
-    this.threadActor._hooks.removeFromBreakpointPool(this);
+    this.threadActor._hooks.removeFromBreakpointPool(this.actorID);
     for (let script of this.scripts) {
       script.clearBreakpoint(this);
     }

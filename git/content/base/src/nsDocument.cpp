@@ -1337,10 +1337,9 @@ nsDOMImplementation::HasFeature(const nsAString& aFeature,
                                 const nsAString& aVersion,
                                 bool* aReturn)
 {
-  *aReturn = nsContentUtils::InternalIsSupported(
+  return nsGenericElement::InternalIsSupported(
            static_cast<nsIDOMDOMImplementation*>(this),
-           aFeature, aVersion);
-  return NS_OK;
+           aFeature, aVersion, aReturn);
 }
 
 NS_IMETHODIMP
@@ -5970,9 +5969,8 @@ NS_IMETHODIMP
 nsDocument::IsSupported(const nsAString& aFeature, const nsAString& aVersion,
                         bool* aReturn)
 {
-  *aReturn = nsContentUtils::InternalIsSupported(static_cast<nsIDOMDocument*>(this),
-                                                 aFeature, aVersion);
-  return NS_OK;
+  return nsGenericElement::InternalIsSupported(static_cast<nsIDOMDocument*>(this),
+                                               aFeature, aVersion, aReturn);
 }
 
 NS_IMETHODIMP

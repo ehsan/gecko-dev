@@ -280,8 +280,8 @@ BrowserTabActor.prototype = {
   /**
    * Remove the specified breakpint from the default actor pool.
    *
-   * @param BreakpointActor aActor
-   *        The actor object.
+   * @param string aActor
+   *        The actor ID.
    */
   removeFromBreakpointPool: function BTA_removeFromBreakpointPool(aActor) {
     this.conn.removeActor(aActor);

@@ -2,14 +2,13 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * Make sure that releasing a pause-lifetime actorin a releaseMany returns an
- * error, but releases all the thread-lifetime actors.
+ * Make sure that an actor will not be reused after a release or
+ * releaseMany.
  */
 
 var gDebuggee;
 var gClient;
 var gThreadClient;
-var gPauseGrip;
 
 function run_test()
 {
@@ -28,11 +27,7 @@ function run_test()
 function arg_grips(aFrameArgs, aOnResponse) {
   let grips = [];
   let handler = function (aResponse) {
-    if (aResponse.error) {
-      grips.push(aResponse.error);
-    } else {
-      grips.push(aResponse.from);
-    }
+    grips.push(aResponse.threadGrip);
     if (grips.length == aFrameArgs.length) {
       aOnResponse(grips);
     }
@@ -45,11 +40,10 @@ function arg_grips(aFrameArgs, aOnResponse) {
 
 function test_thread_lifetime()
 {
-  // Get two thread-lifetime grips.
+  // Get three thread-lifetime grips.
   gThreadClient.addOneTimeListener("paused", function (aEvent, aPacket) {
 
-    let frameArgs = [ aPacket.frame.arguments[0], aPacket.frame.arguments[1] ];
-    gPauseGrip = aPacket.frame.arguments[2];
+    let frameArgs = aPacket.frame.arguments;
     arg_grips(frameArgs, function (aGrips) {
       release_grips(frameArgs, aGrips);
     });
@@ -67,17 +61,19 @@ function test_thread_lifetime()
 
 function release_grips(aFrameArgs, aThreadGrips)
 {
-  // Release all actors with releaseMany...
-  let release = [aThreadGrips[0], aThreadGrips[1], gPauseGrip.actor];
-  gThreadClient.releaseMany(release, function (aResponse) {
-    do_check_eq(aResponse.error, "notReleasable");
-    // Now ask for thread grips again, they should not exist.
-    arg_grips(aFrameArgs, function (aNewGrips) {
-      for (let i = 0; i < aNewGrips.length; i++) {
-        do_check_eq(aNewGrips[i], "noSuchActor");
-      }
-      gThreadClient.resume(function () {
-        finishClient(gClient);
+  // Release the first grip with release, and the second two with releaseMany...
+
+  gClient.request({ to: aThreadGrips[0].actor, type: "release" }, function (aResponse) {
+    let release = [aThreadGrips[1].actor, aThreadGrips[2].actor];
+    gClient.request({ to: gThreadClient.actor, type: "releaseMany", "actors": release }, function (aResponse) {
+      // Now ask for thread grips again, they should be different.
+      arg_grips(aFrameArgs, function (aNewGrips) {
+        for (let i = 0; i < aNewGrips.length; i++) {
+          do_check_neq(aThreadGrips[i].actor, aNewGrips[i].actor);
+        }
+        gThreadClient.resume(function () {
+          finishClient(gClient);
+        });
       });
     });
   });
