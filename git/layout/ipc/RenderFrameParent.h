@@ -104,10 +104,6 @@ public:
 
   void UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom);
 
-  void UpdateScrollOffset(uint32_t aPresShellId,
-                          ViewID aViewId,
-                          const CSSIntPoint& aScrollOffset);
-
   bool HitTest(const nsRect& aRect);
 
 protected:
