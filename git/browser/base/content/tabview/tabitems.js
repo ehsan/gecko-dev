@@ -983,9 +983,9 @@ let TabItems = {
       // Even if the page hasn't loaded, display the favicon and title
 
       // ___ icon
-      if (UI.shouldLoadFavIcon(tab.linkedBrowser)) {
-        let iconUrl = UI.getFavIconUrlForTab(tab);
-
+      if (this.shouldLoadFavIcon(tab.linkedBrowser)) {
+        let iconUrl = gFavIconService.getFaviconImageForPage(
+                        tab.linkedBrowser.currentURI).spec;
         if (tabItem.$favImage[0].src != iconUrl)
           tabItem.$favImage[0].src = iconUrl;
 
@@ -1046,6 +1046,14 @@ let TabItems = {
     } catch(e) {
       Utils.log(e);
     }
+  },
+
+  // ----------
+  // Function: shouldLoadFavIcon
+  // Takes a xul:browser and checks whether we should display a favicon for it.
+  shouldLoadFavIcon: function TabItems_shouldLoadFavIcon(browser) {
+    return !(browser.contentDocument instanceof window.ImageDocument) &&
+           gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject);
   },
 
   // ----------
