@@ -261,7 +261,7 @@ nsXBLProtoImpl::LookupMember(JSContext* aCx, nsString& aName,
 }
 
 void
-nsXBLProtoImpl::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
+nsXBLProtoImpl::Trace(TraceCallback aCallback, void *aClosure) const
 {
   // If we don't have a class object then we either didn't compile members
   // or we only have fields, in both cases there are no cycles through our
@@ -272,7 +272,7 @@ nsXBLProtoImpl::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
 
   nsXBLProtoImplMember *member;
   for (member = mMembers; member; member = member->GetNext()) {
-    member->Trace(aCallbacks, aClosure);
+    member->Trace(aCallback, aClosure);
   }
 }
 

@@ -252,13 +252,6 @@ public:
         }
     }
 
-    void Trace(const TraceCallbacks& aCallbacks, void* aClosure)
-    {
-        if (mScriptObject) {
-            aCallbacks.Trace(&mScriptObject, "mScriptObject", aClosure);
-        }
-    }
-
     nsCOMPtr<nsIURI>         mSrcURI;
     uint32_t                 mLineNo;
     bool                     mSrcLoading;

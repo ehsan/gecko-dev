@@ -1966,7 +1966,9 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Script) {
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
-        script->Trace(aCallbacks, aClosure);
+        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->GetScriptObject(),
+                                                   "mScriptObject")
+
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
