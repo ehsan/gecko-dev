@@ -502,6 +502,8 @@ namespace nanojit
         void MOVSDMR(Register r1, int d, Register r2);\
         void JMP8(size_t n, NIns* t);\
         void JMP32(size_t n, NIns* t);\
+        void JMPX(Register indexreg, NIns** table);\
+        void JMPXB(Register indexreg, Register tablereg);\
         void JO(size_t n, NIns* t);\
         void JE(size_t n, NIns* t);\
         void JL(size_t n, NIns* t);\
@@ -554,18 +556,12 @@ namespace nanojit
         void X86_SETNP(Register r);\
         void X86_SETE(Register r);\
 
-    #define swapptrs()  { NIns* _tins = _nIns; _nIns=_nExitIns; _nExitIns=_tins; }
-
     const int LARGEST_UNDERRUN_PROT = 32;  // largest value passed to underrunProtect
 
     typedef uint8_t NIns;
 
     // Bytes of icache to flush after Assembler::patch
     const size_t LARGEST_BRANCH_PATCH = 16 * sizeof(NIns);
-
-    inline Register nextreg(Register r) {
-        return Register(r+1);
-    }
 
 } // namespace nanojit
 
