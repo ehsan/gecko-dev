@@ -187,9 +187,6 @@ let DirectoryLinksProvider = {
   },
 
   _fetchAndCacheLinks: function DirectoryLinksProvider_fetchAndCacheLinks(uri) {
-    // Replace with the same display locale used for selecting links data
-    uri = uri.replace("%LOCALE%", this.locale);
-
     let deferred = Promise.defer();
     let xmlHttp = new XMLHttpRequest();
 
@@ -213,12 +210,14 @@ let DirectoryLinksProvider = {
     };
 
     try {
-      xmlHttp.open("GET", uri);
+      xmlHttp.open('POST', uri);
       // Override the type so XHR doesn't complain about not well-formed XML
       xmlHttp.overrideMimeType(DIRECTORY_LINKS_TYPE);
       // Set the appropriate request type for servers that require correct types
       xmlHttp.setRequestHeader("Content-Type", DIRECTORY_LINKS_TYPE);
-      xmlHttp.send();
+      xmlHttp.send(JSON.stringify({
+        locale: this.locale,
+      }));
     } catch (e) {
       deferred.reject("Error fetching " + uri);
       Cu.reportError(e);
@@ -399,7 +398,8 @@ let DirectoryLinksProvider = {
   },
 
   init: function DirectoryLinksProvider_init() {
-    this.enabled = this.locale.search(/^(en|de|es|fr|ja|pl|pt|ru)/) == 0;
+    // Allow for overriding enabled to true for testing
+    this.enabled = this._testing && this.locale.search(/^(en|de|es|fr|ja|pl|pt|ru)/) == 0;
 
     this._setDefaultEnhanced();
     this._addPrefsObserver();
