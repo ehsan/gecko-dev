@@ -150,7 +150,7 @@ HistoryStore.prototype = {
   get _pidStm() {
     this._log.trace("Creating SQL statement: _pidStm");
     let stm = this._db.createStatement(
-      "SELECT * FROM " +
+      "SELECT * FROM " + 
         "(SELECT id FROM moz_places_temp WHERE url = :url LIMIT 1) " +
       "UNION ALL " +
       "SELECT * FROM ( " +
@@ -165,8 +165,7 @@ HistoryStore.prototype = {
 
   get _urlStm() {
     this._log.trace("Creating SQL statement: _urlStm");
-    try {
-      let stm = this._db.createStatement(
+    let stm = this._db.createStatement(
       "SELECT * FROM " +
         "(SELECT url,title FROM moz_places_temp WHERE id = :id LIMIT 1) " +
       "UNION ALL " +
@@ -176,14 +175,6 @@ HistoryStore.prototype = {
         "LIMIT 1 " +
       ") " +
       "LIMIT 1");
-    } catch (e) {
-      // On Fennec, this gets an error that there is no such table
-      // as moz_places_temp in existence
-      /*this._log.warn("moz_places_view exists?");
-      this._log.warn( this._db.tableExists("moz_places_view"));*/
-      this._log.warn(this._db.lastErrorString);
-      throw(e);
-    }
     this.__defineGetter__("_urlStm", function() stm);
     return stm;
   },
