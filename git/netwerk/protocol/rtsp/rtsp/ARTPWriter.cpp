@@ -140,9 +140,7 @@ status_t ARTPWriter::start(MetaData *params) {
     mNumSRsSent = 0;
 
     const char *mime;
-    if (!mSource->getFormat()->findCString(kKeyMIMEType, &mime)) {
-        return ERROR_UNSUPPORTED;
-    }
+    CHECK(mSource->getFormat()->findCString(kKeyMIMEType, &mime));
 
     mMode = INVALID;
     if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {

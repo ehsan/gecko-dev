@@ -21,8 +21,6 @@
 
 #include "ARTPSource.h"
 
-#include "mozilla/Assertions.h"
-
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -84,7 +82,7 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addNALUnit(
     if (size < 1 || (data[0] & 0x80)) {
         // Corrupt.
 
-        LOGW("Ignoring corrupt buffer.");
+        LOGV("Ignoring corrupt buffer.");
         queue->erase(queue->begin());
 
         ++mNextExpectedSeqNo;
@@ -93,11 +91,10 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addNALUnit(
 
     unsigned nalType = data[0] & 0x1f;
     if (nalType >= 1 && nalType <= 23) {
-        bool success = addSingleNALUnit(buffer);
+        addSingleNALUnit(buffer);
         queue->erase(queue->begin());
         ++mNextExpectedSeqNo;
-
-        return success ? OK : MALFORMED_PACKET;
+        return OK;
     } else if (nalType == 28) {
         // FU-A
         return addFragmentedNALUnit(queue);
@@ -118,29 +115,21 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addNALUnit(
     }
 }
 
-bool AAVCAssembler::addSingleNALUnit(const sp<ABuffer> &buffer) {
+void AAVCAssembler::addSingleNALUnit(const sp<ABuffer> &buffer) {
     LOGV("addSingleNALUnit of size %d", buffer->size());
 #if !LOG_NDEBUG
     hexdump(buffer->data(), buffer->size());
 #endif
 
     uint32_t rtpTime;
-    if (!buffer->meta()->findInt32("rtp-time", (int32_t *)&rtpTime)) {
-        LOGW("Cannot find rtp-time");
-        return false;
-    }
+    CHECK(buffer->meta()->findInt32("rtp-time", (int32_t *)&rtpTime));
 
     if (!mNALUnits.empty() && rtpTime != mAccessUnitRTPTime) {
-        if (!submitAccessUnit()) {
-            LOGW("Cannot find rtp-time. Malformed packet.");
-
-            return false;
-        }
+        submitAccessUnit();
     }
     mAccessUnitRTPTime = rtpTime;
 
     mNALUnits.push_back(buffer);
-    return true;
 }
 
 bool AAVCAssembler::addSingleTimeAggregationPacket(const sp<ABuffer> &buffer) {
@@ -165,14 +154,9 @@ bool AAVCAssembler::addSingleTimeAggregationPacket(const sp<ABuffer> &buffer) {
         sp<ABuffer> unit = new ABuffer(nalSize);
         memcpy(unit->data(), &data[2], nalSize);
 
-        if (!CopyTimes(unit, buffer)) {
-            return false;
-        }
+        CopyTimes(unit, buffer);
 
-        if (!addSingleNALUnit(unit)) {
-            LOGW("addSingleNALUnit() failed");
-            return false;
-        }
+        addSingleNALUnit(unit);
 
         data += 2 + nalSize;
         size -= 2 + nalSize;
@@ -187,31 +171,19 @@ bool AAVCAssembler::addSingleTimeAggregationPacket(const sp<ABuffer> &buffer) {
 
 ARTPAssembler::AssemblyStatus AAVCAssembler::addFragmentedNALUnit(
         List<sp<ABuffer> > *queue) {
-    MOZ_ASSERT(!queue->empty());
+    CHECK(!queue->empty());
 
     sp<ABuffer> buffer = *queue->begin();
     const uint8_t *data = buffer->data();
     size_t size = buffer->size();
 
-    if (size <= 0) {
-        LOGW("Buffer is empty");
-
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-        return MALFORMED_PACKET;
-    }
+    CHECK(size > 0);
     unsigned indicator = data[0];
 
-    if ((indicator & 0x1f) != 28) {
-        LOGW("Indicator is wrong");
-
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-        return MALFORMED_PACKET;
-    }
+    CHECK((indicator & 0x1f) == 28);
 
     if (size < 2) {
-        LOGW("Ignoring malformed FU buffer (size = %d)", size);
+        LOGV("Ignoring malformed FU buffer (size = %d)", size);
 
         queue->erase(queue->begin());
         ++mNextExpectedSeqNo;
@@ -221,7 +193,7 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addFragmentedNALUnit(
     if (!(data[1] & 0x80)) {
         // Start bit not set on the first buffer.
 
-        LOGW("Start bit not set on first buffer");
+        LOGV("Start bit not set on first buffer");
 
         queue->erase(queue->begin());
         ++mNextExpectedSeqNo;
@@ -263,7 +235,7 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addFragmentedNALUnit(
                     || data[0] != indicator
                     || (data[1] & 0x1f) != nalType
                     || (data[1] & 0x80)) {
-                LOGW("Ignoring malformed FU buffer.");
+                LOGV("Ignoring malformed FU buffer.");
 
                 // Delete the whole start of the FU.
 
@@ -305,9 +277,7 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addFragmentedNALUnit(
     ++totalSize;
 
     sp<ABuffer> unit = new ABuffer(totalSize);
-    if (!CopyTimes(unit, *queue->begin())) {
-        return MALFORMED_PACKET;
-    }
+    CopyTimes(unit, *queue->begin());
 
     unit->data()[0] = (nri << 5) | nalType;
 
@@ -329,17 +299,15 @@ ARTPAssembler::AssemblyStatus AAVCAssembler::addFragmentedNALUnit(
 
     unit->setRange(0, totalSize);
 
-    if (!addSingleNALUnit(unit)) {
-        return MALFORMED_PACKET;
-    }
+    addSingleNALUnit(unit);
 
     LOGV("successfully assembled a NAL unit from fragments.");
 
     return OK;
 }
 
-bool AAVCAssembler::submitAccessUnit() {
-    MOZ_ASSERT(!mNALUnits.empty());
+void AAVCAssembler::submitAccessUnit() {
+    CHECK(!mNALUnits.empty());
 
     LOGV("Access unit complete (%d nal units)", mNALUnits.size());
 
@@ -361,9 +329,7 @@ bool AAVCAssembler::submitAccessUnit() {
         offset += nal->size();
     }
 
-    if (!CopyTimes(accessUnit, *mNALUnits.begin())) {
-        return false;
-    }
+    CopyTimes(accessUnit, *mNALUnits.begin());
 
 #if 0
     printf(mAccessUnitDamaged ? "X" : ".");
@@ -380,7 +346,6 @@ bool AAVCAssembler::submitAccessUnit() {
     sp<AMessage> msg = mNotifyMsg->dup();
     msg->setObject("access-unit", accessUnit);
     msg->post();
-    return true;
 }
 
 ARTPAssembler::AssemblyStatus AAVCAssembler::assembleMore(
