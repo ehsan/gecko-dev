@@ -56,9 +56,15 @@ _TEST_FILES	= \
 		geolocation_common.js  \
 		geolocation.html \
 		test_optional_api_params.html \
-                network_geolocation.sjs \
+        network_geolocation.sjs \
 		$(NULL)
 
+# Commenting out these tests as they are causing more orange (bug 482260)
+#    test_manyCurrentSerial.html \
+#    test_manyCurrentConcurrent.html \
+#    test_garbageWatch.html \
+#    test_manyWatchConcurrent.html \
+#    test_manyWatchSerial.html \
 
 libs:: 	$(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
