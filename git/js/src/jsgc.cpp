@@ -1629,9 +1629,13 @@ gc_root_traversal(JSTracer *trc, const RootEntry &entry)
         ptr = vp->isGCThing() ? vp->toGCThing() : NULL;
     }
 
-    if (ptr) {
+    if (ptr && !trc->context->runtime->gcCurrentCompartment) {
         if (!JSAtom::isStatic(ptr)) {
-            /* Use conservative machinery to find if ptr is a valid GC thing. */
+            /*
+             * Use conservative machinery to find if ptr is a valid GC thing.
+             * We only do this during global GCs, to preserve the invariant
+             * that mark callbacks are not in place during compartment GCs.
+             */
             JSTracer checker;
             JS_TRACER_INIT(&checker, trc->context, EmptyMarkCallback);
             ConservativeGCTest test = MarkIfGCThingWord(&checker, reinterpret_cast<jsuword>(ptr));
@@ -1790,6 +1794,19 @@ AutoGCRooter::trace(JSTracer *trc)
         static_cast<js::AutoBindingsRooter *>(this)->bindings.trace(trc);
         return;
       }
+
+      case TYPE: {
+        types::TypeObject *type = static_cast<types::AutoTypeRooter *>(this)->type;
+        if (!type->marked)
+            type->trace(trc);
+        return;
+      }
+
+      case VALARRAY: {
+        AutoValueArray *array = static_cast<AutoValueArray *>(this);
+        MarkValueRange(trc, array->length(), array->start(), "js::AutoValueArray");
+        return;
+      }
     }
 
     JS_ASSERT(tag >= 0);
@@ -1839,11 +1856,14 @@ MarkRuntime(JSTracer *trc)
     while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter))
         MarkContext(trc, acx);
 
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        if ((*c)->activeAnalysis)
+            (*c)->markTypes(trc);
 #ifdef JS_TRACER
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
         if ((*c)->hasTraceMonitor())
             (*c)->traceMonitor()->mark(trc);
 #endif
+    }
 
     for (ThreadDataIter i(rt); !i.empty(); i.popFront())
         i.threadData()->mark(trc);
@@ -2835,7 +2855,7 @@ NewCompartment(JSContext *cx, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime;
     JSCompartment *compartment = cx->new_<JSCompartment>(rt);
-    if (compartment && compartment->init()) {
+    if (compartment && compartment->init(cx)) {
         compartment->systemGCChunks = principals && !strcmp(principals->codebase, "[System Principal]");
         if (principals) {
             compartment->principals = principals;

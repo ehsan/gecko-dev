@@ -63,14 +63,13 @@
 #include "jstypedarray.h"
 #include "jsutil.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jstypedarrayinlines.h"
 
 using namespace js;
 using namespace js::gc;
-
-/* slots can only be upto 255 */
-static const uint8 ARRAYBUFFER_RESERVED_SLOTS = 16;
+using namespace js::types;
 
 static bool
 ValueIsLength(JSContext *cx, const Value &v, jsuint *len)
@@ -152,15 +151,21 @@ ArrayBuffer::class_constructor(JSContext *cx, uintN argc, Value *vp)
 static inline JSBool
 AllocateSlots(JSContext *cx, JSObject *obj, uint32 size)
 {
-    uint32 bytes = size + sizeof(js::Value);
-    if (size > sizeof(js::Value) * ARRAYBUFFER_RESERVED_SLOTS - sizeof(js::Value) ) {
-        obj->slots = (js::Value *)cx->calloc_(bytes);
-        if (!obj->slots)
+    void *data = NULL;
+    if (size) {
+        data = cx->calloc_(size);
+        if (!data)
             return false;
-    } else {
-        memset(obj->slots, 0, bytes);
     }
-    *((uint32*)obj->slots) = size;
+
+    Value v;
+
+    v.setPrivate(data);
+    obj->setFixedSlot(ArrayBuffer::JSSLOT_ARRAY_DATA, v);
+
+    v.setPrivateUint32(size);
+    obj->setFixedSlot(ArrayBuffer::JSSLOT_ARRAY_BYTELENGTH, v);
+
     return true;
 }
 
@@ -651,6 +656,11 @@ template<typename NativeType> static inline const bool TypeIsFloatingPoint() { r
 template<> inline const bool TypeIsFloatingPoint<float>() { return true; }
 template<> inline const bool TypeIsFloatingPoint<double>() { return true; }
 
+template<typename NativeType> static inline const bool ElementTypeMayBeDouble() { return false; }
+template<> inline const bool ElementTypeMayBeDouble<uint32>() { return true; }
+template<> inline const bool ElementTypeMayBeDouble<float>() { return true; }
+template<> inline const bool ElementTypeMayBeDouble<double>() { return true; }
+
 template<typename NativeType> class TypedArrayTemplate;
 
 typedef TypedArrayTemplate<int8> Int8Array;
@@ -673,6 +683,7 @@ class TypedArrayTemplate
     static const int ArrayTypeID() { return TypeIDOfType<NativeType>(); }
     static const bool ArrayTypeIsUnsigned() { return TypeIsUnsigned<NativeType>(); }
     static const bool ArrayTypeIsFloatingPoint() { return TypeIsFloatingPoint<NativeType>(); }
+    static const bool ArrayElementTypeMayBeDouble() { return ElementTypeMayBeDouble<NativeType>(); }
 
     static JSFunctionSpec jsfuncs[];
 
@@ -899,6 +910,16 @@ class TypedArrayTemplate
         if (!obj)
             return NULL;
 
+        /*
+         * Specialize the type of the object on the current scripted location,
+         * and mark the type as definitely a typed array.
+         */
+        JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(slowClass());
+        types::TypeObject *type = types::GetTypeCallerInitObject(cx, key);
+        if (!type)
+            return NULL;
+        obj->setType(type);
+
         ThisTypeArray *tarray = cx->new_<ThisTypeArray>(bufobj, byteOffset, len);
         if (!tarray)
             return NULL;
@@ -1079,8 +1100,10 @@ class TypedArrayTemplate
         }
 
         ThisTypeArray *tarray = ThisTypeArray::fromJSObject(obj);
-        if (!tarray)
+        if (!tarray) {
+            vp->setUndefined();
             return true;
+        }
 
         // these are the default values
         int32_t off = 0;
@@ -1312,7 +1335,7 @@ class TypedArrayTemplate
         JS_ASSERT(len <= thisTypedArray->length - offset);
         NativeType *dest = static_cast<NativeType*>(thisTypedArray->data) + offset;
 
-        if (ar->isDenseArray() && ar->getDenseArrayCapacity() >= len) {
+        if (ar->isDenseArray() && ar->getDenseArrayInitializedLength() >= len) {
             JS_ASSERT(ar->getArrayLength() == len);
 
             Value *src = ar->getDenseArrayElements();
@@ -1589,7 +1612,7 @@ TypedArrayTemplate<double>::copyIndexToValue(JSContext *cx, uint32 index, Value 
 Class ArrayBuffer::slowClass = {
     "ArrayBuffer",
     JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_RESERVED_SLOTS(ARRAYBUFFER_RESERVED_SLOTS) |
+    JSCLASS_HAS_RESERVED_SLOTS(ArrayBuffer::JSSLOT_ARRAY_RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_ArrayBuffer),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
@@ -1605,7 +1628,7 @@ Class ArrayBuffer::fastClass = {
     "ArrayBuffer",
     JSCLASS_HAS_PRIVATE |
     Class::NON_NATIVE |
-    JSCLASS_HAS_RESERVED_SLOTS(ARRAYBUFFER_RESERVED_SLOTS) |
+    JSCLASS_HAS_RESERVED_SLOTS(ArrayBuffer::JSSLOT_ARRAY_RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_ArrayBuffer),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
@@ -1735,6 +1758,11 @@ do {                                                                           \
                          NULL, NULL);                                          \
     if (!proto)                                                                \
         return NULL;                                                           \
+    jsid lengthId = ATOM_TO_JSID(cx->runtime->atomState.lengthAtom);           \
+    AddTypePropertyId(cx, proto->getType(), lengthId, types::TYPE_INT32);      \
+    AddTypePropertyId(cx, proto->getType(), JSID_VOID, types::TYPE_INT32);     \
+    if (_typedArray::ArrayElementTypeMayBeDouble())                            \
+        AddTypePropertyId(cx, proto->getType(), JSID_VOID, types::TYPE_DOUBLE); \
     JSObject *ctor = JS_GetConstructor(cx, proto);                             \
     if (!ctor ||                                                               \
         !JS_DefineProperty(cx, ctor, "BYTES_PER_ELEMENT",                      \
@@ -1835,14 +1863,13 @@ js_IsArrayBuffer(JSObject *obj)
 JSUint32
 JS_GetArrayBufferByteLength(JSObject *obj)
 {
-    return *((JSUint32*) obj->slots);
+    return ArrayBuffer::getByteLength(obj);
 }
 
 uint8 *
 JS_GetArrayBufferData(JSObject *obj)
 {
-    uint64 *base = ((uint64*)obj->slots) + 1;
-    return (uint8*) base;
+    return ArrayBuffer::getDataOffset(obj);
 }
 
 JS_FRIEND_API(JSBool)

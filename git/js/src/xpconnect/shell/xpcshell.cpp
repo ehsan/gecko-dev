@@ -49,6 +49,7 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsdbgapi.h"
+#include "jsfriendapi.h"
 #include "jsprf.h"
 #include "nsXULAppAPI.h"
 #include "nsServiceManagerUtils.h"
@@ -1253,8 +1254,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
                 gobj = JS_NewGlobalObject(cx, &global_class);
                 if (!gobj)
                     return JS_FALSE;
-                if (!JS_SetPrototype(cx, gobj, obj))
-                    return JS_FALSE;
+                JS_SplicePrototype(cx, gobj, obj);
                 JS_SetParent(cx, gobj, NULL);
                 JS_SetGlobalObject(cx, gobj);
                 obj = gobj;
@@ -1301,6 +1301,9 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
         case 'p':
             JS_ToggleOptions(cx, JSOPTION_PROFILING);
+            break;
+        case 'n':
+            JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
             break;
         default:
             return usage();

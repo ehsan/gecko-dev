@@ -51,6 +51,7 @@
 #include "jsscope.h"
 
 #include "jsatominlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -1193,6 +1194,10 @@ NewProxyObject(JSContext *cx, JSProxyHandler *handler, const Value &priv, JSObje
             obj->setSlot(JSSLOT_PROXY_CONSTRUCT, ObjectValue(*construct));
         }
     }
+
+    /* Don't track types of properties of proxies. */
+    MarkTypeObjectUnknownProperties(cx, obj->getType());
+
     return obj;
 }
 
@@ -1475,6 +1480,14 @@ js_InitProxyClass(JSContext *cx, JSObject *obj)
     JSObject *module = NewNonFunction<WithProto::Class>(cx, &js_ProxyClass, NULL, obj);
     if (!module)
         return NULL;
+
+    types::TypeObject *type = cx->compartment->types.newTypeObject(cx, NULL,
+                                                                   js_ProxyClass.name, "",
+                                                                   JSProto_Object,
+                                                                   module->getProto());
+    if (!type || !module->setTypeAndUniqueShape(cx, type))
+        return NULL;
+
     if (!JS_DefineProperty(cx, obj, "Proxy", OBJECT_TO_JSVAL(module),
                            JS_PropertyStub, JS_StrictPropertyStub, 0)) {
         return NULL;

@@ -493,6 +493,20 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
                 JS_BeginRequest(cx);
 #endif
 
+            /*
+             * Dump remaining type inference results first. This printing
+             * depends on atoms still existing.
+             */
+            {
+                AutoLockGC lock(rt);
+                JSCompartment **compartment = rt->compartments.begin();
+                JSCompartment **end = rt->compartments.end();
+                while (compartment < end) {
+                    (*compartment)->types.print(cx, *compartment);
+                    compartment++;
+                }
+            }
+
             /* Unpin all common atoms before final GC. */
             js_FinishCommonAtoms(cx);
 
@@ -664,6 +678,8 @@ js_ReportOutOfMemory(JSContext *cx)
         return;
 #endif
 
+    cx->runtime->hadOutOfMemory = true;
+
     JSErrorReport report;
     JSErrorReporter onError = cx->errorReporter;
 
@@ -728,8 +744,8 @@ checkReportFlags(JSContext *cx, uintN *flags)
          * We assume that if the top frame is a native, then it is strict if
          * the nearest scripted frame is strict, see bug 536306.
          */
-        StackFrame *fp = js_GetScriptedCaller(cx, NULL);
-        if (fp && fp->script()->strictModeCode)
+        JSScript *script = cx->stack.currentScript();
+        if (script && script->strictModeCode)
             *flags &= ~JSREPORT_WARNING;
         else if (cx->hasStrictOption())
             *flags |= JSREPORT_WARNING;
@@ -1238,7 +1254,7 @@ StackFrame *
 js_GetScriptedCaller(JSContext *cx, StackFrame *fp)
 {
     if (!fp)
-        fp = js_GetTopStackFrame(cx);
+        fp = js_GetTopStackFrame(cx, FRAME_EXPAND_TOP);
     while (fp && fp->isDummyFrame())
         fp = fp->prev();
     JS_ASSERT_IF(fp, fp->isScriptFrame());
@@ -1372,6 +1388,7 @@ JSContext::resetCompartment()
     }
 
     compartment = scopeobj->compartment();
+    inferenceEnabled = compartment->types.inferenceEnabled;
 
     if (isExceptionPending())
         wrapPendingException();

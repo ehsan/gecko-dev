@@ -57,6 +57,7 @@
 #include "jsstr.h"
 #include "jsvector.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsregexpinlines.h"
 
@@ -67,6 +68,7 @@ using namespace nanojit;
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 /*
  * RegExpStatics allocates memory -- in order to keep the statics stored
@@ -423,7 +425,8 @@ js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp)
         if (!obj)
             return false;
         obj->clearParent();
-        obj->clearProto();
+        if (!obj->clearType(xdr->cx))
+            return false;
 
         /*
          * initRegExp can GC before storing re in the private field of the
@@ -829,6 +832,13 @@ js_InitRegExpClass(JSContext *cx, JSObject *global)
     if (!proto)
         return NULL;
 
+    types::TypeObject *protoType = cx->compartment->types.newTypeObject(cx, NULL,
+                                                                        "RegExp", "prototype",
+                                                                        JSProto_Object,
+                                                                        proto->getProto());
+    if (!protoType || !proto->setTypeAndUniqueShape(cx, protoType))
+        return NULL;
+
     AlreadyIncRefed<RegExp> re = RegExp::create(cx, cx->runtime->emptyString, 0, NULL);
     if (!re)
         return NULL;
@@ -850,7 +860,8 @@ js_InitRegExpClass(JSContext *cx, JSObject *global)
      */
     if (!JS_DefineFunctions(cx, proto, regexp_methods))
         return NULL;
-    proto->brand(cx);
+    if (!cx->typeInferenceEnabled())
+        proto->brand(cx);
 
     /* Create the RegExp constructor. */
     JSAtom *regExpAtom = CLASS_ATOM(cx, RegExp);
@@ -863,13 +874,8 @@ js_InitRegExpClass(JSContext *cx, JSObject *global)
     FUN_CLASP(ctor) = &js_RegExpClass;
 
     /* Define RegExp.prototype and RegExp.prototype.constructor. */
-    if (!ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
-                              ObjectValue(*proto), PropertyStub, StrictPropertyStub,
-                              JSPROP_PERMANENT | JSPROP_READONLY) ||
-        !proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                               ObjectValue(*ctor), PropertyStub, StrictPropertyStub, 0)) {
+    if (!js_SetClassPrototype(cx, ctor, proto, JSPROP_PERMANENT | JSPROP_READONLY))
         return NULL;
-    }
 
     /* Add static properties to the RegExp constructor. */
     if (!JS_DefineProperties(cx, ctor, regexp_static_props) ||
@@ -882,6 +888,10 @@ js_InitRegExpClass(JSContext *cx, JSObject *global)
         return NULL;
     }
 
+    types::TypeObject *type = proto->getNewType(cx);
+    if (!type)
+        return NULL;
+
     /*
      * Make sure proto's emptyShape is available to be shared by objects of
      * this class.  JSObject::emptyShape is a one-slot cache. If we omit this,
@@ -890,8 +900,16 @@ js_InitRegExpClass(JSContext *cx, JSObject *global)
      *
      * All callers of JSObject::initSharingEmptyShape depend on this.
      */
-    if (!proto->getEmptyShape(cx, &js_RegExpClass, FINALIZE_OBJECT0))
+    if (!type->getEmptyShape(cx, &js_RegExpClass, FINALIZE_OBJECT0))
         return NULL;
+
+    /* Capture properties added individually to each RegExp object. */
+    AddTypeProperty(cx, protoType, "source", TYPE_STRING);
+    AddTypeProperty(cx, protoType, "global", TYPE_BOOLEAN);
+    AddTypeProperty(cx, protoType, "ignoreCase", TYPE_BOOLEAN);
+    AddTypeProperty(cx, protoType, "multiline", TYPE_BOOLEAN);
+    AddTypeProperty(cx, protoType, "sticky", TYPE_BOOLEAN);
+    AddTypeProperty(cx, protoType, "lastIndex", TYPE_INT32);
 
     /* Install the fully-constructed RegExp and RegExp.prototype in global. */
     if (!DefineConstructorAndPrototype(cx, global, JSProto_RegExp, ctor, proto))

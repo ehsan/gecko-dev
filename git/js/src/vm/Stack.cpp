@@ -101,6 +101,7 @@ StackFrame::initExecuteFrame(JSScript *script, StackFrame *prev, FrameRegs *regs
     scopeChain_ = &scopeChain;
     prev_ = prev;
     prevpc_ = regs ? regs->pc : (jsbytecode *)0xbad;
+    prevInline_ = regs ? regs->inlined() : NULL;
 
 #ifdef DEBUG
     ncode_ = (void *)0xbad;
@@ -170,31 +171,44 @@ JSObject *const StackFrame::sInvalidScopeChain = (JSObject *)0xbeef;
 #endif
 
 jsbytecode *
-StackFrame::pcQuadratic(JSContext *cx) const
-{
-    if (hasImacropc())
-        return imacropc();
-    StackSegment &seg = cx->stack.space().findContainingSegment(this);
-    FrameRegs &regs = seg.regs();
-    if (regs.fp() == this)
-        return regs.pc;
-    return seg.computeNextFrame(this)->prevpc();
-}
-
-jsbytecode *
-StackFrame::prevpcSlow()
+StackFrame::prevpcSlow(JSInlinedSite **pinlined)
 {
     JS_ASSERT(!(flags_ & HAS_PREVPC));
 #if defined(JS_METHODJIT) && defined(JS_MONOIC)
     StackFrame *p = prev();
     mjit::JITScript *jit = p->script()->getJIT(p->isConstructing());
-    prevpc_ = jit->nativeToPC(ncode_);
+    prevpc_ = jit->nativeToPC(ncode_, &prevInline_);
     flags_ |= HAS_PREVPC;
+    if (pinlined)
+        *pinlined = prevInline_;
     return prevpc_;
 #else
     JS_NOT_REACHED("Unknown PC for frame");
     return NULL;
 #endif
+}
+
+jsbytecode *
+StackFrame::pcQuadratic(const ContextStack &stack, StackFrame *next, JSInlinedSite **pinlined)
+{
+    JS_ASSERT_IF(next, next->prev() == this);
+
+    StackSegment &seg = stack.space().containingSegment(this);
+    FrameRegs &regs = seg.regs();
+
+    /*
+     * This isn't just an optimization; seg->computeNextFrame(fp) is only
+     * defined if fp != seg->currentFrame.
+     */
+    if (regs.fp() == this) {
+        if (pinlined)
+            *pinlined = regs.inlined();
+        return regs.pc;
+    }
+
+    if (!next)
+        next = seg.computeNextFrame(this);
+    return next->prevpc(pinlined);
 }
 
 /*****************************************************************************/
@@ -222,6 +236,11 @@ StackSegment::contains(const CallArgsList *call) const
     Value *vp = call->argv();
     bool ret = vp > slotsBegin() && vp <= calls_->argv();
 
+    /*
+     * :XXX: Disabled. Including this check changes the asymptotic complexity
+     * of code which calls this function.
+     */
+#if 0
 #ifdef DEBUG
     bool found = false;
     for (CallArgsList *c = maybeCalls(); c->argv() > slotsBegin(); c = c->prev()) {
@@ -231,6 +250,7 @@ StackSegment::contains(const CallArgsList *call) const
         }
     }
     JS_ASSERT(found == ret);
+#endif
 #endif
 
     return ret;
@@ -359,7 +379,7 @@ StackSpace::~StackSpace()
 }
 
 StackSegment &
-StackSpace::findContainingSegment(const StackFrame *target) const
+StackSpace::containingSegment(const StackFrame *target) const
 {
     for (StackSegment *s = seg_; s; s = s->prevInMemory()) {
         if (s->contains(target))
@@ -585,7 +605,7 @@ ContextStack::popInvokeArgs(const InvokeArgsGuard &iag)
 
 bool
 ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
-                              MaybeConstruct construct, InvokeFrameGuard *ifg)
+                              InitialFrameFlags initial, InvokeFrameGuard *ifg)
 {
     JS_ASSERT(onTop());
     JS_ASSERT(space().firstUnused() == args.end());
@@ -594,7 +614,7 @@ ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
     JSFunction *fun = callee.getFunctionPrivate();
     JSScript *script = fun->script();
 
-    StackFrame::Flags flags = ToFrameFlags(construct);
+    StackFrame::Flags flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, args, fun, script, &flags, OOMCheck());
     if (!fp)
         return false;
@@ -791,7 +811,9 @@ StackIter::popFrame()
     JS_ASSERT(seg_->contains(oldfp));
     fp_ = fp_->prev();
     if (seg_->contains(fp_)) {
-        pc_ = oldfp->prevpc();
+        JSInlinedSite *inline_;
+        pc_ = oldfp->prevpc(&inline_);
+        JS_ASSERT(!inline_);
 
         /*
          * If there is a CallArgsList element between oldfp and fp_, then sp_
@@ -1004,6 +1026,10 @@ StackIter::StackIter(JSContext *cx, SavedOption savedOption)
   : cx_(cx),
     savedOption_(savedOption)
 {
+#ifdef JS_METHODJIT
+    mjit::ExpandInlineFrames(cx, true);
+#endif
+
     if (StackSegment *seg = cx->stack.seg_) {
         startOnSegment(seg);
         settleOnNewState();

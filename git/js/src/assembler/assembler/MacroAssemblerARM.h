@@ -972,7 +972,14 @@ public:
 
     void loadDouble(ImplicitAddress address, FPRegisterID dest)
     {
+        // Load a double from base+offset.
         m_assembler.doubleTransfer(true, dest, address.base, address.offset);
+    }
+
+    void loadDouble(BaseIndex address, FPRegisterID dest)
+    {
+        // Load a double from base+offset+(index*scale).
+        m_assembler.doubleTransfer(true, dest, address.base, address.offset, address.index, address.scale);
     }
 
     DataLabelPtr loadDouble(const void* address, FPRegisterID dest)
@@ -984,7 +991,14 @@ public:
 
     void storeDouble(FPRegisterID src, ImplicitAddress address)
     {
+        // Store a double at base+offset.
         m_assembler.doubleTransfer(false, src, address.base, address.offset);
+    }
+
+    void storeDouble(FPRegisterID src, BaseIndex address)
+    {
+        // Store a double at base+offset+(index*scale).
+        m_assembler.doubleTransfer(false, src, address.base, address.offset, address.index, address.scale);
     }
 
     void addDouble(FPRegisterID src, FPRegisterID dest)
@@ -1035,6 +1049,11 @@ public:
     void negDouble(FPRegisterID src, FPRegisterID dest)
     {
         m_assembler.fnegd_r(dest, src);
+    }
+
+    void absDouble(FPRegisterID src, FPRegisterID dest)
+    {
+        m_assembler.fabsd_r(dest, src);
     }
 
     void sqrtDouble(FPRegisterID src, FPRegisterID dest)
