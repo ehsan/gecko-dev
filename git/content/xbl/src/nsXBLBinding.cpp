@@ -974,7 +974,9 @@ nsXBLBinding::ExecuteAttachedHandler()
   if (mNextBinding)
     mNextBinding->ExecuteAttachedHandler();
 
-  if (AllowScripts())
+  // Executing mNextBindings constructor might have caused us to loose our
+  // bound element
+  if (mBoundElement && AllowScripts())
     mPrototypeBinding->BindingAttached(mBoundElement);
 }
 
@@ -1406,7 +1408,7 @@ nsXBLBinding::AllowScripts()
     return PR_FALSE;
   }
 
-  nsIDocument* doc = mBoundElement ? mBoundElement->GetOwnerDoc() : nsnull;
+  nsIDocument* doc = mBoundElement->GetOwnerDoc();
   if (!doc) {
     return PR_FALSE;
   }

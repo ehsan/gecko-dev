@@ -35,11 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsIServiceManager.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
+
 #include "nsComponentManagerUtils.h"
 #include "nsITimer.h"
 #include "RasterImage.h"
 #include "DiscardTracker.h"
-#include "mozilla/Preferences.h"
 
 namespace mozilla {
 namespace imagelib {
@@ -171,7 +174,12 @@ DiscardTracker::ReloadTimeout()
 
   // read the timeout pref
   PRInt32 discardTimeout;
-  rv = Preferences::GetInt(DISCARD_TIMEOUT_PREF, &discardTimeout);
+  nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (!branch) {
+    NS_WARNING("nsIPrefBranch2 is not available!");
+    return;
+  }
+  rv = branch->GetIntPref(DISCARD_TIMEOUT_PREF, &discardTimeout);
 
   // If we got something bogus, return
   if (!NS_SUCCEEDED(rv) || discardTimeout <= 0)

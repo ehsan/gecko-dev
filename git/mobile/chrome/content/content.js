@@ -352,6 +352,11 @@ let Content = {
           } else if (ot == errorDoc.getElementById("getMeOutOfHereButton")) {
             sendAsyncMessage("Browser:CertException", { url: errorDoc.location.href, action: "leave" });
           }
+        } else if (/^about:neterror\?e=netOffline/.test(errorDoc.documentURI)) {
+          if (ot == errorDoc.getElementById("errorTryAgain")) {
+            // Make sure we're online before attempting to load
+            Util.forceOnline();
+          }
         } else if (/^about:blocked/.test(errorDoc.documentURI)) {
           // The event came from a button on a malware/phishing block page
           // First check whether it's malware or phishing, so that we can
