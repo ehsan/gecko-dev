@@ -77,7 +77,6 @@ describe("loop.store.RoomStore", function () {
     beforeEach(function() {
       fakeMozLoop = {
         copyString: function() {},
-        notifyUITour: function() {},
         rooms: {
           create: function() {},
           getAll: function() {},

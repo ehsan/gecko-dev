@@ -6,9 +6,6 @@
 
 // Test that the timeline front's start/stop/isRecording methods work in a
 // simple use case, and that markers events are sent when operations occur.
-// Note that this test isn't concerned with which markers are actually recorded,
-// just that markers are recorded at all.
-// Trying to check marker types here may lead to intermittents, see bug 1066474.
 
 const {TimelineFront} = require("devtools/server/actors/timeline");
 
@@ -17,40 +14,37 @@ add_task(function*() {
 
   initDebuggerServer();
   let client = new DebuggerClient(DebuggerServer.connectPipe());
+
   let form = yield connectDebuggerClient(client);
   let front = TimelineFront(client, form);
 
-  ok(front, "The TimelineFront was created");
-
   let isActive = yield front.isRecording();
-  ok(!isActive, "The TimelineFront is not initially recording");
+  ok(!isActive, "Not initially recording");
 
-  info("Flush any pending reflows");
-  let forceSyncReflow = doc.body.innerHeight;
+  doc.body.innerHeight; // flush any pending reflow
 
-  info("Start recording");
   yield front.start();
 
   isActive = yield front.isRecording();
-  ok(isActive, "The TimelineFront is now recording");
+  ok(isActive, "Recording after start()");
 
-  info("Change some style on the page to cause style/reflow/paint");
-  let onMarkers = once(front, "markers");
   doc.body.style.padding = "10px";
-  let markers = yield onMarkers;
 
-  ok(true, "The markers event was fired");
-  ok(markers.length > 0, "Markers were returned");
-
-  info("Flush pending reflows again");
-  forceSyncReflow = doc.body.innerHeight;
-
-  info("Change some style on the page to cause style/paint");
-  onMarkers = once(front, "markers");
-  doc.body.style.backgroundColor = "red";
-  markers = yield onMarkers;
+  let markers = yield once(front, "markers");
 
   ok(markers.length > 0, "markers were returned");
+  ok(markers.some(m => m.name == "Reflow"), "markers includes Reflow");
+  ok(markers.some(m => m.name == "Paint"), "markers includes Paint");
+  ok(markers.some(m => m.name == "Styles"), "markers includes Restyle");
+
+  doc.body.style.backgroundColor = "red";
+
+  markers = yield once(front, "markers");
+
+  ok(markers.length > 0, "markers were returned");
+  ok(!markers.some(m => m.name == "Reflow"), "markers doesn't include Reflow");
+  ok(markers.some(m => m.name == "Paint"), "markers includes Paint");
+  ok(markers.some(m => m.name == "Styles"), "markers includes Restyle");
 
   yield front.stop();
 

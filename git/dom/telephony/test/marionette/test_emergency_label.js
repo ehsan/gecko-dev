@@ -15,17 +15,30 @@ function setEccListProperty(list) {
     list = "''";
   }
 
-  return emulator.runShellCmd(["setprop","ril.ecclist", list])
-    .then(list => list);
+  let deferred = Promise.defer();
+  try {
+    emulator.runShellCmd(["setprop","ril.ecclist", list]).then(function() {
+      deferred.resolve(list);
+    });
+  } catch (e) {
+    deferred.reject(e);
+  }
+  return deferred.promise;
 }
 
 function getEccListProperty() {
   log("Get property ril.ecclist.");
 
-  return emulator.runShellCmd(["getprop","ril.ecclist"])
-    .then(aResult => {
-      return !aResult.length ? "" : aResult[0];
+  let deferred = Promise.defer();
+  try {
+    emulator.runShellCmd(["getprop","ril.ecclist"]).then(function(aResult) {
+      let list = !aResult.length ? "" : aResult[0];
+      deferred.resolve(list);
     });
+  } catch (e) {
+    deferred.reject(e);
+  }
+  return deferred.promise;
 }
 
 function testEmergencyLabel(number, list) {
@@ -40,10 +53,14 @@ function testEmergencyLabel(number, list) {
   let outCall;
 
   return gDial(number)
-    .then(call => outCall = call)
-    .then(() => is(outCall.emergency, emergency, "check emergency"))
+    .then(call => { outCall = call; })
+    .then(() => {
+      is(outCall.emergency, emergency, "emergency result should be correct");
+    })
     .then(() => gRemoteAnswer(outCall))
-    .then(() => is(outCall.emergency, emergency, "check emergency"))
+    .then(() => {
+      is(outCall.emergency, emergency, "emergency result should be correct");
+    })
     .then(() => gRemoteHangUp(outCall));
 }
 

@@ -146,9 +146,9 @@ describe("loop.roomViews", function () {
             }));
         });
 
-      it("should dispatch a RenameRoom action when Enter key is pressed",
+      it("should dispatch a RenameRoom action when enter is pressed",
         function() {
-          TestUtils.Simulate.keyDown(roomNameBox, {key: "Enter", which: 13});
+          React.addons.TestUtils.Simulate.submit(roomNameBox);
 
           sinon.assert.calledOnce(dispatcher.dispatch);
           sinon.assert.calledWithExactly(dispatcher.dispatch,

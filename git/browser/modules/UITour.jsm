@@ -543,16 +543,6 @@ this.UITour = {
         break;
       }
 
-      case "setConfiguration": {
-        if (typeof data.configuration != "string") {
-          log.warn("setConfiguration: No configuration option specified");
-          return false;
-        }
-
-        this.setConfiguration(data.configuration, data.value);
-        break;
-      }
-
       case "showFirefoxAccounts": {
         // 'signup' is the only action that makes sense currently, so we don't
         // accept arbitrary actions just to be safe...
@@ -1169,7 +1159,6 @@ this.UITour = {
       let tooltipTitle = document.getElementById("UITourTooltipTitle");
       let tooltipDesc = document.getElementById("UITourTooltipDescription");
       let tooltipIcon = document.getElementById("UITourTooltipIcon");
-      let tooltipIconContainer = document.getElementById("UITourTooltipIconContainer");
       let tooltipButtons = document.getElementById("UITourTooltipButtons");
 
       if (tooltip.state == "showing" || tooltip.state == "open") {
@@ -1179,7 +1168,7 @@ this.UITour = {
       tooltipTitle.textContent = aTitle || "";
       tooltipDesc.textContent = aDescription || "";
       tooltipIcon.src = aIconURL || "";
-      tooltipIconContainer.hidden = !aIconURL;
+      tooltipIcon.hidden = !aIconURL;
 
       while (tooltipButtons.firstChild)
         tooltipButtons.firstChild.remove();
@@ -1331,7 +1320,7 @@ this.UITour = {
 
       // An event object is expected but we don't want to toggle the panel with a click if the panel
       // is already open.
-      aWindow.LoopUI.openCallPanel({ target: toolbarButton.node, }, "rooms").then(() => {
+      aWindow.LoopUI.openCallPanel({ target: toolbarButton.node, }).then(() => {
         if (aOpenCallback) {
           aOpenCallback();
         }
@@ -1485,18 +1474,6 @@ this.UITour = {
         break;
       default:
         log.error("getConfiguration: Unknown configuration requested: " + aConfiguration);
-        break;
-    }
-  },
-
-  setConfiguration: function(aConfiguration, aValue) {
-    switch (aConfiguration) {
-      case "Loop:ResumeTourOnFirstJoin":
-        // Ignore aValue in this case to avoid accidentally setting it to false.
-        Services.prefs.setBoolPref("loop.gettingStarted.resumeOnFirstJoin", true);
-        break;
-      default:
-        log.error("setConfiguration: Unknown configuration requested: " + aConfiguration);
         break;
     }
   },

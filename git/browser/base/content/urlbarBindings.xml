@@ -939,24 +939,12 @@
             this.closePopup();
             controller.handleEscape();
 
+            // Fill in the search bar's value
+            searchBar.value = search;
+
             // open the search results according to the clicking subtlety
             var where = whereToOpenLink(aEvent, false, true);
-
-            // But open ctrl/cmd clicks on autocomplete items in a new background tab.
-            if (where == "tab" && (aEvent instanceof MouseEvent) &&
-                (aEvent.button == 1 ||
-#ifdef XP_MACOSX
-                 aEvent.metaKey))
-#else
-                 aEvent.ctrlKey))
-#endif
-              where = "tab-background";
-
             searchBar.doSearch(search, where);
-            if (where == "tab-background")
-              searchBar.focus();
-            else
-              searchBar.value = search;
           }
         ]]></body>
       </method>
@@ -1047,17 +1035,17 @@
                                                   "searchbar-oneoffheader-searchtext");
         let textbox = searchbar.textbox;
         let self = this;
-        let inputHandler = function() {
+        let keyPressHandler = function() {
           headerSearchText.setAttribute("value", textbox.value);
           if (textbox.value)
             self.removeAttribute("showonlysettings");
         };
-        textbox.addEventListener("input", inputHandler);
+        textbox.addEventListener("keyup", keyPressHandler);
         this.addEventListener("popuphiding", function hiding() {
-          textbox.removeEventListener("input", inputHandler);
+          textbox.removeEventListener("keyup", keyPressHandler);
           this.removeEventListener("popuphiding", hiding);
         });
-        inputHandler();
+        keyPressHandler();
 
         // Handle opensearch items. This needs to be done before building the
         // list of one off providers, as that code will return early if all the
@@ -1072,6 +1060,8 @@
 
         let addEngines = gBrowser.selectedBrowser.engines;
         if (addEngines && addEngines.length > 0) {
+          const kBundleURI = "chrome://browser/locale/search.properties";
+          let bundle = Services.strings.createBundle(kBundleURI);
           for (let engine of addEngines) {
             let button = document.createElementNS(kXULNS, "button");
             let label = bundle.formatStringFromName("cmd_addFoundEngine",

@@ -155,7 +155,7 @@ let LoopRoomsInternal = {
    *                             `Error` object or `null`. The second argument will
    *                             be the list of rooms, if it was fetched successfully.
    */
-  getAll: function(version = null, callback = null) {
+  getAll: function(version = null, callback) {
     if (!callback) {
       callback = version;
       version = null;
@@ -568,27 +568,6 @@ this.LoopRooms = {
 
   maybeRefresh: function(user) {
     return LoopRoomsInternal.maybeRefresh(user);
-  },
-
-  /**
-   * This method is only useful for unit tests to set the rooms cache to contain
-   * a list of fake room data that can be asserted in tests.
-   *
-   * @param {Map} stub Stub cache containing fake rooms data
-   */
-  stubCache: function(stub) {
-    LoopRoomsInternal.rooms.clear();
-    if (stub) {
-      // Fill up the rooms cache with room objects provided in the `stub` Map.
-      for (let [key, value] of stub.entries()) {
-        LoopRoomsInternal.rooms.set(key, value);
-      }
-      gDirty = false;
-    } else {
-      // Restore the cache to not be stubbed anymore, but it'll need a refresh
-      // from the server for sure.
-      gDirty = true;
-    }
   },
 
   promise: function(method, ...params) {
