@@ -209,10 +209,7 @@ this.NetworkHelper =
   {
     try {
       return this.getRequestLoadContext(aRequest).associatedWindow;
-    } catch (ex) {
-      // TODO: bug 802246 - getWindowForRequest() throws on b2g: there is no
-      // associatedWindow property.
-    }
+    } catch (ex) { }
     return null;
   },
 

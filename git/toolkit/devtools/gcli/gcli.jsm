@@ -104,7 +104,7 @@ var mozl10n = {};
 
 })(mozl10n);
 
-define('gcli/index', ['require', 'exports', 'module' , 'gcli/types/basic', 'gcli/types/selection', 'gcli/types/command', 'gcli/types/date', 'gcli/types/javascript', 'gcli/types/node', 'gcli/types/resource', 'gcli/types/setting', 'gcli/settings', 'gcli/ui/intro', 'gcli/ui/focus', 'gcli/ui/fields/basic', 'gcli/ui/fields/javascript', 'gcli/ui/fields/selection', 'gcli/commands/connect', 'gcli/commands/context', 'gcli/commands/help', 'gcli/commands/pref', 'gcli/canon', 'gcli/converters', 'gcli/types', 'gcli/ui/ffdisplay'], function(require, exports, module) {
+define('gcli/index', ['require', 'exports', 'module' , 'gcli/types/basic', 'gcli/types/selection', 'gcli/types/command', 'gcli/types/date', 'gcli/types/javascript', 'gcli/types/node', 'gcli/types/resource', 'gcli/types/setting', 'gcli/settings', 'gcli/ui/intro', 'gcli/ui/focus', 'gcli/ui/fields/basic', 'gcli/ui/fields/javascript', 'gcli/ui/fields/selection', 'gcli/commands/connect', 'gcli/commands/context', 'gcli/commands/help', 'gcli/commands/pref', 'gcli/canon', 'gcli/converters', 'gcli/ui/ffdisplay'], function(require, exports, module) {
 
   'use strict';
 
@@ -143,9 +143,6 @@ define('gcli/index', ['require', 'exports', 'module' , 'gcli/types/basic', 'gcli
   exports.removeCommand = require('gcli/canon').removeCommand;
   exports.addConverter = require('gcli/converters').addConverter;
   exports.removeConverter = require('gcli/converters').removeConverter;
-  exports.addType = require('gcli/types').addType;
-  exports.removeType = require('gcli/types').removeType;
-
   exports.lookup = mozl10n.lookup;
   exports.lookupFormat = mozl10n.lookupFormat;
 
@@ -624,7 +621,7 @@ ArrayType.prototype.parse = function(arg, context) {
   }.bind(this);
 
   var conversionPromises = arg.getArguments().map(subArgParse);
-  return Promise.all(conversionPromises).then(function(conversions) {
+  return util.all(conversionPromises).then(function(conversions) {
     return new ArrayConversion(conversions, arg);
   });
 };
@@ -657,17 +654,15 @@ exports.ArrayType = ArrayType;
 
 define('util/promise', ['require', 'exports', 'module' ], function(require, exports, module) {
 
-'use strict';
+  'use strict';
 
-var imported = {};
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js",
-                        imported);
+  var imported = {};
+  Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js",
+                          imported);
 
-exports.defer = imported.Promise.defer;
-exports.resolve = imported.Promise.resolve;
-exports.reject = imported.Promise.reject;
-exports.promised = imported.Promise.promised;
-exports.all = imported.Promise.all;
+  exports.defer = imported.Promise.defer;
+  exports.resolve = imported.Promise.resolve;
+  exports.reject = imported.Promise.reject;
 
 });
 /*
@@ -909,6 +904,65 @@ exports.createEvent = function(name) {
 var Promise = require('util/promise');
 
 /**
+ * Implementation of 'promised', while we wait for bug 790195 to be fixed.
+ * @see Consuming promises in https://addons.mozilla.org/en-US/developers/docs/sdk/latest/modules/sdk/core/promise.html
+ * @see https://bugzilla.mozilla.org/show_bug.cgi?id=790195
+ * @see https://github.com/mozilla/addon-sdk/blob/master/packages/api-utils/lib/promise.js#L179
+ */
+exports.promised = (function() {
+  // Note: Define shortcuts and utility functions here in order to avoid
+  // slower property accesses and unnecessary closure creations on each
+  // call of this popular function.
+
+  var call = Function.call;
+  var concat = Array.prototype.concat;
+
+  // Utility function that does following:
+  // execute([ f, self, args...]) => f.apply(self, args)
+  function execute(args) { return call.apply(call, args); }
+
+  // Utility function that takes promise of `a` array and maybe promise `b`
+  // as arguments and returns promise for `a.concat(b)`.
+  function promisedConcat(promises, unknown) {
+    return promises.then(function(values) {
+      return Promise.resolve(unknown).then(function(value) {
+        return values.concat([ value ]);
+      });
+    });
+  }
+
+  return function promised(f, prototype) {
+    /**
+    Returns a wrapped `f`, which when called returns a promise that resolves to
+    `f(...)` passing all the given arguments to it, which by the way may be
+    promises. Optionally second `prototype` argument may be provided to be used
+    a prototype for a returned promise.
+
+    ## Example
+
+    var promise = promised(Array)(1, promise(2), promise(3))
+    promise.then(console.log) // => [ 1, 2, 3 ]
+    **/
+
+    return function promised() {
+      // create array of [ f, this, args... ]
+      return concat.apply([ f, this ], arguments).
+          // reduce it via `promisedConcat` to get promised array of fulfillments
+          reduce(promisedConcat, Promise.resolve([], prototype)).
+          // finally map that to promise of `f.apply(this, args...)`
+          then(execute);
+    };
+  };
+})();
+
+/**
+ * Convert an array of promises to a single promise, which is resolved (with an
+ * array containing resolved values) only when all the component promises are
+ * resolved.
+ */
+exports.all = exports.promised(Array);
+
+/**
  * Utility to convert a resolved promise to a concrete value.
  * Warning: This is something of an experiment. The alternative of mixing
  * concrete/promise return values could be better.
@@ -938,10 +992,8 @@ exports.synchronize = function(promise) {
 };
 
 /**
- * promiseEach is roughly like Array.forEach except that the action is taken to
- * be something that completes asynchronously, returning a promise, so we wait
- * for the action to complete for each array element before moving onto the
- * next.
+ * promiseMap is roughly like Array.map except that the action is taken to be
+ * something that completes asynchronously, returning a promise.
  * @param array An array of objects to enumerate
  * @param action A function to call for each member of the array
  * @param scope Optional object to use as 'this' for the function calls
@@ -955,26 +1007,23 @@ exports.promiseEach = function(array, action, scope) {
   }
 
   var deferred = Promise.defer();
-  var replies = [];
 
   var callNext = function(index) {
-    var onSuccess = function(reply) {
+    var replies = [];
+    var promiseReply = action.call(scope, array[index]);
+    Promise.resolve(promiseReply).then(function(reply) {
       replies[index] = reply;
 
-      if (index + 1 >= array.length) {
+      var nextIndex = index + 1;
+      if (nextIndex >= array.length) {
         deferred.resolve(replies);
       }
       else {
-        callNext(index + 1);
+        callNext(nextIndex);
       }
-    };
-
-    var onFailure = function(ex) {
+    }).then(null, function(ex) {
       deferred.reject(ex);
-    };
-
-    var reply = action.call(scope, array[index], index, array);
-    Promise.resolve(reply).then(onSuccess).then(null, onFailure);
+    });
   };
 
   callNext(0);
@@ -3815,10 +3864,6 @@ Canon.prototype.addProxyCommands = function(prefix, commandSpecs, remoter, to) {
   names.forEach(function(name) {
     var commandSpec = commandSpecs[name];
 
-    if (commandSpec.noRemote) {
-      return;
-    }
-
     if (!commandSpec.isParent) {
       commandSpec.exec = function(args, context) {
         context.commandName = name;
@@ -4910,38 +4955,32 @@ NodeListType.prototype.name = 'nodelist';
 
 define('util/host', ['require', 'exports', 'module' ], function(require, exports, module) {
 
-'use strict';
+  'use strict';
 
-/**
- * The chromeWindow as as required by Highlighter, so it knows where to
- * create temporary highlight nodes.
- */
-exports.chromeWindow = undefined;
+  /**
+   * The chromeWindow as as required by Highlighter, so it knows where to
+   * create temporary highlight nodes.
+   */
+  exports.chromeWindow = undefined;
 
-/**
- * See docs in lib/util/host.js:flashNodes
- */
-exports.flashNodes = function(nodes, match) {
-  // Commented out until Bug 653545 is completed
-  /*
-  if (exports.chromeWindow == null) {
-    console.log('flashNodes has no chromeWindow. Skipping flash');
-    return;
-  }
+  /**
+   * Helper to turn a set of nodes background another color for 0.5 seconds.
+   * There is likely a better way to do this, but this will do for now.
+   */
+  exports.flashNodes = function(nodes, match) {
+    // Commented out until Bug 653545 is completed
+    /*
+    if (exports.chromeWindow == null) {
+      console.log('flashNodes has no chromeWindow. Skipping flash');
+      return;
+    }
 
-  var imports = {};
-  Components.utils.import("resource:///modules/highlighter.jsm", imports);
+    var imports = {};
+    Components.utils.import("resource:///modules/highlighter.jsm", imports);
 
-  imports.Highlighter.flashNodes(nodes, exports.chromeWindow, match);
-  */
-};
-
-/**
- * See docs in lib/util/host.js:exec
- */
-exports.exec = function(execSpec) {
-  throw new Error('Not supported');
-};
+    imports.Highlighter.flashNodes(nodes, exports.chromeWindow, match);
+    */
+  };
 
 
 });
@@ -6222,10 +6261,6 @@ function Requisition(environment, doc, commandOutputManager) {
   }
 
   this.commandOutputManager = commandOutputManager || new CommandOutputManager();
-  this.shell = {
-    cwd: '/', // Where we store the current working directory
-    env: {}   // Where we store the current environment
-  };
 
   // The command that we are about to execute.
   // @see setCommandConversion()
@@ -6308,10 +6343,6 @@ Object.defineProperty(Requisition.prototype, 'executionContext', {
       Object.defineProperty(this._executionContext, 'environment', {
         get: function() { return requisition.environment; },
         enumerable: true
-      });
-      Object.defineProperty(this._executionContext, 'shell', {
-        get: function() { return requisition.shell; },
-        enumerable : true
       });
 
       /**
@@ -6729,7 +6760,7 @@ Requisition.prototype.complete = function(cursor, predictionChoice) {
       outstanding.push(promise);
     }
 
-    return Promise.all(outstanding).then(function() {
+    return util.all(outstanding).then(function() {
       this.onTextChange();
       this.onTextChange.resumeFire();
     }.bind(this));
@@ -7546,19 +7577,19 @@ Requisition.prototype._assign = function(args) {
 
   if (!this.commandAssignment.value) {
     this._addUnassignedArgs(args);
-    return Promise.all(outstanding);
+    return util.all(outstanding);
   }
 
   if (args.length === 0) {
     this.setBlankArguments();
-    return Promise.all(outstanding);
+    return util.all(outstanding);
   }
 
   // Create an error if the command does not take parameters, but we have
   // been given them ...
   if (this.assignmentCount === 0) {
     this._addUnassignedArgs(args);
-    return Promise.all(outstanding);
+    return util.all(outstanding);
   }
 
   // Special case: if there is only 1 parameter, and that's of type
@@ -7568,7 +7599,7 @@ Requisition.prototype._assign = function(args) {
     if (assignment.param.type.name === 'string') {
       var arg = (args.length === 1) ? args[0] : new MergedArgument(args);
       outstanding.push(this.setAssignment(assignment, arg, noArgUp));
-      return Promise.all(outstanding);
+      return util.all(outstanding);
     }
   }
 
@@ -7675,7 +7706,7 @@ Requisition.prototype._assign = function(args) {
   // What's left is can't be assigned, but we need to extract
   this._addUnassignedArgs(args);
 
-  return Promise.all(outstanding);
+  return util.all(outstanding);
 };
 
 exports.Requisition = Requisition;
@@ -9507,12 +9538,10 @@ var connect = {
   createRemoter: function(prefix, connection) {
     return function(cmdArgs, context) {
       var typed = context.typed;
-
-      // If we've been called using a 'context' then there will be no prefix
-      // otherwise we need to remove it
-      if (typed.indexOf(prefix) === 0) {
-        typed = typed.substring(prefix.length).replace(/^ */, "");
+      if (typed.indexOf(prefix) !== 0) {
+        throw new Error("Missing prefix");
       }
+      typed = typed.substring(prefix.length).replace(/^ */, "");
 
       return connection.execute(typed, cmdArgs).then(function(reply) {
         var typedData = context.typedData(reply.type, reply.data);
@@ -9552,19 +9581,12 @@ var disconnect = {
       name: 'prefix',
       type: 'connection',
       description: l10n.lookup('disconnectPrefixDesc'),
-    },
-    {
-      name: 'force',
-      type: 'boolean',
-      description: l10n.lookup('disconnectForceDesc'),
-      hidden: connector.disconnectSupportsForce,
-      option: true
     }
   ],
   returnType: 'string',
 
   exec: function(args, context) {
-    return args.prefix.disconnect(args.force).then(function() {
+    return args.prefix.disconnect().then(function() {
       var removed = canon.removeProxyCommands(args.prefix.prefix);
       delete connections[args.prefix.prefix];
       return l10n.lookupFormat('disconnectReply', [ removed.length ]);
@@ -9608,14 +9630,12 @@ exports.shutdown = function() {
  * limitations under the License.
  */
 
-define('util/connect/connector', ['require', 'exports', 'module' , 'util/promise'], function(require, exports, module) {
+define('util/connect/connector', ['require', 'exports', 'module' ], function(require, exports, module) {
 
 'use strict';
 
 var debuggerSocketConnect = Components.utils.import('resource://gre/modules/devtools/dbg-client.jsm', {}).debuggerSocketConnect;
 var DebuggerClient = Components.utils.import('resource://gre/modules/devtools/dbg-client.jsm', {}).DebuggerClient;
-
-var Promise = require('util/promise');
 
 /**
  * What port should we use by default?
@@ -9704,12 +9724,32 @@ Connection.prototype.getCommandSpecs = function() {
  * Send an execute request. Replies are handled by the setup in connect()
  */
 Connection.prototype.execute = function(typed, cmdArgs) {
+  var deferred = Promise.defer();
+
+  var request = {
+    to: this.actor,
+    type: 'execute',
+    typed: typed,
+    args: cmdArgs
+  };
+
+  this.client.request(request, function(response) {
+    deferred.resolve(response.reply);
+  });
+
+  return deferred.promise;
+};
+
+/**
+ * Send an execute request.
+ */
+Connection.prototype.execute = function(typed, cmdArgs) {
   var request = new Request(this.actor, typed, cmdArgs);
-  this.requests[request.json.requestId] = request;
+  this.requests[request.json.id] = request;
 
   this.client.request(request.json, function(response) {
-    var request = this.requests[response.requestId];
-    delete this.requests[response.requestId];
+    var request = this.requests[response.id];
+    delete this.requests[response.id];
 
     request.complete(response.error, response.type, response.data);
   }.bind(this));
@@ -9717,12 +9757,10 @@ Connection.prototype.execute = function(typed, cmdArgs) {
   return request.promise;
 };
 
-exports.disconnectSupportsForce = false;
-
 /**
  * Kill this connection
  */
-Connection.prototype.disconnect = function(force) {
+Connection.prototype.disconnect = function() {
   var deferred = Promise.defer();
 
   this.client.close(function() {
@@ -9742,7 +9780,7 @@ function Request(actor, typed, args) {
     type: 'execute',
     typed: typed,
     args: args,
-    requestId: 'id-' + Request._nextRequestId++,
+    id: Request._nextRequestId++,
   };
 
   this._deferred = Promise.defer();
@@ -9806,7 +9844,6 @@ var contextCmdSpec = {
    }
   ],
   returnType: 'string',
-  noRemote: true,
   exec: function echo(args, context) {
     // Do not copy this code
     var requisition = context.__dlhjshfw;
@@ -10161,17 +10198,6 @@ var terminalDomConverter = {
 };
 
 /**
- * Convert a terminal object to a string
- */
-var terminalStringConverter = {
-  from: 'terminal',
-  to: 'string',
-  exec: function(data, context) {
-    return Array.isArray(data) ? data.join('') : '' + data;
-  }
-};
-
-/**
  * Several converters are just data.toString inside a 'p' element
  */
 function nodeFromDataToString(data, conversionContext) {
@@ -10350,7 +10376,6 @@ exports.convert = function(data, from, to, conversionContext) {
 exports.addConverter(viewDomConverter);
 exports.addConverter(viewStringConverter);
 exports.addConverter(terminalDomConverter);
-exports.addConverter(terminalStringConverter);
 exports.addConverter(stringDomConverter);
 exports.addConverter(numberDomConverter);
 exports.addConverter(booleanDomConverter);
