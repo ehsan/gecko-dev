@@ -95,7 +95,6 @@
 
 #include "nsDOMFile.h"
 #include "nsIRemoteBlob.h"
-#include "ProcessUtils.h"
 #include "StructuredCloneUtils.h"
 #include "URIUtils.h"
 #include "nsIScriptSecurityManager.h"
@@ -297,11 +296,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
         GetCurrentProcId(),
         startBackground ? hal::PROCESS_PRIORITY_BACKGROUND:
                           hal::PROCESS_PRIORITY_FOREGROUND);
-    if (mIsForApp && !mIsForBrowser) {
-        SetThisProcessName("(App)");
-    } else {
-        SetThisProcessName("Browser");
-    }
 
     return true;
 }

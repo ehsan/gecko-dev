@@ -39,7 +39,7 @@ class RopeBuilder;
 
 }  /* namespace js */
 
-extern JSString *
+extern JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, js::HandleString s1, js::HandleString s2);
 
 extern JSString * JS_FASTCALL

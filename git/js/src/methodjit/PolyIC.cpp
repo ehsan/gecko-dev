@@ -257,8 +257,8 @@ class SetPropCompiler : public PICStubCompiler
         Vector<Jump, 8> slowExits(cx);
         Vector<Jump, 8> otherGuards(cx);
 
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
 
         // Shape guard.
         if (pic.shapeNeedsRemat()) {
@@ -587,9 +587,7 @@ class SetPropCompiler : public PICStubCompiler
         if (!pic.inlinePathPatched &&
             shape->hasDefaultSetter() &&
             !pic.typeMonitored &&
-            !obj->isDenseArray())
-        {
-            pic.setInlinePathShape(obj->lastProperty());
+            !obj->isDenseArray()) {
             return patchInline(shape);
         }
 
@@ -763,17 +761,6 @@ struct GetPropHelper {
 namespace js {
 namespace mjit {
 
-inline void
-MarkNotIdempotent(JSScript *script, jsbytecode *pc)
-{
-    if (!script->hasAnalysis())
-        return;
-    analyze::Bytecode *code = script->analysis()->maybeCode(pc);
-    if (!code)
-        return;
-    code->notIdempotent = true;
-}
-
 class GetPropCompiler : public PICStubCompiler
 {
     RootedObject obj;
@@ -814,8 +801,8 @@ class GetPropCompiler : public PICStubCompiler
 
     LookupStatus generateArrayLengthStub()
     {
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
 
         masm.loadObjClass(pic.objReg, pic.shapeReg);
         Jump isDense = masm.testClass(Assembler::Equal, pic.shapeReg, &ArrayClass);
@@ -856,8 +843,8 @@ class GetPropCompiler : public PICStubCompiler
 
     LookupStatus generateStringObjLengthStub()
     {
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
 
         Jump notStringObj = masm.guardShape(pic.objReg, obj);
 
@@ -917,8 +904,8 @@ class GetPropCompiler : public PICStubCompiler
         if (hadGC())
             return Lookup_Uncacheable;
 
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
 
         /* Only strings are allowed. */
         Jump notString = masm.branchPtr(Assembler::NotEqual, pic.typeReg(),
@@ -972,8 +959,8 @@ class GetPropCompiler : public PICStubCompiler
     {
         JS_ASSERT(pic.hasTypeCheck());
 
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
         Jump notString = masm.branchPtr(Assembler::NotEqual, pic.typeReg(),
                                         ImmType(JSVAL_TYPE_STRING));
         masm.loadPtr(Address(pic.objReg, JSString::offsetOfLengthAndFlags()), pic.objReg);
@@ -1250,8 +1237,8 @@ class GetPropCompiler : public PICStubCompiler
     {
         Vector<Jump, 8> shapeMismatches(cx);
 
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
 
         // Ignore GC pointers baked into assembly visible on the stack.
         SkipRoot skip(cx, &masm);
@@ -1262,8 +1249,6 @@ class GetPropCompiler : public PICStubCompiler
 
         bool setStubShapeOffset = true;
         if (obj->isDenseArray()) {
-            MarkNotIdempotent(f.script(), f.pc());
-
             start = masm.label();
             shapeGuardJump = masm.branchPtr(Assembler::NotEqual,
                                             Address(pic.objReg, JSObject::offsetOfShape()),
@@ -1378,8 +1363,6 @@ class GetPropCompiler : public PICStubCompiler
         }
 
         if (shape && !shape->hasDefaultGetter()) {
-            MarkNotIdempotent(f.script(), f.pc());
-
             if (shape->hasGetterValue()) {
                 generateNativeGetterStub(masm, shape, start, shapeMismatches);
             } else {
@@ -1476,30 +1459,16 @@ class GetPropCompiler : public PICStubCompiler
         JS_ASSERT(pic.hit);
 
         GetPropHelper<GetPropCompiler> getprop(cx, obj, name, *this, f);
-        RecompilationMonitor monitor(cx);
         LookupStatus status = getprop.lookupAndTest();
-
-        if (status != Lookup_Cacheable && status != Lookup_NoProperty) {
-            /* Don't touch the IC if it may have been destroyed. */
-            if (!monitor.recompiled())
-                pic.hadUncacheable = true;
-            MarkNotIdempotent(f.script(), f.pc());
+        if (status != Lookup_Cacheable && status != Lookup_NoProperty)
             return status;
-        }
-
-        // Mark as not idempotent to avoid recompilation in Ion Monkey
-        // GetPropertyCache.
-        if (!obj->hasIdempotentProtoChain())
-            MarkNotIdempotent(f.script(), f.pc());
-
         if (hadGC())
             return Lookup_Uncacheable;
 
-        if (obj == getprop.holder &&
+        if (status == Lookup_Cacheable &&
+            obj == getprop.holder &&
             getprop.shape->hasDefaultGetter() &&
-            !pic.inlinePathPatched)
-        {
-            pic.setInlinePathShape(obj->lastProperty());
+            !pic.inlinePathPatched) {
             return patchInline(getprop.holder, getprop.shape);
         }
 
@@ -1603,8 +1572,8 @@ class ScopeNameCompiler : public PICStubCompiler
 
     LookupStatus generateGlobalStub(JSObject *obj)
     {
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
         JumpList fails(cx);
         ScopeNameLabels &labels = pic.scopeNameLabels();
 
@@ -1676,8 +1645,8 @@ class ScopeNameCompiler : public PICStubCompiler
 
     LookupStatus generateCallStub(JSObject *obj)
     {
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
         Vector<Jump, 8> fails(cx);
         ScopeNameLabels &labels = pic.scopeNameLabels();
 
@@ -1863,8 +1832,8 @@ class BindNameCompiler : public PICStubCompiler
 
     LookupStatus generateStub(JSObject *obj)
     {
-        MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-        Assembler masm(&sps, &f);
+        SPSInstrumentation sps(&f);
+        Assembler masm(&sps);
         Vector<Jump, 8> fails(cx);
 
         BindNameLabels &labels = pic.bindNameLabels();
@@ -2044,7 +2013,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
 
     RootedValue v(f.cx);
     if (cached) {
-        if (!GetPropertyOperation(f.cx, f.script(), f.pc(), &objval, &v))
+        if (!GetPropertyOperation(f.cx, f.pc(), &objval, &v))
             THROW();
     } else {
         if (!JSObject::getProperty(f.cx, obj, obj, name, &v))
@@ -2090,8 +2059,6 @@ ic::SetPropOrName(VMFrame &f, ic::PICInfo *pic)
         LookupStatus status = cc.update();
         if (status == Lookup_Error)
             THROW();
-        if (status != Lookup_Cacheable && !monitor.recompiled())
-            pic->hadUncacheable = true;
     }
 
     if (*f.pc() == JSOP_SETPROP)
@@ -2202,8 +2169,6 @@ BaseIC::disable(VMFrame &f, const char *reason, void *stub)
         uint32_t offset = frameCountersOffset(f);
         f.chunk()->pcLengths[offset].picsLength = 0;
     }
-
-    disabled = true;
 
     spew(f, "disabled", reason);
     Repatcher repatcher(f.chunk());
@@ -2328,8 +2293,8 @@ GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandleP
     if (cx->typeInferenceEnabled() && !forcedTypeBarrier)
         return disable(f, "string element access may not have type barrier");
 
-    MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-    Assembler masm(&sps, &f);
+    SPSInstrumentation sps(&f);
+    Assembler masm(&sps);
 
     // Guard on the string's type and identity.
     MaybeJump atomTypeGuard;
@@ -2500,8 +2465,8 @@ GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, Hand
     // known to be int32, either via type inference or the inline type check.
     JS_ASSERT(hasInlineTypeGuard() || idRemat.knownType() == JSVAL_TYPE_INT32);
 
-    MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-    Assembler masm(&sps, &f);
+    SPSInstrumentation sps(&f);
+    Assembler masm(&sps);
 
     // Guard on this typed array's shape/class.
     Jump shapeGuard = masm.guardShape(objReg, obj);
@@ -2728,8 +2693,8 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     if (js_PrototypeHasIndexedProperties(cx, obj))
         return disable(f, "prototype has indexed properties");
 
-    MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-    Assembler masm(&sps, &f);
+    SPSInstrumentation sps(&f);
+    Assembler masm(&sps);
 
     Vector<Jump, 8> fails(cx);
 
@@ -2824,8 +2789,8 @@ SetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, int32_t key)
     JS_ASSERT(!inlineShapeGuardPatched);
 
     JSContext *cx = f.cx;
-    MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
-    Assembler masm(&sps, &f);
+    SPSInstrumentation sps(&f);
+    Assembler masm(&sps);
 
     // Restore |obj|.
     masm.rematPayload(StateRemat::FromInt32(objRemat), objReg);

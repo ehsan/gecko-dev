@@ -2046,15 +2046,8 @@ MoveToPending(nsIFile* dumpFile, nsIFile* extraFile)
   if (!GetPendingDir(getter_AddRefs(pendingDir)))
     return false;
 
-  if (NS_FAILED(dumpFile->MoveTo(pendingDir, EmptyString()))) {
-    return false;
-  }
-
-  if (extraFile && NS_FAILED(extraFile->MoveTo(pendingDir, EmptyString()))) {
-    return false;
-  }
-
-  return true;
+  return NS_SUCCEEDED(dumpFile->MoveTo(pendingDir, EmptyString())) &&
+    NS_SUCCEEDED(extraFile->MoveTo(pendingDir, EmptyString()));
 }
 
 static void
@@ -2520,24 +2513,11 @@ TakeMinidumpForChild(uint32_t childPid, nsIFile** dump, uint32_t* aSequence)
 //-----------------------------------------------------------------------------
 // CreatePairedMinidumps() and helpers
 //
-
-void
-RenameAdditionalHangMinidump(nsIFile* minidump, nsIFile* childMinidump,
-                           const nsACString& name)
-{
-  nsCOMPtr<nsIFile> directory;
-  childMinidump->GetParent(getter_AddRefs(directory));
-  if (!directory)
-    return;
-
-  nsAutoCString leafName;
-  childMinidump->GetNativeLeafName(leafName);
-
-  // turn "<id>.dmp" into "<id>-<name>.dmp
-  leafName.Insert(NS_LITERAL_CSTRING("-") + name, leafName.Length() - 4);
-
-  minidump->MoveToNative(directory, leafName);
-}
+struct PairedDumpContext {
+  nsCOMPtr<nsIFile>* minidump;
+  nsCOMPtr<nsIFile>* extra;
+  const Blacklist& blacklist;
+};
 
 static bool
 PairedDumpCallback(const XP_CHAR* dump_path,
@@ -2549,7 +2529,10 @@ PairedDumpCallback(const XP_CHAR* dump_path,
 #endif
                    bool succeeded)
 {
-  nsCOMPtr<nsIFile>& minidump = *static_cast< nsCOMPtr<nsIFile>* >(context);
+  PairedDumpContext* ctx = static_cast<PairedDumpContext*>(context);
+  nsCOMPtr<nsIFile>& minidump = *ctx->minidump;
+  nsCOMPtr<nsIFile>& extra = *ctx->extra;
+  const Blacklist& blacklist = ctx->blacklist;
 
   xpstring dump(dump_path);
   dump += XP_PATH_SEPARATOR;
@@ -2557,29 +2540,7 @@ PairedDumpCallback(const XP_CHAR* dump_path,
   dump += dumpFileExtension;
 
   CreateFileFromPath(dump, getter_AddRefs(minidump));
-  return true;
-}
-
-static bool
-PairedDumpCallbackExtra(const XP_CHAR* dump_path,
-                        const XP_CHAR* minidump_id,
-                        void* context,
-#ifdef XP_WIN32
-                        EXCEPTION_POINTERS* /*unused*/,
-                        MDRawAssertionInfo* /*unused*/,
-#endif
-                        bool succeeded)
-{
-  PairedDumpCallback(dump_path, minidump_id, context,
-#ifdef XP_WIN32
-                     nullptr, nullptr,
-#endif
-                     succeeded);
-
-  nsCOMPtr<nsIFile>& minidump = *static_cast< nsCOMPtr<nsIFile>* >(context);
-
-  nsCOMPtr<nsIFile> extra;
-  return WriteExtraForMinidump(minidump, Blacklist(), getter_AddRefs(extra));
+  return WriteExtraForMinidump(minidump, blacklist, getter_AddRefs(extra));
 }
 
 ThreadId
@@ -2610,10 +2571,30 @@ CurrentThreadId()
 bool
 CreatePairedMinidumps(ProcessHandle childPid,
                       ThreadId childBlamedThread,
-                      nsIFile** childDump)
+                      nsAString* pairGUID,
+                      nsIFile** childDump,
+                      nsIFile** parentDump)
 {
   if (!GetEnabled())
     return false;
+
+  // create the UUID for the hang dump as a pair
+  nsresult rv;
+  nsCOMPtr<nsIUUIDGenerator> uuidgen =
+    do_GetService("@mozilla.org/uuid-generator;1", &rv);
+  NS_ENSURE_SUCCESS(rv, false);  
+
+  nsID id;
+  rv = uuidgen->GenerateUUIDInPlace(&id);
+  NS_ENSURE_SUCCESS(rv, false);
+  
+  char chars[NSID_LENGTH];
+  id.ToProvidedString(chars);
+  CopyASCIItoUTF16(chars, *pairGUID);
+
+  // trim off braces
+  pairGUID->Cut(0, 1);
+  pairGUID->Cut(pairGUID->Length()-1, 1);
 
 #ifdef XP_MACOSX
   mach_port_t childThread = MACH_PORT_NULL;
@@ -2630,41 +2611,43 @@ CreatePairedMinidumps(ProcessHandle childPid,
 
   // dump the child
   nsCOMPtr<nsIFile> childMinidump;
+  nsCOMPtr<nsIFile> childExtra;
+  Blacklist childBlacklist(kSubprocessBlacklist,
+                           ArrayLength(kSubprocessBlacklist));
+  PairedDumpContext childCtx =
+    { &childMinidump, &childExtra, childBlacklist };
   if (!google_breakpad::ExceptionHandler::WriteMinidumpForChild(
          childPid,
          childThread,
          gExceptionHandler->dump_path(),
-         PairedDumpCallbackExtra,
-         static_cast<void*>(&childMinidump)))
+         PairedDumpCallback,
+         &childCtx))
     return false;
-
-  nsCOMPtr<nsIFile> childExtra;
-  GetExtraFileForMinidump(childMinidump, getter_AddRefs(childExtra));
 
   // dump the parent
   nsCOMPtr<nsIFile> parentMinidump;
+  nsCOMPtr<nsIFile> parentExtra;
+  // nothing's blacklisted for this process
+  Blacklist parentBlacklist;
+  PairedDumpContext parentCtx =
+    { &parentMinidump, &parentExtra, parentBlacklist };
   if (!google_breakpad::ExceptionHandler::WriteMinidump(
          gExceptionHandler->dump_path(),
          true,                  // write exception stream
          PairedDumpCallback,
-         static_cast<void*>(&parentMinidump))) {
-
-    childMinidump->Remove(false);
-    childExtra->Remove(false);
-
+         &parentCtx))
     return false;
-  }
 
   // success
-  RenameAdditionalHangMinidump(parentMinidump, childMinidump,
-                               NS_LITERAL_CSTRING("browser"));
-
   if (ShouldReport()) {
     MoveToPending(childMinidump, childExtra);
-    MoveToPending(parentMinidump, nullptr);
+    MoveToPending(parentMinidump, parentExtra);
   }
 
-  childMinidump.forget(childDump);
+  *childDump = NULL;
+  *parentDump = NULL;
+  childMinidump.swap(*childDump);
+  parentMinidump.swap(*parentDump);
 
   return true;
 }

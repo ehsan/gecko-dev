@@ -484,6 +484,9 @@ DOMCI_CLASS(FormData)
 DOMCI_CLASS(DesktopNotification)
 DOMCI_CLASS(DesktopNotificationCenter)
 
+// WebSocket
+DOMCI_CLASS(WebSocket)
+
 DOMCI_CLASS(IDBFactory)
 DOMCI_CLASS(IDBFileHandle)
 DOMCI_CLASS(IDBRequest)

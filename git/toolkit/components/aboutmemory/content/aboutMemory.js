@@ -23,11 +23,6 @@ const UNITS_COUNT            = Ci.nsIMemoryReporter.UNITS_COUNT;
 const UNITS_COUNT_CUMULATIVE = Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE;
 const UNITS_PERCENTAGE       = Ci.nsIMemoryReporter.UNITS_PERCENTAGE;
 
-let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"].
-           getService(Ci.nsIMemoryReporterManager);
-
-let gUnnamedProcessStr = "Main Process";
-
 // Because about:memory and about:compartments are non-standard URLs,
 // location.search is undefined, so we have to use location.href here.
 // The toLowerCase() calls ensure that addresses like "ABOUT:MEMORY" work.
@@ -59,31 +54,11 @@ function flipBackslashes(aUnsafeStr)
 
 const gAssertionFailureMsgPrefix = "aboutMemory.js assertion failed: ";
 
-// This is used for things that should never fail, and indicate a defect in
-// this file if they do.
 function assert(aCond, aMsg)
 {
   if (!aCond) {
     reportAssertionFailure(aMsg)
     throw(gAssertionFailureMsgPrefix + aMsg);
-  }
-}
-
-// This is used for malformed input from memory reporters.
-function assertInput(aCond, aMsg)
-{
-  if (!aCond) {
-    throw "Invalid memory report(s): " + aMsg;
-  }
-}
-
-function handleException(ex)
-{
-  let str = ex.toString();
-  if (str.startsWith(gAssertionFailureMsgPrefix)) {
-    throw ex;     // Argh, assertion failure within this file!  Give up.
-  } else {
-    badInput(ex); // File or memory reporter problem.  Print a message.
   }
 }
 
@@ -98,11 +73,6 @@ function reportAssertionFailure(aMsg)
 function debug(x)
 {
   appendElementWithText(document.body, "div", "debug", JSON.stringify(x));
-}
-
-function badInput(x)
-{
-  appendElementWithText(document.body, "div", "badInputWarning", x);
 }
 
 //---------------------------------------------------------------------------
@@ -133,7 +103,7 @@ function onLoad()
 function onUnload()
 {
   // We need to check if the observer has been added before removing; in some
-  // circumstances (e.g. reloading the page quickly) it might not have because
+  // circumstances (eg. reloading the page quickly) it might not have because
   // onLoadAbout{Memory,Compartments} might not fire.
   if (gChildMemoryListener) {
     let os = Cc["@mozilla.org/observer-service;1"].
@@ -179,6 +149,8 @@ function minimizeMemoryUsage3x(fAfter)
 /**
  * Iterates over each reporter and multi-reporter.
  *
+ * @param aMgr
+ *        The memory reporter manager.
  * @param aIgnoreSingle
  *        Function that indicates if we should skip a single reporter, based
  *        on its path.
@@ -188,7 +160,8 @@ function minimizeMemoryUsage3x(fAfter)
  * @param aHandleReport
  *        The function that's called for each report.
  */
-function processMemoryReporters(aIgnoreSingle, aIgnoreMulti, aHandleReport)
+function processMemoryReporters(aMgr, aIgnoreSingle, aIgnoreMulti,
+                                aHandleReport)
 {
   // Process each memory reporter with aHandleReport.
   //
@@ -200,45 +173,47 @@ function processMemoryReporters(aIgnoreSingle, aIgnoreMulti, aHandleReport)
   //
   // - After this point we never use the original memory report again.
 
-  let e = gMgr.enumerateReporters();
+  let e = aMgr.enumerateReporters();
   while (e.hasMoreElements()) {
     let rOrig = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
-    let unsafePath = rOrig.path;
-    if (!aIgnoreSingle(unsafePath)) {
-      aHandleReport(rOrig.process, unsafePath, rOrig.kind, rOrig.units,
-                    rOrig.amount, rOrig.description);
+    let unsafePath;
+    try {
+      unsafePath = rOrig.path;
+      if (!aIgnoreSingle(unsafePath)) {
+        aHandleReport(rOrig.process, unsafePath, rOrig.kind, rOrig.units,
+                      rOrig.amount, rOrig.description);
+      }
+    }
+    catch (ex) {
+      debug("Exception thrown by memory reporter: " + unsafePath + ": " + ex);
     }
   }
 
-  let e = gMgr.enumerateMultiReporters();
+  let e = aMgr.enumerateMultiReporters();
   while (e.hasMoreElements()) {
     let mr = e.getNext().QueryInterface(Ci.nsIMemoryMultiReporter);
-    if (!aIgnoreMulti(mr.name)) {
-      mr.collectReports(aHandleReport, null);
+    let name = mr.name;
+    try {
+      if (!aIgnoreMulti(name)) {
+        mr.collectReports(aHandleReport, null);
+      }
     }
-  }
-}
-
-/**
- * Iterates over each report.
- *
- * @param aReports
- *        Array of reports, read from file.
- * @param aIgnoreSingle
- *        Function that indicates if we should skip a single reporter, based
- *        on its path.
- * @param aHandleReport
- *        The function that's called for each report.
- */
-function processMemoryReportsFromFile(aReports, aIgnoreSingle, aHandleReport)
-{
-  // Process each memory reporter with aHandleReport.
-
-  for (let i = 0; i < aReports.length; i++) {
-    let r = aReports[i];
-    if (!aIgnoreSingle(r.path)) {
-      aHandleReport(r.process, r.path, r.kind, r.units, r.amount,
-                    r.description);
+    catch (ex) {
+      // There are two exception cases that must be distinguished here.
+      //
+      // - We want to halt proceedings on exceptions thrown within this file
+      //   (i.e. assertion failures in aHandleReport);  such exceptions contain
+      //   gAssertionFailureMsgPrefix in their string representation.
+      //
+      // - We want to continue on when faced with exceptions thrown outside
+      //   this file (i.e. when measuring an amount in collectReports).
+      let str = ex.toString();
+      if (str.search(gAssertionFailureMsgPrefix) >= 0) {
+        throw(ex);
+      } else {
+        debug("Exception thrown within memory multi-reporter: " + name + ": " +
+              ex);
+      }
     }
   }
 }
@@ -392,8 +367,7 @@ function doCC()
 //---------------------------------------------------------------------------
 
 /**
- * Top-level function that does the work of generating the page from the memory
- * reporters.
+ * Top-level function that does the work of generating the page.
  */
 function updateAboutMemory()
 {
@@ -402,120 +376,30 @@ function updateAboutMemory()
   // observer.
   let body = clearBody();
 
-  try {
-    // Process the reports from the memory reporters.
-    let process = function(aIgnoreSingle, aIgnoreMulti, aHandleReport) {
-      processMemoryReporters(aIgnoreSingle, aIgnoreMulti, aHandleReport);
-    }
-    appendAboutMemoryMain(body, process, gMgr.hasMozMallocUsableSize);
+  let mgr = Cc["@mozilla.org/memory-reporter-manager;1"].
+      getService(Ci.nsIMemoryReporterManager);
 
-  } catch (ex) {
-    handleException(ex);
-
-  } finally {
-    appendAboutMemoryFooter(body);
-  }
-}
-
-// Increment this if the JSON format changes.
-var gCurrentFileFormatVersion = 1;
-
-/**
- * Like updateAboutMemory(), but gets its data from file instead of the memory
- * reporters.
- *
- * @param aFile
- *        The File being read from.  Accepted format is described in the
- *        comment describing nsIMemoryReporterManager::dumpReports.
- */
-function updateAboutMemoryFromFile(aFile)
-{
-  // Note: readerOnload is called asynchronously, once FileReader.readAsText()
-  // completes.  Therefore its exception handling has to be distinct from that
-  // surrounding the |reader.readAsText(aFile)| call.
-
-  function readerOnload(aEvent) {
-    try {
-      let json = JSON.parse(aEvent.target.result);
-      assertInput(json.version === gCurrentFileFormatVersion,
-                  "data version number missing or doesn't match");
-      assertInput(json.hasMozMallocUsableSize !== undefined,
-                  "missing 'hasMozMallocUsableSize' property");
-      assertInput(json.reports && json.reports instanceof Array,
-                  "missing or non-array 'reports' property");
-      let process = function(aIgnoreSingle, aIgnoreMulti, aHandleReport) {
-        processMemoryReportsFromFile(json.reports, aIgnoreSingle,
-                                     aHandleReport);
-      }
-      appendAboutMemoryMain(body, process, json.hasMozMallocUsableSize);
-    } catch (ex) {
-      handleException(ex);
-    } finally {
-      appendAboutMemoryFooter(body);
-    }
-  };
-
-  let body = clearBody();
-
-  try {
-    let reader = new FileReader();
-    reader.onerror = function(aEvent) { throw "FileReader.onerror"; }
-    reader.onabort = function(aEvent) { throw "FileReader.onabort"; }
-    reader.onload = readerOnload;
-    reader.readAsText(aFile);
-
-  } catch (ex) {
-    handleException(ex);
-    appendAboutMemoryFooter(body);
-  }
-}
-
-/**
- * Processes reports (whether from reporters or from file) and append the main
- * part of the page.
- *
- * @param aBody
- *        The DOM body element.
- * @param aProcess
- *        Function that extracts the memory reports from the reporters or from
- *        file.
- * @param aHasMozMallocUsableSize
- *        Boolean indicating if moz_malloc_usable_size works.
- */
-function appendAboutMemoryMain(aBody, aProcess, aHasMozMallocUsableSize)
-{
   let treesByProcess = {}, degeneratesByProcess = {}, heapTotalByProcess = {};
-  getTreesByProcess(aProcess, treesByProcess, degeneratesByProcess,
+  getTreesByProcess(mgr, treesByProcess, degeneratesByProcess,
                     heapTotalByProcess);
 
   // Generate output for one process at a time.  Always start with the
   // Main process.
-  if (treesByProcess[gUnnamedProcessStr]) {
-    appendProcessAboutMemoryElements(aBody, gUnnamedProcessStr,
-                                     treesByProcess[gUnnamedProcessStr],
-                                     degeneratesByProcess[gUnnamedProcessStr],
-                                     heapTotalByProcess[gUnnamedProcessStr],
-                                     aHasMozMallocUsableSize);
-  }
+  let hasMozMallocUsableSize = mgr.hasMozMallocUsableSize;
+  appendProcessAboutMemoryElements(body, "Main", treesByProcess["Main"],
+                                   degeneratesByProcess["Main"],
+                                   heapTotalByProcess["Main"],
+                                   hasMozMallocUsableSize);
   for (let process in treesByProcess) {
-    if (process !== gUnnamedProcessStr) {
-      appendProcessAboutMemoryElements(aBody, process, treesByProcess[process],
+    if (process !== "Main") {
+      appendProcessAboutMemoryElements(body, process, treesByProcess[process],
                                        degeneratesByProcess[process],
                                        heapTotalByProcess[process],
-                                       aHasMozMallocUsableSize);
+                                       hasMozMallocUsableSize);
     }
   }
-}
 
-/**
- * Appends the page footer.
- *
- * @param aBody
- *        The DOM body element.
- */
-function appendAboutMemoryFooter(aBody)
-{
-  appendElement(aBody, "hr");
+  appendElement(body, "hr");
 
   // Memory-related actions.
   const UpDesc = "Re-measure.";
@@ -526,11 +410,10 @@ function appendAboutMemoryFooter(aBody)
                  "collection followed by a cycle collection, and causes the " +
                  "process to reduce memory usage in other ways, e.g. by " +
                  "flushing various caches.";
-  const RdDesc = "Read memory report data from file.";
 
-  function appendButton(aP, aTitle, aOnClick, aText, aId)
+  function appendButton(aTitle, aOnClick, aText, aId)
   {
-    let b = appendElementWithText(aP, "button", "", aText);
+    let b = appendElementWithText(body, "button", "", aText);
     b.title = aTitle;
     b.onclick = aOnClick
     if (aId) {
@@ -538,39 +421,24 @@ function appendAboutMemoryFooter(aBody)
     }
   }
 
-  let div1 = appendElement(aBody, "div");
-
   // The "Update" button has an id so it can be clicked in a test.
-  appendButton(div1, UpDesc, updateAboutMemory, "Update", "updateButton");
-  appendButton(div1, GCDesc, doGlobalGC,        "GC");
-  appendButton(div1, CCDesc, doCC,              "CC");
-  appendButton(div1, MPDesc,
-               function() { minimizeMemoryUsage3x(updateAboutMemory); },
-               "Minimize memory usage");
+  appendButton(UpDesc, updateAboutMemory, "Update", "updateButton");
+  appendButton(GCDesc, doGlobalGC,        "GC");
+  appendButton(CCDesc, doCC,              "CC");
+  appendButton(MPDesc, function() { minimizeMemoryUsage3x(updateAboutMemory); },
+                                          "Minimize memory usage");
 
-  // The standard file input element is ugly.  So we hide it, and add a button
-  // that when clicked invokes the input element.
-  let input = appendElementWithText(div1, "input", "hidden", "input text");
-  input.type = "file";
-  input.id = "fileInput";   // has an id so it can be invoked by a test
-  input.addEventListener("change", function() {
-    let file = this.files[0];
-    updateAboutMemoryFromFile(file);
-  }); 
-  appendButton(div1, RdDesc, function() { input.click() },
-               "Read reports from file", "readReportsButton");
-
-  let div2 = appendElement(aBody, "div");
+  let div1 = appendElement(body, "div");
   if (gVerbose) {
-    let a = appendElementWithText(div2, "a", "option", "Less verbose");
+    let a = appendElementWithText(div1, "a", "option", "Less verbose");
     a.href = "about:memory";
   } else {
-    let a = appendElementWithText(div2, "a", "option", "More verbose");
+    let a = appendElementWithText(div1, "a", "option", "More verbose");
     a.href = "about:memory?verbose";
   }
 
-  let div3 = appendElement(aBody, "div");
-  let a = appendElementWithText(div3, "a", "option",
+  let div2 = appendElement(body, "div");
+  let a = appendElementWithText(div2, "a", "option",
                                 "Troubleshooting information");
   a.href = "about:support";
 
@@ -579,8 +447,8 @@ function appendAboutMemoryFooter(aBody)
   let legendText2 = "Hover the pointer over the name of a memory report " +
                     "to see a description of what it measures.";
 
-  appendElementWithText(aBody, "div", "legend", legendText1);
-  appendElementWithText(aBody, "div", "legend", legendText2);
+  appendElementWithText(body, "div", "legend", legendText1);
+  appendElementWithText(body, "div", "legend", legendText2);
 }
 
 //---------------------------------------------------------------------------
@@ -594,9 +462,8 @@ const gSentenceRegExp = /^[A-Z].*\.\)?$/m;
  * This function reads all the memory reports, and puts that data in structures
  * that will be used to generate the page.
  *
- * @param aProcessMemoryReports
- *        Function that extracts the memory reports from the reporters or from
- *        file.
+ * @param aMgr
+ *        The memory reporter manager.
  * @param aTreesByProcess
  *        Table of non-degenerate trees, indexed by process, which this
  *        function appends to.
@@ -607,8 +474,8 @@ const gSentenceRegExp = /^[A-Z].*\.\)?$/m;
  *        Table of heap total counts, indexed by process, which this function
  *        appends to.
  */
-function getTreesByProcess(aProcessMemoryReports, aTreesByProcess,
-                           aDegeneratesByProcess, aHeapTotalByProcess)
+function getTreesByProcess(aMgr, aTreesByProcess, aDegeneratesByProcess,
+                           aHeapTotalByProcess)
 {
   // Ignore the "smaps" multi-reporter in non-verbose mode, and the
   // "compartments" and "ghost-windows" multi-reporters all the time.  (Note
@@ -633,22 +500,22 @@ function getTreesByProcess(aProcessMemoryReports, aTreesByProcess,
                         aDescription)
   {
     if (isExplicitPath(aUnsafePath)) {
-      assertInput(aKind === KIND_HEAP || aKind === KIND_NONHEAP, "bad explicit kind");
-      assertInput(aUnits === UNITS_BYTES, "bad explicit units");
-      assertInput(gSentenceRegExp.test(aDescription),
-                  "non-sentence explicit description");
+      assert(aKind === KIND_HEAP || aKind === KIND_NONHEAP, "bad explicit kind");
+      assert(aUnits === UNITS_BYTES, "bad explicit units");
+      assert(gSentenceRegExp.test(aDescription),
+             "non-sentence explicit description");
 
     } else if (isSmapsPath(aUnsafePath)) {
-      assertInput(aKind === KIND_NONHEAP, "bad smaps kind");
-      assertInput(aUnits === UNITS_BYTES, "bad smaps units");
-      assertInput(aDescription !== "", "empty smaps description");
+      assert(aKind === KIND_NONHEAP, "bad smaps kind");
+      assert(aUnits === UNITS_BYTES, "bad smaps units");
+      assert(aDescription !== "", "empty smaps description");
 
     } else {
-      assertInput(gSentenceRegExp.test(aDescription),
-                  "non-sentence other description");
+      assert(gSentenceRegExp.test(aDescription),
+             "non-sentence other description");
     }
 
-    let process = aProcess === "" ? gUnnamedProcessStr : aProcess;
+    let process = aProcess === "" ? "Main" : aProcess;
     let unsafeNames = aUnsafePath.split('/');
     let unsafeName0 = unsafeNames[0];
     let isDegenerate = unsafeNames.length === 1;
@@ -706,7 +573,7 @@ function getTreesByProcess(aProcessMemoryReports, aTreesByProcess,
     }
   }
 
-  aProcessMemoryReports(ignoreSingle, ignoreMulti, handleReport);
+  processMemoryReporters(aMgr, ignoreSingle, ignoreMulti, handleReport);
 }
 
 //---------------------------------------------------------------------------
@@ -756,7 +623,7 @@ TreeNode.prototype = {
       case UNITS_COUNT_CUMULATIVE: return formatInt(this._amount);
       case UNITS_PERCENTAGE:       return formatPercentage(this._amount);
       default:
-        assertInput(false, "bad units in TreeNode.toString");
+        assert(false, "bad units in TreeNode.toString");
     }
   }
 };
@@ -999,7 +866,7 @@ function appendWarningElements(aP, aHasKnownHeapAllocated,
 function appendProcessAboutMemoryElements(aP, aProcess, aTrees, aDegenerates,
                                           aHeapTotal, aHasMozMallocUsableSize)
 {
-  appendElementWithText(aP, "h1", "", aProcess + "\n\n");
+  appendElementWithText(aP, "h1", "", aProcess + " Process\n\n");
 
   // We'll fill this in later.
   let warningsDiv = appendElement(aP, "div", "accuracyWarning");
@@ -1009,10 +876,9 @@ function appendProcessAboutMemoryElements(aP, aProcess, aTrees, aDegenerates,
   {
     let treeName = "explicit";
     let t = aTrees[treeName];
-    assertInput(t, "no explicit reports");
+    assert(t, "no explicit tree");
     fillInTree(t);
     hasKnownHeapAllocated =
-      aDegenerates &&
       addHeapUnclassifiedNode(t, aDegenerates["heap-allocated"], aHeapTotal);
     sortTreeAndInsertAggregateNodes(t._amount, t);
     t._description = kTreeDescriptions[treeName];
@@ -1387,8 +1253,7 @@ function appendTreeElements(aP, aRoot, aProcess, aPadText)
     appendElementWithText(aP, "span", "treeline", treelineText);
 
     // Detect and record invalid values.
-    assertInput(aRoot._units === aT._units,
-                "units within a tree are inconsistent");
+    assert(aRoot._units === aT._units, "units within a tree are inconsistent");
     let tIsInvalid = false;
     if (!(0 <= aT._amount && aT._amount <= aRoot._amount)) {
       tIsInvalid = true;
@@ -1513,8 +1378,11 @@ function updateAboutCompartments()
   // "child-memory-reporter-update" observer.
   let body = clearBody();
 
-  let compartmentsByProcess = getCompartmentsByProcess();
-  let ghostWindowsByProcess = getGhostWindowsByProcess();
+  let mgr = Cc["@mozilla.org/memory-reporter-manager;1"].
+      getService(Ci.nsIMemoryReporterManager);
+
+  let compartmentsByProcess = getCompartmentsByProcess(mgr);
+  let ghostWindowsByProcess = getGhostWindowsByProcess(mgr);
 
   function handleProcess(aProcess) {
     appendProcessAboutCompartmentsElements(body, aProcess,
@@ -1524,9 +1392,9 @@ function updateAboutCompartments()
 
   // Generate output for one process at a time.  Always start with the
   // Main process.
-  handleProcess(gUnnamedProcessStr);
+  handleProcess('Main');
   for (let process in compartmentsByProcess) {
-    if (process !== gUnnamedProcessStr) {
+    if (process !== "Main") {
       handleProcess(process);
     }
   }
@@ -1559,7 +1427,7 @@ Compartment.prototype = {
   }
 };
 
-function getCompartmentsByProcess()
+function getCompartmentsByProcess(aMgr)
 {
   // Ignore anything that didn't come from the "compartments" multi-reporter.
   // (Note that some such reports can reach here as single reports if they were
@@ -1580,7 +1448,7 @@ function getCompartmentsByProcess()
   function handleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount,
                         aDescription)
   {
-    let process = aProcess === "" ? gUnnamedProcessStr : aProcess;
+    let process = aProcess === "" ? "Main" : aProcess;
     let unsafeNames = aUnsafePath.split('/');
     let isSystemCompartment;
     if (unsafeNames[0] === "compartments" && unsafeNames[1] == "system" &&
@@ -1600,12 +1468,12 @@ function getCompartmentsByProcess()
       }
 
     } else {
-      assertInput(false, "bad compartments path: " + aUnsafePath);
+      assert(false, "bad compartments path: " + aUnsafePath);
     }
-    assertInput(aKind === KIND_OTHER,   "bad compartments kind");
-    assertInput(aUnits === UNITS_COUNT, "bad compartments units");
-    assertInput(aAmount === 1,          "bad compartments amount");
-    assertInput(aDescription === "",    "bad compartments description");
+    assert(aKind === KIND_OTHER,   "bad compartments kind");
+    assert(aUnits === UNITS_COUNT, "bad compartments units");
+    assert(aAmount === 1,          "bad compartments amount");
+    assert(aDescription === "",    "bad compartments description");
 
     let c = new Compartment(unsafeNames[2], isSystemCompartment);
 
@@ -1623,7 +1491,7 @@ function getCompartmentsByProcess()
     }
   }
 
-  processMemoryReporters(ignoreSingle, ignoreMulti, handleReport);
+  processMemoryReporters(aMgr, ignoreSingle, ignoreMulti, handleReport);
 
   return compartmentsByProcess;
 }
@@ -1643,7 +1511,7 @@ GhostWindow.prototype = {
   }
 };
 
-function getGhostWindowsByProcess()
+function getGhostWindowsByProcess(aMgr)
 {
   function ignoreSingle(aUnsafePath)
   {
@@ -1661,17 +1529,17 @@ function getGhostWindowsByProcess()
                         aDescription)
   {
     let unsafeSplit = aUnsafePath.split('/');
-    assertInput(unsafeSplit[0] === 'ghost-windows' && unsafeSplit.length === 2,
+    assert(unsafeSplit[0] === 'ghost-windows' && unsafeSplit.length === 2,
            'Unexpected path in getGhostWindowsByProcess: ' + aUnsafePath);
-    assertInput(aKind === KIND_OTHER,   "bad ghost-windows kind");
-    assertInput(aUnits === UNITS_COUNT, "bad ghost-windows units");
-    assertInput(aAmount === 1,          "bad ghost-windows amount");
-    assertInput(aDescription === "",    "bad ghost-windows description");
+    assert(aKind === KIND_OTHER,   "bad ghost-windows kind");
+    assert(aUnits === UNITS_COUNT, "bad ghost-windows units");
+    assert(aAmount === 1,          "bad ghost-windows amount");
+    assert(aDescription === "",    "bad ghost-windows description");
 
     let unsafeURL = unsafeSplit[1];
     let ghostWindow = new GhostWindow(unsafeURL);
 
-    let process = aProcess === "" ? gUnnamedProcessStr : aProcess;
+    let process = aProcess === "" ? "Main" : aProcess;
     if (!ghostWindowsByProcess[process]) {
       ghostWindowsByProcess[process] = {};
     }
@@ -1684,7 +1552,7 @@ function getGhostWindowsByProcess()
     }
   }
 
-  processMemoryReporters(ignoreSingle, ignoreMulti, handleReport);
+  processMemoryReporters(aMgr, ignoreSingle, ignoreMulti, handleReport);
 
   return ghostWindowsByProcess;
 }
@@ -1734,7 +1602,7 @@ function appendProcessAboutCompartmentsElementsHelper(aP, aEntries, aKindString)
  */
 function appendProcessAboutCompartmentsElements(aP, aProcess, aCompartments, aGhostWindows)
 {
-  appendElementWithText(aP, "h1", "", aProcess + "\n\n");
+  appendElementWithText(aP, "h1", "", aProcess + " Process\n\n");
 
   let userCompartments = {};
   let systemCompartments = {};

@@ -5,7 +5,6 @@
 
 #include "nsDOMBlobBuilder.h"
 #include "jsfriendapi.h"
-#include "mozilla/dom/BlobBinding.h"
 #include "nsAutoPtr.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIMultiplexInputStream.h"
@@ -13,10 +12,10 @@
 #include "nsTArray.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
+#include "DictionaryHelpers.h"
 #include "nsIScriptError.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsDOMMultipartFile, nsDOMFile,
                              nsIJSNativeInitializer)
@@ -182,20 +181,14 @@ nsDOMMultipartFile::InitInternal(JSContext* aCx,
 {
   bool nativeEOL = false;
   if (aArgc > 1) {
-    if (NS_IsMainThread()) {
-      BlobPropertyBag d;
-      if (!d.Init(aCx, aArgv[1])) {
-        return NS_ERROR_TYPE_ERR;
-      }
-      mContentType = d.type;
-      nativeEOL = d.endings == EndingTypesValues::Native;
-    } else {
-      BlobPropertyBagWorkers d;
-      if (!d.Init(aCx, aArgv[1])) {
-        return NS_ERROR_TYPE_ERR;
-      }
-      mContentType = d.type;
-      nativeEOL = d.endings == EndingTypesValues::Native;
+    mozilla::dom::BlobPropertyBag d;
+    nsresult rv = d.Init(aCx, &aArgv[1]);
+    NS_ENSURE_SUCCESS(rv, rv);
+    mContentType = d.type;
+    if (d.endings.EqualsLiteral("native")) {
+      nativeEOL = true;
+    } else if (!d.endings.EqualsLiteral("transparent")) {
+      return NS_ERROR_TYPE_ERR;
     }
   }
 

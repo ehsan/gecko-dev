@@ -179,7 +179,6 @@ let DOMApplicationRegistry = {
     let app = this.webapps[aId];
     this._readManifests([{ id: aId }], (function registerManifest(aResult) {
       let manifest = aResult[0].manifest;
-      app.name = manifest.name;
       this._registerSystemMessages(manifest, app);
       this._registerActivities(manifest, app);
     }).bind(this));
@@ -369,7 +368,6 @@ let DOMApplicationRegistry = {
     this.webapps[id] = appObject;
 
     appObject.status = "installed";
-    appObject.name = app.manifest.name;
 
     let manifest = new DOMApplicationManifest(app.manifest, app.origin);
 

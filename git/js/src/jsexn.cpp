@@ -264,8 +264,12 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
     {
         SuppressErrorsGuard seg(cx);
         for (NonBuiltinScriptFrameIter i(cx); !i.done(); ++i) {
+            StackFrame *fp = i.fp();
 
-            /* Ask the crystal CAPS ball whether we can see across compartments. */
+            /*
+             * Ask the crystal CAPS ball whether we can see across compartments.
+             * NB: this means 'fp' may point to cross-compartment frames.
+             */
             if (checkAccess && i.isNonEvalFunctionFrame()) {
                 RootedValue v(cx);
                 RootedId callerid(cx, NameToId(cx->runtime->atomState.callerAtom));
@@ -278,7 +282,7 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
                 return false;
             JSStackTraceStackElem &frame = frames.back();
             if (i.isNonEvalFunctionFrame()) {
-                JSAtom *atom = i.callee()->displayAtom();
+                JSAtom *atom = fp->fun()->displayAtom();
                 if (atom == NULL)
                     atom = cx->runtime->emptyString;
                 frame.funName = atom;

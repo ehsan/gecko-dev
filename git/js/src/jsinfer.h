@@ -1,5 +1,5 @@
-/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
-/* vim: set ts=4 sw=4 et tw=99: */
+//* -*- Mode: c++; c-basic-offset: 4; tab-width: 40; indent-tabs-mode: nil -*- */
+/* vim: set ts=40 sw=4 et tw=99: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -31,10 +31,6 @@ class CallObject;
 
 namespace mjit {
     struct JITScript;
-}
-
-namespace ion {
-    struct IonScript;
 }
 
 namespace types {
@@ -314,7 +310,7 @@ enum {
     /* Whether any objects this represents are not DOM objects. */
     OBJECT_FLAG_NON_DOM               = 0x00080000,
 
-    /* Whether any represented script is considered uninlineable in JM. */
+    /* Whether any represented script is considered uninlineable. */
     OBJECT_FLAG_UNINLINEABLE          = 0x00100000,
 
     /* Whether any objects have an equality hook. */
@@ -507,12 +503,6 @@ class StackTypeSet : public TypeSet
 
     /* Whether any objects in the type set needs a barrier on id. */
     bool propertyNeedsBarrier(JSContext *cx, jsid id);
-
-    /*
-     * Get whether this type only contains non-string primitives:
-     * null/undefined/int/double, or some combination of those.
-     */
-    bool knownNonStringPrimitive();
 };
 
 /*
@@ -573,9 +563,6 @@ class HeapTypeSet : public TypeSet
      * it can hold GC things). The type set is frozen if no barrier is needed.
      */
     bool needsBarrier(JSContext *cx);
-
-    /* Get any type tag which all values in this set must have. */
-    JSValueType getKnownTypeTag(JSContext *cx);
 };
 
 inline StackTypeSet *
@@ -608,9 +595,6 @@ struct TypeResult
         : offset(offset), type(type), next(NULL)
     {}
 };
-
-/* Is this a reasonable PC to be doing inlining on? */
-inline bool isInlinableCall(jsbytecode *pc);
 
 /*
  * Type barriers overview.
@@ -1120,19 +1104,16 @@ typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,Sy
 struct CompilerOutput
 {
     JSScript *script;
-    bool isIonFlag : 1;
     bool constructing : 1;
     bool barriers : 1;
     bool pendingRecompilation : 1;
-    uint32_t chunkIndex:28;
+    uint32_t chunkIndex:29;
 
     CompilerOutput();
 
-    bool isJM() const { return !isIonFlag; }
-    bool isIon() const { return isIonFlag; }
+    bool isJM() const { return true; }
 
-    mjit::JITScript *mjit() const;
-    ion::IonScript *ion() const;
+    mjit::JITScript * mjit() const;
 
     bool isValid() const;
 
@@ -1259,8 +1240,8 @@ struct TypeCompartment
                               JSProtoKey kind, JSObject *proto,
                               bool unknown = false, bool isDOM = false);
 
-    /* Get or make an object for an allocation site, and add to the allocation site table. */
-    TypeObject *addAllocationSiteTypeObject(JSContext *cx, AllocationSiteKey key);
+    /* Make an object for an allocation site. */
+    TypeObject *newAllocationSiteTypeObject(JSContext *cx, AllocationSiteKey key);
 
     void nukeTypes(FreeOp *fop);
     void processPendingRecompiles(FreeOp *fop);

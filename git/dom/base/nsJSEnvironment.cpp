@@ -949,7 +949,6 @@ static const char js_memlog_option_str[]      = JS_OPTIONS_DOT_STR "mem.log";
 static const char js_memnotify_option_str[]   = JS_OPTIONS_DOT_STR "mem.notify";
 static const char js_disable_explicit_compartment_gc[] =
   JS_OPTIONS_DOT_STR "mem.disable_explicit_compartment_gc";
-static const char js_ion_content_str[]        = JS_OPTIONS_DOT_STR "ion.content";
 
 int
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
@@ -991,7 +990,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
                                      "javascript.options.xml.chrome" :
                                      "javascript.options.xml.content");
   bool useHardening = Preferences::GetBool(js_jit_hardening_str);
-  bool useIon = Preferences::GetBool(js_ion_content_str);
   nsCOMPtr<nsIXULRuntime> xr = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
   if (xr) {
     bool safeMode = false;
@@ -1003,7 +1001,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
       useMethodJITAlways = true;
       useXML = false;
       useHardening = false;
-      useIon = false;
     }
   }
 
@@ -1026,11 +1023,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     newDefaultJSOptions |= JSOPTION_TYPE_INFERENCE;
   else
     newDefaultJSOptions &= ~JSOPTION_TYPE_INFERENCE;
-
-  if (useIon)
-    newDefaultJSOptions |= JSOPTION_ION;
-  else
-    newDefaultJSOptions &= ~JSOPTION_ION;
 
   if (useXML)
     newDefaultJSOptions |= JSOPTION_ALLOW_XML;

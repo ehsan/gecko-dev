@@ -48,7 +48,6 @@
 #include "nsITabChild.h"
 #include "mozilla/Attributes.h"
 #include "FrameMetrics.h"
-#include "ProcessUtils.h"
 
 struct gfxMatrix;
 
@@ -310,7 +309,6 @@ private:
     bool InitTabChildGlobal(FrameScriptLoading aScriptLoading = DEFAULT_LOAD_SCRIPTS);
     bool InitRenderingState();
     void DestroyWindow();
-    void SetProcessNameToAppName();
 
     // Call RecvShow(nsIntSize(0, 0)) and block future calls to RecvShow().
     void DoFakeShow();

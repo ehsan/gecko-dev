@@ -13,40 +13,10 @@
 #include "jsapi.h"
 #include "jsprvtd.h"
 
-#if defined(__cplusplus)
-namespace JS {
-
-struct FrameDescription
-{
-    JSScript *script;
-    unsigned lineno;
-    JSFunction *fun;
-};
-
-struct StackDescription
-{
-    unsigned nframes;
-    FrameDescription *frames;
-};
-
-extern JS_PUBLIC_API(StackDescription *)
-DescribeStack(JSContext *cx, unsigned maxFrames);
-
-extern JS_PUBLIC_API(void)
-FreeStackDescription(JSContext *cx, StackDescription *desc);
-
-extern JS_PUBLIC_API(char *)
-FormatStackDump(JSContext *cx, char *buf,
-                    JSBool showArgs, JSBool showLocals,
-                    JSBool showThisProps);
-
-}
-
-# ifdef DEBUG
+#if defined(__cplusplus) && defined(DEBUG)
 JS_FRIEND_API(void) js_DumpValue(const js::Value &val);
 JS_FRIEND_API(void) js_DumpId(jsid id);
 JS_FRIEND_API(void) js_DumpStackFrame(JSContext *cx, js::StackFrame *start = NULL);
-# endif
 #endif
 
 JS_BEGIN_EXTERN_C
@@ -195,16 +165,14 @@ extern JS_PUBLIC_API(JSPrincipals *)
 JS_GetScriptOriginPrincipals(JSScript *script);
 
 /*
- * This function does not work when IonMonkey is active. It remains for legacy
- * code: caps/principal clamping, which will be removed shortly after
- * compartment-per-global, and jsd, which can only be used when IonMonkey is
- * disabled.
+ * Stack Frame Iterator
  *
- * To find the calling script and line number, use JS_DescribeSciptedCaller.
- * To summarize the call stack, use JS::DescribeStack.
+ * Used to iterate through the JS stack frames to extract
+ * information from the frames.
  */
+
 extern JS_PUBLIC_API(JSStackFrame *)
-JS_BrokenFrameIterator(JSContext *cx, JSStackFrame **iteratorp);
+JS_FrameIterator(JSContext *cx, JSStackFrame **iteratorp);
 
 extern JS_PUBLIC_API(JSScript *)
 JS_GetFrameScript(JSContext *cx, JSStackFrame *fp);
@@ -216,7 +184,7 @@ extern JS_PUBLIC_API(void *)
 JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fp);
 
 extern JS_PUBLIC_API(void)
-JS_SetTopFrameAnnotation(JSContext *cx, void *annotation);
+JS_SetFrameAnnotation(JSContext *cx, JSStackFrame *fp, void *annotation);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_GetFrameScopeChain(JSContext *cx, JSStackFrame *fp);

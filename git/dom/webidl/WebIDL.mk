@@ -10,7 +10,6 @@ generated_webidl_files = \
 
 webidl_files = \
   AudioContext.webidl \
-  Blob.webidl \
   CanvasRenderingContext2D.webidl \
   CSSStyleDeclaration.webidl \
   Function.webidl \
@@ -19,7 +18,6 @@ webidl_files = \
   Performance.webidl \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
-  WebSocket.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
   XMLHttpRequestUpload.webidl \
