@@ -102,7 +102,6 @@
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "imgILoader.h"
-#include "mozilla/IHistory.h"
 #include "nsDocShellCID.h"
 #include "nsIImageLoadingContent.h"
 #include "nsIInterfaceRequestor.h"
@@ -234,7 +233,6 @@ nsIXTFService *nsContentUtils::sXTFService = nsnull;
 nsIPrefBranch2 *nsContentUtils::sPrefBranch = nsnull;
 imgILoader *nsContentUtils::sImgLoader;
 imgICache *nsContentUtils::sImgCache;
-mozilla::IHistory *nsContentUtils::sHistory;
 nsIConsoleService *nsContentUtils::sConsoleService;
 nsDataHashtable<nsISupportsHashKey, EventNameMapping>* nsContentUtils::sAtomEventTable = nsnull;
 nsDataHashtable<nsStringHashKey, EventNameMapping>* nsContentUtils::sStringEventTable = nsnull;
@@ -465,12 +463,6 @@ nsContentUtils::Init()
 
   rv = CallGetService(NS_UNICHARCATEGORY_CONTRACTID, &sGenCat);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = CallGetService(NS_IHISTORY_CONTRACTID, &sHistory);
-  if (NS_FAILED(rv)) {
-    NS_RUNTIMEABORT("Cannot get the history service");
-    return rv;
-  }
 
   sPtrsToPtrsToRelease = new nsTArray<nsISupports**>();
   if (!sPtrsToPtrsToRelease) {
@@ -1159,7 +1151,6 @@ nsContentUtils::Shutdown()
 #endif
   NS_IF_RELEASE(sImgLoader);
   NS_IF_RELEASE(sImgCache);
-  NS_IF_RELEASE(sHistory);
   NS_IF_RELEASE(sPrefBranch);
 #ifdef IBMBIDI
   NS_IF_RELEASE(sBidiKeyboard);
@@ -1366,22 +1357,17 @@ nsContentUtils::InProlog(nsINode *aNode)
 }
 
 static JSContext *
-GetContextFromDocument(nsIDocument *aDocument, JSObject** aGlobalObject)
+GetContextFromDocument(nsIDocument *aDocument)
 {
   nsIScriptGlobalObject *sgo = aDocument->GetScopeObject();
   if (!sgo) {
     // No script global, no context.
-
-    *aGlobalObject = nsnull;
-
     return nsnull;
   }
 
-  *aGlobalObject = sgo->GetGlobalJSObject();
-
   nsIScriptContext *scx = sgo->GetContext();
   if (!scx) {
-    // No context left in the old scope...
+    // No context left in the scope...
 
     return nsnull;
   }
@@ -1391,39 +1377,27 @@ GetContextFromDocument(nsIDocument *aDocument, JSObject** aGlobalObject)
 
 // static
 nsresult
-nsContentUtils::GetContextAndScopes(nsIDocument *aOldDocument,
-                                    nsIDocument *aNewDocument, JSContext **aCx,
-                                    JSObject **aOldScope, JSObject **aNewScope)
+nsContentUtils::GetContextAndScope(nsIDocument *aOldDocument,
+                                   nsIDocument *aNewDocument, JSContext **aCx,
+                                   JSObject **aNewScope)
 {
   *aCx = nsnull;
-  *aOldScope = nsnull;
   *aNewScope = nsnull;
 
-  JSObject *newScope = nsnull;
-  nsIScriptGlobalObject *newSGO = aNewDocument->GetScopeObject();
-  if (!newSGO || !(newScope = newSGO->GetGlobalJSObject())) {
-    return NS_OK;
+  JSObject *newScope = aNewDocument->GetWrapper();
+  JSObject *global;
+  if (!newScope) {
+    nsIScriptGlobalObject *newSGO = aNewDocument->GetScopeObject();
+    if (!newSGO || !(global = newSGO->GetGlobalJSObject())) {
+      return NS_OK;
+    }
   }
 
   NS_ENSURE_TRUE(sXPConnect, NS_ERROR_NOT_INITIALIZED);
 
-  // Make sure to get our hands on the right scope object, since
-  // GetWrappedNativeOfNativeObject doesn't call PreCreate and hence won't get
-  // the right scope if we pass in something bogus.  The right scope lives on
-  // the script global of the old document.
-  // XXXbz note that if GetWrappedNativeOfNativeObject did call PreCreate it
-  // would get the wrong scope (that of the _new_ document), so we should be
-  // glad it doesn't!
-  JSObject *oldScope = nsnull;
-  JSContext *cx = GetContextFromDocument(aOldDocument, &oldScope);
-
-  if (!oldScope) {
-    return NS_OK;
-  }
-
+  JSContext *cx = aOldDocument ? GetContextFromDocument(aOldDocument) : nsnull;
   if (!cx) {
-    JSObject *dummy;
-    cx = GetContextFromDocument(aNewDocument, &dummy);
+    cx = GetContextFromDocument(aNewDocument);
 
     if (!cx) {
       // No context reachable from the old or new document, use the
@@ -1445,8 +1419,15 @@ nsContentUtils::GetContextAndScopes(nsIDocument *aOldDocument,
     }
   }
 
+  if (!newScope && cx) {
+    jsval v;
+    nsresult rv = WrapNative(cx, global, aNewDocument, aNewDocument, &v);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    newScope = JSVAL_TO_OBJECT(v);
+  }
+
   *aCx = cx;
-  *aOldScope = oldScope;
   *aNewScope = newScope;
 
   return NS_OK;
@@ -3134,7 +3115,8 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                 PRUint32 aLineNumber,
                                 PRUint32 aColumnNumber,
                                 PRUint32 aErrorFlags,
-                                const char *aCategory)
+                                const char *aCategory,
+                                PRUint64 aWindowId)
 {
   NS_ASSERTION((aParams && aParamsLength) || (!aParams && !aParamsLength),
                "Supply either both parameters and their number or no"
@@ -3160,17 +3142,46 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
   if (aURI)
     aURI->GetSpec(spec);
 
-  nsCOMPtr<nsIScriptError> errorObject =
+  nsCOMPtr<nsIScriptError2> errorObject =
       do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = errorObject->Init(errorText.get(),
-                         NS_ConvertUTF8toUTF16(spec).get(), // file name
-                         aSourceLine.get(),
-                         aLineNumber, aColumnNumber,
-                         aErrorFlags, aCategory);
+
+  rv = errorObject->InitWithWindowID(errorText.get(),
+                                     NS_ConvertUTF8toUTF16(spec).get(), // file name
+                                     aSourceLine.get(),
+                                     aLineNumber, aColumnNumber,
+                                     aErrorFlags, aCategory, aWindowId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return sConsoleService->LogMessage(errorObject);
+  nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
+  return sConsoleService->LogMessage(logError);
+}
+
+/* static */ nsresult
+nsContentUtils::ReportToConsole(PropertiesFile aFile,
+                                const char *aMessageName,
+                                const PRUnichar **aParams,
+                                PRUint32 aParamsLength,
+                                nsIURI* aURI,
+                                const nsAFlatString& aSourceLine,
+                                PRUint32 aLineNumber,
+                                PRUint32 aColumnNumber,
+                                PRUint32 aErrorFlags,
+                                const char *aCategory,
+                                nsIDocument* aDocument)
+{
+  nsIURI* uri = aURI;
+  PRUint64 windowID = 0;
+  if (aDocument) {
+    if (!uri) {
+      uri = aDocument->GetDocumentURI();
+    }
+    windowID = aDocument->OuterWindowID();
+  }
+
+  return ReportToConsole(aFile, aMessageName, aParams, aParamsLength, uri,
+                         aSourceLine, aLineNumber, aColumnNumber, aErrorFlags,
+                         aCategory, windowID);
 }
 
 PRBool

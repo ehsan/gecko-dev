@@ -141,7 +141,6 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 #endif
 
 namespace mozilla {
-  class IHistory;
 
 namespace layers {
   class LayerManager;
@@ -192,20 +191,18 @@ public:
   static nsresult Init();
 
   /**
-   * Get a scope from aOldDocument and one from aNewDocument. Also get a
-   * context through one of the scopes, from the stack or the safe context.
+   * Get a scope from aNewDocument. Also get a context through the scope of one
+   * of the documents, from the stack or the safe context.
    *
-   * @param aOldDocument The document to get aOldScope from.
+   * @param aOldDocument The document to try to get a context from. May be null.
    * @param aNewDocument The document to get aNewScope from.
    * @param aCx [out] Context gotten through one of the scopes, from the stack
    *                  or the safe context.
-   * @param aOldScope [out] Scope gotten from aOldDocument.
    * @param aNewScope [out] Scope gotten from aNewDocument.
    */
-  static nsresult GetContextAndScopes(nsIDocument *aOldDocument,
-                                      nsIDocument *aNewDocument,
-                                      JSContext **aCx, JSObject **aOldScope,
-                                      JSObject **aNewScope);
+  static nsresult GetContextAndScope(nsIDocument *aOldDocument,
+                                     nsIDocument *aNewDocument,
+                                     JSContext **aCx, JSObject **aNewScope);
 
   /**
    * When a document's scope changes (e.g., from document.open(), call this
@@ -505,11 +502,6 @@ public:
     if (!sImgLoaderInitialized)
       InitImgLoader();
     return sImgLoader;
-  }
-
-  static mozilla::IHistory* GetHistory()
-  {
-    return sHistory;
   }
 
 #ifdef MOZ_XTF
@@ -815,6 +807,8 @@ public:
    *   @param aColumnNumber Column number within resource containing error.
    *   @param aErrorFlags See nsIScriptError.
    *   @param aCategory Name of module reporting error.
+   *   @param [aWindowId=0] (Optional) The window ID of the outer window the
+   *          message originates from.
    */
   enum PropertiesFile {
     eCSS_PROPERTIES,
@@ -840,7 +834,36 @@ public:
                                   PRUint32 aLineNumber,
                                   PRUint32 aColumnNumber,
                                   PRUint32 aErrorFlags,
-                                  const char *aCategory);
+                                  const char *aCategory,
+                                  PRUint64 aWindowId = 0);
+
+  /**
+   * Report a localized error message to the error console.
+   *   @param aFile Properties file containing localized message.
+   *   @param aMessageName Name of localized message.
+   *   @param aParams Parameters to be substituted into localized message.
+   *   @param aParamsLength Length of aParams.
+   *   @param aURI URI of resource containing error (may be null).
+   *   @param aSourceLine The text of the line that contains the error (may be
+              empty).
+   *   @param aLineNumber Line number within resource containing error.
+   *   @param aColumnNumber Column number within resource containing error.
+   *   @param aErrorFlags See nsIScriptError.
+   *   @param aCategory Name of module reporting error.
+   *   @param aDocument Reference to the document which triggered the message.
+              If aURI is null, then aDocument->GetDocumentURI() is used.
+   */
+  static nsresult ReportToConsole(PropertiesFile aFile,
+                                  const char *aMessageName,
+                                  const PRUnichar **aParams,
+                                  PRUint32 aParamsLength,
+                                  nsIURI* aURI,
+                                  const nsAFlatString& aSourceLine,
+                                  PRUint32 aLineNumber,
+                                  PRUint32 aColumnNumber,
+                                  PRUint32 aErrorFlags,
+                                  const char *aCategory,
+                                  nsIDocument* aDocument);
 
   /**
    * Get the localized string named |aKey| in properties file |aFile|.
@@ -1781,8 +1804,6 @@ private:
   // The following two members are initialized lazily
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;
-
-  static mozilla::IHistory* sHistory;
 
   static nsIConsoleService* sConsoleService;
 

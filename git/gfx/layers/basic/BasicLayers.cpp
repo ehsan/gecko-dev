@@ -439,32 +439,6 @@ ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
   aContext->SetMatrix(currentMatrix);
 }
 
-static PRBool
-ShouldRetainTransparentSurface(PRUint32 aContentFlags,
-                               gfxASurface* aTargetSurface)
-{
-  if (aContentFlags & Layer::CONTENT_NO_TEXT)
-    return PR_TRUE;
-
-  switch (aTargetSurface->GetTextQualityInTransparentSurfaces()) {
-  case gfxASurface::TEXT_QUALITY_OK:
-    return PR_TRUE;
-  case gfxASurface::TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS:
-    // Retain the buffer if all text is over opaque pixels. Otherwise,
-    // don't retain the buffer, in the hope that the backbuffer has
-    // opaque pixels where our layer does not.
-    return (aContentFlags & Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT) != 0;
-  case gfxASurface::TEXT_QUALITY_BAD:
-    // If the backbuffer is opaque, then draw directly into it to get
-    // subpixel AA. If the backbuffer is not an opaque format, then we won't get
-    // subpixel AA by drawing into it, so we might as well retain.
-    return aTargetSurface->GetContentType() != gfxASurface::CONTENT_COLOR;
-  default:
-    NS_ERROR("Unknown quality type");
-    return PR_TRUE;
-  }
-}
-
 static nsIntRegion
 IntersectWithClip(const nsIntRegion& aRegion, gfxContext* aContext)
 {
@@ -494,8 +468,8 @@ BasicThebesLayer::Paint(gfxContext* aContext,
   float opacity = GetEffectiveOpacity();
 
   if (!BasicManager()->IsRetained() ||
-      (opacity == 1.0 && !canUseOpaqueSurface &&
-       !ShouldRetainTransparentSurface(mContentFlags, targetSurface) &&
+      (!canUseOpaqueSurface &&
+       (mContentFlags & CONTENT_COMPONENT_ALPHA) &&
        !MustRetainContent())) {
     mValidRegion.SetEmpty();
     mBuffer.Clear();
