@@ -467,8 +467,8 @@ loop.panel = (function(_, mozL10n) {
    */
   var RoomEntry = React.createClass({displayName: 'RoomEntry',
     propTypes: {
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      room:       React.PropTypes.instanceOf(loop.store.Room).isRequired
+      openRoom: React.PropTypes.func.isRequired,
+      room:     React.PropTypes.instanceOf(loop.store.Room).isRequired
     },
 
     getInitialState: function() {
@@ -480,25 +480,15 @@ loop.panel = (function(_, mozL10n) {
         (nextState.urlCopied !== this.state.urlCopied);
     },
 
-    handleClickRoomUrl: function(event) {
+    handleClickRoom: function(event) {
       event.preventDefault();
-      this.props.dispatcher.dispatch(new sharedActions.OpenRoom({
-        roomToken: this.props.room.roomToken
-      }));
+      this.props.openRoom(this.props.room);
     },
 
     handleCopyButtonClick: function(event) {
       event.preventDefault();
       navigator.mozLoop.copyString(this.props.room.roomUrl);
       this.setState({urlCopied: true});
-    },
-
-    handleDeleteButtonClick: function(event) {
-      event.preventDefault();
-      // XXX We should prompt end user for confirmation; see bug 1092953.
-      this.props.dispatcher.dispatch(new sharedActions.DeleteRoom({
-        roomToken: this.props.room.roomToken
-      }));
     },
 
     handleMouseLeave: function(event) {
@@ -517,22 +507,20 @@ loop.panel = (function(_, mozL10n) {
         "room-active": this._isActive()
       });
       var copyButtonClasses = React.addons.classSet({
-        "copy-link": true,
-        "checked": this.state.urlCopied
+        'copy-link': true,
+        'checked': this.state.urlCopied
       });
 
       return (
         React.DOM.div({className: roomClasses, onMouseLeave: this.handleMouseLeave}, 
           React.DOM.h2(null, 
             React.DOM.span({className: "room-notification"}), 
-            room.roomName, 
+              room.roomName, 
             React.DOM.button({className: copyButtonClasses, 
-              onClick: this.handleCopyButtonClick}), 
-            React.DOM.button({className: "delete-link", 
-              onClick: this.handleDeleteButtonClick})
+              onClick: this.handleCopyButtonClick})
           ), 
           React.DOM.p(null, 
-            React.DOM.a({href: "#", onClick: this.handleClickRoomUrl}, 
+            React.DOM.a({ref: "room", href: "#", onClick: this.handleClickRoom}, 
               room.roomUrl
             )
           )
@@ -593,6 +581,12 @@ loop.panel = (function(_, mozL10n) {
       }));
     },
 
+    openRoom: function(room) {
+      this.props.dispatcher.dispatch(new sharedActions.OpenRoom({
+        roomToken: room.roomToken
+      }));
+    },
+
     render: function() {
       if (this.state.error) {
         // XXX Better end user reporting of errors.
@@ -604,11 +598,7 @@ loop.panel = (function(_, mozL10n) {
           React.DOM.h1(null, this._getListHeading()), 
           React.DOM.div({className: "room-list"}, 
             this.state.rooms.map(function(room, i) {
-              return RoomEntry({
-                key: room.roomToken, 
-                dispatcher: this.props.dispatcher, 
-                room: room}
-              );
+              return RoomEntry({key: i, room: room, openRoom: this.openRoom});
             }, this)
           ), 
           React.DOM.p(null, 
