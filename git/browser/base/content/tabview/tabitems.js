@@ -187,10 +187,9 @@ function TabItem(tab, options) {
     if (!same)
       return;
 
-    // press close button or middle mouse click
-    if (iQ(e.target).hasClass("close") || e.button == 1) {
+    if (iQ(e.target).hasClass("close"))
       self.close();
-    } else {
+    else {
       if (!Items.item(this).isDragging)
         self.zoomIn();
     }
@@ -830,7 +829,7 @@ let TabItems = {
 
       // ___ icon
       let iconUrl = tab.image;
-      if (!iconUrl)
+      if (iconUrl == null)
         iconUrl = Utils.defaultFaviconURL;
 
       if (iconUrl != tabItem.favImgEl.src)

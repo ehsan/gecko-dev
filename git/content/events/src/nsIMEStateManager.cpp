@@ -274,14 +274,10 @@ nsIMEStateManager::SetIMEState(PRUint32 aState,
     PRUint32 state = nsContentUtils::GetWidgetStatusFromIMEStatus(aState);
     IMEContext context;
     context.mStatus = state;
-    
-    if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML &&
-        (aContent->Tag() == nsGkAtoms::input ||
-         aContent->Tag() == nsGkAtoms::textarea)) {
+
+    if (aContent && aContent->Tag() == nsGkAtoms::input) {
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type,
                         context.mHTMLInputType);
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::moz_action_hint,
-                        context.mActionHint);
     }
 
     widget2->SetInputMode(context);

@@ -373,7 +373,7 @@ NS_IMETHODIMP
 PuppetWidget::SetInputMode(const IMEContext& aContext)
 {
   if (mTabChild &&
-      mTabChild->SendSetInputMode(aContext.mStatus, aContext.mHTMLInputType, aContext.mActionHint))
+      mTabChild->SendSetInputMode(aContext.mStatus, aContext.mHTMLInputType))
     return NS_OK;
   return NS_ERROR_FAILURE;
 }

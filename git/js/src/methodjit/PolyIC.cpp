@@ -2117,8 +2117,10 @@ GetElementIC::attachGetProp(JSContext *cx, JSObject *obj, const Value &v, jsid i
 
     if (hasLastStringStub && !buffer.verifyRange(lastStringStub))
         return disable(cx, "code memory is out of range");
-    if (!buffer.verifyRange(cx->fp()->jit()))
+    if ((shouldPatchInlineTypeGuard() || shouldPatchUnconditionalClaspGuard()) &&
+        !buffer.verifyRange(cx->fp()->jit())) {
         return disable(cx, "code memory is out of range");
+    }
 
     // Patch all guards.
     buffer.maybeLink(atomIdGuard, slowPathStart);

@@ -256,16 +256,14 @@ class GeckoAppShell
         }
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint, 
-                                        String actionHint) {
+    public static void notifyIMEEnabled(int state, String hint) {
         if (GeckoApp.surfaceView == null)
             return;
 
         /* When IME is 'disabled', IME processing is disabled.
             In addition, the IME UI is hidden */
         GeckoApp.surfaceView.mIMEState = state;
-        GeckoApp.surfaceView.mIMETypeHint = typeHint;
-        GeckoApp.surfaceView.mIMEActionHint = actionHint;
+        GeckoApp.surfaceView.mIMEHint = hint;
         IMEStateUpdater.enableIME();
     }
 

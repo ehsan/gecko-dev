@@ -98,7 +98,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     mGeckoAppShellClass = (jclass) jEnv->NewGlobalRef(jGeckoAppShellClass);
 
     jNotifyIME = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIME", "(II)V");
-    jNotifyIMEEnabled = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEEnabled", "(ILjava/lang/String;Ljava/lang/String;)V");
+    jNotifyIMEEnabled = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEEnabled", "(ILjava/lang/String;)V");
     jNotifyIMEChange = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEChange", "(Ljava/lang/String;III)V");
     jEnableAccelerometer = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableAccelerometer", "(Z)V");
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
@@ -211,20 +211,17 @@ AndroidBridge::NotifyIME(int aType, int aState)
 }
 
 void
-AndroidBridge::NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
-                                const nsAString& aActionHint)
+AndroidBridge::NotifyIMEEnabled(int aState, const nsAString& aHint)
 {
     if (!sBridge)
         return;
 
-    nsPromiseFlatString typeHint(aTypeHint);
-    nsPromiseFlatString actionHint(aActionHint);
+    nsPromiseFlatString hint(aHint);
 
-    jvalue args[3];
+    jvalue args[2];
     AutoLocalJNIFrame jniFrame(1);
     args[0].i = aState;
-    args[1].l = JNI()->NewString(typeHint.get(), typeHint.Length());
-    args[2].l = JNI()->NewString(actionHint.get(), actionHint.Length());
+    args[1].l = JNI()->NewString(hint.get(), hint.Length());
     JNI()->CallStaticVoidMethodA(sBridge->mGeckoAppShellClass,
                                  sBridge->jNotifyIMEEnabled, args);
 }

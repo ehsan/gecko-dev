@@ -148,8 +148,7 @@ let UI = {
       iQ(gTabViewFrame.contentDocument).mousedown(function(e) {
         if (iQ(":focus").length > 0) {
           iQ(":focus").each(function(element) {
-            // don't fire blur event if the same input element is clicked.
-            if (e.target != element && element.nodeName == "INPUT")
+            if (element.nodeName == "INPUT")
               element.blur();
           });
         }
@@ -812,13 +811,10 @@ let UI = {
   },
   
   // ----------
-  updateTabButton: function UI__updateTabButton() {
+  updateTabButton: function UI__updateTabButton(){
     let groupsNumber = gWindow.document.getElementById("tabviewGroupsNumber");
-    let exitButton = document.getElementById("exit-button");
     let numberOfGroups = GroupItems.groupItems.length;
-
     groupsNumber.setAttribute("groups", numberOfGroups);
-    exitButton.setAttribute("groups", numberOfGroups);
   },
 
   // ----------
@@ -855,8 +851,7 @@ let UI = {
       if (event.metaKey) 
         Keys.meta = true;
 
-      if ((iQ(":focus").length > 0 && iQ(":focus")[0].nodeName == "INPUT") || 
-          isSearchEnabled())
+      if (isSearchEnabled())
         return;
 
       function getClosestTabBy(norm) {
