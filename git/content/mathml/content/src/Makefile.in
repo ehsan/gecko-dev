@@ -26,14 +26,10 @@ include $(topsrcdir)/ipc/chromium/chromium-config.mk
 # lib.
 FORCE_STATIC_LIB = 1
 
-EXPORTS = \
-	$(NULL)
-
-
 include $(topsrcdir)/config/rules.mk
 
-INCLUDES += 	\
-		-I$(srcdir)/../../../base/src \
-		$(NULL)
+INCLUDES += \
+  -I$(srcdir)/../../../base/src \
+  $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
