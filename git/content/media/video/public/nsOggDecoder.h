@@ -167,7 +167,6 @@ class nsOggDecoder : public nsVideoDecoder
   float GetDuration();
 
   void GetCurrentURI(nsIURI** aURI);
-  nsIPrincipal* GetCurrentPrincipal();
 
   virtual void UpdateBytesDownloaded(PRUint32 aBytes);
 

@@ -57,7 +57,7 @@
 
 static int sDOMStringFinalizerIndex = -1;
 
-static void
+static void JS_DLL_CALLBACK
 DOMStringFinalizer(JSContext *cx, JSString *str)
 {
     nsStringBuffer::FromData(JS_GetStringChars(str))->Release();

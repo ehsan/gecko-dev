@@ -4239,7 +4239,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                               lval, (op == JSOP_STRICTEQ) ? '=' : '!', rval);
                 break;
 
-              case JSOP_DEFFUN:
+              case JSOP_CLOSURE:
                 LOAD_FUNCTION(0);
                 todo = -2;
                 goto do_function;

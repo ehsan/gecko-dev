@@ -236,6 +236,7 @@ public:
           mPrincipal(principalForSecurityCheck),
           mForceWriteOnly(forceWriteOnly)
     {
+        NS_PRECONDITION(mPrincipal, "Must have a principal");
     }
 
     void Apply(gfxContext* ctx) {
@@ -677,6 +678,8 @@ void
 nsCanvasRenderingContext2D::DoDrawImageSecurityCheck(nsIPrincipal* aPrincipal,
                                                      PRBool forceWriteOnly)
 {
+    NS_PRECONDITION(aPrincipal, "Must have a principal here");
+
     // Callers should ensure that mCanvasElement is non-null before calling this
     if (!mCanvasElement) {
         NS_WARNING("DoDrawImageSecurityCheck called without canvas element!");
@@ -692,9 +695,6 @@ nsCanvasRenderingContext2D::DoDrawImageSecurityCheck(nsIPrincipal* aPrincipal,
         return;
     }
 
-    if (aPrincipal == nsnull)
-        return;
-
     nsCOMPtr<nsINode> elem = do_QueryInterface(mCanvasElement);
     if (elem) { // XXXbz How could this actually be null?
         PRBool subsumes;
@@ -706,7 +706,7 @@ nsCanvasRenderingContext2D::DoDrawImageSecurityCheck(nsIPrincipal* aPrincipal,
             return;
         }
     }
-
+    
     mCanvasElement->SetWriteOnly();
 }
 
@@ -2804,12 +2804,6 @@ nsCanvasRenderingContext2D::ThebesSurfaceFromElement(nsIDOMElement *imgElt,
     nsCOMPtr<nsIDOMHTMLVideoElement> ve = do_QueryInterface(imgElt);
     if (node && ve) {
         nsHTMLVideoElement *video = static_cast<nsHTMLVideoElement*>(ve.get());
-
-        /* If it doesn't have a principal, just bail */
-        nsCOMPtr<nsIPrincipal> principal = video->GetCurrentPrincipal();
-        if (!principal)
-            return NS_ERROR_DOM_SECURITY_ERR;
-
         PRUint32 videoWidth, videoHeight;
         rv = video->GetVideoWidth(&videoWidth);
         rv |= video->GetVideoHeight(&videoHeight);
@@ -2829,7 +2823,7 @@ nsCanvasRenderingContext2D::ThebesSurfaceFromElement(nsIDOMElement *imgElt,
         *widthOut = videoWidth;
         *heightOut = videoHeight;
 
-        *prinOut = principal.forget().get();
+        NS_ADDREF(*prinOut = node->NodePrincipal());
         *forceWriteOnlyOut = PR_FALSE;
 
         return NS_OK;
@@ -2856,26 +2850,10 @@ nsCanvasRenderingContext2D::ThebesSurfaceFromElement(nsIDOMElement *imgElt,
     if ((status & imgIRequest::STATUS_LOAD_COMPLETE) == 0)
         return NS_ERROR_NOT_AVAILABLE;
 
-    // In case of data: URIs, we want to ignore principals;
-    // they should have the originating content's principal,
-    // but that's broken at the moment in imgLib.
     nsCOMPtr<nsIURI> uri;
-    rv = imgRequest->GetURI(getter_AddRefs(uri));
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SECURITY_ERR);
-
-    PRBool isDataURI = PR_FALSE;
-    rv = uri->SchemeIs("data", &isDataURI);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SECURITY_ERR);
-    
-    // Data URIs are always OK; set the principal
-    // to null to indicate that.
-    if (isDataURI) {
-        *prinOut = nsnull;
-    } else {
-        rv = imgRequest->GetImagePrincipal(prinOut);
-        NS_ENSURE_SUCCESS(rv, rv);
-        NS_ENSURE_TRUE(*prinOut, NS_ERROR_DOM_SECURITY_ERR);
-    }
+    rv = imgRequest->GetImagePrincipal(prinOut);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(*prinOut, NS_ERROR_DOM_SECURITY_ERR);
 
     *forceWriteOnlyOut = PR_FALSE;
 

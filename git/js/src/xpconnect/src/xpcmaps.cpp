@@ -49,13 +49,13 @@
 // Note this is returning the bit pattern of the first part of the nsID, not
 // the pointer to the nsID.
 
-static JSDHashNumber
+static JSDHashNumber JS_DLL_CALLBACK
 HashIIDPtrKey(JSDHashTable *table, const void *key)
 {
     return *((JSHashNumber*)key);
 }
 
-static JSBool
+static JSBool JS_DLL_CALLBACK
 MatchIIDPtrKey(JSDHashTable *table,
             const JSDHashEntryHdr *entry,
             const void *key)
@@ -64,7 +64,7 @@ MatchIIDPtrKey(JSDHashTable *table,
                 Equals(*((const nsID*)((JSDHashEntryStub*)entry)->key));
 }
 
-static JSDHashNumber
+static JSDHashNumber JS_DLL_CALLBACK
 HashNativeKey(JSDHashTable *table, const void *key)
 {
     XPCNativeSetKey* Key = (XPCNativeSetKey*) key;
@@ -327,7 +327,7 @@ ClassInfo2WrappedNativeProtoMap::~ClassInfo2WrappedNativeProtoMap()
 /***************************************************************************/
 // implement NativeSetMap...
 
-JSBool
+JSBool JS_DLL_CALLBACK
 NativeSetMap::Entry::Match(JSDHashTable *table,
                            const JSDHashEntryHdr *entry,
                            const void *key)
@@ -442,7 +442,7 @@ NativeSetMap::~NativeSetMap()
 /***************************************************************************/
 // implement IID2ThisTranslatorMap...
 
-JSBool
+JSBool JS_DLL_CALLBACK
 IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
                                     const JSDHashEntryHdr *entry,
                                     const void *key)
@@ -450,7 +450,7 @@ IID2ThisTranslatorMap::Entry::Match(JSDHashTable *table,
     return ((const nsID*)key)->Equals(((Entry*)entry)->key);
 }
 
-void
+void JS_DLL_CALLBACK
 IID2ThisTranslatorMap::Entry::Clear(JSDHashTable *table, JSDHashEntryHdr *entry)
 {
     NS_IF_RELEASE(((Entry*)entry)->value);
@@ -492,7 +492,7 @@ IID2ThisTranslatorMap::~IID2ThisTranslatorMap()
 
 /***************************************************************************/
 
-JSDHashNumber
+JSDHashNumber JS_DLL_CALLBACK
 XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
 {
     JSDHashNumber h;
@@ -509,7 +509,7 @@ XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
     return h;
 }
 
-JSBool
+JSBool JS_DLL_CALLBACK
 XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
                                          const JSDHashEntryHdr *entry,
                                          const void *key)

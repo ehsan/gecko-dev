@@ -41,7 +41,6 @@
 #include "prlog.h"
 #include "nsOggDecoder.h"
 #include "nsChannelReader.h"
-#include "nsIScriptSecurityManager.h"
 
 nsChannelToPipeListener::nsChannelToPipeListener(nsOggDecoder* aDecoder) :
   mDecoder(aDecoder),
@@ -88,21 +87,6 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
   mIntervalEnd = mIntervalStart;
   mTotalBytes = 0;
   mDecoder->UpdateBytesDownloaded(mTotalBytes);
-
-  /* Get our principal */
-  nsCOMPtr<nsIChannel> chan(do_QueryInterface(aRequest));
-  if (chan) {
-    nsCOMPtr<nsIScriptSecurityManager> secMan =
-      do_GetService("@mozilla.org/scriptsecuritymanager;1");
-    if (secMan) {
-      nsresult rv = secMan->GetChannelPrincipal(chan,
-                                                getter_AddRefs(mPrincipal));
-      if (NS_FAILED(rv)) {
-        return rv;
-      }
-    }
-  }
-
   return NS_OK;
 }
 
@@ -138,12 +122,6 @@ nsresult nsChannelToPipeListener::OnDataAvailable(nsIRequest* aRequest,
     mIntervalEnd = PR_IntervalNow();
   }
   return NS_OK;
-}
-
-nsIPrincipal*
-nsChannelToPipeListener::GetCurrentPrincipal()
-{
-  return mPrincipal;
 }
 
 NS_IMPL_ISUPPORTS2(nsChannelToPipeListener, nsIRequestObserver, nsIStreamListener)
@@ -274,12 +252,4 @@ nsChannelReader::nsChannelReader()
   reader->io_read = &oggplay_channel_reader_io_read;
   reader->io_seek = &oggplay_channel_reader_io_seek;
   reader->io_tell = &oggplay_channel_reader_io_tell;
-}
-
-nsIPrincipal*
-nsChannelReader::GetCurrentPrincipal()
-{
-  if (!mListener)
-    return nsnull;
-  return mListener->GetCurrentPrincipal();
 }

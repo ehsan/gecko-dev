@@ -113,7 +113,7 @@ static JSClass global_class = {
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub
 };
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 autoConfigErrorReporter(JSContext *cx, const char *message, 
                         JSErrorReport *report)
 {

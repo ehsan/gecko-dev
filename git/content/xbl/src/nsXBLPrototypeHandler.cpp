@@ -600,24 +600,25 @@ nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
                                        PRUint32 aCharCode,
                                        PRBool aIgnoreShiftKey)
 {
-  if (mDetail != -1) {
-    // Get the keycode or charcode of the key event.
-    PRUint32 code;
+  if (mDetail == -1)
+    return PR_TRUE; // No filters set up. It's generic.
 
-    if (mMisc) {
-      if (aCharCode)
-        code = aCharCode;
-      else
-        aKeyEvent->GetCharCode(&code);
-      if (IS_IN_BMP(code))
-        code = ToLowerCase(PRUnichar(code));
-    }
+  // Get the keycode or charcode of the key event.
+  PRUint32 code;
+
+  if (mMisc) {
+    if (aCharCode)
+      code = aCharCode;
     else
-      aKeyEvent->GetKeyCode(&code);
-
-    if (code != PRUint32(mDetail))
-      return PR_FALSE;
+      aKeyEvent->GetCharCode(&code);
+    if (IS_IN_BMP(code))
+      code = ToLowerCase(PRUnichar(code));
   }
+  else
+    aKeyEvent->GetKeyCode(&code);
+
+  if (code != PRUint32(mDetail))
+    return PR_FALSE;
 
   return ModifiersMatchMask(aKeyEvent, aIgnoreShiftKey);
 }
