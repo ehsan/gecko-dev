@@ -5908,10 +5908,8 @@ class ICCallStubCompiler : public ICStubCompiler
         FunApply_Array
     };
 
-    void pushCallArguments(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg,
-                           bool isJitCall);
-    void pushSpreadCallArguments(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg,
-                                 bool isJitCall);
+    void pushCallArguments(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg);
+    void pushSpreadCallArguments(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg);
     void guardSpreadCall(MacroAssembler &masm, Register argcReg, Label *failure);
     Register guardFunApply(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg,
                            bool checkNative, FunApplyThing applyThing, Label *failure);

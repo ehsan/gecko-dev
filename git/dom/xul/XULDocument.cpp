@@ -781,8 +781,9 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
                    (PL_DHashTableSearch(mBroadcasterMap, &aBroadcaster));
 
     if (!entry) {
-        entry = static_cast<BroadcasterMapEntry*>
-            (PL_DHashTableAdd(mBroadcasterMap, &aBroadcaster, fallible));
+        entry =
+            static_cast<BroadcasterMapEntry*>
+                       (PL_DHashTableAdd(mBroadcasterMap, &aBroadcaster));
 
         if (! entry) {
             aRv.Throw(NS_ERROR_OUT_OF_MEMORY);

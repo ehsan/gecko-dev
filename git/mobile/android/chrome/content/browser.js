@@ -7656,9 +7656,8 @@ var Distribution = {
     }
 
     // Apply a lightweight theme if necessary
-    if (prefs && prefs["lightweightThemes.isThemeSelected"]) {
+    if (prefs["lightweightThemes.isThemeSelected"])
       Services.obs.notifyObservers(null, "lightweight-theme-apply", "");
-    }
 
     let localizedString = Cc["@mozilla.org/pref-localizedstring;1"].createInstance(Ci.nsIPrefLocalizedString);
     let localizeablePrefs = aData["LocalizablePreferences"];

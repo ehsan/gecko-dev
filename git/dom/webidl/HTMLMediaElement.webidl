@@ -145,14 +145,14 @@ partial interface HTMLMediaElement {
 #ifdef MOZ_EME
 // Encrypted Media Extensions
 partial interface HTMLMediaElement {
-  [Pref="media.eme.apiVisible"]
+  [Pref="media.eme.enabled"]
   readonly attribute MediaKeys? mediaKeys;
 
   // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
-  [Pref="media.eme.apiVisible", NewObject]
+  [Pref="media.eme.enabled", NewObject]
   Promise<void> setMediaKeys(MediaKeys? mediaKeys);
 
-  [Pref="media.eme.apiVisible"]
+  [Pref="media.eme.enabled"]
   attribute EventHandler onencrypted;
 };
 #endif

@@ -379,8 +379,7 @@ PerformanceFront.prototype = {
   _customProfilerOptions: {
     entries: 1000000,
     interval: 1,
-    features: ["js"],
-    threadFilters: ["GeckoMain"]
+    features: ["js"]
   },
 
   /**

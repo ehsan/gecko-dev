@@ -26,7 +26,6 @@ import android.accounts.AccountManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
-import android.os.AsyncTask;
 import android.os.Bundle;
 
 /**
@@ -275,7 +274,7 @@ public class FirefoxAccounts {
     ThreadPool.run(new Runnable() {
       @Override
       public void run() {
-        for (String authority : AndroidFxAccount.DEFAULT_AUTHORITIES_TO_SYNC_AUTOMATICALLY_MAP.keySet()) {
+        for (String authority : AndroidFxAccount.getAndroidAuthorities()) {
           ContentResolver.requestSync(account, authority, extras);
         }
       }

@@ -97,7 +97,7 @@ public:
   {
     DOMString value;
     GetSrc(value);
-    value.ToString(aText);
+    aText = value;
   }
   virtual void SetItemValueText(const nsAString& aText) MOZ_OVERRIDE
   {

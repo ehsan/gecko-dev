@@ -74,10 +74,11 @@ class BaselineFrame
         // This flag should never be set when we're executing JIT code.
         HAS_OVERRIDE_PC = 1 << 11,
 
-        // If set, we're handling an exception for this frame. This is set for
-        // debug mode OSR sanity checking when it handles corner cases which
-        // only arise during exception handling.
-        HANDLING_EXCEPTION = 1 << 12
+        // Frame has called out to Debugger code from
+        // HandleExceptionBaseline. This is set for debug mode OSR sanity
+        // checking when it handles corner cases which only arise during
+        // exception handling.
+        DEBUGGER_HANDLING_EXCEPTION = 1 << 12
     };
 
   protected: // Silence Clang warning about unused private fields.
@@ -289,14 +290,14 @@ class BaselineFrame
     }
     inline void unsetIsDebuggee();
 
-    bool isHandlingException() const {
-        return flags_ & HANDLING_EXCEPTION;
+    bool isDebuggerHandlingException() const {
+        return flags_ & DEBUGGER_HANDLING_EXCEPTION;
     }
-    void setIsHandlingException() {
-        flags_ |= HANDLING_EXCEPTION;
+    void setIsDebuggerHandlingException() {
+        flags_ |= DEBUGGER_HANDLING_EXCEPTION;
     }
-    void unsetIsHandlingException() {
-        flags_ &= ~HANDLING_EXCEPTION;
+    void unsetIsDebuggerHandlingException() {
+        flags_ &= ~DEBUGGER_HANDLING_EXCEPTION;
     }
 
     JSScript *evalScript() const {

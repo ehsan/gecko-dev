@@ -532,27 +532,30 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
     ForcedReturn(cx, frame, pc, rfe, calledDebugEpilogue);
 }
 
-struct AutoBaselineHandlingException
+struct AutoDebuggerHandlingException
 {
     BaselineFrame *frame;
-    AutoBaselineHandlingException(BaselineFrame *frame, jsbytecode *pc)
+    AutoDebuggerHandlingException(BaselineFrame *frame, jsbytecode *pc)
       : frame(frame)
     {
-        frame->setIsHandlingException();
-        frame->setOverridePc(pc);
+        frame->setIsDebuggerHandlingException();
+        frame->setOverridePc(pc); // Will be cleared in HandleException.
     }
-    ~AutoBaselineHandlingException() {
-        frame->unsetIsHandlingException();
-        frame->clearOverridePc();
+    ~AutoDebuggerHandlingException() {
+        frame->unsetIsDebuggerHandlingException();
     }
 };
 
 static void
 HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFromException *rfe,
-                        jsbytecode *pc, jsbytecode **unwoundScopeToPc, bool *calledDebugEpilogue)
+                        jsbytecode **unwoundScopeToPc, bool *calledDebugEpilogue)
 {
     MOZ_ASSERT(frame.isBaselineJS());
     MOZ_ASSERT(!*calledDebugEpilogue);
+
+    RootedScript script(cx);
+    jsbytecode *pc;
+    frame.baselineScriptAndPc(script.address(), &pc);
 
     // We may be propagating a forced return from the interrupt
     // callback, which cannot easily force a return.
@@ -566,6 +569,10 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
     if (cx->isExceptionPending() && cx->compartment()->isDebuggee() &&
         cx->getPendingException(&exception) && !exception.isMagic(JS_GENERATOR_CLOSING))
     {
+        // Set for debug mode OSR. See note concerning
+        // 'isDebuggerHandlingException' in CollectJitStackScripts.
+        AutoDebuggerHandlingException debuggerHandling(frame.baselineFrame(), pc);
+
         switch (Debugger::onExceptionUnwind(cx, frame.baselineFrame())) {
           case JSTRAP_ERROR:
             // Uncatchable exception.
@@ -585,8 +592,6 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
             MOZ_CRASH("Invalid trap status");
         }
     }
-
-    RootedScript script(cx, frame.baselineFrame()->script());
 
     if (!script->hasTrynotes()) {
         HandleClosingGeneratorReturn(cx, frame, pc, *unwoundScopeToPc, rfe, calledDebugEpilogue);
@@ -684,6 +689,13 @@ struct AutoDeleteDebugModeOSRInfo
     BaselineFrame *frame;
     explicit AutoDeleteDebugModeOSRInfo(BaselineFrame *frame) : frame(frame) { MOZ_ASSERT(frame); }
     ~AutoDeleteDebugModeOSRInfo() { frame->deleteDebugModeOSRInfo(); }
+};
+
+struct AutoClearBaselineOverridePc
+{
+    BaselineFrame *frame;
+    explicit AutoClearBaselineOverridePc(BaselineFrame *frame) : frame(frame) { MOZ_ASSERT(frame); }
+    ~AutoClearBaselineOverridePc() { frame->clearOverridePc(); }
 };
 
 struct AutoResetLastProfilerFrameOnReturnFromException
@@ -802,11 +814,8 @@ HandleException(ResumeFromException *rfe)
             // Remember the pc we unwound the scope to.
             jsbytecode *unwoundScopeToPc = nullptr;
 
-            // Set a flag on the frame to signal to DebugModeOSR that we're
-            // handling an exception. Also ensure the frame has an override
-            // pc. We clear the frame's override pc when we leave this block,
-            // this is fine because we're either:
-            //
+            // Clear the frame's override pc when we leave this block. This is
+            // fine because we're either:
             // (1) Going to enter a catch or finally block. We don't want to
             //     keep the old pc when we're executing JIT code.
             // (2) Going to pop the frame, either here or a forced return.
@@ -814,16 +823,17 @@ HandleException(ResumeFromException *rfe)
             // (3) Performing an exception bailout. In this case
             //     FinishBailoutToBaseline will set the pc to the resume pc
             //     and clear it before it returns to JIT code.
-            jsbytecode *pc;
-            iter.baselineScriptAndPc(nullptr, &pc);
-            AutoBaselineHandlingException handlingException(iter.baselineFrame(), pc);
+            AutoClearBaselineOverridePc clearPc(iter.baselineFrame());
 
-            HandleExceptionBaseline(cx, iter, rfe, pc, &unwoundScopeToPc, &calledDebugEpilogue);
+            HandleExceptionBaseline(cx, iter, rfe, &unwoundScopeToPc, &calledDebugEpilogue);
 
             // If we are propagating an exception through a frame with
             // on-stack recompile info, we should free the allocated
             // RecompileInfo struct before we leave this block, as we will not
             // be returning to the recompile handler.
+            //
+            // We cannot delete it immediately because of the call to
+            // iter.baselineScriptAndPc below.
             AutoDeleteDebugModeOSRInfo deleteDebugModeOSRInfo(iter.baselineFrame());
 
             if (rfe->kind != ResumeFromException::RESUME_ENTRY_FRAME)
@@ -975,21 +985,17 @@ ReadAllocation(const JitFrameIterator &frame, const LAllocation *a)
 #endif
 
 static void
-MarkThisAndArguments(JSTracer *trc, const JitFrameIterator &frame)
+MarkThisAndExtraActualArguments(JSTracer *trc, const JitFrameIterator &frame)
 {
     // Mark |this| and any extra actual arguments for an Ion frame. Marking of
-    // formal arguments is taken care of by the frame's safepoint/snapshot,
-    // except when the script's lazy arguments object aliases those formals,
-    // in which case we mark them as well.
+    // formal arguments is taken care of by the frame's safepoint/snapshot.
 
     JitFrameLayout *layout = frame.jsFrame();
 
     size_t nargs = frame.numActualArgs();
     size_t nformals = 0;
-    if (CalleeTokenIsFunction(layout->calleeToken())) {
-        JSFunction *fun = CalleeTokenToFunction(layout->calleeToken());
-        nformals = fun->nonLazyScript()->argumentsAliasesFormals() ? 0 : fun->nargs();
-    }
+    if (CalleeTokenIsFunction(layout->calleeToken()))
+        nformals = CalleeTokenToFunction(layout->calleeToken())->nargs();
 
     Value *argv = layout->argv();
 
@@ -1031,7 +1037,7 @@ MarkIonJSFrame(JSTracer *trc, const JitFrameIterator &frame)
         ionScript = frame.ionScriptFromCalleeToken();
     }
 
-    MarkThisAndArguments(trc, frame);
+    MarkThisAndExtraActualArguments(trc, frame);
 
     const SafepointIndex *si = ionScript->getSafepointIndex(frame.returnAddressToFp());
 
@@ -1090,7 +1096,7 @@ MarkBailoutFrame(JSTracer *trc, const JitFrameIterator &frame)
 
     // We have to mark the list of actual arguments, as only formal arguments
     // are represented in the Snapshot.
-    MarkThisAndArguments(trc, frame);
+    MarkThisAndExtraActualArguments(trc, frame);
 
     // Under a bailout, do not have a Safepoint to only iterate over GC-things.
     // Thus we use a SnapshotIterator to trace all the locations which would be
@@ -3087,17 +3093,14 @@ AssertJitStackInvariants(JSContext *cx)
 {
     for (JitActivationIterator activations(cx->runtime()); !activations.done(); ++activations) {
         JitFrameIterator frames(activations);
-        size_t prevFrameSize = 0;
-        size_t frameSize = 0;
-        bool isScriptedCallee = false;
         for (; !frames.done(); ++frames) {
-            size_t calleeFp = reinterpret_cast<size_t>(frames.fp());
-            size_t callerFp = reinterpret_cast<size_t>(frames.prevFp());
-            MOZ_ASSERT(callerFp >= calleeFp);
-            prevFrameSize = frameSize;
-            frameSize = callerFp - calleeFp;
 
             if (frames.prevType() == JitFrame_Rectifier) {
+                size_t calleeFp = reinterpret_cast<size_t>(frames.fp());
+                size_t callerFp = reinterpret_cast<size_t>(frames.prevFp());
+                MOZ_ASSERT(callerFp >= calleeFp);
+                size_t frameSize = callerFp - calleeFp;
+
                 MOZ_RELEASE_ASSERT(frameSize % JitStackAlignment == 0,
                   "The rectifier frame should keep the alignment");
 
@@ -3113,12 +3116,6 @@ AssertJitStackInvariants(JSContext *cx)
                   "The frame size is optimal");
             }
 
-            if (frames.type() == JitFrame_Exit) {
-                // For the moment, we do not keep the JitStackAlignment
-                // alignment for exit frames.
-                frameSize -= ExitFrameLayout::Size();
-            }
-
             if (frames.isIonJS()) {
                 // Ideally, we should not have such requirement, but keep the
                 // alignment-delta as part of the Safepoint such that we can pad
@@ -3127,23 +3124,8 @@ AssertJitStackInvariants(JSContext *cx)
                 // everything can properly be aligned before adding complexity.
                 MOZ_RELEASE_ASSERT(frames.ionScript()->frameSize() % JitStackAlignment == 0,
                   "Ensure that if the Ion frame is aligned, then the spill base is also aligned");
-
-                if (isScriptedCallee) {
-                    MOZ_RELEASE_ASSERT(prevFrameSize % JitStackAlignment == 0,
-                      "The ion frame should keep the alignment");
-                }
             }
 
-            // The stack is dynamically aligned by baseline stubs before calling
-            // any jitted code.
-            if (frames.prevType() == JitFrame_BaselineStub && isScriptedCallee) {
-                MOZ_RELEASE_ASSERT(calleeFp % JitStackAlignment == 0,
-                    "The baseline stub restores the stack alignment");
-            }
-
-            isScriptedCallee = false
-                || frames.isScripted()
-                || frames.type() == JitFrame_Rectifier;
         }
 
         MOZ_RELEASE_ASSERT(frames.type() == JitFrame_Entry,

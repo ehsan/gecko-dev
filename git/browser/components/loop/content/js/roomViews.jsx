@@ -170,7 +170,8 @@ loop.roomViews = (function(mozL10n) {
     ],
 
     propTypes: {
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired
+      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
+      mozLoop: React.PropTypes.object.isRequired,
     },
 
     _renderInvitationOverlay: function() {
@@ -242,7 +243,7 @@ loop.roomViews = (function(mozL10n) {
 
       var screenShareData = {
         state: this.state.screenSharingState,
-        visible: true
+        visible: this.props.mozLoop.getLoopPref("screenshare.enabled")
       };
 
       switch(this.state.roomState) {

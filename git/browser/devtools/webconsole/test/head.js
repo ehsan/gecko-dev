@@ -1117,14 +1117,6 @@ function waitForMessages(aOptions)
     return true;
   }
 
-  function hasXhrLabel(aElement) {
-    let xhr = aElement.querySelector('.xhr');
-    if (!xhr) {
-      return false;
-    }
-    return true;
-  }
-
   function checkMessage(aRule, aElement)
   {
     let elemText = aElement.textContent;
@@ -1166,14 +1158,6 @@ function waitForMessages(aOptions)
     }
 
     if ("collapsible" in aRule && !checkCollapsible(aRule, aElement)) {
-      return false;
-    }
-
-    if (aRule.isXhr && !hasXhrLabel(aElement)) {
-      return false;
-    }
-
-    if (!aRule.isXhr && hasXhrLabel(aElement)) {
       return false;
     }
 

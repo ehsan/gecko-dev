@@ -45,10 +45,8 @@ public:
 
   virtual void Destroy() MOZ_OVERRIDE
   {
-    // It's important to call ClearCachedResource before Destroy because the
-    // former will early-return if the later has already run.
-    ClearCachedResources();
     LayerManager::Destroy();
+    ClearCachedResources();
   }
 
 protected:

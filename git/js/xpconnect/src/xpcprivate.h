@@ -978,6 +978,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* getProperty    */                                         \
         nullptr, /* setProperty    */                                         \
         nullptr, /* getOwnPropertyDescriptor */                               \
+        nullptr, /* setPropertyAttributes  */                                 \
         nullptr, /* deleteProperty */                                         \
         nullptr, nullptr, /* watch/unwatch */                                 \
         nullptr, /* getElements */                                            \
@@ -992,6 +993,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* getProperty    */                                         \
         nullptr, /* setProperty    */                                         \
         nullptr, /* getOwnPropertyDescriptor */                               \
+        nullptr, /* setPropertyAttributes  */                                 \
         nullptr, /* deleteProperty */                                         \
         nullptr, nullptr, /* watch/unwatch */                                 \
         nullptr, /* getElements */                                            \

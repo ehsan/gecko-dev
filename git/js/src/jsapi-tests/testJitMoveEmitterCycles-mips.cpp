@@ -69,11 +69,9 @@ static MOZ_CONSTEXPR_VAR js::jit::FloatRegister double13(26, js::jit::FloatRegis
 static MOZ_CONSTEXPR_VAR js::jit::FloatRegister double14(28, js::jit::FloatRegister::Double);
 static MOZ_CONSTEXPR_VAR js::jit::FloatRegister double15(30, js::jit::FloatRegister::Double);
 
-static js::jit::JitCode *
-linkAndAllocate(JSContext *cx, js::jit::MacroAssembler *masm)
+static JitCode *
+linkAndAllocate(JSContext *cx, MacroAssembler *masm)
 {
-    using namespace js;
-    using namespace js::jit;
     AutoFlushICache afc("test");
     Linker l(*masm);
     return l.newCode<CanGC>(cx, ION_CODE);

@@ -15,14 +15,13 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/IntentionalCrash.h"
-#include "mozilla/dom/workers/ServiceWorkerManager.h"
 #include "mozilla/dom/indexedDB/PIndexedDBPermissionRequestChild.h"
 #include "mozilla/plugins/PluginWidgetChild.h"
 #include "mozilla/ipc/DocumentRendererChild.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
+#include "mozilla/layers/ActiveElementManager.h"
 #include "mozilla/layers/APZCCallbackHelper.h"
 #include "mozilla/layers/APZCTreeManager.h"
-#include "mozilla/layers/APZEventState.h"
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/layers/ShadowLayers.h"
@@ -100,7 +99,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
-using namespace mozilla::dom::workers;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
@@ -115,8 +113,53 @@ static const CSSSize kDefaultViewportSize(980, 480);
 static const char BROWSER_ZOOM_TO_RECT[] = "browser-zoom-to-rect";
 static const char BEFORE_FIRST_PAINT[] = "before-first-paint";
 
+static int32_t sActiveDurationMs = 10;
+static bool sActiveDurationMsSet = false;
+
 typedef nsDataHashtable<nsUint64HashKey, TabChild*> TabChildMap;
 static TabChildMap* sTabChildren;
+
+class TabChild::DelayedFireSingleTapEvent MOZ_FINAL : public nsITimerCallback
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  DelayedFireSingleTapEvent(nsIWidget* aWidget,
+                            LayoutDevicePoint& aPoint,
+                            nsITimer* aTimer)
+    : mWidget(do_GetWeakReference(aWidget))
+    , mPoint(aPoint)
+    // Hold the reference count until we are called back.
+    , mTimer(aTimer)
+  {
+  }
+
+  NS_IMETHODIMP Notify(nsITimer*) MOZ_OVERRIDE
+  {
+    nsCOMPtr<nsIWidget> widget = do_QueryReferent(mWidget);
+    if (widget) {
+      APZCCallbackHelper::FireSingleTapEvent(mPoint, widget);
+    }
+    mTimer = nullptr;
+    return NS_OK;
+  }
+
+  void ClearTimer() {
+    mTimer = nullptr;
+  }
+
+private:
+  ~DelayedFireSingleTapEvent()
+  {
+  }
+
+  nsWeakPtr mWidget;
+  LayoutDevicePoint mPoint;
+  nsCOMPtr<nsITimer> mTimer;
+};
+
+NS_IMPL_ISUPPORTS(TabChild::DelayedFireSingleTapEvent,
+                  nsITimerCallback)
 
 class TabChild::DelayedFireContextMenuEvent MOZ_FINAL : public nsITimerCallback
 {
@@ -494,6 +537,7 @@ TabChildBase::UpdateFrameHandler(const FrameMetrics& aFrameMetrics)
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
     if (APZCCallbackHelper::HasValidPresShellId(utils, aFrameMetrics)) {
       mLastRootMetrics = ProcessUpdateFrame(aFrameMetrics);
+      APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, mLastRootMetrics);
       return true;
     }
   } else {
@@ -504,6 +548,7 @@ TabChildBase::UpdateFrameHandler(const FrameMetrics& aFrameMetrics)
     if (content) {
       FrameMetrics newSubFrameMetrics(aFrameMetrics);
       APZCCallbackHelper::UpdateSubFrame(content, newSubFrameMetrics);
+      APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, newSubFrameMetrics);
       return true;
     }
   }
@@ -804,36 +849,6 @@ TabChild::Create(nsIContentChild* aManager,
     return NS_SUCCEEDED(iframe->Init()) ? iframe.forget() : nullptr;
 }
 
-class TabChildSetTargetAPZCCallback : public SetTargetAPZCCallback {
-public:
-  explicit TabChildSetTargetAPZCCallback(TabChild* aTabChild)
-    : mTabChild(do_GetWeakReference(static_cast<nsITabChild*>(aTabChild)))
-  {}
-
-  void Run(uint64_t aInputBlockId, const nsTArray<ScrollableLayerGuid>& aTargets) const MOZ_OVERRIDE {
-    if (nsCOMPtr<nsITabChild> tabChild = do_QueryReferent(mTabChild)) {
-      static_cast<TabChild*>(tabChild.get())->SendSetTargetAPZC(aInputBlockId, aTargets);
-    }
-  }
-
-private:
-  nsWeakPtr mTabChild;
-};
-
-class TabChildContentReceivedInputBlockCallback : public ContentReceivedInputBlockCallback {
-public:
-  explicit TabChildContentReceivedInputBlockCallback(TabChild* aTabChild)
-    : mTabChild(do_GetWeakReference(static_cast<nsITabChild*>(aTabChild)))
-  {}
-
-  void Run(const ScrollableLayerGuid& aGuid, uint64_t aInputBlockId, bool aPreventDefault) const MOZ_OVERRIDE {
-    if (nsCOMPtr<nsITabChild> tabChild = do_QueryReferent(mTabChild)) {
-      static_cast<TabChild*>(tabChild.get())->SendContentReceivedInputBlock(aGuid, aInputBlockId, aPreventDefault);
-    }
-  }
-private:
-  nsWeakPtr mTabChild;
-};
 
 TabChild::TabChild(nsIContentChild* aManager,
                    const TabId& aTabId,
@@ -853,8 +868,12 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mTriedBrowserInit(false)
   , mOrientation(eScreenOrientation_PortraitPrimary)
   , mUpdateHitRegion(false)
+  , mPendingTouchPreventedResponse(false)
+  , mPendingTouchPreventedBlockId(0)
+  , mTouchEndCancelled(false)
+  , mEndTouchIsClick(false)
   , mIgnoreKeyPressEvent(false)
-  , mSetTargetAPZCCallback(new TabChildSetTargetAPZCCallback(this))
+  , mActiveElementManager(new ActiveElementManager())
   , mHasValidInnerSize(false)
   , mDestroyed(false)
   , mUniqueId(aTabId)
@@ -863,6 +882,13 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mIPCOpen(true)
   , mParentIsActive(false)
 {
+  if (!sActiveDurationMsSet) {
+    Preferences::AddIntVarCache(&sActiveDurationMs,
+                                "ui.touch_activation.duration_ms",
+                                sActiveDurationMs);
+    sActiveDurationMsSet = true;
+  }
+
   // preloaded TabChild should not be added to child map
   if (mUniqueId) {
     MOZ_ASSERT(NestedTabChildMap().find(mUniqueId) == NestedTabChildMap().end());
@@ -1120,9 +1146,6 @@ TabChild::Init()
   nsCOMPtr<EventTarget> chromeHandler =
     do_QueryInterface(window->GetChromeEventHandler());
   docShell->SetChromeEventHandler(chromeHandler);
-
-  mAPZEventState = new APZEventState(mWidget,
-      new TabChildContentReceivedInputBlockCallback(this));
 
   return NS_OK;
 }
@@ -1543,7 +1566,7 @@ TabChild::ProvideWindowCommon(nsIDOMWindow* aOpener,
   }
 
   if (!urlToLoad.IsEmpty()) {
-    newChild->RecvLoadURL(urlToLoad, BrowserConfiguration());
+    newChild->RecvLoadURL(urlToLoad);
   }
 
   nsCOMPtr<nsIDOMWindow> win = do_GetInterface(newChild->WebNavigation());
@@ -1555,6 +1578,17 @@ bool
 TabChild::HasValidInnerSize()
 {
   return mHasValidInnerSize;
+}
+
+void
+TabChild::SendPendingTouchPreventedResponse(bool aPreventDefault,
+                                            const ScrollableLayerGuid& aGuid)
+{
+  if (mPendingTouchPreventedResponse) {
+    MOZ_ASSERT(aGuid == mPendingTouchPreventedGuid);
+    SendContentReceivedInputBlock(mPendingTouchPreventedGuid, mPendingTouchPreventedBlockId, aPreventDefault);
+    mPendingTouchPreventedResponse = false;
+  }
 }
 
 void
@@ -1683,12 +1717,11 @@ TabChild::IsRootContentDocument()
 }
 
 bool
-TabChild::RecvLoadURL(const nsCString& aURI,
-                      const BrowserConfiguration& aConfiguration)
+TabChild::RecvLoadURL(const nsCString& uri)
 {
     SetProcessNameToAppName();
 
-    nsresult rv = WebNavigation()->LoadURI(NS_ConvertUTF8toUTF16(aURI).get(),
+    nsresult rv = WebNavigation()->LoadURI(NS_ConvertUTF8toUTF16(uri).get(),
                                            nsIWebNavigation::LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
                                            nsIWebNavigation::LOAD_FLAGS_DISALLOW_INHERIT_OWNER,
                                            nullptr, nullptr, nullptr);
@@ -1697,12 +1730,8 @@ TabChild::RecvLoadURL(const nsCString& aURI,
     }
 
 #ifdef MOZ_CRASHREPORTER
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("URL"), aURI);
+    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("URL"), uri);
 #endif
-
-    nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
-    MOZ_ASSERT(swm);
-    swm->LoadRegistrations(aConfiguration.serviceWorkerRegistrations());
 
     return true;
 }
@@ -2022,7 +2051,7 @@ TabChild::RecvUpdateDimensions(const nsIntRect& rect, const nsIntSize& size,
     ScreenIntSize oldScreenSize = mInnerSize;
     mInnerSize = ScreenIntSize::FromUnknownSize(
       gfx::IntSize(size.width, size.height));
-    mWidget->Resize(rect.x + chromeDisp.x, rect.y + chromeDisp.y, size.width, size.height,
+    mWidget->Resize(0, 0, size.width, size.height,
                     true);
 
     nsCOMPtr<nsIBaseWindow> baseWin = do_QueryInterface(WebNavigation());
@@ -2083,8 +2112,40 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid&
 bool
 TabChild::RecvHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
-  if (mGlobal && mTabChildGlobal) {
-    mAPZEventState->ProcessSingleTap(aPoint, aGuid, GetPresShellResolution());
+  TABC_LOG("Handling single tap at %s on %s with %p %p %d\n",
+    Stringify(aPoint).c_str(), Stringify(aGuid).c_str(), mGlobal.get(),
+    mTabChildGlobal.get(), mTouchEndCancelled);
+
+  if (!mGlobal || !mTabChildGlobal) {
+    return true;
+  }
+
+  if (mTouchEndCancelled) {
+    return true;
+  }
+
+  LayoutDevicePoint currentPoint =
+      APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid, GetPresShellResolution())
+    * mWidget->GetDefaultScale();;
+  if (!mActiveElementManager->ActiveElementUsesStyle()) {
+    // If the active element isn't visually affected by the :active style, we
+    // have no need to wait the extra sActiveDurationMs to make the activation
+    // visually obvious to the user.
+    APZCCallbackHelper::FireSingleTapEvent(currentPoint, mWidget);
+    return true;
+  }
+
+  TABC_LOG("Active element uses style, scheduling timer for click event\n");
+  nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
+  nsRefPtr<DelayedFireSingleTapEvent> callback =
+    new DelayedFireSingleTapEvent(mWidget, currentPoint, timer);
+  nsresult rv = timer->InitWithCallback(callback,
+                                        sActiveDurationMs,
+                                        nsITimer::TYPE_ONE_SHOT);
+  if (NS_FAILED(rv)) {
+    // Make |callback| not hold the timer, so they will both be destructed when
+    // we leave the scope of this function.
+    callback->ClearTimer();
   }
   return true;
 }
@@ -2092,19 +2153,44 @@ TabChild::RecvHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid&
 bool
 TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId)
 {
-  if (mGlobal && mTabChildGlobal) {
-    mAPZEventState->ProcessLongTap(GetDOMWindowUtils(), aPoint, aGuid,
-        aInputBlockId, GetPresShellResolution());
+  TABC_LOG("Handling long tap at %s with %p %p\n",
+    Stringify(aPoint).c_str(), mGlobal.get(), mTabChildGlobal.get());
+
+  if (!mGlobal || !mTabChildGlobal) {
+    return true;
   }
+
+  SendPendingTouchPreventedResponse(false, aGuid);
+
+  bool eventHandled =
+      DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"),
+                         APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid, GetPresShellResolution()),
+                         2, 1, 0, true,
+                         nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
+
+  TABC_LOG("Contextmenu event handled: %d\n", eventHandled);
+
+  // If no one handle context menu, fire MOZLONGTAP event
+  if (!eventHandled) {
+    LayoutDevicePoint currentPoint =
+        APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid, GetPresShellResolution())
+      * mWidget->GetDefaultScale();
+    int time = 0;
+    nsEventStatus status =
+        APZCCallbackHelper::DispatchSynthesizedMouseEvent(NS_MOUSE_MOZLONGTAP, time, currentPoint, mWidget);
+    eventHandled = (status == nsEventStatus_eConsumeNoDefault);
+    TABC_LOG("MOZLONGTAP event handled: %d\n", eventHandled);
+  }
+
+  SendContentReceivedInputBlock(aGuid, aInputBlockId, eventHandled);
+
   return true;
 }
 
 bool
 TabChild::RecvHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
-  if (mGlobal && mTabChildGlobal) {
-    mAPZEventState->ProcessLongTapUp(aPoint, aGuid, GetPresShellResolution());
-  }
+  RecvHandleSingleTap(aPoint, aGuid);
   return true;
 }
 
@@ -2113,7 +2199,64 @@ TabChild::RecvNotifyAPZStateChange(const ViewID& aViewId,
                                    const APZStateChange& aChange,
                                    const int& aArg)
 {
-  mAPZEventState->ProcessAPZStateChange(GetDocument(), aViewId, aChange, aArg);
+  switch (aChange)
+  {
+  case APZStateChange::TransformBegin:
+  {
+    nsIScrollableFrame* sf = nsLayoutUtils::FindScrollableFrameFor(aViewId);
+    nsIScrollbarMediator* scrollbarMediator = do_QueryFrame(sf);
+    if (scrollbarMediator) {
+      scrollbarMediator->ScrollbarActivityStarted();
+    }
+
+    nsCOMPtr<nsIDocument> doc = GetDocument();
+    if (doc) {
+      nsCOMPtr<nsIDocShell> docshell(doc->GetDocShell());
+      if (docshell && sf) {
+        nsDocShell* nsdocshell = static_cast<nsDocShell*>(docshell.get());
+        nsdocshell->NotifyAsyncPanZoomStarted(sf->GetScrollPositionCSSPixels());
+      }
+    }
+    break;
+  }
+  case APZStateChange::TransformEnd:
+  {
+    nsIScrollableFrame* sf = nsLayoutUtils::FindScrollableFrameFor(aViewId);
+    nsIScrollbarMediator* scrollbarMediator = do_QueryFrame(sf);
+    if (scrollbarMediator) {
+      scrollbarMediator->ScrollbarActivityStopped();
+    }
+
+    nsCOMPtr<nsIDocument> doc = GetDocument();
+    if (doc) {
+      nsCOMPtr<nsIDocShell> docshell(doc->GetDocShell());
+      if (docshell && sf) {
+        nsDocShell* nsdocshell = static_cast<nsDocShell*>(docshell.get());
+        nsdocshell->NotifyAsyncPanZoomStopped(sf->GetScrollPositionCSSPixels());
+      }
+    }
+    break;
+  }
+  case APZStateChange::StartTouch:
+  {
+    mActiveElementManager->HandleTouchStart(aArg);
+    break;
+  }
+  case APZStateChange::StartPanning:
+  {
+    mActiveElementManager->HandlePanStart();
+    break;
+  }
+  case APZStateChange::EndTouch:
+  {
+    mEndTouchIsClick = aArg;
+    break;
+  }
+  default:
+    // APZStateChange has a 'sentinel' value, and the compiler complains
+    // if an enumerator is not handled and there is no 'default' case.
+    break;
+  }
   return true;
 }
 
@@ -2153,8 +2296,8 @@ TabChild::RecvMouseEvent(const nsString& aType,
                          const int32_t&  aModifiers,
                          const bool&     aIgnoreRootScrollFrame)
 {
-  APZCCallbackHelper::DispatchMouseEvent(GetDOMWindowUtils(), aType, CSSPoint(aX, aY),
-      aButton, aClickCount, aModifiers, aIgnoreRootScrollFrame, nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN);
+  DispatchMouseEvent(aType, CSSPoint(aX, aY), aButton, aClickCount, aModifiers,
+                     aIgnoreRootScrollFrame, nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN);
   return true;
 }
 
@@ -2174,8 +2317,15 @@ TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& aEvent,
 {
   if (IsAsyncPanZoomEnabled()) {
     nsCOMPtr<nsIDocument> document(GetDocument());
-    APZCCallbackHelper::SendSetTargetAPZCNotification(WebWidget(), document, aEvent, aGuid,
-        aInputBlockId, mSetTargetAPZCCallback);
+    if (nsIPresShell* shell = document->GetShell()) {
+      if (nsIFrame* rootFrame = shell->GetRootFrame()) {
+        nsTArray<ScrollableLayerGuid> targets;
+        bool waitForRefresh =
+          PrepareForSetTargetAPZCNotification(aGuid, aInputBlockId, rootFrame, aEvent.refPoint, &targets);
+
+        SendSetTargetAPZCNotification(shell, aInputBlockId, targets, waitForRefresh);
+      }
+    }
   }
 
   WidgetWheelEvent event(aEvent);
@@ -2183,7 +2333,7 @@ TabChild::RecvMouseWheelEvent(const WidgetWheelEvent& aEvent,
   APZCCallbackHelper::DispatchWidgetEvent(event);
 
   if (IsAsyncPanZoomEnabled()) {
-    mAPZEventState->ProcessWheelEvent(event, aGuid, aInputBlockId);
+    SendContentReceivedInputBlock(aGuid, aInputBlockId, event.mFlags.mDefaultPrevented);
   }
   return true;
 }
@@ -2302,15 +2452,13 @@ TabChild::FireContextMenuEvent()
   }
 
   MOZ_ASSERT(mTapHoldTimer && mActivePointerId >= 0);
-  bool defaultPrevented = APZCCallbackHelper::DispatchMouseEvent(
-      GetDOMWindowUtils(),
-      NS_LITERAL_STRING("contextmenu"),
-      mGestureDownPoint / CSSToLayoutDeviceScale(scale),
-      2 /* Right button */,
-      1 /* Click count */,
-      0 /* Modifiers */,
-      true /* Ignore root scroll frame */,
-      nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
+  bool defaultPrevented = DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"),
+                                             mGestureDownPoint / CSSToLayoutDeviceScale(scale),
+                                             2 /* Right button */,
+                                             1 /* Click count */,
+                                             0 /* Modifiers */,
+                                             true /* Ignore root scroll frame */,
+                                             nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
 
   // Fire a click event if someone didn't call preventDefault() on the context
   // menu event.
@@ -2332,6 +2480,160 @@ TabChild::CancelTapTracking()
   mTapHoldTimer = nullptr;
 }
 
+static nsIScrollableFrame*
+GetScrollableAncestorFrame(nsIFrame* aTarget)
+{
+  if (!aTarget) {
+    return nullptr;
+  }
+  uint32_t flags = nsLayoutUtils::SCROLLABLE_ALWAYS_MATCH_ROOT
+                 | nsLayoutUtils::SCROLLABLE_ONLY_ASYNC_SCROLLABLE;
+  return nsLayoutUtils::GetNearestScrollableFrame(aTarget, flags);
+}
+
+static dom::Element*
+GetDisplayportElementFor(nsIScrollableFrame* aScrollableFrame)
+{
+  if (!aScrollableFrame) {
+    return nullptr;
+  }
+  nsIFrame* scrolledFrame = aScrollableFrame->GetScrolledFrame();
+  if (!scrolledFrame) {
+    return nullptr;
+  }
+  // |scrolledFrame| should at this point be the root content frame of the
+  // nearest ancestor scrollable frame. The element corresponding to this
+  // frame should be the one with the displayport set on it, so find that
+  // element and return it.
+  nsIContent* content = scrolledFrame->GetContent();
+  MOZ_ASSERT(content->IsElement()); // roc says this must be true
+  return content->AsElement();
+}
+
+class DisplayportSetListener : public nsAPostRefreshObserver {
+public:
+  DisplayportSetListener(TabChild* aTabChild,
+                         nsIPresShell* aPresShell,
+                         const uint64_t& aInputBlockId,
+                         const nsTArray<ScrollableLayerGuid>& aTargets)
+    : mTabChild(aTabChild)
+    , mPresShell(aPresShell)
+    , mInputBlockId(aInputBlockId)
+    , mTargets(aTargets)
+  {
+  }
+
+  virtual ~DisplayportSetListener()
+  {
+  }
+
+  void DidRefresh() MOZ_OVERRIDE {
+    if (!mTabChild) {
+      MOZ_ASSERT_UNREACHABLE("Post-refresh observer fired again after failed attempt at unregistering it");
+      return;
+    }
+
+    TABC_LOG("Got refresh, sending target APZCs for input block %" PRIu64 "\n", mInputBlockId);
+    mTabChild->SendSetTargetAPZC(mInputBlockId, mTargets);
+
+    if (!mPresShell->RemovePostRefreshObserver(this)) {
+      MOZ_ASSERT_UNREACHABLE("Unable to unregister post-refresh observer! Leaking it instead of leaving garbage registered");
+      // Graceful handling, just in case...
+      mTabChild = nullptr;
+      mPresShell = nullptr;
+      return;
+    }
+
+    delete this;
+  }
+
+private:
+  nsRefPtr<TabChild> mTabChild;
+  nsRefPtr<nsIPresShell> mPresShell;
+  uint64_t mInputBlockId;
+  nsTArray<ScrollableLayerGuid> mTargets;
+};
+
+bool
+TabChild::PrepareForSetTargetAPZCNotification(const ScrollableLayerGuid& aGuid,
+                                              const uint64_t& aInputBlockId,
+                                              nsIFrame* aRootFrame,
+                                              const LayoutDeviceIntPoint& aRefPoint,
+                                              nsTArray<ScrollableLayerGuid>* aTargets)
+{
+  ScrollableLayerGuid guid(aGuid.mLayersId, 0, FrameMetrics::NULL_SCROLL_ID);
+  nsPoint point =
+    nsLayoutUtils::GetEventCoordinatesRelativeTo(WebWidget(), aRefPoint, aRootFrame);
+  nsIFrame* target =
+    nsLayoutUtils::GetFrameForPoint(aRootFrame, point, nsLayoutUtils::IGNORE_ROOT_SCROLL_FRAME);
+  nsIScrollableFrame* scrollAncestor = GetScrollableAncestorFrame(target);
+  nsCOMPtr<dom::Element> dpElement = GetDisplayportElementFor(scrollAncestor);
+
+  nsAutoString dpElementDesc;
+  if (dpElement) {
+    dpElement->Describe(dpElementDesc);
+  }
+  TABC_LOG("For input block %" PRIu64 " found scrollable element %p (%s)\n",
+      aInputBlockId, dpElement.get(),
+      NS_LossyConvertUTF16toASCII(dpElementDesc).get());
+
+  bool guidIsValid = APZCCallbackHelper::GetOrCreateScrollIdentifiers(
+    dpElement, &(guid.mPresShellId), &(guid.mScrollId));
+  aTargets->AppendElement(guid);
+
+  if (!guidIsValid || nsLayoutUtils::GetDisplayPort(dpElement, nullptr)) {
+    return false;
+  }
+
+  TABC_LOG("%p didn't have a displayport, so setting one...\n", dpElement.get());
+  return nsLayoutUtils::CalculateAndSetDisplayPortMargins(
+      scrollAncestor, nsLayoutUtils::RepaintMode::Repaint);
+}
+
+void
+TabChild::SendSetTargetAPZCNotification(nsIPresShell* aShell,
+                                        const uint64_t& aInputBlockId,
+                                        const nsTArray<ScrollableLayerGuid>& aTargets,
+                                        bool aWaitForRefresh)
+{
+  bool waitForRefresh = aWaitForRefresh;
+  if (waitForRefresh) {
+    TABC_LOG("At least one target got a new displayport, need to wait for refresh\n");
+    waitForRefresh = aShell->AddPostRefreshObserver(
+      new DisplayportSetListener(this, aShell, aInputBlockId, aTargets));
+  }
+  if (!waitForRefresh) {
+    TABC_LOG("Sending target APZCs for input block %" PRIu64 "\n", aInputBlockId);
+    SendSetTargetAPZC(aInputBlockId, aTargets);
+  } else {
+    TABC_LOG("Successfully registered post-refresh observer\n");
+  }
+}
+
+void
+TabChild::SendSetTargetAPZCNotification(const WidgetTouchEvent& aEvent,
+                                        const ScrollableLayerGuid& aGuid,
+                                        const uint64_t& aInputBlockId)
+{
+  nsCOMPtr<nsIDocument> document(GetDocument());
+  nsIPresShell* shell = document->GetShell();
+  if (!shell) {
+    return;
+  }
+  nsIFrame* rootFrame = shell->GetRootFrame();
+  if (!rootFrame) {
+    return;
+  }
+
+  bool waitForRefresh = false;
+  nsTArray<ScrollableLayerGuid> targets;
+  for (size_t i = 0; i < aEvent.touches.Length(); i++) {
+    waitForRefresh |= PrepareForSetTargetAPZCNotification(aGuid, aInputBlockId,
+        rootFrame, aEvent.touches[i]->mRefPoint, &targets);
+  }
+  SendSetTargetAPZCNotification(shell, aInputBlockId, targets, waitForRefresh);
+}
+
 float
 TabChild::GetPresShellResolution() const
 {
@@ -2350,18 +2652,18 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
 {
   TABC_LOG("Receiving touch event of type %d\n", aEvent.message);
 
-  WidgetTouchEvent localEvent(aEvent);
-  localEvent.widget = mWidget;
-
-  APZCCallbackHelper::ApplyCallbackTransform(localEvent, aGuid,
-      mWidget->GetDefaultScale(), GetPresShellResolution());
-
-  if (localEvent.message == NS_TOUCH_START && IsAsyncPanZoomEnabled()) {
-    nsCOMPtr<nsIDocument> document = GetDocument();
-    APZCCallbackHelper::SendSetTargetAPZCNotification(WebWidget(), document,
-        localEvent, aGuid, aInputBlockId, mSetTargetAPZCCallback);
+  for (size_t i = 0; i < aEvent.touches.Length(); i++) {
+    aEvent.touches[i]->mRefPoint = APZCCallbackHelper::ApplyCallbackTransform(
+        aEvent.touches[i]->mRefPoint, aGuid, mWidget->GetDefaultScale(),
+        GetPresShellResolution());
   }
 
+  if (aEvent.message == NS_TOUCH_START && IsAsyncPanZoomEnabled()) {
+    SendSetTargetAPZCNotification(aEvent, aGuid, aInputBlockId);
+  }
+
+  WidgetTouchEvent localEvent(aEvent);
+  localEvent.widget = mWidget;
   // Dispatch event to content (potentially a long-running operation)
   nsEventStatus status = APZCCallbackHelper::DispatchWidgetEvent(localEvent);
 
@@ -2370,7 +2672,49 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
     return true;
   }
 
-  mAPZEventState->ProcessTouchEvent(localEvent, aGuid, aInputBlockId);
+  if (aEvent.message == NS_TOUCH_START && localEvent.touches.Length() > 0) {
+    mActiveElementManager->SetTargetElement(localEvent.touches[0]->GetTarget());
+  }
+
+  bool isTouchPrevented = nsIPresShell::gPreventMouseEvents ||
+                          localEvent.mFlags.mMultipleActionsPrevented;
+  switch (aEvent.message) {
+  case NS_TOUCH_START: {
+    mTouchEndCancelled = false;
+    if (mPendingTouchPreventedResponse) {
+      // We can enter here if we get two TOUCH_STARTs in a row and didn't
+      // respond to the first one. Respond to it now.
+      SendContentReceivedInputBlock(mPendingTouchPreventedGuid, mPendingTouchPreventedBlockId, false);
+      mPendingTouchPreventedResponse = false;
+    }
+    if (isTouchPrevented) {
+      SendContentReceivedInputBlock(aGuid, aInputBlockId, isTouchPrevented);
+    } else {
+      mPendingTouchPreventedResponse = true;
+      mPendingTouchPreventedGuid = aGuid;
+      mPendingTouchPreventedBlockId = aInputBlockId;
+    }
+    break;
+  }
+
+  case NS_TOUCH_END:
+    if (isTouchPrevented) {
+      mTouchEndCancelled = true;
+      mEndTouchIsClick = false;
+    }
+    // fall through
+  case NS_TOUCH_CANCEL:
+    mActiveElementManager->HandleTouchEnd(mEndTouchIsClick);
+    // fall through
+  case NS_TOUCH_MOVE: {
+    SendPendingTouchPreventedResponse(isTouchPrevented, aGuid);
+    break;
+  }
+
+  default:
+    NS_WARNING("Unknown touch event type");
+  }
+
   return true;
 }
 
@@ -2914,6 +3258,24 @@ TabChild::NotifyPainted()
         mRemoteFrame->SendNotifyCompositorTransaction();
         mNotified = true;
     }
+}
+
+bool
+TabChild::DispatchMouseEvent(const nsString&       aType,
+                             const CSSPoint&       aPoint,
+                             const int32_t&        aButton,
+                             const int32_t&        aClickCount,
+                             const int32_t&        aModifiers,
+                             const bool&           aIgnoreRootScrollFrame,
+                             const unsigned short& aInputSourceArg)
+{
+  nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
+  NS_ENSURE_TRUE(utils, true);
+  
+  bool defaultPrevented = false;
+  utils->SendMouseEvent(aType, aPoint.x, aPoint.y, aButton, aClickCount, aModifiers,
+                        aIgnoreRootScrollFrame, 0, aInputSourceArg, false, 4, &defaultPrevented);
+  return defaultPrevented;
 }
 
 void

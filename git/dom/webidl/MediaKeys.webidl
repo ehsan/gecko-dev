@@ -13,7 +13,7 @@
 enum IsTypeSupportedResult { "" /* empty string */, "maybe", "probably" };
 enum SessionType { "temporary", "persistent" };
 
-[Pref="media.eme.apiVisible"]
+[Pref="media.eme.enabled"]
 interface MediaKeys {
   readonly attribute DOMString keySystem;
 

@@ -10646,6 +10646,12 @@ nsGlobalWindow::GetIndexedDB(nsISupports** _retval)
   return rv.ErrorCode();
 }
 
+NS_IMETHODIMP
+nsGlobalWindow::GetMozIndexedDB(nsISupports** _retval)
+{
+  return GetIndexedDB(_retval);
+}
+
 //*****************************************************************************
 // nsGlobalWindow::nsIInterfaceRequestor
 //*****************************************************************************

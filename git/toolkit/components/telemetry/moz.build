@@ -60,4 +60,3 @@ LOCAL_INCLUDES += [
     '/xpcom/threads',
 ]
 
-SPHINX_TREES['telemetry'] = 'docs'

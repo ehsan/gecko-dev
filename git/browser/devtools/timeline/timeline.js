@@ -16,15 +16,15 @@ devtools.lazyRequireGetter(this, "EventEmitter",
   "devtools/toolkit/event-emitter");
 
 devtools.lazyRequireGetter(this, "MarkersOverview",
-  "devtools/shared/timeline/markers-overview", true);
+  "devtools/timeline/markers-overview", true);
 devtools.lazyRequireGetter(this, "MemoryOverview",
-  "devtools/shared/timeline/memory-overview", true);
+  "devtools/timeline/memory-overview", true);
 devtools.lazyRequireGetter(this, "Waterfall",
-  "devtools/shared/timeline/waterfall", true);
+  "devtools/timeline/waterfall", true);
 devtools.lazyRequireGetter(this, "MarkerDetails",
-  "devtools/shared/timeline/marker-details", true);
+  "devtools/timeline/marker-details", true);
 devtools.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
-  "devtools/shared/timeline/global", true);
+  "devtools/timeline/global", true);
 
 devtools.lazyImporter(this, "CanvasGraphUtils",
   "resource:///modules/devtools/Graphs.jsm");

@@ -22,11 +22,16 @@
 #endif
 
 #ifdef PR_LOGGING
-#define MSE_DEBUG(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, ("MediaSourceReader(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
-#define MSE_DEBUGV(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG + 1, ("MediaSourceReader(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+extern PRLogModuleInfo* GetMediaSourceLog();
+extern PRLogModuleInfo* GetMediaSourceAPILog();
+
+#define MSE_DEBUG(...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+#define MSE_DEBUGV(...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG+1, (__VA_ARGS__))
+#define MSE_API(...) PR_LOG(GetMediaSourceAPILog(), PR_LOG_DEBUG, (__VA_ARGS__))
 #else
 #define MSE_DEBUG(...)
 #define MSE_DEBUGV(...)
+#define MSE_API(...)
 #endif
 
 // When a stream hits EOS it needs to decide what other stream to switch to. Due
@@ -64,7 +69,8 @@ void
 MediaSourceReader::PrepareInitialization()
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  MSE_DEBUG("trackBuffers=%u", mTrackBuffers.Length());
+  MSE_DEBUG("MediaSourceReader(%p)::PrepareInitialization trackBuffers=%u",
+            this, mTrackBuffers.Length());
   mEssentialTrackBuffers.AppendElements(mTrackBuffers);
   mHasEssentialTrackBuffers = true;
   mDecoder->NotifyWaitingForResourcesStatusChanged();
@@ -88,7 +94,7 @@ size_t
 MediaSourceReader::SizeOfVideoQueueInFrames()
 {
   if (!GetVideoReader()) {
-    MSE_DEBUG("called with no video reader");
+    MSE_DEBUG("MediaSourceReader(%p)::SizeOfVideoQueue called with no video reader", this);
     return 0;
   }
   return GetVideoReader()->SizeOfVideoQueueInFrames();
@@ -98,7 +104,7 @@ size_t
 MediaSourceReader::SizeOfAudioQueueInFrames()
 {
   if (!GetAudioReader()) {
-    MSE_DEBUG("called with no audio reader");
+    MSE_DEBUG("MediaSourceReader(%p)::SizeOfAudioQueue called with no audio reader", this);
     return 0;
   }
   return GetAudioReader()->SizeOfAudioQueueInFrames();
@@ -108,14 +114,14 @@ nsRefPtr<MediaDecoderReader::AudioDataPromise>
 MediaSourceReader::RequestAudioData()
 {
   nsRefPtr<AudioDataPromise> p = mAudioPromise.Ensure(__func__);
-  MSE_DEBUGV("");
+  MSE_DEBUGV("MediaSourceReader(%p)::RequestAudioData", this);
   if (!GetAudioReader()) {
-    MSE_DEBUG("called with no audio reader");
+    MSE_DEBUG("MediaSourceReader(%p)::RequestAudioData called with no audio reader", this);
     mAudioPromise.Reject(DECODE_ERROR, __func__);
     return p;
   }
   if (IsSeeking()) {
-    MSE_DEBUG("called mid-seek. Rejecting.");
+    MSE_DEBUG("MediaSourceReader(%p)::RequestAudioData called mid-seek. Rejecting.", this);
     mAudioPromise.Reject(CANCELED, __func__);
     return p;
   }
@@ -161,12 +167,12 @@ MediaSourceReader::OnAudioDecoded(AudioData* aSample)
     mAudioDiscontinuity = true;
   }
 
-  MSE_DEBUGV("[mTime=%lld mDuration=%lld mDiscontinuity=%d]",
-             ourTime, aSample->mDuration, aSample->mDiscontinuity);
+  MSE_DEBUGV("MediaSourceReader(%p)::OnAudioDecoded [mTime=%lld mDuration=%lld mDiscontinuity=%d]",
+             this, ourTime, aSample->mDuration, aSample->mDiscontinuity);
   if (mDropAudioBeforeThreshold) {
     if (ourTime < mTimeThreshold) {
-      MSE_DEBUG("mTime=%lld < mTimeThreshold=%lld",
-                ourTime, mTimeThreshold);
+      MSE_DEBUG("MediaSourceReader(%p)::OnAudioDecoded mTime=%lld < mTimeThreshold=%lld",
+                this, ourTime, mTimeThreshold);
       mAudioRequest.Begin(GetAudioReader()->RequestAudioData()
                           ->RefableThen(GetTaskQueue(), __func__, this,
                                         &MediaSourceReader::OnAudioDecoded,
@@ -222,7 +228,7 @@ MediaSourceReader::OnAudioNotDecoded(NotDecodedReason aReason)
   MOZ_DIAGNOSTIC_ASSERT(!IsSeeking());
   mAudioRequest.Complete();
 
-  MSE_DEBUG("aReason=%u IsEnded: %d", aReason, IsEnded());
+  MSE_DEBUG("MediaSourceReader(%p)::OnAudioNotDecoded aReason=%u IsEnded: %d", this, aReason, IsEnded());
   if (aReason == DECODE_ERROR || aReason == CANCELED) {
     mAudioPromise.Reject(aReason, __func__);
     return;
@@ -251,10 +257,10 @@ nsRefPtr<MediaDecoderReader::VideoDataPromise>
 MediaSourceReader::RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold)
 {
   nsRefPtr<VideoDataPromise> p = mVideoPromise.Ensure(__func__);
-  MSE_DEBUGV("RequestVideoData(%d, %lld)",
-             aSkipToNextKeyframe, aTimeThreshold);
+  MSE_DEBUGV("MediaSourceReader(%p)::RequestVideoData(%d, %lld)",
+             this, aSkipToNextKeyframe, aTimeThreshold);
   if (!GetVideoReader()) {
-    MSE_DEBUG("called with no video reader");
+    MSE_DEBUG("MediaSourceReader(%p)::RequestVideoData called with no video reader", this);
     mVideoPromise.Reject(DECODE_ERROR, __func__);
     return p;
   }
@@ -264,7 +270,7 @@ MediaSourceReader::RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThres
     mDropVideoBeforeThreshold = true;
   }
   if (IsSeeking()) {
-    MSE_DEBUG("called mid-seek. Rejecting.");
+    MSE_DEBUG("MediaSourceReader(%p)::RequestVideoData called mid-seek. Rejecting.", this);
     mVideoPromise.Reject(CANCELED, __func__);
     return p;
   }
@@ -313,12 +319,12 @@ MediaSourceReader::OnVideoDecoded(VideoData* aSample)
     mVideoDiscontinuity = true;
   }
 
-  MSE_DEBUGV("[mTime=%lld mDuration=%lld mDiscontinuity=%d]",
-             ourTime, aSample->mDuration, aSample->mDiscontinuity);
+  MSE_DEBUGV("MediaSourceReader(%p)::OnVideoDecoded [mTime=%lld mDuration=%lld mDiscontinuity=%d]",
+             this, ourTime, aSample->mDuration, aSample->mDiscontinuity);
   if (mDropVideoBeforeThreshold) {
     if (ourTime < mTimeThreshold) {
-      MSE_DEBUG("mTime=%lld < mTimeThreshold=%lld",
-                ourTime, mTimeThreshold);
+      MSE_DEBUG("MediaSourceReader(%p)::OnVideoDecoded mTime=%lld < mTimeThreshold=%lld",
+                this, ourTime, mTimeThreshold);
       DoVideoRequest();
       return;
     }
@@ -347,7 +353,7 @@ MediaSourceReader::OnVideoNotDecoded(NotDecodedReason aReason)
   MOZ_DIAGNOSTIC_ASSERT(!IsSeeking());
   mVideoRequest.Complete();
 
-  MSE_DEBUG("aReason=%u IsEnded: %d", aReason, IsEnded());
+  MSE_DEBUG("MediaSourceReader(%p)::OnVideoNotDecoded aReason=%u IsEnded: %d", this, aReason, IsEnded());
   if (aReason == DECODE_ERROR || aReason == CANCELED) {
     mVideoPromise.Reject(aReason, __func__);
     return;
@@ -474,8 +480,8 @@ MediaSourceReader::SelectDecoder(int64_t aTarget,
     newDecoder->GetBuffered(ranges);
     if (ranges->Find(double(aTarget) / USECS_PER_S,
                      double(aTolerance) / USECS_PER_S) == dom::TimeRanges::NoIndex) {
-      MSE_DEBUGV("SelectDecoder(%lld) newDecoder=%p target not in ranges=%s",
-                 aTarget, newDecoder.get(), DumpTimeRanges(ranges).get());
+      MSE_DEBUGV("MediaSourceReader(%p)::SelectDecoder(%lld) newDecoder=%p target not in ranges=%s",
+                 this, aTarget, newDecoder.get(), DumpTimeRanges(ranges).get());
       continue;
     }
 
@@ -527,8 +533,8 @@ MediaSourceReader::SwitchAudioSource(int64_t* aTarget)
         *aTarget = startTime;
       }
     }
-    MSE_DEBUGV("switched decoder to %p (fuzz:%d)",
-               mAudioSourceDecoder.get(), usedFuzz);
+    MSE_DEBUGV("MediaSourceReader(%p)::SwitchAudioSource switched decoder to %p (fuzz:%d)",
+               this, mAudioSourceDecoder.get(), usedFuzz);
     return SOURCE_NEW;
   }
   return newDecoder ? SOURCE_EXISTING : SOURCE_ERROR;
@@ -567,8 +573,8 @@ MediaSourceReader::SwitchVideoSource(int64_t* aTarget)
         *aTarget = startTime;
       }
     }
-    MSE_DEBUGV("switched decoder to %p (fuzz:%d)",
-               mVideoSourceDecoder.get(), usedFuzz);
+    MSE_DEBUGV("MediaSourceReader(%p)::SwitchVideoSource switched decoder to %p (fuzz:%d)",
+               this, mVideoSourceDecoder.get(), usedFuzz);
     return SOURCE_NEW;
   }
   return newDecoder ? SOURCE_EXISTING : SOURCE_ERROR;
@@ -647,8 +653,8 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType, int64_t aTimestampO
 #endif
   reader->Init(nullptr);
 
-  MSE_DEBUG("subdecoder %p subreader %p",
-            decoder.get(), reader.get());
+  MSE_DEBUG("MediaSourceReader(%p)::CreateSubDecoder subdecoder %p subreader %p",
+            this, decoder.get(), reader.get());
   decoder->SetReader(reader);
 #ifdef MOZ_EME
   decoder->SetCDMProxy(mCDMProxy);
@@ -660,7 +666,7 @@ void
 MediaSourceReader::AddTrackBuffer(TrackBuffer* aTrackBuffer)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  MSE_DEBUG("AddTrackBuffer(%p)", aTrackBuffer);
+  MSE_DEBUG("MediaSourceReader(%p)::AddTrackBuffer %p", this, aTrackBuffer);
   mTrackBuffers.AppendElement(aTrackBuffer);
 }
 
@@ -668,7 +674,7 @@ void
 MediaSourceReader::RemoveTrackBuffer(TrackBuffer* aTrackBuffer)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  MSE_DEBUG("RemoveTrackBuffer(%p)", aTrackBuffer);
+  MSE_DEBUG("MediaSourceReader(%p)::RemoveTrackBuffer %p", this, aTrackBuffer);
   mTrackBuffers.RemoveElement(aTrackBuffer);
   if (mAudioTrack == aTrackBuffer) {
     mAudioTrack = nullptr;
@@ -685,11 +691,11 @@ MediaSourceReader::OnTrackBufferConfigured(TrackBuffer* aTrackBuffer, const Medi
   MOZ_ASSERT(aTrackBuffer->IsReady());
   MOZ_ASSERT(mTrackBuffers.Contains(aTrackBuffer));
   if (aInfo.HasAudio() && !mAudioTrack) {
-    MSE_DEBUG("%p audio", aTrackBuffer);
+    MSE_DEBUG("MediaSourceReader(%p)::OnTrackBufferConfigured %p audio", this, aTrackBuffer);
     mAudioTrack = aTrackBuffer;
   }
   if (aInfo.HasVideo() && !mVideoTrack) {
-    MSE_DEBUG("%p video", aTrackBuffer);
+    MSE_DEBUG("MediaSourceReader(%p)::OnTrackBufferConfigured %p video", this, aTrackBuffer);
     mVideoTrack = aTrackBuffer;
   }
   mDecoder->NotifyWaitingForResourcesStatusChanged();
@@ -723,8 +729,8 @@ MediaSourceReader::NotifyTimeRangesChanged()
 nsRefPtr<MediaDecoderReader::SeekPromise>
 MediaSourceReader::Seek(int64_t aTime, int64_t aIgnored /* Used only for ogg which is non-MSE */)
 {
-  MSE_DEBUG("Seek(aTime=%lld, aEnd=%lld, aCurrent=%lld)",
-            aTime);
+  MSE_DEBUG("MediaSourceReader(%p)::Seek(aTime=%lld, aEnd=%lld, aCurrent=%lld)",
+            this, aTime);
 
   MOZ_ASSERT(mSeekPromise.IsEmpty());
   nsRefPtr<SeekPromise> p = mSeekPromise.Ensure(__func__);
@@ -819,7 +825,7 @@ MediaSourceReader::DoAudioSeek()
                          ->RefableThen(GetTaskQueue(), __func__, this,
                                        &MediaSourceReader::OnAudioSeekCompleted,
                                        &MediaSourceReader::OnAudioSeekFailed));
-  MSE_DEBUG("reader=%p", GetAudioReader());
+  MSE_DEBUG("MediaSourceReader(%p)::DoAudioSeek reader=%p", this, GetAudioReader());
 }
 
 void
@@ -879,7 +885,7 @@ MediaSourceReader::DoVideoSeek()
                           ->RefableThen(GetTaskQueue(), __func__, this,
                                         &MediaSourceReader::OnVideoSeekCompleted,
                                         &MediaSourceReader::OnVideoSeekFailed));
-  MSE_DEBUG("reader=%p", GetVideoReader());
+  MSE_DEBUG("MediaSourceReader(%p)::DoVideoSeek reader=%p", this, GetVideoReader());
 }
 
 nsresult
@@ -918,7 +924,7 @@ MediaSourceReader::GetBuffered(dom::TimeRanges* aBuffered)
     intersectionRanges->Intersection(sourceRanges);
   }
 
-  MSE_DEBUG("ranges=%s", DumpTimeRanges(intersectionRanges).get());
+  MSE_DEBUG("MediaSourceReader(%p)::GetBuffered ranges=%s", this, DumpTimeRanges(intersectionRanges).get());
   return NS_OK;
 }
 
@@ -944,8 +950,8 @@ MediaSourceReader::MaybeNotifyHaveData()
     haveVideo = true;
     WaitPromise(MediaData::VIDEO_DATA).ResolveIfExists(MediaData::VIDEO_DATA, __func__);
   }
-  MSE_DEBUG("isSeeking=%d haveAudio=%d, haveVideo=%d",
-            IsSeeking(), haveAudio, haveVideo);
+  MSE_DEBUG("MediaSourceReader(%p)::MaybeNotifyHaveData haveAudio=%d, haveVideo=%d", this,
+            haveAudio, haveVideo);
 }
 
 nsresult
@@ -953,14 +959,14 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
-  MSE_DEBUG("tracks=%u/%u audio=%p video=%p",
-            mEssentialTrackBuffers.Length(), mTrackBuffers.Length(),
+  MSE_DEBUG("MediaSourceReader(%p)::ReadMetadata tracks=%u/%u audio=%p video=%p",
+            this, mEssentialTrackBuffers.Length(), mTrackBuffers.Length(),
             mAudioTrack.get(), mVideoTrack.get());
 
   mEssentialTrackBuffers.Clear();
   if (!mAudioTrack && !mVideoTrack) {
-    MSE_DEBUG("missing track: mAudioTrack=%p mVideoTrack=%p",
-              mAudioTrack.get(), mVideoTrack.get());
+    MSE_DEBUG("MediaSourceReader(%p)::ReadMetadata missing track: mAudioTrack=%p mVideoTrack=%p",
+              this, mAudioTrack.get(), mVideoTrack.get());
     return NS_ERROR_FAILURE;
   }
 
@@ -972,8 +978,8 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
     MOZ_ASSERT(info.HasAudio());
     mInfo.mAudio = info.mAudio;
     mInfo.mIsEncrypted = mInfo.mIsEncrypted || info.mIsEncrypted;
-    MSE_DEBUG("audio reader=%p duration=%lld",
-              mAudioSourceDecoder.get(),
+    MSE_DEBUG("MediaSourceReader(%p)::ReadMetadata audio reader=%p duration=%lld",
+              this, mAudioSourceDecoder.get(),
               mAudioSourceDecoder->GetReader()->GetDecoder()->GetMediaDuration());
   }
 
@@ -985,8 +991,8 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
     MOZ_ASSERT(info.HasVideo());
     mInfo.mVideo = info.mVideo;
     mInfo.mIsEncrypted = mInfo.mIsEncrypted || info.mIsEncrypted;
-    MSE_DEBUG("video reader=%p duration=%lld",
-              GetVideoReader(),
+    MSE_DEBUG("MediaSourceReader(%p)::ReadMetadata video reader=%p duration=%lld",
+              this, GetVideoReader(),
               GetVideoReader()->GetDecoder()->GetMediaDuration());
   }
 
@@ -1130,6 +1136,4 @@ MediaSourceReader::GetReaderVideoTime(int64_t aTime) const
   return aTime - mVideoSourceDecoder->GetTimestampOffset();
 }
 
-#undef MSE_DEBUG
-#undef MSE_DEBUGV
 } // namespace mozilla

@@ -10077,6 +10077,9 @@ IonBuilder::getPropTryUnboxed(bool *emitted, MDefinition *obj, PropertyName *nam
         obj = guard;
     }
 
+    if (unboxedType != JSVAL_TYPE_OBJECT)
+        barrier = BarrierKind::NoBarrier;
+
     MInstruction *load = loadUnboxedProperty(obj, offset, unboxedType, barrier, types);
     current->push(load);
 
