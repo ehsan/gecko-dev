@@ -19,9 +19,7 @@ namespace mozilla {
 namespace layers {
 
 bool
-GetMaskData(Layer* aMaskLayer,
-            const Point& aDeviceOffset,
-            AutoMoz2DMaskData* aMaskData)
+GetMaskData(Layer* aMaskLayer, AutoMoz2DMaskData* aMaskData)
 {
   if (aMaskLayer) {
     RefPtr<SourceSurface> surface =
@@ -31,7 +29,6 @@ GetMaskData(Layer* aMaskLayer,
       Matrix4x4 effectiveTransform = aMaskLayer->GetEffectiveTransform();
       DebugOnly<bool> maskIs2D = effectiveTransform.CanDraw2D(&transform);
       NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
-      transform.Translate(-aDeviceOffset.x, -aDeviceOffset.y);
       aMaskData->Construct(transform, surface);
       return true;
     }
@@ -43,7 +40,7 @@ void
 PaintWithMask(gfxContext* aContext, float aOpacity, Layer* aMaskLayer)
 {
   AutoMoz2DMaskData mask;
-  if (GetMaskData(aMaskLayer, Point(), &mask)) {
+  if (GetMaskData(aMaskLayer, &mask)) {
     if (aOpacity < 1.0) {
       aContext->PushGroup(gfxContentType::COLOR_ALPHA);
       aContext->Paint(aOpacity);
@@ -81,14 +78,13 @@ FillRectWithMask(DrawTarget* aDT,
 }
 void
 FillRectWithMask(DrawTarget* aDT,
-                 const gfx::Point& aDeviceOffset,
                  const Rect& aRect,
                  const Color& aColor,
                  const DrawOptions& aOptions,
                  Layer* aMaskLayer)
 {
   AutoMoz2DMaskData mask;
-  if (GetMaskData(aMaskLayer, aDeviceOffset, &mask)) {
+  if (GetMaskData(aMaskLayer, &mask)) {
     const Matrix& maskTransform = mask.GetTransform();
     FillRectWithMask(aDT, aRect, aColor, aOptions, mask.GetSurface(), &maskTransform);
     return;
@@ -137,7 +133,6 @@ FillRectWithMask(DrawTarget* aDT,
 
 void
 FillRectWithMask(DrawTarget* aDT,
-                 const gfx::Point& aDeviceOffset,
                  const Rect& aRect,
                  SourceSurface* aSurface,
                  Filter aFilter,
@@ -145,7 +140,7 @@ FillRectWithMask(DrawTarget* aDT,
                  Layer* aMaskLayer)
 {
   AutoMoz2DMaskData mask;
-  if (GetMaskData(aMaskLayer, aDeviceOffset, &mask)) {
+  if (GetMaskData(aMaskLayer, &mask)) {
     const Matrix& maskTransform = mask.GetTransform();
     FillRectWithMask(aDT, aRect, aSurface, aFilter, aOptions, ExtendMode::CLAMP,
                      mask.GetSurface(), &maskTransform);

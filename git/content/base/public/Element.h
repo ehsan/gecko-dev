@@ -49,7 +49,6 @@ class nsIScrollableFrame;
 class nsAttrValueOrString;
 class ContentUnbinder;
 class nsContentList;
-class nsDOMSettableTokenList;
 class nsDOMTokenList;
 struct nsRect;
 class nsFocusManager;
@@ -1164,10 +1163,6 @@ protected:
    * (e.g. _blank).
    */
   virtual void GetLinkTarget(nsAString& aTarget);
-
-  nsDOMSettableTokenList* GetTokenList(nsIAtom* aAtom);
-  void GetTokenList(nsIAtom* aAtom, nsIVariant** aResult);
-  nsresult SetTokenList(nsIAtom* aAtom, nsIVariant* aValue);
 
 private:
   /**

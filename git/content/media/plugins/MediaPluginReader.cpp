@@ -144,7 +144,9 @@ bool MediaPluginReader::DecodeVideoFrame(bool &aKeyframeSkip,
       if (mLastVideoFrame) {
         int64_t durationUs;
         mPlugin->GetDuration(mPlugin, &durationUs);
-        durationUs = std::max<int64_t>(durationUs - mLastVideoFrame->mTime, 0);
+        if (durationUs < mLastVideoFrame->mTime) {
+          durationUs = 0;
+        }
         mVideoQueue.Push(VideoData::ShallowCopyUpdateDuration(mLastVideoFrame,
                                                               durationUs));
         mLastVideoFrame = nullptr;

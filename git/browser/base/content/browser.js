@@ -1061,6 +1061,9 @@ var gBrowserInit = {
     LightweightThemeListener.init();
     WebrtcIndicator.init();
 
+    // Ensure login manager is up and running.
+    Services.logins;
+
 #ifdef MOZ_CRASHREPORTER
     if (gMultiProcessBrowser)
       TabCrashReporter.init();
@@ -6053,7 +6056,7 @@ function GetSearchFieldBookmarkData(node) {
 
 
 function AddKeywordForSearchField() {
-  bookmarkData = GetSearchFieldBookmarkData(gContextMenu.target);
+  bookmarkData = GetSearchFieldBookmarkData(document.popupNode);
 
   PlacesUIUtils.showBookmarkDialog({ action: "add"
                                    , type: "bookmark"

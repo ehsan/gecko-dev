@@ -90,7 +90,6 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
       aDestTarget->CopySurface(mSurface,
                                IntRect(0, 0, mBounds.width, mBounds.height),
                                IntPoint(0, 0));
-      mSurface = nullptr;
     }
     return;
   }

@@ -5,25 +5,26 @@
 
 package org.mozilla.gecko.health;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import android.content.ContentProviderClient;
+import android.content.Context;
+import android.util.Log;
+
 import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.healthreport.AndroidConfigurationProvider;
+
 import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.healthreport.HealthReportConstants;
 import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
 import org.mozilla.gecko.background.healthreport.HealthReportGenerator;
+
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
-import android.content.ContentProviderClient;
-import android.content.Context;
-import android.util.Log;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * BrowserHealthReporter is the browser's interface to the Firefox Health
@@ -88,8 +89,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
             }
 
             HealthReportGenerator generator = new HealthReportGenerator(storage);
-            ConfigurationProvider configProvider = new AndroidConfigurationProvider(context);
-            JSONObject report = generator.generateDocument(since, lastPingTime, profilePath, configProvider);
+            JSONObject report = generator.generateDocument(since, lastPingTime, profilePath);
             if (report == null) {
                 throw new IllegalStateException("Not enough profile information to generate report.");
             }

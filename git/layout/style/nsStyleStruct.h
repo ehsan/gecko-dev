@@ -16,6 +16,7 @@
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsMargin.h"
+#include "nsRect.h"
 #include "nsFont.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
@@ -24,9 +25,11 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsTArray.h"
+#include "nsIAtom.h"
 #include "nsCSSValue.h"
 #include "imgRequestProxy.h"
 #include "Orientation.h"
+#include <algorithm>
 
 class nsIFrame;
 class nsIURI;

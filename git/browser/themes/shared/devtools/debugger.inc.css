@@ -280,11 +280,10 @@
 }
 
 .dbg-expression-arrow {
-  background: url(commandline-icon.png);
-  background-position: 16px;
   width: 16px;
-  height: 16px;
+  height: auto;
   margin: 2px;
+  background: -moz-image-rect(url(commandline-icon.png), 0, 32, 16, 16);
 }
 
 .dbg-expression-input {
@@ -295,8 +294,8 @@
   -moz-appearance: none;
   border: none;
   background: none;
-  text-decoration: underline;
   cursor: pointer;
+  text-decoration: underline;
 }
 
 .theme-dark .dbg-expression-button {

@@ -155,9 +155,11 @@ class JitFrameIterator
     bool isBaselineStub() const {
         return type_ == JitFrame_BaselineStub;
     }
-    bool isBareExit() const;
-    template <typename T> bool isExitFrameLayout() const;
-
+    bool isNative() const;
+    bool isOOLNative() const;
+    bool isOOLPropertyOp() const;
+    bool isOOLProxy() const;
+    bool isDOMExit() const;
     bool isEntry() const {
         return type_ == JitFrame_Entry;
     }

@@ -2242,12 +2242,6 @@ gfxContext::GetAzureDeviceSpaceClipBounds()
   return rect;
 }
 
-Point
-gfxContext::GetDeviceOffset() const
-{
-  return CurrentState().deviceOffset;
-}
-
 Matrix
 gfxContext::GetDeviceTransform() const
 {
@@ -2303,7 +2297,7 @@ gfxContext::GetRoundOffsetsToPixels(bool *aRoundX, bool *aRoundY)
     // AxisAlignedTransforms, but we leave things simple.
     // Not much point rounding if a matrix will mess things up anyway.
     // Also return false for non-cairo contexts.
-    if (CurrentMatrix().HasNonTranslation()) {
+    if (CurrentMatrix().HasNonTranslation() || mDT) {
         *aRoundY = false;
         return;
     }
