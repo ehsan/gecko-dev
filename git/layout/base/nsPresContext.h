@@ -995,7 +995,6 @@ protected:
 #endif // MOZ_SMIL
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
-  NS_HIDDEN_(PRBool) CheckDPIChange();
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);
   static NS_HIDDEN_(int) PrefChangedCallback(const char*, void*);
 
