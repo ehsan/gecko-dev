@@ -613,7 +613,7 @@ nsHTMLCSSUtils::RemoveCSSInlineStyle(nsIDOMNode *aNode, nsIAtom *aProperty, cons
     return NS_OK;
   }
 
-  return mHTMLEditor->RemoveContainer(element);
+  return mHTMLEditor->RemoveContainer(aNode);
 }
 
 // Answers true is the property can be removed by setting a "none" CSS value

@@ -23,7 +23,6 @@ using namespace android;
 // WebRTC
 #include "common_video/interface/texture_video_frame.h"
 #include "video_engine/include/vie_external_codec.h"
-#include "runnable_utils.h"
 
 // Gecko
 #include "GonkNativeWindow.h"
@@ -105,12 +104,6 @@ struct EncodedFrame
   int64_t mRenderTimeMs;
 };
 
-static void
-ShutdownThread(nsCOMPtr<nsIThread>& aThread)
-{
-  aThread->Shutdown();
-}
-
 // Base runnable class to repeatly pull OMX output buffers in seperate thread.
 // How to use:
 // - implementing DrainOutput() to get output. Remember to return false to tell
@@ -144,9 +137,7 @@ public:
     if (mThread != nullptr) {
       MonitorAutoUnlock unlock(mMonitor);
       CODEC_LOGD("OMXOutputDrain thread shutdown");
-      NS_DispatchToMainThread(
-        WrapRunnableNM<decltype(&ShutdownThread),
-                       nsCOMPtr<nsIThread> >(&ShutdownThread, mThread));
+      mThread->Shutdown();
       mThread = nullptr;
     }
     CODEC_LOGD("OMXOutputDrain stopped");

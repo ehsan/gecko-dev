@@ -2644,11 +2644,11 @@ TypeCompartment::fixObjectType(ExclusiveContext *cx, JSObject *obj)
     if (obj->isIndexed())
         objType->setFlags(cx, OBJECT_FLAG_SPARSE_INDEXES);
 
-    ScopedJSFreePtr<jsid> ids(objType->pod_calloc<jsid>(properties.length()));
+    ScopedJSFreePtr<jsid> ids(cx->pod_calloc<jsid>(properties.length()));
     if (!ids)
         return;
 
-    ScopedJSFreePtr<Type> types(objType->pod_calloc<Type>(properties.length()));
+    ScopedJSFreePtr<Type> types(cx->pod_calloc<Type>(properties.length()));
     if (!types)
         return;
 
@@ -3389,8 +3389,9 @@ CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
         return;
     }
 
-    TypeNewScript *newScript = type->pod_calloc_with_extra<TypeNewScript, TypeNewScript::Initializer>(
-                                   initializerList.length());
+    size_t numBytes = sizeof(TypeNewScript)
+                    + (initializerList.length() * sizeof(TypeNewScript::Initializer));
+    TypeNewScript *newScript = (TypeNewScript *) type->zone()->pod_calloc<uint8_t>(numBytes);
     if (!newScript)
         return;
 
@@ -3401,7 +3402,8 @@ CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
     newScript->fun = fun;
     newScript->templateObject = baseobj;
 
-    newScript->initializerList = reinterpret_cast<TypeNewScript::Initializer *>(newScript + 1);
+    newScript->initializerList = (TypeNewScript::Initializer *)
+        ((char *) newScript + sizeof(TypeNewScript));
     PodCopy(newScript->initializerList,
             initializerList.begin(),
             initializerList.length());
@@ -3597,7 +3599,7 @@ JSScript::makeTypes(JSContext *cx)
     unsigned count = TypeScript::NumTypeSets(this);
 
     TypeScript *typeScript = (TypeScript *)
-        pod_calloc<uint8_t>(TypeScript::SizeIncludingTypeArray(count));
+        zone()->pod_calloc<uint8_t>(TypeScript::SizeIncludingTypeArray(count));
     if (!typeScript)
         return false;
 

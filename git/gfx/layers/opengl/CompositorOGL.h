@@ -186,7 +186,6 @@ public:
                                SupportsPartialTextureUpdate());
     result.mSupportedBlendModes += gfx::CompositionOp::OP_SCREEN;
     result.mSupportedBlendModes += gfx::CompositionOp::OP_MULTIPLY;
-    result.mSupportedBlendModes += gfx::CompositionOp::OP_SOURCE;
     return result;
   }
 

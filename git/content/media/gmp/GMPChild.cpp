@@ -49,19 +49,19 @@ GMPChild::~GMPChild()
 }
 
 static bool
-GetPluginBinaryFile(const std::string& aPluginPath,
-                    nsCOMPtr<nsIFile>& aLibFile)
+GetPluginBinaryPath(const std::string& aPluginPath,
+                    nsCString &aPluginBinaryPath)
 {
   nsDependentCString pluginPath(aPluginPath.c_str());
 
-  nsresult rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(pluginPath),
-                                true, getter_AddRefs(aLibFile));
+  nsCOMPtr<nsIFile> libFile;
+  nsresult rv = NS_NewNativeLocalFile(pluginPath, true, getter_AddRefs(libFile));
   if (NS_FAILED(rv)) {
     return false;
   }
 
   nsAutoString leafName;
-  if (NS_FAILED(aLibFile->GetLeafName(leafName))) {
+  if (NS_FAILED(libFile->GetLeafName(leafName))) {
     return false;
   }
   nsAutoString baseName(Substring(leafName, 4, leafName.Length() - 1));
@@ -75,24 +75,13 @@ GetPluginBinaryFile(const std::string& aPluginPath,
 #else
 #error not defined
 #endif
-  aLibFile->AppendRelativePath(binaryName);
-  return true;
-}
-
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
-static bool
-GetPluginBinaryPath(const std::string& aPluginPath,
-                    nsCString &aPluginBinaryPath)
-{
-  nsCOMPtr<nsIFile> libFile;
-  if (!GetPluginBinaryFile(aPluginPath, libFile)) {
-    return false;
-  }
+  libFile->AppendRelativePath(binaryName);
 
   libFile->GetNativePath(aPluginBinaryPath);
   return true;
 }
 
+#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
 void
 GMPChild::OnChannelConnected(int32_t aPid)
 {
@@ -158,29 +147,23 @@ GMPChild::Init(const std::string& aPluginPath,
 bool
 GMPChild::LoadPluginLibrary(const std::string& aPluginPath)
 {
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
   nsAutoCString nativePath;
+#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
   nativePath.Assign(mPluginBinaryPath);
-
-  mLib = PR_LoadLibrary(nativePath.get());
 #else
-  nsCOMPtr<nsIFile> libFile;
-  if (!GetPluginBinaryFile(aPluginPath, libFile)) {
+  if (!GetPluginBinaryPath(aPluginPath, nativePath)) {
     return false;
   }
-#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-  nsAutoCString nativePath;
-  libFile->GetNativePath(nativePath);
+#endif
 
+#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
   // Enable sandboxing here -- we know the plugin file's path, but
   // this process's execution hasn't been affected by its content yet.
   MOZ_ASSERT(mozilla::CanSandboxMediaPlugin());
   mozilla::SetMediaPluginSandbox(nativePath.get());
-#endif // XP_LINUX && MOZ_GMP_SANDBOX
+#endif
 
-  libFile->Load(&mLib);
-#endif // XP_MACOSX && MOZ_GMP_SANDBOX
-
+  mLib = PR_LoadLibrary(nativePath.get());
   if (!mLib) {
     return false;
   }

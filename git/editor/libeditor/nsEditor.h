@@ -29,9 +29,12 @@
 
 class AddStyleSheetTxn;
 class ChangeAttributeTxn;
+class CreateElementTxn;
 class DeleteNodeTxn;
+class DeleteTextTxn;
 class EditAggregateTxn;
 class IMETextTxn;
+class InsertElementTxn;
 class InsertTextTxn;
 class JoinElementTxn;
 class RemoveStyleSheetTxn;
@@ -69,12 +72,9 @@ class ErrorResult;
 class TextComposition;
 
 namespace dom {
-class CreateElementTxn;
 class DataTransfer;
-class DeleteTextTxn;
 class Element;
 class EventTarget;
-class InsertNodeTxn;
 class Selection;
 class Text;
 }  // namespace dom
@@ -200,6 +200,7 @@ public:
 
 public:
 
+  nsresult MarkNodeDirty(nsINode* aNode);
   virtual bool IsModifiableNode(nsINode *aNode);
 
   NS_IMETHOD InsertTextImpl(const nsAString& aStringToInsert, 
@@ -221,7 +222,8 @@ public:
 
   /* helper routines for node/parent manipulations */
   nsresult DeleteNode(nsINode* aNode);
-  nsresult InsertNode(nsIContent& aNode, nsINode& aParent, int32_t aPosition);
+  nsresult InsertNode(nsIContent* aContent, nsINode* aParent,
+                      int32_t aPosition);
   enum ECloneAttributes { eDontCloneAttributes, eCloneAttributes };
   already_AddRefed<mozilla::dom::Element> ReplaceContainer(
                             mozilla::dom::Element* aOldContainer,
@@ -232,14 +234,21 @@ public:
   void CloneAttributes(mozilla::dom::Element* aDest,
                        mozilla::dom::Element* aSource);
 
-  nsresult RemoveContainer(nsIContent* aNode);
-  already_AddRefed<mozilla::dom::Element> InsertContainerAbove(
-                                nsIContent* aNode,
-                                nsIAtom* aNodeType,
-                                nsIAtom* aAttribute = nullptr,
+  nsresult RemoveContainer(nsINode* aNode);
+  nsresult RemoveContainer(nsIDOMNode *inNode);
+  nsresult InsertContainerAbove(nsIContent* aNode,
+                                mozilla::dom::Element** aOutNode,
+                                const nsAString& aNodeType,
+                                const nsAString* aAttribute = nullptr,
                                 const nsAString* aValue = nullptr);
+  nsresult InsertContainerAbove(nsIDOMNode *inNode, 
+                                nsCOMPtr<nsIDOMNode> *outNode, 
+                                const nsAString &aNodeType,
+                                const nsAString *aAttribute = nullptr,
+                                const nsAString *aValue = nullptr);
   nsresult JoinNodes(nsINode* aNodeToKeep, nsIContent* aNodeToMove);
-  nsresult MoveNode(nsIContent* aNode, nsINode* aParent, int32_t aOffset);
+  nsresult MoveNode(nsINode* aNode, nsINode* aParent, int32_t aOffset);
+  nsresult MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t aOffset);
 
   /* Method to replace certain CreateElementNS() calls. 
      Arguments:
@@ -273,19 +282,17 @@ protected:
 
   /** create a transaction for creating a new child node of aParent of type aTag.
     */
-  already_AddRefed<mozilla::dom::CreateElementTxn>
-  CreateTxnForCreateElement(nsIAtom& aTag,
-                            nsINode& aParent,
-                            int32_t aPosition);
-
-  already_AddRefed<mozilla::dom::Element> CreateNode(nsIAtom* aTag,
-                                                     nsINode* aParent,
-                                                     int32_t aPosition);
+  NS_IMETHOD CreateTxnForCreateElement(const nsAString & aTag,
+                                       nsIDOMNode      *aParent,
+                                       int32_t         aPosition,
+                                       CreateElementTxn ** aTxn);
 
   /** create a transaction for inserting aNode as a child of aParent.
     */
-  already_AddRefed<mozilla::dom::InsertNodeTxn>
-  CreateTxnForInsertNode(nsIContent& aNode, nsINode& aParent, int32_t aOffset);
+  NS_IMETHOD CreateTxnForInsertElement(nsIDOMNode * aNode,
+                                       nsIDOMNode * aParent,
+                                       int32_t      aOffset,
+                                       InsertElementTxn ** aTxn);
 
   /** create a transaction for removing aNode from its parent.
     */
@@ -327,18 +334,28 @@ protected:
   NS_IMETHOD CreateTxnForRemoveStyleSheet(mozilla::CSSStyleSheet* aSheet,
                                           RemoveStyleSheetTxn* *aTxn);
   
-  nsresult DeleteText(nsGenericDOMDataNode& aElement,
-                      uint32_t aOffset, uint32_t aLength);
+  NS_IMETHOD DeleteText(nsIDOMCharacterData *aElement,
+                        uint32_t             aOffset,
+                        uint32_t             aLength);
+
+  inline nsresult DeleteText(mozilla::dom::Text* aText, uint32_t aOffset,
+                             uint32_t aLength)
+  {
+    return DeleteText(static_cast<nsIDOMCharacterData*>(GetAsDOMNode(aText)),
+                      aOffset, aLength);
+  }
 
 //  NS_IMETHOD DeleteRange(nsIDOMRange *aRange);
 
-  already_AddRefed<mozilla::dom::DeleteTextTxn>
-  CreateTxnForDeleteText(nsGenericDOMDataNode& aElement,
-                         uint32_t aOffset, uint32_t aLength);
+  nsresult CreateTxnForDeleteText(nsIDOMCharacterData* aElement,
+                                  uint32_t             aOffset,
+                                  uint32_t             aLength,
+                                  DeleteTextTxn**      aTxn);
 
-  already_AddRefed<mozilla::dom::DeleteTextTxn>
-  CreateTxnForDeleteCharacter(nsGenericDOMDataNode& aData, uint32_t aOffset,
-                              EDirection aDirection);
+  nsresult CreateTxnForDeleteCharacter(nsIDOMCharacterData* aData,
+                                       uint32_t             aOffset,
+                                       EDirection           aDirection,
+                                       DeleteTextTxn**      aTxn);
 	
   NS_IMETHOD CreateTxnForSplitNode(nsIDOMNode *aNode,
                                    uint32_t    aOffset,

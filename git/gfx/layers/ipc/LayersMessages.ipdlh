@@ -310,11 +310,6 @@ struct OpUseTiledLayerBuffer {
   SurfaceDescriptorTiles tileLayerDescriptor;
 };
 
-struct OpUseOverlaySource {
-  PCompositable compositable;
-  OverlaySource overlay;
-};
-
 struct OpCreatedIncrementalTexture {
   PCompositable compositable;
   TextureInfo textureInfo;
@@ -427,7 +422,6 @@ union CompositableOperation {
   OpUpdateTexture;
   OpUseTexture;
   OpUseComponentAlphaTextures;
-  OpUseOverlaySource;
 };
 
 // A unit of a changeset; a set of these comprise a changeset

@@ -432,16 +432,6 @@ ShadowLayerForwarder::UseComponentAlphaTextures(CompositableClient* aCompositabl
                                             nullptr, aTextureOnWhite->GetIPDLActor()));
 }
 
-#ifdef MOZ_WIDGET_GONK
-void
-ShadowLayerForwarder::UseOverlaySource(CompositableClient* aCompositable,
-                                       const OverlaySource& aOverlay)
-{
-  MOZ_ASSERT(aCompositable);
-  mTxn->AddEdit(OpUseOverlaySource(nullptr, aCompositable->GetIPDLActor(), aOverlay));
-}
-#endif
-
 void
 ShadowLayerForwarder::SendFenceHandle(AsyncTransactionTracker* aTracker,
                                         PTextureChild* aTexture,

@@ -1254,7 +1254,7 @@ nsHTMLEditor::ReplaceHeadContentsWithHTML(const nsAString& aSourceToInsert)
 
   // Loop over the contents of the fragment and move into the document
   while (nsCOMPtr<nsIContent> child = docfrag->GetFirstChild()) {
-    nsresult res = InsertNode(*child, *headNode, offsetOfNewNode++);
+    nsresult res = InsertNode(child, headNode, offsetOfNewNode++);
     NS_ENSURE_SUCCESS(res, res);
   }
 
@@ -3176,16 +3176,16 @@ nsHTMLEditor::DeleteNode(nsIDOMNode* aNode)
   return nsEditor::DeleteNode(aNode);
 }
 
-nsresult
-nsHTMLEditor::DeleteText(nsGenericDOMDataNode& aCharData, uint32_t aOffset,
-                         uint32_t aLength)
+NS_IMETHODIMP nsHTMLEditor::DeleteText(nsIDOMCharacterData *aTextNode,
+                                       uint32_t             aOffset,
+                                       uint32_t             aLength)
 {
-  // Do nothing if the node is read-only
-  if (!IsModifiableNode(&aCharData)) {
+  // do nothing if the node is read-only
+  if (!IsModifiableNode(aTextNode)) {
     return NS_ERROR_FAILURE;
   }
 
-  return nsEditor::DeleteText(aCharData, aOffset, aLength);
+  return nsEditor::DeleteText(aTextNode, aOffset, aLength);
 }
 
 NS_IMETHODIMP nsHTMLEditor::InsertTextImpl(const nsAString& aStringToInsert, 
@@ -3910,9 +3910,7 @@ nsHTMLEditor::RemoveBlockContainer(nsIDOMNode *inNode)
   }
     
   // now remove container
-  nsCOMPtr<nsIContent> node = do_QueryInterface(inNode);
-  NS_ENSURE_STATE(node);
-  return RemoveContainer(node);
+  return RemoveContainer(inNode);
 }
 
 
@@ -4884,8 +4882,6 @@ NS_IMETHODIMP
 nsHTMLEditor::CopyLastEditableChildStyles(nsIDOMNode * aPreviousBlock, nsIDOMNode * aNewBlock,
                                           nsIDOMNode **aOutBrNode)
 {
-  nsCOMPtr<nsINode> newBlock = do_QueryInterface(aNewBlock);
-  NS_ENSURE_STATE(newBlock || !aNewBlock);
   *aOutBrNode = nullptr;
   nsCOMPtr<nsIDOMNode> child, tmp;
   nsresult res;
@@ -4911,31 +4907,38 @@ nsHTMLEditor::CopyLastEditableChildStyles(nsIDOMNode * aPreviousBlock, nsIDOMNod
     NS_ENSURE_SUCCESS(res, res);
     child = priorNode;
   }
-  nsCOMPtr<Element> newStyles, deepestStyle;
-  nsCOMPtr<nsINode> childNode = do_QueryInterface(child);
-  nsCOMPtr<Element> childElement;
-  if (childNode) {
-    childElement = childNode->IsElement() ? childNode->AsElement()
-                                          : childNode->GetParentElement();
-  }
-  while (childElement && (childElement->AsDOMNode() != aPreviousBlock)) {
-    if (nsHTMLEditUtils::IsInlineStyle(childElement) ||
-        childElement->Tag() == nsGkAtoms::span) {
+  nsCOMPtr<nsIDOMNode> newStyles = nullptr, deepestStyle = nullptr;
+  while (child && (child != aPreviousBlock)) {
+    if (nsHTMLEditUtils::IsInlineStyle(child) ||
+        nsEditor::NodeIsType(child, nsEditProperty::span)) {
+      nsAutoString domTagName;
+      child->GetNodeName(domTagName);
+      ToLowerCase(domTagName);
       if (newStyles) {
-        newStyles = InsertContainerAbove(newStyles, childElement->Tag());
-        NS_ENSURE_STATE(newStyles);
-      } else {
-        deepestStyle = newStyles = CreateNode(childElement->Tag(), newBlock,
-                                              0);
-        NS_ENSURE_STATE(newStyles);
+        nsCOMPtr<nsIDOMNode> newContainer;
+        res = InsertContainerAbove(newStyles, address_of(newContainer), domTagName);
+        NS_ENSURE_SUCCESS(res, res);
+        newStyles = newContainer;
       }
-      CloneAttributes(newStyles, childElement);
+      else {
+        res = CreateNode(domTagName, aNewBlock, 0, getter_AddRefs(newStyles));
+        NS_ENSURE_SUCCESS(res, res);
+        deepestStyle = newStyles;
+      }
+      res = CloneAttributes(newStyles, child);
+      NS_ENSURE_SUCCESS(res, res);
     }
-    childElement = childElement->GetParentElement();
+    nsCOMPtr<nsIDOMNode> tmp;
+    res = child->GetParentNode(getter_AddRefs(tmp));
+    NS_ENSURE_SUCCESS(res, res);
+    child = tmp;
   }
   if (deepestStyle) {
-    *aOutBrNode = GetAsDOMNode(CreateBR(deepestStyle, 0).take());
-    NS_ENSURE_STATE(*aOutBrNode);
+    nsCOMPtr<nsIDOMNode> outBRNode;
+    res = CreateBR(deepestStyle, 0, address_of(outBRNode));
+    NS_ENSURE_SUCCESS(res, res);
+    // Getters must addref
+    outBRNode.forget(aOutBrNode);
   }
   return NS_OK;
 }

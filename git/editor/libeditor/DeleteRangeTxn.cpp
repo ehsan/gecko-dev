@@ -139,6 +139,8 @@ DeleteRangeTxn::CreateTxnsToDeleteBetween(nsINode* aNode,
   // see what kind of node we have
   if (aNode->IsNodeOfType(nsINode::eDATA_NODE)) {
     // if the node is a chardata node, then delete chardata content
+    nsRefPtr<DeleteTextTxn> txn = new DeleteTextTxn();
+
     int32_t numToDel;
     if (aStartOffset == aEndOffset) {
       numToDel = 1;
@@ -146,14 +148,9 @@ DeleteRangeTxn::CreateTxnsToDeleteBetween(nsINode* aNode,
       numToDel = aEndOffset - aStartOffset;
     }
 
-    nsRefPtr<nsGenericDOMDataNode> charDataNode =
-      static_cast<nsGenericDOMDataNode*>(aNode);
-
-    nsRefPtr<DeleteTextTxn> txn =
-      new DeleteTextTxn(*mEditor, *charDataNode, aStartOffset, numToDel,
-                        mRangeUpdater);
-
-    nsresult res = txn->Init();
+    nsCOMPtr<nsIDOMCharacterData> charDataNode = do_QueryInterface(aNode);
+    nsresult res = txn->Init(mEditor, charDataNode, aStartOffset, numToDel,
+                             mRangeUpdater);
     NS_ENSURE_SUCCESS(res, res);
 
     AppendChild(txn);
@@ -196,12 +193,11 @@ DeleteRangeTxn::CreateTxnsToDeleteContent(nsINode* aNode,
     }
 
     if (numToDelete) {
-      nsRefPtr<nsGenericDOMDataNode> dataNode =
-        static_cast<nsGenericDOMDataNode*>(aNode);
-      nsRefPtr<DeleteTextTxn> txn = new DeleteTextTxn(*mEditor, *dataNode,
-          start, numToDelete, mRangeUpdater);
+      nsRefPtr<DeleteTextTxn> txn = new DeleteTextTxn();
 
-      nsresult res = txn->Init();
+      nsCOMPtr<nsIDOMCharacterData> charDataNode = do_QueryInterface(aNode);
+      nsresult res = txn->Init(mEditor, charDataNode, start, numToDelete,
+                               mRangeUpdater);
       NS_ENSURE_SUCCESS(res, res);
 
       AppendChild(txn);

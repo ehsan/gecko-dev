@@ -68,8 +68,6 @@ this.BrowserElementParentBuilder = {
 function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
   debug("Creating new BrowserElementParent object for " + frameLoader);
   this._domRequestCounter = 0;
-  this._domRequestReady = false;
-  this._pendingAPICalls = [];
   this._pendingDOMRequests = {};
   this._pendingSetInputMethodActive = [];
   this._hasRemoteFrame = hasRemoteFrame;
@@ -96,7 +94,7 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
 
   let defineNoReturnMethod = function(name, fn) {
     XPCNativeWrapper.unwrap(self._frameElement)[name] = function method() {
-      if (!self._domRequestReady) {
+      if (!self._mm) {
         // Remote browser haven't been created, we just queue the API call.
         let args = Array.slice(arguments);
         args.unshift(self);
@@ -183,6 +181,7 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
   } else {
     // if we are a pending frame, we setup message manager after
     // observing remote-browser-frame-shown
+    this._pendingAPICalls = [];
     Services.obs.addObserver(this, 'remote-browser-frame-shown', /* ownsWeak = */ true);
   }
 }
@@ -371,13 +370,6 @@ BrowserElementParent.prototype = {
       this._ownerVisibilityChange();
     }
 
-    if (!this._domRequestReady) {
-      // At least, one message listener such as for hello is registered.
-      // So we can use sendAsyncMessage now.
-      this._domRequestReady = true;
-      this._runPendingAPICall();
-    }
-
     return {
       name: this._frameElement.getAttribute('name'),
       fullscreenAllowed:
@@ -539,7 +531,7 @@ BrowserElementParent.prototype = {
         Services.DOMRequest.fireErrorAsync(req, "fail");
       }
     };
-    if (this._domRequestReady) {
+    if (this._mm) {
       send();
     } else {
       // Child haven't been loaded.
@@ -805,7 +797,7 @@ BrowserElementParent.prototype = {
       if (self._nextPaintListeners.push(listener) == 1)
         self._sendAsyncMsg('activate-next-paint-listener');
     };
-    if (!this._domRequestReady) {
+    if (!this._mm) {
       this._pendingAPICalls.push(run);
     } else {
       run();
@@ -828,7 +820,7 @@ BrowserElementParent.prototype = {
       if (self._nextPaintListeners.length == 0)
         self._sendAsyncMsg('deactivate-next-paint-listener');
     };
-    if (!this._domRequestReady) {
+    if (!this._mm) {
       this._pendingAPICalls.push(run);
     } else {
       run();
@@ -916,6 +908,7 @@ BrowserElementParent.prototype = {
         if (!this._mm) {
           this._setupMessageListener();
           this._registerAppManifest();
+          this._runPendingAPICall();
         }
         Services.obs.removeObserver(this, 'remote-browser-frame-shown');
       }

@@ -71,13 +71,7 @@ MOZ_BEGIN_ENUM_CLASS(ImageFormat)
    * The D3D9_RGB32_TEXTURE format creates a D3D9SurfaceImage, and wraps a
    * IDirect3DTexture9 in RGB32 layout.
    */
-  D3D9_RGB32_TEXTURE,
-
-  /**
-   * An Image type carries an opaque handle once for each stream.
-   * The opaque handle would be a platform specific identifier.
-   */
-  OVERLAY_IMAGE
+  D3D9_RGB32_TEXTURE
 MOZ_END_ENUM_CLASS(ImageFormat)
 
 MOZ_BEGIN_ENUM_CLASS(StereoMode)

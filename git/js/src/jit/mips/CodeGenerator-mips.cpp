@@ -1954,9 +1954,9 @@ CodeGeneratorMIPS::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     // Offset is out of range. Load default values.
     if (isFloat) {
         if (size == 32)
-            masm.loadFloat32(Address(GlobalReg, AsmJSNaN32GlobalDataOffset), ToFloatRegister(out));
+            masm.convertDoubleToFloat32(NANReg, ToFloatRegister(out));
         else
-            masm.loadDouble(Address(GlobalReg, AsmJSNaN64GlobalDataOffset), ToFloatRegister(out));
+            masm.moveDouble(NANReg, ToFloatRegister(out));
     } else {
         masm.move32(Imm32(0), ToRegister(out));
     }

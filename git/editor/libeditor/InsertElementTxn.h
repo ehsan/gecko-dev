@@ -3,24 +3,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef InsertNodeTxn_h__
-#define InsertNodeTxn_h__
+#ifndef InsertElementTxn_h__
+#define InsertElementTxn_h__
 
 #include "EditTxn.h"                    // for EditTxn, NS_DECL_EDITTXN
 #include "nsCOMPtr.h"                   // for nsCOMPtr
 #include "nsCycleCollectionParticipant.h"
-#include "nsIContent.h"                 // for nsIContent
+#include "nsIDOMNode.h"                 // for nsIDOMNode
 #include "nsISupportsImpl.h"            // for NS_DECL_ISUPPORTS_INHERITED
+#include "nscore.h"                     // for NS_IMETHOD
 
-class nsEditor;
-
-namespace mozilla {
-namespace dom {
+class nsIEditor;
 
 /**
  * A transaction that inserts a single element
  */
-class InsertNodeTxn : public EditTxn
+class InsertElementTxn : public EditTxn
 {
 public:
   /** initialize the transaction.
@@ -28,31 +26,32 @@ public:
     * @param aParent the node to insert into
     * @param aOffset the offset in aParent to insert aNode
     */
-  InsertNodeTxn(nsIContent& aNode, nsINode& aParent, int32_t aOffset,
-                nsEditor& aEditor);
+  NS_IMETHOD Init(nsIDOMNode *aNode,
+                  nsIDOMNode *aParent,
+                  int32_t     aOffset,
+                  nsIEditor  *aEditor);
+
+  InsertElementTxn();
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(InsertNodeTxn, EditTxn)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(InsertElementTxn, EditTxn)
 
   NS_DECL_EDITTXN
 
 protected:
-  virtual ~InsertNodeTxn();
+  virtual ~InsertElementTxn();
 
   /** the element to insert */
-  nsCOMPtr<nsIContent> mNode;
+  nsCOMPtr<nsIDOMNode> mNode;
 
   /** the node into which the new node will be inserted */
-  nsCOMPtr<nsINode> mParent;
+  nsCOMPtr<nsIDOMNode> mParent;
+
+  /** the editor for this transaction */
+  nsIEditor*           mEditor;
 
   /** the index in mParent for the new node */
   int32_t mOffset;
-
-  /** the editor for this transaction */
-  nsEditor& mEditor;
 };
-
-}
-}
 
 #endif

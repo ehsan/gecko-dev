@@ -342,8 +342,6 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
     for (unsigned i = 0; i < module.numExits(); i++)
         module.exitIndexToGlobalDatum(i).fun = &ffis[module.exit(i).ffiIndex()]->as<JSFunction>();
 
-    module.initGlobalNaN();
-
     return true;
 }
 
