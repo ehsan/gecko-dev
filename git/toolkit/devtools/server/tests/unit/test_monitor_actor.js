@@ -28,11 +28,11 @@ function run_test()
     client.unregisterClient(this);
   }
   MonitorClient.prototype.detach = function () {}
-  MonitorClient.prototype.start = function (callback) {
+  MonitorClient.prototype.start = function () {
     this.client.request({
       to: this.actor,
       type: "start"
-    }, callback);
+    });
   }
   MonitorClient.prototype.stop = function (callback) {
     this.client.request({
@@ -43,39 +43,34 @@ function run_test()
 
   let monitor;
 
-  // Start the monitor actor.
+  // Start tracking event loop lags.
   client.connect(function () {
     client.listTabs(function(resp) {
       monitor = new MonitorClient(client, resp);
+      monitor.start();
       monitor.on("update", gotUpdate);
-      monitor.start(update);
+      do_execute_soon(update);
     });
   });
 
-  let time = Date.now();
+  let time = new Date().getTime();
 
   function update() {
     let event = {
-      graph: "Test",
-      curve: "test",
-      value: 42,
       time: time,
+      value: 42
     };
     Services.obs.notifyObservers(null, "devtools-monitor-update", JSON.stringify(event));
   }
 
-  function gotUpdate(type, packet) {
-    packet.data.forEach(function(event) {
-      // Ignore updates that were not sent by this test.
-      if (event.graph === "Test") {
-        do_check_eq(event.curve, "test");
-        do_check_eq(event.value, 42);
-        do_check_eq(event.time, time);
-        monitor.stop(function (aResponse) {
-          monitor.destroy();
-          finishClient(client);
-        });
-      }
+  function gotUpdate(type, data) {
+    do_check_eq(data.length, 1);
+    let evt = data[0];
+    do_check_eq(evt.value, 42);
+    do_check_eq(evt.time, time);
+    monitor.stop(function (aResponse) {
+      monitor.destroy();
+      finishClient(client);
     });
   }
 

@@ -138,8 +138,7 @@ MockUi.prototype = {
   __proto__: Mock.prototype,
 
   _startFlowResult: {
-    phoneNumber: PHONE_NUMBER,
-    mcc: MNC
+    phoneNumber: PHONE_NUMBER
   },
 
   _verifyCodePromptResult: {
@@ -435,9 +434,7 @@ add_test(function() {
       client._("smsMtVerify").callsLength(1);
       client._("smsMtVerify").call(1).arg(1, SESSION_TOKEN);
       client._("smsMtVerify").call(1).arg(2, PHONE_NUMBER);
-      client._("smsMtVerify").call(1).arg(3, MNC);
-      client._("smsMtVerify").call(1).arg(4, undefined);
-      client._("smsMtVerify").call(1).arg(5, true);
+      client._("smsMtVerify").call(1).arg(3, true);
       client._("verifyCode").callsLength(1);
       client._("verifyCode").call(1).arg(1, SESSION_TOKEN);
       client._("verifyCode").call(1).arg(2, {
@@ -673,9 +670,7 @@ add_test(function() {
       client._("smsMtVerify").callsLength(1);
       client._("smsMtVerify").call(1).arg(1, _sessionToken);
       client._("smsMtVerify").call(1).arg(2, PHONE_NUMBER);
-      client._("smsMtVerify").call(1).arg(3, MNC);
-      client._("smsMtVerify").call(1).arg(4, undefined);
-      client._("smsMtVerify").call(1).arg(5, true);
+      client._("smsMtVerify").call(1).arg(3, true);
       client._("verifyCode").callsLength(1);
       client._("verifyCode").call(1).arg(1, _sessionToken);
       client._("verifyCode").call(1).arg(2, {

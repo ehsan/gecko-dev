@@ -95,8 +95,6 @@
         <item name="floatingHintEditTextStyle">@style/FloatingHintEditText</item>
     </style>
 
-    <style name="Gecko.Preferences" parent="GeckoPreferencesBase">
-        <item name="floatingHintEditTextStyle">@style/FloatingHintEditText</item>
-    </style>
+    <style name="Gecko.Preferences" parent="GeckoPreferencesBase"/>
 
 </resources>

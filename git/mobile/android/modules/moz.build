@@ -24,7 +24,6 @@ EXTRA_JS_MODULES += [
     'SharedPreferences.jsm',
     'SimpleServiceDiscovery.jsm',
     'SSLExceptions.jsm',
-    'TabMirror.jsm',
     'WebappManagerWorker.js',
 ]
 

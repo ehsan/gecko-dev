@@ -61,8 +61,6 @@ let AboutReader = function(doc, win) {
   win.addEventListener("popstate", this, false);
   win.addEventListener("resize", this, false);
 
-  doc.addEventListener("visibilitychange", this, false);
-
   this._setupAllDropdowns();
   this._setupButton("toggle-button", this._onReaderToggle.bind(this));
   this._setupButton("share-button", this._onShare.bind(this));
@@ -273,10 +271,6 @@ AboutReader.prototype = {
         this._handleDeviceLight(aEvent.value);
         break;
 
-      case "visibilitychange":
-        this._handleVisibilityChange();
-        break;
-
       case "unload":
         Services.obs.removeObserver(this, "Reader:Add");
         Services.obs.removeObserver(this, "Reader:Remove");
@@ -405,29 +399,6 @@ AboutReader.prototype = {
     this._totalLux -= oldLux;
   },
 
-  _handleVisibilityChange: function Reader_handleVisibilityChange() {
-    let colorScheme = Services.prefs.getCharPref("reader.color_scheme");
-    if (colorScheme != "auto") {
-      return;
-    }
-
-    // Turn off the ambient light sensor if the page is hidden
-    this._enableAmbientLighting(!this._doc.hidden);
-  },
-
-  // Setup or teardown the ambient light tracking system.
-  _enableAmbientLighting: function Reader_enableAmbientLighting(enable) {
-    if (enable) {
-      this._win.addEventListener("devicelight", this, false);
-      this._luxValues = [];
-      this._totalLux = 0;
-    } else {
-      this._win.removeEventListener("devicelight", this, false);
-      delete this._luxValues;
-      delete this._totalLux;
-    }
-  },
-
   _updateColorScheme: function Reader_updateColorScheme(luxValue) {
     // Upper bound value for "dark" color scheme beyond which it changes to "light".
     let upperBoundDark = 50;
@@ -448,8 +419,7 @@ AboutReader.prototype = {
   },
 
   _setColorScheme: function Reader_setColorScheme(newColorScheme) {
-    // "auto" is not a real color scheme
-    if (this._colorScheme === newColorScheme || newColorScheme === "auto")
+    if (this._colorScheme === newColorScheme)
       return;
 
     let bodyClasses = this._doc.body.classList;
@@ -464,8 +434,16 @@ AboutReader.prototype = {
   // Pref values include "dark", "light", and "auto", which automatically switches
   // between light and dark color schemes based on the ambient light level.
   _setColorSchemePref: function Reader_setColorSchemePref(colorSchemePref) {
-    this._enableAmbientLighting(colorSchemePref === "auto");
-    this._setColorScheme(colorSchemePref);
+    if (colorSchemePref === "auto") {
+      this._win.addEventListener("devicelight", this, false);
+      this._luxValues = [];
+      this._totalLux = 0;
+    } else {
+      this._win.removeEventListener("devicelight", this, false);
+      this._setColorScheme(colorSchemePref);
+      delete this._luxValues;
+      delete this._totalLux;
+    }
 
     Services.prefs.setCharPref("reader.color_scheme", colorSchemePref);
   },

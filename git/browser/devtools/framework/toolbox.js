@@ -6,7 +6,6 @@
 
 const MAX_ORDINAL = 99;
 const ZOOM_PREF = "devtools.toolbox.zoomValue";
-const SPLITCONSOLE_ENABLED_PREF = "devtools.toolbox.splitconsoleEnabled";
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 
@@ -248,6 +247,7 @@ Toolbox.prototype = {
         this._buildDockButtons();
         this._buildOptions();
         this._buildTabs();
+        let buttonsPromise = this._buildButtons();
         this._applyCacheSettings();
         this._addKeysToWindow();
         this._addReloadKeys();
@@ -255,20 +255,10 @@ Toolbox.prototype = {
         this._addZoomKeys();
         this._loadInitialZoom();
 
-        let splitConsolePromise = promise.resolve();
-        if (Services.prefs.getBoolPref(SPLITCONSOLE_ENABLED_PREF)) {
-          // Force the split console on if pref is true.
-          splitConsolePromise = this.toggleSplitConsole(true);
-        }
-        let buttonsPromise = this._buildButtons();
-
         this._telemetry.toolOpened("toolbox");
 
         this.selectTool(this._defaultToolId).then(panel => {
-          promise.all([
-            splitConsolePromise,
-            buttonsPromise
-          ]).then(() => {
+          buttonsPromise.then(() => {
             this.emit("ready");
             deferred.resolve();
           }, deferred.reject);
@@ -740,7 +730,7 @@ Toolbox.prototype = {
       radio.appendChild(image);
     }
 
-    if (toolDefinition.label && !toolDefinition.iconOnly) {
+    if (toolDefinition.label) {
       let label = this.doc.createElement("label");
       label.setAttribute("value", toolDefinition.label)
       label.setAttribute("crop", "end");
@@ -972,35 +962,23 @@ Toolbox.prototype = {
 
   /**
    * Toggles the split state of the webconsole.  If the webconsole panel
-   * is already selected and no forceToggle is not set, then this command
-   * is ignored.
-   *
-   * @param {bool} forceToggle
-   *        Should the console be toggled regardless of the selected panel.
-   *
-   * @returns {Promise} a promise that resolves once the tool has been
-   *          loaded and focused.
+   * is already selected, then this command is ignored.
    */
-  toggleSplitConsole: function(forceToggle = false) {
+  toggleSplitConsole: function() {
     let openedConsolePanel = this.currentToolId === "webconsole";
-    let ret = promise.resolve();
 
     // Don't allow changes when console is open, since it could be confusing
-    if (!openedConsolePanel || forceToggle) {
+    if (!openedConsolePanel) {
       this._splitConsole = !this._splitConsole;
-      Services.prefs.setBoolPref(SPLITCONSOLE_ENABLED_PREF, this._splitConsole);
-
       this._refreshConsoleDisplay();
       this.emit("split-console");
 
       if (this._splitConsole) {
-        ret = this.loadTool("webconsole").then(() => {
+        this.loadTool("webconsole").then(() => {
           this.focusConsoleInput();
         });
       }
     }
-
-    return ret;
   },
 
   /**
