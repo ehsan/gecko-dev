@@ -50,7 +50,6 @@
 
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "nsRefPtrHashtable.h"
 
 class nsAccessible;
 class nsAccEvent;
@@ -93,7 +92,7 @@ class nsAccessible : public nsAccessNodeWrap,
                      public nsIAccessibleValue
 {
 public:
-  nsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -108,8 +107,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // nsAccessNode
 
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   //////////////////////////////////////////////////////////////////////////////
   // Public methods
@@ -235,7 +233,7 @@ public:
   /**
    * Return parent accessible.
    */
-  nsAccessible* GetParent();
+  virtual nsAccessible* GetParent();
 
   /**
    * Return child accessible at the given index.
@@ -263,20 +261,14 @@ public:
   PRBool HasChildren() { return !!GetChildAt(0); }
 
   /**
-   * Return cached accessible of parent-child relatives.
+   * Return parent accessible only if cached.
    */
-  nsAccessible* GetCachedParent() const { return mParent; }
-  nsAccessible* GetCachedFirstChild() const
-    { return mChildren.SafeElementAt(0, nsnull); }
+  nsAccessible* GetCachedParent();
 
-  PRBool AreChildrenCached() const { return mAreChildrenInitialized; }
-
-#ifdef DEBUG
   /**
-   * Return true if the access node is cached.
+   * Return first child accessible only if cached.
    */
-  PRBool IsInCache();
-#endif
+  nsAccessible* GetCachedFirstChild();
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
@@ -357,7 +349,7 @@ protected:
    * @param  aStartNode  [in] the DOM node to start from
    * @return              the resulting accessible
    */
-  nsAccessible *GetFirstAvailableAccessible(nsINode *aStartNode) const;
+  nsAccessible *GetFirstAvailableAccessible(nsIDOMNode *aStartNode) const;
 
   // Hyperlink helpers
   virtual nsresult GetLinkOffset(PRInt32* aStartOffset, PRInt32* aEndOffset);

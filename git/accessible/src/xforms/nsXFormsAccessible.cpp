@@ -51,9 +51,7 @@
 #include "nsIXFormsUtilityService.h"
 #include "nsIPlaintextEditor.h"
 
-////////////////////////////////////////////////////////////////////////////////
 // nsXFormsAccessibleBase
-////////////////////////////////////////////////////////////////////////////////
 
 nsIXFormsUtilityService *nsXFormsAccessibleBase::sXFormsService = nsnull;
 
@@ -67,13 +65,11 @@ nsXFormsAccessibleBase::nsXFormsAccessibleBase()
   }
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // nsXFormsAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsAccessible::
-nsXFormsAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsHyperTextAccessibleWrap(aContent, aShell)
+nsXFormsAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+  nsHyperTextAccessibleWrap(aNode, aShell)
 {
 }
 
@@ -82,22 +78,27 @@ nsXFormsAccessible::GetBoundChildElementValue(const nsAString& aTagName,
                                               nsAString& aValue)
 {
   NS_ENSURE_TRUE(sXFormsService, NS_ERROR_FAILURE);
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
 
-  nsINodeList* nodes = mContent->GetChildNodesList();
-  NS_ENSURE_STATE(nodes);
+  nsCOMPtr<nsIDOMNodeList> nodes;
+  nsresult rv = mDOMNode->GetChildNodes(getter_AddRefs(nodes));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 length;
-  nsresult rv = nodes->GetLength(&length);
+  rv = nodes->GetLength(&length);
   NS_ENSURE_SUCCESS(rv, rv);
 
   for (PRUint32 index = 0; index < length; index++) {
-    nsIContent* content = nodes->GetNodeAt(index);
+    nsCOMPtr<nsIDOMNode> node;
+    rv = nodes->Item(index, getter_AddRefs(node));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIContent> content = do_QueryInterface(node);
+    NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
+
     if (content->NodeInfo()->Equals(aTagName) &&
         content->NodeInfo()->NamespaceEquals(NS_LITERAL_STRING(NS_NAMESPACE_XFORMS))) {
-      nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(content));
-      return sXFormsService->GetValue(DOMNode, aValue);
+      return sXFormsService->GetValue(node, aValue);
     }
   }
 
@@ -110,7 +111,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
 {
   nsCOMPtr<nsIDOMNode> container(aContainerNode);
   if (!container)
-    container = do_QueryInterface(mContent);
+    container = mDOMNode;
 
   nsCOMPtr<nsIDOMNodeList> children;
   sXFormsService->GetSelectChildrenFor(container, getter_AddRefs(children));
@@ -118,25 +119,26 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
   if (!children)
     return;
 
-  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
-
   PRUint32 length = 0;
   children->GetLength(&length);
 
+  nsCOMPtr<nsIAccessible> accessible;
+  nsRefPtr<nsAccessible> acc;
+
   for (PRUint32 index = 0; index < length; index++) {
-    nsCOMPtr<nsIDOMNode> DOMChild;
-    children->Item(index, getter_AddRefs(DOMChild));
-    if (!DOMChild)
+    nsCOMPtr<nsIDOMNode> child;
+    children->Item(index, getter_AddRefs(child));
+    if (!child)
       continue;
 
-    nsCOMPtr<nsIContent> child(do_QueryInterface(DOMChild));
-    nsRefPtr<nsAccessible> accessible =
-      GetAccService()->GetOrCreateAccessible(child, presShell, mWeakShell);
+    GetAccService()->GetAttachedAccessibleFor(child,
+                                              getter_AddRefs(accessible));
     if (!accessible)
       continue;
 
-    mChildren.AppendElement(accessible);
-    accessible->SetParent(this);
+    acc = do_QueryObject(accessible);
+    mChildren.AppendElement(acc);
+    acc->SetParent(this);
   }
 }
 
@@ -146,8 +148,7 @@ NS_IMETHODIMP
 nsXFormsAccessible::GetValue(nsAString& aValue)
 {
   NS_ENSURE_TRUE(sXFormsService, NS_ERROR_FAILURE);
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  return sXFormsService->GetValue(DOMNode, aValue);
+  return sXFormsService->GetValue(mDOMNode, aValue);
 }
 
 nsresult
@@ -168,22 +169,20 @@ nsXFormsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 
   NS_ENSURE_TRUE(sXFormsService, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-
   PRBool isRelevant = PR_FALSE;
-  nsresult rv = sXFormsService->IsRelevant(DOMNode, &isRelevant);
+  nsresult rv = sXFormsService->IsRelevant(mDOMNode, &isRelevant);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool isReadonly = PR_FALSE;
-  rv = sXFormsService->IsReadonly(DOMNode, &isReadonly);
+  rv = sXFormsService->IsReadonly(mDOMNode, &isReadonly);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool isRequired = PR_FALSE;
-  rv = sXFormsService->IsRequired(DOMNode, &isRequired);
+  rv = sXFormsService->IsRequired(mDOMNode, &isRequired);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool isValid = PR_FALSE;
-  rv = sXFormsService->IsValid(DOMNode, &isValid);
+  rv = sXFormsService->IsValid(mDOMNode, &isValid);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = nsHyperTextAccessibleWrap::GetStateInternal(aState, aExtraState);
@@ -234,14 +233,11 @@ nsXFormsAccessible::GetAllowsAnonChildAccessibles()
   return PR_FALSE;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
 // nsXFormsContainerAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsContainerAccessible::
-  nsXFormsContainerAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsXFormsAccessible(aContent, aShell)
+nsXFormsContainerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+  nsXFormsAccessible(aNode, aShell)
 {
 }
 
@@ -258,14 +254,11 @@ nsXFormsContainerAccessible::GetAllowsAnonChildAccessibles()
   return PR_TRUE;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
 // nsXFormsEditableAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsEditableAccessible::
-  nsXFormsEditableAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsXFormsAccessible(aContent, aShell)
+  nsXFormsEditableAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell):
+  nsXFormsAccessible(aNode, aShell)
 {
 }
 
@@ -281,15 +274,13 @@ nsXFormsEditableAccessible::GetStateInternal(PRUint32 *aState,
   if (!aExtraState)
     return NS_OK;
 
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-
   PRBool isReadonly = PR_FALSE;
-  rv = sXFormsService->IsReadonly(DOMNode, &isReadonly);
+  rv = sXFormsService->IsReadonly(mDOMNode, &isReadonly);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!isReadonly) {
     PRBool isRelevant = PR_FALSE;
-    rv = sXFormsService->IsRelevant(DOMNode, &isRelevant);
+    rv = sXFormsService->IsRelevant(mDOMNode, &isRelevant);
     NS_ENSURE_SUCCESS(rv, rv);
     if (isRelevant) {
       *aExtraState |= nsIAccessibleStates::EXT_STATE_EDITABLE |
@@ -313,8 +304,7 @@ nsXFormsEditableAccessible::GetStateInternal(PRUint32 *aState,
 NS_IMETHODIMP
 nsXFormsEditableAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 {
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  return sXFormsService->GetEditor(DOMNode, aEditor);
+  return sXFormsService->GetEditor(mDOMNode, aEditor);
 }
 
 // nsXFormsSelectableAccessible
@@ -325,11 +315,16 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXFormsSelectableAccessible,
                              nsIAccessibleSelectable)
 
 nsXFormsSelectableAccessible::
-  nsXFormsSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsXFormsEditableAccessible(aContent, aShell), mIsSelect1Element(nsnull)
+  nsXFormsSelectableAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+  nsXFormsEditableAccessible(aNode, aShell),
+  mIsSelect1Element(nsnull)
 {
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content)
+    return;
+
   mIsSelect1Element =
-    mContent->NodeInfo()->Equals(nsAccessibilityAtoms::select1);
+    content->NodeInfo()->Equals(nsAccessibilityAtoms::select1);
 }
 
 NS_IMETHODIMP
@@ -344,11 +339,10 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
   NS_ENSURE_TRUE(accessibles, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv;
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
 
   if (mIsSelect1Element) {
     nsCOMPtr<nsIDOMNode> item;
-    rv = sXFormsService->GetSelectedItemForSelect1(DOMNode,
+    rv = sXFormsService->GetSelectedItemForSelect1(mDOMNode,
                                                    getter_AddRefs(item));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -365,7 +359,7 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
   }
 
   nsCOMPtr<nsIDOMNodeList> items;
-  rv = sXFormsService->GetSelectedItemsForSelect(DOMNode,
+  rv = sXFormsService->GetSelectedItemsForSelect(mDOMNode,
                                                  getter_AddRefs(items));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -401,11 +395,9 @@ nsXFormsSelectableAccessible::GetSelectionCount(PRInt32 *aCount)
   *aCount = 0;
 
   nsresult rv;
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-
   if (mIsSelect1Element) {
     nsCOMPtr<nsIDOMNode> item;
-    rv = sXFormsService->GetSelectedItemForSelect1(DOMNode,
+    rv = sXFormsService->GetSelectedItemForSelect1(mDOMNode,
                                                    getter_AddRefs(item));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -416,7 +408,7 @@ nsXFormsSelectableAccessible::GetSelectionCount(PRInt32 *aCount)
   }
 
   nsCOMPtr<nsIDOMNodeList> items;
-  rv = sXFormsService->GetSelectedItemsForSelect(DOMNode,
+  rv = sXFormsService->GetSelectedItemsForSelect(mDOMNode,
                                                  getter_AddRefs(items));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -438,11 +430,10 @@ nsXFormsSelectableAccessible::AddChildToSelection(PRInt32 aIndex)
   if (!item)
     return NS_OK;
 
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   if (mIsSelect1Element)
-    return sXFormsService->SetSelectedItemForSelect1(DOMNode, item);
+    return sXFormsService->SetSelectedItemForSelect1(mDOMNode, item);
 
-  return sXFormsService->AddItemToSelectionForSelect(DOMNode, item);
+  return sXFormsService->AddItemToSelectionForSelect(mDOMNode, item);
 }
 
 NS_IMETHODIMP
@@ -453,19 +444,18 @@ nsXFormsSelectableAccessible::RemoveChildFromSelection(PRInt32 aIndex)
     return NS_OK;
 
   nsresult rv;
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   if (mIsSelect1Element) {
     nsCOMPtr<nsIDOMNode> selitem;
-    rv = sXFormsService->GetSelectedItemForSelect1(DOMNode,
+    rv = sXFormsService->GetSelectedItemForSelect1(mDOMNode,
                                                    getter_AddRefs(selitem));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     if (selitem != item)
       return NS_ERROR_FAILURE;
-    return sXFormsService->SetSelectedItemForSelect1(DOMNode, nsnull);
+    return sXFormsService->SetSelectedItemForSelect1(mDOMNode, nsnull);
   }
 
-  return sXFormsService->RemoveItemFromSelectionForSelect(DOMNode, item);
+  return sXFormsService->RemoveItemFromSelectionForSelect(mDOMNode, item);
 }
 
 NS_IMETHODIMP
@@ -476,13 +466,12 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
   *aAccessible = nsnull;
 
   nsresult rv;
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   if (mIsSelect1Element) {
     if (aIndex != 0)
       return NS_OK;
 
     nsCOMPtr<nsIDOMNode> item;
-    rv = sXFormsService->GetSelectedItemForSelect1(DOMNode,
+    rv = sXFormsService->GetSelectedItemForSelect1(mDOMNode,
                                                    getter_AddRefs(item));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -492,7 +481,7 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
   }
 
   nsCOMPtr<nsIDOMNodeList> items;
-  rv = sXFormsService->GetSelectedItemsForSelect(DOMNode,
+  rv = sXFormsService->GetSelectedItemsForSelect(mDOMNode,
                                                  getter_AddRefs(items));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -523,10 +512,9 @@ nsXFormsSelectableAccessible::IsChildSelected(PRInt32 aIndex,
     return NS_OK;
 
   nsresult rv;
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   if (mIsSelect1Element) {
     nsCOMPtr<nsIDOMNode> selitem;
-    rv = sXFormsService->GetSelectedItemForSelect1(DOMNode,
+    rv = sXFormsService->GetSelectedItemForSelect1(mDOMNode,
                                                    getter_AddRefs(selitem));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -535,17 +523,16 @@ nsXFormsSelectableAccessible::IsChildSelected(PRInt32 aIndex,
     return NS_OK;
   }
 
-  return sXFormsService->IsSelectItemSelected(DOMNode, item, aIsSelected);
+  return sXFormsService->IsSelectItemSelected(mDOMNode, item, aIsSelected);
 }
 
 NS_IMETHODIMP
 nsXFormsSelectableAccessible::ClearSelection()
 {
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
   if (mIsSelect1Element)
-    return sXFormsService->SetSelectedItemForSelect1(DOMNode, nsnull);
+    return sXFormsService->SetSelectedItemForSelect1(mDOMNode, nsnull);
 
-  return sXFormsService->ClearSelectionForSelect(DOMNode);
+  return sXFormsService->ClearSelectionForSelect(mDOMNode);
 }
 
 NS_IMETHODIMP
@@ -559,8 +546,7 @@ nsXFormsSelectableAccessible::SelectAllSelection(PRBool *aMultipleSelection)
   }
 
   *aMultipleSelection = PR_TRUE;
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  return sXFormsService->SelectAllItemsForSelect(DOMNode);
+  return sXFormsService->SelectAllItemsForSelect(mDOMNode);
 }
 
 already_AddRefed<nsIDOMNode>
@@ -599,22 +585,18 @@ nsXFormsSelectableAccessible::GetItemByIndex(PRInt32 *aIndex,
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
 // nsXFormsSelectableItemAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsSelectableItemAccessible::
-  nsXFormsSelectableItemAccessible(nsIContent *aContent,
-                                   nsIWeakReference *aShell) :
-  nsXFormsAccessible(aContent, aShell)
+  nsXFormsSelectableItemAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+  nsXFormsAccessible(aNode, aShell)
 {
 }
 
 NS_IMETHODIMP
 nsXFormsSelectableItemAccessible::GetValue(nsAString& aValue)
 {
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  return sXFormsService->GetValue(DOMNode, aValue);
+  return sXFormsService->GetValue(mDOMNode, aValue);
 }
 
 NS_IMETHODIMP
@@ -641,8 +623,8 @@ nsXFormsSelectableItemAccessible::IsItemSelected()
 {
   nsresult rv;
 
-  nsINode* parent = mContent;
-  while ((parent = parent->GetNodeParent())) {
+  nsCOMPtr<nsINode> parent = do_QueryInterface(mDOMNode);
+  while (parent = parent->GetNodeParent()) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(parent));
     if (!content)
       return PR_FALSE;
@@ -655,10 +637,9 @@ nsXFormsSelectableItemAccessible::IsItemSelected()
     if (!select)
       continue;
 
-    nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
     if (nodeinfo->Equals(nsAccessibilityAtoms::select)) {
       PRBool isSelected = PR_FALSE;
-      rv = sXFormsService->IsSelectItemSelected(select, DOMNode, &isSelected);
+      rv = sXFormsService->IsSelectItemSelected(select, mDOMNode, &isSelected);
       return NS_SUCCEEDED(rv) && isSelected;
     }
 
@@ -666,7 +647,7 @@ nsXFormsSelectableItemAccessible::IsItemSelected()
       nsCOMPtr<nsIDOMNode> selitem;
       rv = sXFormsService->GetSelectedItemForSelect1(select,
                                                      getter_AddRefs(selitem));
-      return NS_SUCCEEDED(rv) && (selitem == DOMNode);
+      return NS_SUCCEEDED(rv) && (selitem == mDOMNode);
     }
   }
 

@@ -52,7 +52,7 @@ else
 ifeq (,$(filter-out SunOS, $(OS_ARCH)))
    MOZ_PKG_FORMAT  = BZ2
 else
-   ifeq (,$(filter-out gtk2 qt, $(MOZ_WIDGET_TOOLKIT)))
+   ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
       MOZ_PKG_FORMAT  = BZ2
    else
       MOZ_PKG_FORMAT  = TGZ

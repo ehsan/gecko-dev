@@ -46,7 +46,8 @@
 
 #include "AccessibleEditableText.h"
 
-class CAccessibleEditableText: public IAccessibleEditableText
+class CAccessibleEditableText: public nsISupports,
+                               public IAccessibleEditableText
 {
 public:
 
@@ -82,9 +83,6 @@ public:
       /* [in] */ long startOffset,
       /* [in] */ long endOffset,
       /* [in] */ BSTR *attributes);
-
-  // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& uuid, void** result) = 0;
 };
 
 #endif

@@ -258,6 +258,12 @@ var gUpdates = {
     // which will clear all of the "never" prefs.
     var neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + this.update.appVersion;
     gPref.setBoolPref(neverPrefName, true);
+    this.wiz.cancel();
+  },
+
+  later: function () {
+    // The user said "Later", so close the wizard
+    this.wiz.cancel();
   },
 
   /**
@@ -911,12 +917,11 @@ var gUpdatesFoundBasicPage = {
   },
 
   onExtra1: function() {
-    gUpdates.wiz.cancel();
+    gUpdates.later();
   },
 
   onExtra2: function() {
     gUpdates.never();
-    gUpdates.wiz.cancel();
   }
 };
 
@@ -998,13 +1003,12 @@ var gUpdatesFoundBillboardPage = {
 
   onExtra1: function() {
     this.onWizardCancel();
-    gUpdates.wiz.cancel();
+    gUpdates.later();
   },
 
   onExtra2: function() {
     this.onWizardCancel();
     gUpdates.never();
-    gUpdates.wiz.cancel();
   },
 
   /**

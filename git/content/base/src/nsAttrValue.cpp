@@ -92,12 +92,6 @@ nsAttrValue::nsAttrValue(nsISVGValue* aValue)
 }
 #endif
 
-nsAttrValue::nsAttrValue(const nsIntMargin& aValue)
-    : mBits(0)
-{
-  SetTo(aValue);
-}
-
 nsAttrValue::~nsAttrValue()
 {
   ResetIfSet();
@@ -265,12 +259,6 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       cont->mFloatValue = otherCont->mFloatValue;
       break;
     }
-    case eIntMarginValue:
-    {
-      if (otherCont->mIntMargin)
-        cont->mIntMargin = new nsIntMargin(*otherCont->mIntMargin);
-      break;
-    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -331,16 +319,6 @@ nsAttrValue::SetTo(nsISVGValue* aValue)
   }
 }
 #endif
-
-void
-nsAttrValue::SetTo(const nsIntMargin& aValue)
-{
-  if (EnsureEmptyMiscContainer()) {
-    MiscContainer* cont = GetMiscContainer();
-    cont->mIntMargin = new nsIntMargin(aValue);
-    cont->mType = eIntMarginValue;
-  }
-}
 
 void
 nsAttrValue::SwapValueWith(nsAttrValue& aOther)
@@ -607,10 +585,6 @@ nsAttrValue::HashValue() const
       // XXX this is crappy, but oh well
       return cont->mFloatValue;
     }
-    case eIntMarginValue:
-    {
-      return NS_PTR_TO_INT32(cont->mIntMargin);
-    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -712,10 +686,6 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
     case eFloatValue:
     {
       return thisCont->mFloatValue == otherCont->mFloatValue;
-    }
-    case eIntMarginValue:
-    {
-      return thisCont->mIntMargin == otherCont->mIntMargin;
     }
     default:
     {
@@ -1234,26 +1204,6 @@ PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
   return PR_FALSE;
 }
 
-PRBool
-nsAttrValue::ParseIntMarginValue(const nsAString& aString)
-{
-  ResetIfSet();
-
-  nsIntMargin margins;
-  if (!nsContentUtils::ParseIntMarginValue(aString, margins))
-    return PR_FALSE;
-
-  if (EnsureEmptyMiscContainer()) {
-    MiscContainer* cont = GetMiscContainer();
-    cont->mIntMargin = new nsIntMargin(margins);
-    cont->mType = eIntMarginValue;
-    SetMiscAtomOrString(&aString);
-    return PR_TRUE;
-  }
-
-  return PR_FALSE;
-}
-
 void
 nsAttrValue::SetMiscAtomOrString(const nsAString* aValue)
 {
@@ -1319,11 +1269,6 @@ nsAttrValue::EnsureEmptyMiscContainer()
         break;
       }
 #endif
-      case eIntMarginValue:
-      {
-        delete cont->mIntMargin;
-        break;
-      }
       default:
       {
         break;

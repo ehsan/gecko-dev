@@ -48,7 +48,8 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  *
  * Implements nsIPromptFactory
  *
- * Invoked by [toolkit/components/prompts/src/nsPrompter.js]
+ * Invoked by NS_NewAuthPrompter2()
+ * [embedding/components/windowwatcher/src/nsPrompt.cpp]
  */
 function LoginManagerPromptFactory() {
     Services.obs.addObserver(this, "quit-application-granted", true);

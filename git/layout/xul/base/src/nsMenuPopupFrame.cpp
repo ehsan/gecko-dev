@@ -970,7 +970,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
     if (mAnchorContent) {
       nsCOMPtr<nsIDocument> document = mAnchorContent->GetDocument();
       if (document) {
-        nsIPresShell *shell = document->GetShell();
+        nsIPresShell *shell = document->GetPrimaryShell();
         if (!shell)
           return NS_ERROR_FAILURE;
 
@@ -1629,13 +1629,6 @@ nsMenuPopupFrame::MoveToAttributePosition()
 void
 nsMenuPopupFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsIFrame* parent = GetParent();
-  if (parent && parent->GetType() == nsGkAtoms::menuFrame) {
-    // clear the open attribute on the parent menu
-    nsContentUtils::AddScriptRunner(
-      new nsUnsetAttrRunnable(parent->GetContent(), nsGkAtoms::open));
-  }
-
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
     pm->PopupDestroyed(this);

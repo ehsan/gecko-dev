@@ -2,36 +2,25 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const xpi = RELATIVE_DIR + "addons/browser_installssl.xpi";
-const redirect = RELATIVE_DIR + "redirect.sjs?";
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
+
+const xpi = "browser/toolkit/mozapps/extensions/test/browser/browser_installssl.xpi";
+const redirect = "browser/toolkit/mozapps/extensions/test/browser/redirect.sjs?";
 const SUCCESS = 0;
+const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
 
 var gTests = [];
-var gStart = 0;
-var gLast = 0;
-var gPendingInstall = null;
 
 function test() {
-  gStart = Date.now();
-  requestLongerTimeout(2);
   waitForExplicitFinish();
-
-  registerCleanupFunction(function() {
-    if (gPendingInstall) {
-      gTests = [];
-      ok(false, "Timed out in the middle of downloading " + gPendingInstall.sourceURL);
-      try {
-        gPendingInstall.cancel();
-      }
-      catch (e) {
-      }
-    }
-  });
+  Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
 
   run_next_test();
 }
 
 function end_test() {
+  Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
   var cos = Cc["@mozilla.org/security/certoverride;1"].
             getService(Ci.nsICertOverrideService);
   cos.clearValidityOverride("nocert.example.com", -1);
@@ -39,7 +28,6 @@ function end_test() {
   cos.clearValidityOverride("untrusted.example.com", -1);
   cos.clearValidityOverride("expired.example.com", -1);
 
-  info("All tests completed in " + (Date.now() - gStart) + "ms");
   finish();
 }
 
@@ -53,26 +41,20 @@ function run_install_tests(callback) {
       callback();
       return;
     }
-    gLast = Date.now();
 
     let [url, expectedStatus, message] = gTests.shift();
     AddonManager.getInstallForURL(url, function(install) {
-      gPendingInstall = install;
       install.addListener({
         onDownloadEnded: function(install) {
           is(SUCCESS, expectedStatus, message);
-          info("Install test ran in " + (Date.now() - gLast) + "ms");
+          run_next_install_test();
           // Don't proceed with the install
           install.cancel();
-          gPendingInstall = null;
-          run_next_install_test();
           return false;
         },
 
-        onDownloadFailed: function(install) {
-          is(install.error, expectedStatus, message);
-          info("Install test ran in " + (Date.now() - gLast) + "ms");
-          gPendingInstall = null;
+        onDownloadFailed: function(install, status) {
+          is(status, expectedStatus, message);
           run_next_install_test();
         }
       });

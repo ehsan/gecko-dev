@@ -63,18 +63,19 @@ var Harness = {
     AddonManager.addInstallListener(this);
     this.installCount = 0;
     this.pendingCount = 0;
-
-    var self = this;
-    registerCleanupFunction(function() {
-      Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
-      Services.obs.removeObserver(self, "addon-install-blocked");
-      Services.wm.removeListener(self);
-
-      AddonManager.removeInstallListener(self);
-    });
   },
 
   finish: function() {
+    Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
+    Services.obs.removeObserver(this, "addon-install-blocked");
+    Services.wm.removeListener(this);
+
+    var win = Services.wm.getMostRecentWindow("Extension:Manager");
+    if (win)
+      win.close();
+
+    AddonManager.removeInstallListener(this);
+
     AddonManager.getAllInstalls(function(installs) {
       is(installs.length, 0, "Should be no active installs at the end of the test");
       finish();
@@ -131,16 +132,10 @@ var Harness = {
       }
     }
     else if (window.document.location.href == PROMPT_URL) {
-        var promptType = window.gArgs.getProperty("promptType");
-        switch (promptType) {
-          case "alert":
-          case "alertCheck":
-          case "confirmCheck":
-          case "confirm":
-          case "confirmEx":
-                window.document.documentElement.acceptDialog();
+      switch (window.gCommonDialogParam.GetInt(3)) {
+        case 0: window.document.documentElement.acceptDialog();
                 break;
-          case "promptUserAndPass":
+        case 2: if (window.gCommonDialogParam.GetInt(4) != 1) {
                   // This is a login dialog, hopefully an authentication prompt
                   // for the xpi.
                   if (this.authenticationCallback) {
@@ -157,9 +152,7 @@ var Harness = {
                   else {
                     window.document.documentElement.cancelDialog();
                   }
-                break;
-          default:
-                ok(false, "prompt type " + promptType + " not handled in test.");
+                }
                 break;
       }
     }
@@ -191,7 +184,6 @@ var Harness = {
                           .getInterface(Components.interfaces.nsIDOMWindowInternal);
     var self = this;
     domwindow.addEventListener("load", function() {
-      domwindow.removeEventListener("load", arguments.callee, false);
       self.windowLoad(domwindow);
     }, false);
   },
@@ -223,9 +215,9 @@ var Harness = {
     this.checkTestEnded();
   },
 
-  onDownloadFailed: function(install) {
+  onDownloadFailed: function(install, status) {
     if (this.downloadFailedCallback)
-      this.downloadFailedCallback(install);
+      this.downloadFailedCallback(install, status);
     this.checkTestEnded();
   },
 
@@ -241,9 +233,9 @@ var Harness = {
     this.checkTestEnded();
   },
 
-  onInstallFailed: function(install) {
+  onInstallFailed: function(install, status) {
     if (this.installFailedCallback)
-      this.installFailedCallback(install);
+      this.installFailedCallback(install, status);
     this.checkTestEnded();
   },
 

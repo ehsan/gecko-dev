@@ -635,11 +635,6 @@ nsTreeContentView::CycleHeader(nsITreeColumn* aCol)
           default: sortdirection.AssignLiteral("ascending"); break;
         }
 
-        nsAutoString hints;
-        column->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, hints);
-        sortdirection.AppendLiteral(" ");
-        sortdirection += hints;
-
         nsCOMPtr<nsIDOMNode> rootnode = do_QueryInterface(mRoot);
         xs->Sort(rootnode, sort, sortdirection);
       }

@@ -41,7 +41,6 @@
 #define WEBGLCONTEXT_H_
 
 #include <stdarg.h>
-#include <vector>
 
 #include "nsTArray.h"
 #include "nsDataHashtable.h"
@@ -60,10 +59,6 @@
 #include "GLContext.h"
 #include "Layers.h"
 
-#define UNPACK_FLIP_Y_WEBGL            0x9240
-#define UNPACK_PREMULTIPLY_ALPHA_WEBGL 0x9241
-#define CONTEXT_LOST_WEBGL             0x9242
-
 class nsIDocShell;
 
 namespace mozilla {
@@ -77,7 +72,6 @@ class WebGLRenderbuffer;
 class WebGLUniformLocation;
 
 class WebGLZeroingObject;
-class WebGLContextBoundObject;
 
 class WebGLObjectBaseRefPtr
 {
@@ -266,10 +260,7 @@ public:
     WebGLContext();
     virtual ~WebGLContext();
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(WebGLContext, nsICanvasRenderingContextWebGL)
-
+    NS_DECL_ISUPPORTS
     NS_DECL_NSICANVASRENDERINGCONTEXTWEBGL
 
     // nsICanvasRenderingContextInternal
@@ -283,14 +274,6 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
-    NS_IMETHOD SetIsIPC(PRBool b) { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Redraw(const gfxRect&) { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Swap(mozilla::ipc::Shmem& aBack,
-                    PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
-                    { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Swap(PRUint32 nativeID,
-                    PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
-                    { return NS_ERROR_NOT_IMPLEMENTED; }
 
     nsresult SynthesizeGLError(WebGLenum err);
     nsresult SynthesizeGLError(WebGLenum err, const char *fmt, ...);
@@ -298,9 +281,6 @@ public:
     nsresult ErrorInvalidEnum(const char *fmt = 0, ...);
     nsresult ErrorInvalidOperation(const char *fmt = 0, ...);
     nsresult ErrorInvalidValue(const char *fmt = 0, ...);
-    nsresult ErrorInvalidEnumInfo(const char *info) {
-        return ErrorInvalidEnum("%s: invalid enum value", info);
-    }
 
     already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *manager);
     void MarkContextClean() { }
@@ -309,10 +289,7 @@ public:
     // all context resources to be lost.
     PRUint32 Generation() { return mGeneration; }
 protected:
-    nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
-    nsHTMLCanvasElement *HTMLCanvasElement() {
-        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
-    }
+    nsHTMLCanvasElement* mCanvasElement;
 
     nsRefPtr<gl::GLContext> gl;
 
@@ -325,18 +302,9 @@ protected:
     WebGLenum mSynthesizedGLError;
 
     PRBool SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement);
-    PRBool InitAndValidateGL();
+    PRBool ValidateGL();
     PRBool ValidateBuffers(PRUint32 count);
-    PRBool ValidateCapabilityEnum(WebGLenum cap, const char *info);
-    PRBool ValidateBlendEquationEnum(WebGLuint cap, const char *info);
-    PRBool ValidateBlendFuncDstEnum(WebGLuint mode, const char *info);
-    PRBool ValidateBlendFuncSrcEnum(WebGLuint mode, const char *info);
-    PRBool ValidateTextureTargetEnum(WebGLenum target, const char *info);
-    PRBool ValidateComparisonEnum(WebGLenum target, const char *info);
-    PRBool ValidateStencilOpEnum(WebGLenum action, const char *info);
-    PRBool ValidateFaceEnum(WebGLenum target, const char *info);
-    PRBool ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
-                                      PRUint32 *texelSize, const char *info);
+    static PRBool ValidateCapabilityEnum(WebGLenum cap);
 
     void Invalidate();
 
@@ -352,8 +320,6 @@ protected:
                                 WebGLsizei width, WebGLsizei height,
                                 WebGLenum format, WebGLenum type,
                                 void *pixels, PRUint32 byteLength);
-    nsresult ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
-                             WebGLenum format, WebGLenum type, void *data, PRUint32 byteLength);
 
     nsresult DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                       gfxImageSurface **imageOut,
@@ -414,9 +380,6 @@ protected:
     nsRefPtrHashtable<nsUint32HashKey, WebGLShader> mMapShaders;
     nsRefPtrHashtable<nsUint32HashKey, WebGLFramebuffer> mMapFramebuffers;
     nsRefPtrHashtable<nsUint32HashKey, WebGLRenderbuffer> mMapRenderbuffers;
-
-    // WebGL-specific PixelStore parameters
-    PRBool mPixelStoreFlipY, mPixelStorePremultiplyAlpha;
 
 public:
     // console logging helpers
@@ -687,9 +650,7 @@ public:
 
     WebGLProgram(WebGLContext *context, WebGLuint name) :
         WebGLContextBoundObject(context),
-        mName(name), mDeleted(PR_FALSE), mLinkStatus(PR_FALSE), mGeneration(0),
-        mUniformMaxNameLength(0), mAttribMaxNameLength(0),
-        mUniformCount(0), mAttribCount(0)
+        mName(name), mDeleted(PR_FALSE), mLinkStatus(PR_FALSE), mGeneration(0)
     {
         mMapUniformLocations.Init();
     }
@@ -703,7 +664,6 @@ public:
 
     PRBool Deleted() { return mDeleted; }
     WebGLuint GLName() { return mName; }
-    const nsTArray<WebGLShader*>& AttachedShaders() const { return mAttachedShaders; }
     PRBool LinkStatus() { return mLinkStatus; }
     GLuint Generation() const { return mGeneration; }
     void SetLinkStatus(PRBool val) { mLinkStatus = val; }
@@ -752,16 +712,6 @@ public:
 
     already_AddRefed<WebGLUniformLocation> GetUniformLocationObject(GLint glLocation);
 
-    /* Called only after LinkProgram */
-    PRBool UpdateInfo(gl::GLContext *gl);
-
-    /* Getters for cached program info */
-    WebGLint UniformMaxNameLength() const { return mUniformMaxNameLength; }
-    WebGLint AttribMaxNameLength() const { return mAttribMaxNameLength; }
-    WebGLint UniformCount() const { return mUniformCount; }
-    WebGLint AttribCount() const { return mAttribCount; }
-    bool IsAttribInUse(unsigned i) const { return mAttribsInUse[i]; }
-
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLPROGRAM
 protected:
@@ -771,11 +721,6 @@ protected:
     nsTArray<WebGLShader*> mAttachedShaders;
     nsRefPtrHashtable<nsUint32HashKey, WebGLUniformLocation> mMapUniformLocations;
     GLuint mGeneration;
-    GLint mUniformMaxNameLength;
-    GLint mAttribMaxNameLength;
-    GLint mUniformCount;
-    GLint mAttribCount;
-    std::vector<bool> mAttribsInUse;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLProgram, WEBGLPROGRAM_PRIVATE_IID)

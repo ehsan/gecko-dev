@@ -42,6 +42,7 @@
 extern "C" {
 #include "cairo-win32.h"
 #include "cairo-analysis-surface-private.h"
+#include "cairo-surface-clipper-private.h"
 }
 
 // Required for using placement new.
@@ -51,9 +52,6 @@ ID2D1Factory *D2DSurfFactory::mFactoryInstance = NULL;
 ID3D10Device1 *D3D10Factory::mDeviceInstance = NULL;
 
 #define CAIRO_INT_STATUS_SUCCESS (cairo_int_status_t)CAIRO_STATUS_SUCCESS
-
-// Contains our cache usage - perhaps this should be made threadsafe.
-static int cache_usage = 0;
 
 /**
  * Create a similar surface which will blend effectively to
@@ -253,6 +251,13 @@ _cairo_d2d_getextents(void		       *surface,
 		      cairo_rectangle_int_t    *extents);
 
 
+static cairo_status_t
+_cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
+					       cairo_path_fixed_t	*path,
+					       cairo_fill_rule_t	fill_rule,
+					       double			tolerance,
+					       cairo_antialias_t	antialias);
+
 /**
  * Stroke a path on this D2D surface.
  *
@@ -385,17 +390,28 @@ _cairo_d2d_get_buffer_texture(cairo_d2d_surface_t *surface)
  */
 static void _cairo_d2d_update_surface_bitmap(cairo_d2d_surface_t *d2dsurf)
 {
-    if (!d2dsurf->backBuf && d2dsurf->rt->GetPixelFormat().format != DXGI_FORMAT_A8_UNORM) {
+    if (!d2dsurf->backBuf) {
 	return;
     }
-    
+    ID3D10Texture2D *texture = _cairo_d2d_get_buffer_texture(d2dsurf);
     if (!d2dsurf->surfaceBitmap) {
-	d2dsurf->rt->CreateBitmap(d2dsurf->rt->GetPixelSize(),
-				  D2D1::BitmapProperties(d2dsurf->rt->GetPixelFormat()),
-				  &d2dsurf->surfaceBitmap);
+	RefPtr<IDXGISurface> dxgiSurface;
+	D2D1_ALPHA_MODE alpha;
+	if (d2dsurf->base.content == CAIRO_CONTENT_COLOR) {
+	    alpha = D2D1_ALPHA_MODE_IGNORE;
+	} else {
+	    alpha = D2D1_ALPHA_MODE_PREMULTIPLIED;
+	}
+        /** Using DXGI_FORMAT_UNKNOWN will automatically use the texture's format. */
+	D2D1_BITMAP_PROPERTIES bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN,
+										   alpha));
+	texture->QueryInterface(&dxgiSurface);
+	d2dsurf->rt->CreateSharedBitmap(IID_IDXGISurface,
+					dxgiSurface,
+					&bitProps,
+					&d2dsurf->surfaceBitmap);
     }
-
-    d2dsurf->surfaceBitmap->CopyFromRenderTarget(NULL, d2dsurf->rt, NULL);
+    D3D10Factory::Device()->CopyResource(texture, d2dsurf->surface);
 }
 
 /**
@@ -418,213 +434,64 @@ void cairo_d2d_present_backbuffer(cairo_surface_t *surface)
     }
 }
 
-struct d2d_clip
-{
-    enum clip_type {LAYER, AXIS_ALIGNED_CLIP};
-    d2d_clip * const prev;
-    const enum clip_type type;
-    d2d_clip(d2d_clip *prev, clip_type type) : prev(prev), type(type) { }
-};
-
-static RefPtr<ID2D1PathGeometry>
-_cairo_d2d_create_path_geometry_for_path(cairo_path_fixed_t *path,
-					 cairo_fill_rule_t fill_rule,
-					 D2D1_FIGURE_BEGIN type);
-
-
-static cairo_bool_t
-box_is_integer (cairo_box_t *box)
-{
-    return _cairo_fixed_is_integer(box->p1.x) &&
-	_cairo_fixed_is_integer(box->p1.y) &&
-	_cairo_fixed_is_integer(box->p2.x) &&
-	_cairo_fixed_is_integer(box->p2.y);
-}
-
-static cairo_status_t
-push_clip (cairo_d2d_surface_t *d2dsurf, cairo_clip_path_t *clip_path)
-{
-    cairo_box_t box;
-    if (_cairo_path_fixed_is_box(&clip_path->path, &box)) {
-
-	assert(box.p1.y < box.p2.y);
-
-	D2D1_ANTIALIAS_MODE mode;
-	if (box_is_integer (&box)) {
-	    mode = D2D1_ANTIALIAS_MODE_ALIASED;
-	} else {
-	    mode = D2D1_ANTIALIAS_MODE_PER_PRIMITIVE;
-	}
-	d2dsurf->rt->PushAxisAlignedClip (
-		D2D1::RectF(
-		    _cairo_fixed_to_float(box.p1.x),
-		    _cairo_fixed_to_float(box.p1.y),
-		    _cairo_fixed_to_float(box.p2.x),
-		    _cairo_fixed_to_float(box.p2.y)),
-		mode);
-
-	d2dsurf->d2d_clip = new d2d_clip (d2dsurf->d2d_clip, d2d_clip::AXIS_ALIGNED_CLIP);
-    } else {
-	HRESULT hr;
-	RefPtr<ID2D1PathGeometry> geom = _cairo_d2d_create_path_geometry_for_path (&clip_path->path,
-							clip_path->fill_rule,
-							D2D1_FIGURE_BEGIN_FILLED);
-	RefPtr<ID2D1Layer> layer;
-
-	hr = d2dsurf->rt->CreateLayer (&layer);
-
-	D2D1_LAYER_OPTIONS options = D2D1_LAYER_OPTIONS_NONE;
-	if (d2dsurf->base.content == CAIRO_CONTENT_COLOR) {
-	    options = D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE;
-	}
-
-	d2dsurf->rt->PushLayer(D2D1::LayerParameters(
-		    D2D1::InfiniteRect(),
-		    geom,
-		    D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
-		    D2D1::IdentityMatrix(),
-		    1.0,
-		    0,
-		    options),
-		layer);
-
-	d2dsurf->d2d_clip = new d2d_clip(d2dsurf->d2d_clip, d2d_clip::LAYER);
-   }
-    if (!d2dsurf->d2d_clip)
-	return _cairo_error(CAIRO_STATUS_NO_MEMORY);
-    return CAIRO_STATUS_SUCCESS;
-}
-
+/**
+ * Push the clipping are cairo has currently set to the render target.
+ * This needs to be balanced with pops, where both -must- be while inside
+ * the drawing state.
+ *
+ * \param d2dsurf Surface
+ */
 static void
-pop_clip (cairo_d2d_surface_t *d2dsurf)
+_cairo_d2d_surface_push_clip(cairo_d2d_surface_t *d2dsurf)
 {
-    d2d_clip *current_clip = d2dsurf->d2d_clip;
-
-    /* pop the clip from the render target */
-    if (current_clip->type == d2d_clip::LAYER) {
-	d2dsurf->rt->PopLayer();
-    } else if (current_clip->type == d2d_clip::AXIS_ALIGNED_CLIP) {
-	d2dsurf->rt->PopAxisAlignedClip();
+    if (d2dsurf->isDrawing) {
+	if (d2dsurf->clipMask) {
+	    if (!d2dsurf->clipLayer) {
+		d2dsurf->rt->CreateLayer(&d2dsurf->clipLayer);
+	    }
+	    D2D1_RECT_F bounds;
+	    d2dsurf->clipMask->GetBounds(D2D1::IdentityMatrix(), &bounds);
+            D2D1_LAYER_OPTIONS options = D2D1_LAYER_OPTIONS_NONE;
+	    if (d2dsurf->base.content == CAIRO_CONTENT_COLOR) {
+		options = D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE;
+	    }
+	    d2dsurf->rt->PushLayer(D2D1::LayerParameters(bounds,
+							 d2dsurf->clipMask,
+							 D2D1_ANTIALIAS_MODE_ALIASED,
+							 D2D1::IdentityMatrix(),
+							 1.0,
+							 0,
+							 options),
+				   d2dsurf->clipLayer);
+	}
+	if (d2dsurf->clipRect) {
+	    d2dsurf->rt->PushAxisAlignedClip(d2dsurf->clipRect, D2D1_ANTIALIAS_MODE_ALIASED);
+	}
+	d2dsurf->clipping = true;
     }
-
-    /* pop it from our own stack */
-    d2dsurf->d2d_clip = current_clip->prev;
-    delete current_clip;
 }
 
-/* intersect clip_paths until we reach head */
-static cairo_status_t
-clipper_intersect_clip_path_recursive (cairo_d2d_surface_t *d2dsurf,
-	cairo_clip_path_t *head,
-	cairo_clip_path_t *clip_path)
-{
-    cairo_status_t status;
-
-    if (clip_path->prev != head) {
-	status =
-	    clipper_intersect_clip_path_recursive (d2dsurf,
-		    head,
-		    clip_path->prev);
-	if (unlikely (status))
-	    return status;
-    }
-    return push_clip(d2dsurf, clip_path);
-
-}
-
-/* pop all of the clipping layers and reset the clip */
+/**
+ * Pop the clipping area cairo has currently set to the render target.
+ * This needs to be balanced with pushes, where both -must- be while inside
+ * the drawing state.
+ *
+ * \param d2dsurf Surface
+ */
 static void
-reset_clip (cairo_d2d_surface_t *d2dsurf)
+_cairo_d2d_surface_pop_clip(cairo_d2d_surface_t *d2dsurf)
 {
-    cairo_clip_path_t *current_clip_path = d2dsurf->clip.path;
-    while (current_clip_path != NULL) {
-	pop_clip (d2dsurf);
-	current_clip_path = current_clip_path->prev;
+    if (d2dsurf->isDrawing) {
+	if (d2dsurf->clipping) {
+	    if (d2dsurf->clipMask) {
+		d2dsurf->rt->PopLayer();
+	    }
+	    if (d2dsurf->clipRect) {
+		d2dsurf->rt->PopAxisAlignedClip();
+	    }
+	    d2dsurf->clipping = false;
+	}
     }
-
-    _cairo_clip_reset (&d2dsurf->clip);
-}
-
-/* finds the lowest common ancestor of a and b */
-static cairo_clip_path_t *
-find_common_ancestor(cairo_clip_path_t *a, cairo_clip_path_t *b)
-{
-    int a_depth = 0, b_depth = 0;
-
-    cairo_clip_path_t *x;
-
-    /* find the depths of the clip_paths */
-    x = a;
-    while (x) {
-	a_depth++;
-	x = x->prev;
-    }
-
-    x = b;
-    while (x) {
-	b_depth++;
-	x = x->prev;
-    }
-
-    /* rewind the deeper chain to the depth of the shallowest chain */
-    while (b_depth < a_depth && a) {
-	a = a->prev;
-	a_depth--;
-    }
-
-    while (a_depth < b_depth && b) {
-	b = b->prev;
-	b_depth--;
-    }
-
-    /* walk back until we find a common ancesstor */
-
-    /* b will be null if and only if a is null because the depths
-     * must match at this point */
-    while (a) {
-	if (a == b)
-	    return a;
-
-	a = a->prev;
-	b = b->prev;
-    }
-
-    /* a will be NULL */
-    return a;
-}
-
-cairo_status_t
-_cairo_d2d_set_clip (cairo_d2d_surface_t *d2dsurf, cairo_clip_t *clip)
-{
-    if (clip == NULL) {
-	reset_clip (d2dsurf);
-	return CAIRO_STATUS_SUCCESS;
-    }
-
-    if (clip != NULL && clip->path == d2dsurf->clip.path)
-	return CAIRO_STATUS_SUCCESS;
-
-    cairo_clip_path_t *current_clip_path = d2dsurf->clip.path;
-    cairo_clip_path_t *new_clip_path = clip->path;
-    cairo_clip_path_t *ancestor = find_common_ancestor (current_clip_path, new_clip_path);
-
-    /* adjust the clip to the common ancestor */
-    while (current_clip_path != ancestor) {
-	pop_clip (d2dsurf);
-	current_clip_path = current_clip_path->prev;
-    }
-
-    /* we now have a common parent (current_clip_path) for the clip */
-
-    /* replace the old clip */
-    _cairo_clip_reset (&d2dsurf->clip);
-    _cairo_clip_init_copy (&d2dsurf->clip, clip);
-
-    /* push the new clip paths up to current_clip_path */
-    if (current_clip_path != clip->path)
-	return clipper_intersect_clip_path_recursive (d2dsurf, current_clip_path, clip->path);
-    else
-	return CAIRO_STATUS_SUCCESS;
 }
 
 /**
@@ -638,6 +505,9 @@ static void _begin_draw_state(cairo_d2d_surface_t* surface)
     if (!surface->isDrawing) {
 	surface->rt->BeginDraw();
 	surface->isDrawing = true;
+    }
+    if (!surface->clipping) {
+	_cairo_d2d_surface_push_clip(surface);
     }
 }
 
@@ -732,13 +602,6 @@ _cairo_d2d_create_strokestyle_for_stroke_style(const cairo_stroke_style_t *style
     return strokeStyle;
 }
 
-static int _d2d_compute_bitmap_mem_size(ID2D1Bitmap *bitmap)
-{
-    D2D1_SIZE_U size = bitmap->GetPixelSize();
-    int bytes_per_pixel = bitmap->GetPixelFormat().format == DXGI_FORMAT_A8_UNORM ? 1 : 4;
-    return size.width * size.height * bytes_per_pixel;
-}
-
 cairo_user_data_key_t bitmap_key_nonextend;
 cairo_user_data_key_t bitmap_key_extend;
 cairo_user_data_key_t bitmap_key_snapshot;
@@ -760,7 +623,6 @@ static void _d2d_release_bitmap(void *bitmap)
 {
     cached_bitmap *existingBitmap = (cached_bitmap*)bitmap;
     if (!--existingBitmap->refs) {
-	cache_usage -= _d2d_compute_bitmap_mem_size(existingBitmap->bitmap);
 	delete existingBitmap;
     }
 }
@@ -776,81 +638,9 @@ static void _d2d_snapshot_detached(cairo_surface_t *surface)
 	existingBitmap->dirty = true;
     }
     if (!--existingBitmap->refs) {
-	cache_usage -= _d2d_compute_bitmap_mem_size(existingBitmap->bitmap);
-        delete existingBitmap;
+	delete existingBitmap;
     }
     cairo_surface_destroy(surface);
-}
-
-/**
- * This function will calculate the part of srcSurf which will possibly be used within
- * the boundaries of d2dsurf given the current transformation mat. This is used to
- * determine what the minimal part of a surface is that needs to be uploaded.
- *
- * \param d2dsurf D2D surface
- * \param srcSurf Source surface for operation
- * \param mat Transformation matrix applied to source
- */
-static void
-_cairo_d2d_calculate_visible_rect(cairo_d2d_surface_t *d2dsurf, cairo_image_surface_t *srcSurf,
-				  cairo_matrix_t *mat,
-				  int *x, int *y, unsigned int *width, unsigned int *height)
-{
-    /** Leave room for extend_none space, 2 pixels */
-    UINT32 maxSize = d2dsurf->rt->GetMaximumBitmapSize() - 2;
-
-    /* Transform this surface to image surface space */
-    cairo_matrix_t invMat = *mat;
-    if (_cairo_matrix_is_invertible(mat)) {
-	/* If this is not invertible it will be rank zero, and invMat = mat is fine */
-	cairo_matrix_invert(&invMat);
-    }
-
-    RefPtr<IDXGISurface> surf;
-    d2dsurf->surface->QueryInterface(&surf);
-    DXGI_SURFACE_DESC desc;
-    surf->GetDesc(&desc);
-
-    double leftMost = 0;
-    double rightMost = desc.Width;
-    double topMost = 0;
-    double bottomMost = desc.Height;
-
-    _cairo_matrix_transform_bounding_box(&invMat, &leftMost, &topMost, &rightMost, &bottomMost, NULL);
-
-    leftMost -= 1;
-    topMost -= 1;
-    rightMost += 1;
-    bottomMost += 1;
-
-    /* Calculate the offsets into the source image and the width of the part required */
-    if ((UINT32)srcSurf->width > maxSize) {
-	*x = (int)MAX(0, floor(leftMost));
-	/* Ensure that we get atleast 1 column of pixels as source, this will make EXTEND_PAD work */
-	if (*x < srcSurf->width) {
-	    *width = (unsigned int)MIN(MAX(1, ceil(rightMost - *x)), srcSurf->width - *x);
-	} else {
-	    *x = srcSurf->width - 1;
-	    *width = 1;
-	}
-    } else {
-	*x = 0;
-	*width = srcSurf->width;
-    }
-
-    if ((UINT32)srcSurf->height > maxSize) {
-	*y = (int)MAX(0, floor(topMost));
-	/* Ensure that we get atleast 1 row of pixels as source, this will make EXTEND_PAD work */
-	if (*y < srcSurf->height) {
-	    *height = (unsigned int)MIN(MAX(1, ceil(bottomMost - *y)), srcSurf->height - *y);
-	} else {
-	    *y = srcSurf->height - 1;
-	    *height = 1;
-	}
-    } else {
-	*y = 0;
-	*height = srcSurf->height;
-    }
 }
 
 /**
@@ -998,8 +788,8 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 
 	RefPtr<ID2D1Bitmap> sourceBitmap;
 	bool partial = false;
-	int xoffset = 0;
-	int yoffset = 0;
+	unsigned int xoffset = 0;
+	unsigned int yoffset = 0;
 	unsigned int width;
 	unsigned int height;
 	unsigned char *data = NULL;
@@ -1053,17 +843,39 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	    UINT32 maxSize = d2dsurf->rt->GetMaximumBitmapSize() - 2;
 
 	    if ((UINT32)srcSurf->width > maxSize || (UINT32)srcSurf->height > maxSize) {
-		if (pattern->extend == CAIRO_EXTEND_REPEAT ||
-		    pattern->extend == CAIRO_EXTEND_REFLECT) {
-		    // XXX - we don't have code to deal with these yet.
-		    return NULL;
-		}
-
 		/* We cannot fit this image directly into a texture, start doing tricks to draw correctly anyway. */
 		partial = true;
-
 		/* First we check which part of the image is inside the viewable area. */
-  		_cairo_d2d_calculate_visible_rect(d2dsurf, srcSurf, &mat, &xoffset, &yoffset, &width, &height);
+  
+		/* Transform this surface to image surface space */
+		cairo_matrix_t invMat = mat;
+                if (_cairo_matrix_is_invertible(&mat)) {
+                  /* If this is not invertible it will be rank zero, and invMat = mat is fine */
+		  cairo_matrix_invert(&invMat);
+                }
+
+		RefPtr<IDXGISurface> surf;
+		d2dsurf->surface->QueryInterface(&surf);
+		DXGI_SURFACE_DESC desc;
+		surf->GetDesc(&desc);
+
+                double leftMost = 0;
+                double rightMost = desc.Width;
+                double topMost = 0;
+                double bottomMost = desc.Height;
+
+                _cairo_matrix_transform_bounding_box(&invMat, &leftMost, &topMost, &rightMost, &bottomMost, NULL);
+
+                leftMost -= 1;
+                topMost -= 1;
+                rightMost += 1;
+                bottomMost += 1;
+
+		/* Calculate the offsets into the source image and the width of the part required */
+		xoffset = (unsigned int)MAX(0, floor(leftMost));
+		yoffset = (unsigned int)MAX(0, floor(topMost));
+		width = (unsigned int)MIN(MAX(0, ceil(rightMost - xoffset)), srcSurf->width - xoffset);
+		height = (unsigned int)MIN(MAX(0, ceil(bottomMost - yoffset)), srcSurf->height - yoffset);
 
 	        cairo_matrix_translate(&mat, xoffset, yoffset);
 
@@ -1081,11 +893,6 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
                      * this by 45 degrees and scale it to a size of 5x5 pixels and composite it to the destination,
                      * the composition will require all 10 original columns to do the best possible sampling.
 		     */
-		    RefPtr<IDXGISurface> surf;
-		    d2dsurf->surface->QueryInterface(&surf);
-		    DXGI_SURFACE_DESC desc;
-		    surf->GetDesc(&desc);
-
 		    unsigned int minSize = (unsigned int)ceil(sqrt(pow((float)desc.Width, 2) + pow((float)desc.Height, 2)));
 		    
 		    unsigned int newWidth = MIN(minSize, MIN(width, maxSize));
@@ -1227,7 +1034,6 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		    _cairo_surface_attach_snapshot(surfacePattern->surface,
 						   nullSurf,
 						   _d2d_snapshot_detached);
-		    cache_usage += _d2d_compute_bitmap_mem_size(sourceBitmap);
 		}
 		if (pix_image) {
 		    pixman_image_unref(pix_image);
@@ -1427,95 +1233,104 @@ _cairo_d2d_create_path_geometry_for_path(cairo_path_fixed_t *path,
     return d2dpath;
 }
 
-static cairo_bool_t
-clip_contains_only_boxes (cairo_clip_t *clip)
+/**
+ * We use this to clear out a certain path on a surface. This will respect
+ * the existing clip.
+ *
+ * \param d2dsurf Surface we clear
+ * \param geometry Geometry of the area to clear, NULL means entire surface.
+ */
+static void _cairo_d2d_clear_geometry(cairo_d2d_surface_t *d2dsurf,
+				      ID2D1Geometry *pathGeometry)
 {
-    cairo_bool_t is_boxes = TRUE;
-
-    if (clip) {
-	cairo_box_t clip_box;
-	cairo_clip_path_t *path = clip->path;
-
-	while (path) {
-	    is_boxes &= _cairo_path_fixed_is_box(&path->path, &clip_box);
-	    path = path->prev;
-	}
+    if (!d2dsurf->helperLayer) {
+	d2dsurf->rt->CreateLayer(&d2dsurf->helperLayer);
     }
-    return is_boxes;
-}
 
-static cairo_int_status_t
-_cairo_d2d_clear_box (cairo_d2d_surface_t *d2dsurf,
-		 cairo_clip_t *clip,
-		 cairo_box_t *box)
-{
-    if (clip_contains_only_boxes (clip)) {
-	/* clear the box using axis aligned clips */
-	d2dsurf->rt->PushAxisAlignedClip(D2D1::RectF(_cairo_fixed_to_float(box->p1.x),
-		    _cairo_fixed_to_float(box->p1.y),
-		    _cairo_fixed_to_float(box->p2.x),
-		    _cairo_fixed_to_float(box->p2.y)),
-		D2D1_ANTIALIAS_MODE_ALIASED);
+    if (!d2dsurf->clipMask && !pathGeometry) {
+	/**
+	 * We have an axis aligned rectangular clip and no pathGeometry, we can
+	 * just clear the surface.
+	 */
 	d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
-	d2dsurf->rt->PopAxisAlignedClip();
-
-	return CAIRO_INT_STATUS_SUCCESS;
+	return;
     }
 
-    return CAIRO_INT_STATUS_UNSUPPORTED;
-}
+    RefPtr<IDXGISurface> dxgiSurface;
+    RefPtr<ID2D1Bitmap> bitmp;
 
-static cairo_int_status_t
-_cairo_d2d_clear (cairo_d2d_surface_t *d2dsurf,
-		 cairo_clip_t *clip)
-{
-    cairo_region_t *region;
-    cairo_int_status_t status;
+    /** We flush here, this takes us out of drawing state! */
+    _cairo_d2d_flush(d2dsurf);
 
-    if (!clip) {
-	/* no clip so clear everything */
-	_begin_draw_state(d2dsurf);
-	reset_clip(d2dsurf);
-	d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
+    /** Create a temporary buffer for our surface content */
+    RefPtr<ID3D10Texture2D> bufTexture = _cairo_d2d_get_buffer_texture(d2dsurf);
 
-	return CAIRO_INT_STATUS_SUCCESS;
+    /** Copy our contents into the temporary buffer */
+    D3D10Factory::Device()->CopyResource(bufTexture, d2dsurf->surface);
+
+    /** Make the temporary buffer available as a D2D Bitmap */
+    bufTexture->QueryInterface(&dxgiSurface);
+    D2D1_BITMAP_PROPERTIES props = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
+									    D2D1_ALPHA_MODE_PREMULTIPLIED));
+    HRESULT hr = d2dsurf->rt->CreateSharedBitmap(IID_IDXGISurface,
+						 dxgiSurface,
+						 &props,
+						 &bitmp);
+
+    /** We need to manually BeginDraw here, since we're outside of the normal drawing state */
+    d2dsurf->rt->BeginDraw();
+
+    /** Clear our original surface */
+    d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
+
+    DXGI_SURFACE_DESC desc;
+    dxgiSurface->GetDesc(&desc);
+
+    RefPtr<ID2D1RectangleGeometry> rectGeom;
+    RefPtr<ID2D1PathGeometry> inverse;
+    RefPtr<ID2D1Geometry> clearGeometry;
+    RefPtr<ID2D1GeometrySink> sink;
+
+    if (!d2dsurf->clipMask) {
+	/** No clip mask, our clear geometry is equal to our path geometry. */
+	clearGeometry = pathGeometry;
+    } else if (!pathGeometry) {
+	/** No path geometry, our clear geometry is equal to our clip mask. */
+	clearGeometry = d2dsurf->clipMask;
+    } else {
+	/**
+	 * A clipping mask and a pathGeometry, the intersect of the two
+	 * geometries is the area of the surface that we want to clear.
+	 */
+	RefPtr<ID2D1PathGeometry> clipPathUnion;
+	D2DSurfFactory::Instance()->CreatePathGeometry(&clipPathUnion);
+	clipPathUnion->Open(&sink);
+	pathGeometry->CombineWithGeometry(d2dsurf->clipMask,
+					  D2D1_COMBINE_MODE_INTERSECT,
+					  D2D1::IdentityMatrix(),
+					  sink);
+	sink->Close();
+	clearGeometry = clipPathUnion;
     }
 
-    status = _cairo_clip_get_region (clip, &region);
-    if (status)
-	return status;
+    /**
+     * Calculate the inverse of the geometry to clear. This is the clip mask
+     * when drawing our original content back to the surface.
+     */
+    D2DSurfFactory::Instance()->CreatePathGeometry(&inverse);
+    inverse->Open(&sink);
+    D2DSurfFactory::Instance()->CreateRectangleGeometry(D2D1::RectF(0, 0, (FLOAT)desc.Width, (FLOAT)desc.Height), &rectGeom);
+    rectGeom->CombineWithGeometry(clearGeometry, D2D1_COMBINE_MODE_EXCLUDE, D2D1::IdentityMatrix(), sink);
+    sink->Close();
 
-    /* We now have a region, we'll clear it one rectangle at a time */
-    _begin_draw_state(d2dsurf);
+    /** Clip by the inverse and draw our content back to the surface */
+    d2dsurf->rt->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), inverse),
+			   d2dsurf->helperLayer);
+    d2dsurf->rt->DrawBitmap(bitmp);
+    d2dsurf->rt->PopLayer();
 
-    reset_clip(d2dsurf);
-
-    if (region) {
-	int num_rects;
-	int i;
-
-	num_rects = cairo_region_num_rectangles (region);
-
-	for (i = 0; i < num_rects; i++) {
-	    cairo_rectangle_int_t rect;
-
-	    cairo_region_get_rectangle (region, i, &rect);
-
-	    d2dsurf->rt->PushAxisAlignedClip(
-		    D2D1::RectF((FLOAT)rect.x,
-			        (FLOAT)rect.y,
-				(FLOAT)rect.x + rect.width,
-				(FLOAT)rect.y + rect.height),
-		    D2D1_ANTIALIAS_MODE_ALIASED);
-
-	    d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
-
-	    d2dsurf->rt->PopAxisAlignedClip();
-	}
-
-    }
-
-    return CAIRO_INT_STATUS_SUCCESS;
+    /** We're not in drawing state, make sure our D2D RT isn't either */
+    d2dsurf->rt->EndDraw();
 }
 
 static cairo_operator_t _cairo_d2d_simplify_operator(cairo_operator_t op,
@@ -1552,6 +1367,7 @@ _cairo_d2d_create_similar(void			*surface,
     
     new (newSurf) cairo_d2d_surface_t();
     _cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, content);
+    _cairo_surface_clipper_init(&newSurf->clipper, _cairo_d2d_surface_clipper_intersect_clip_path);
 
 
     D2D1_SIZE_U sizePixels;
@@ -1581,8 +1397,7 @@ _cairo_d2d_create_similar(void			*surface,
 								       D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN,
 											 alpha),
 								       dpiX,
-								       dpiY,
-								       D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE);
+								       dpiY);
 
     if (sizePixels.width < 1) {
 	sizePixels.width = 1;
@@ -1607,7 +1422,6 @@ _cairo_d2d_create_similar(void			*surface,
     desc.MipLevels = 1;
     desc.Usage = D3D10_USAGE_DEFAULT;
     desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-    desc.MiscFlags = D3D10_RESOURCE_MISC_GDI_COMPATIBLE;
     RefPtr<ID3D10Texture2D> texture;
     RefPtr<IDXGISurface> dxgiSurface;
 
@@ -1631,17 +1445,12 @@ _cairo_d2d_create_similar(void			*surface,
 	goto FAIL_CREATESIMILAR;
     }
 
-    if (desc.Format != DXGI_FORMAT_A8_UNORM) {
-	/* For some reason creation of shared bitmaps for A8 UNORM surfaces
-	 * doesn't work even though the documentation suggests it does. The
-	 * function will return an error if we try */
-	hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
-					     dxgiSurface,
-					     &bitProps,
-					     &newSurf->surfaceBitmap);
-	if (FAILED(hr)) {
-	    goto FAIL_CREATESIMILAR;
-	}
+    hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
+					 dxgiSurface,
+					 &bitProps,
+					 &newSurf->surfaceBitmap);
+    if (FAILED(hr)) {
+	goto FAIL_CREATESIMILAR;
     }
 
     newSurf->rt->CreateSolidColorBrush(D2D1::ColorF(0, 1.0), &newSurf->solidColorBrush);
@@ -1662,7 +1471,7 @@ _cairo_d2d_finish(void	    *surface)
 {
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
 
-    reset_clip(d2dsurf);
+    _cairo_surface_clipper_reset (&d2dsurf->clipper);
 
     d2dsurf->~cairo_d2d_surface_t();
     return CAIRO_STATUS_SUCCESS;
@@ -1712,7 +1521,7 @@ _cairo_d2d_acquire_source_image(void                    *abstract_surface,
     }
     *image_out = 
 	(cairo_image_surface_t*)_cairo_image_surface_create_for_data_with_content((unsigned char*)data.pData,
-										  d2dsurf->base.content,
+										  CAIRO_CONTENT_COLOR_ALPHA,
 										  size.width,
 										  size.height,
 										  data.RowPitch);
@@ -1819,6 +1628,132 @@ _cairo_d2d_release_dest_image(void                    *abstract_surface,
     softTexture->Release();
 }
 
+static cairo_status_t
+_cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
+					       cairo_path_fixed_t      *path,
+					       cairo_fill_rule_t	fill_rule,
+					       double			tolerance,
+					       cairo_antialias_t	antialias)
+{
+    cairo_d2d_surface_t *d2dsurf = cairo_container_of (clipper, cairo_d2d_surface_t, clipper);
+
+    _cairo_d2d_surface_pop_clip(d2dsurf);
+    if (!path) {
+	if (d2dsurf->clipMask) {
+	    d2dsurf->clipMask = NULL;
+	}
+	if (d2dsurf->clipRect) {
+	    delete d2dsurf->clipRect;
+	    d2dsurf->clipRect = NULL;
+	}
+	return CAIRO_STATUS_SUCCESS;
+    }
+    cairo_box_t box;
+
+    if (_cairo_path_fixed_is_box(path, &box) && box.p1.y < box.p2.y) {
+	/** 
+	 * Nice axis aligned rectangular clip, try and do our best to keep it
+	 * that way.
+	 */
+	if (!d2dsurf->clipRect && !d2dsurf->clipMask) {
+	    /** Nothing yet, just use this clip rect */
+	    //XXX: unchecked allocation
+	    d2dsurf->clipRect = new D2D1_RECT_F(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
+							    _cairo_fixed_to_float(box.p1.y),
+							    _cairo_fixed_to_float(box.p2.x),
+							    _cairo_fixed_to_float(box.p2.y)));
+	    return CAIRO_STATUS_SUCCESS;
+	} else if (!d2dsurf->clipMask) {
+	    /** We have a clip rect, intersect of two rects is simple */
+	    d2dsurf->clipRect->top = max(_cairo_fixed_to_float(box.p1.y), d2dsurf->clipRect->top);
+	    d2dsurf->clipRect->left = max(d2dsurf->clipRect->left, _cairo_fixed_to_float(box.p1.x));
+	    d2dsurf->clipRect->bottom = min(d2dsurf->clipRect->bottom, _cairo_fixed_to_float(box.p2.y));
+	    d2dsurf->clipRect->right = min(d2dsurf->clipRect->right, _cairo_fixed_to_float(box.p2.x));
+	    if (d2dsurf->clipRect->top > d2dsurf->clipRect->bottom) {
+		d2dsurf->clipRect->top = d2dsurf->clipRect->bottom;
+	    }
+	    if (d2dsurf->clipRect->left > d2dsurf->clipRect->right) {
+		d2dsurf->clipRect->left = d2dsurf->clipRect->right;
+	    }
+	    return CAIRO_STATUS_SUCCESS;
+	} else {
+	    /** 
+	     * We have a mask, see if this rect is completely contained by it, so we
+	     * can optimize by just using this rect rather than a geometry mask.
+	     */
+	    RefPtr<ID2D1RectangleGeometry> newMask;
+	    D2DSurfFactory::Instance()->CreateRectangleGeometry(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
+									    _cairo_fixed_to_float(box.p1.y),
+									    _cairo_fixed_to_float(box.p2.x),
+									    _cairo_fixed_to_float(box.p2.y)), 
+								&newMask);
+	    D2D1_GEOMETRY_RELATION relation;
+	    d2dsurf->clipMask->CompareWithGeometry(newMask, D2D1::Matrix3x2F::Identity(), &relation);
+	    if (relation == D2D1_GEOMETRY_RELATION_CONTAINS) {
+		d2dsurf->clipMask = NULL;
+		//XXX: unchecked allocation
+	        d2dsurf->clipRect = new D2D1_RECT_F(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
+								_cairo_fixed_to_float(box.p1.y),
+								_cairo_fixed_to_float(box.p2.x),
+								_cairo_fixed_to_float(box.p2.y)));
+		return CAIRO_STATUS_SUCCESS;
+		
+	    }
+	}
+    }
+    
+    if (!d2dsurf->clipRect && !d2dsurf->clipMask) {
+	/** Nothing yet, just use this clip path */
+	d2dsurf->clipMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
+    } else if (d2dsurf->clipMask) {
+	/** We already have a clip mask, combine the two into a new clip mask */
+	RefPtr<ID2D1Geometry> newMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
+	RefPtr<ID2D1PathGeometry> finalMask;
+	D2DSurfFactory::Instance()->CreatePathGeometry(&finalMask);
+	RefPtr<ID2D1GeometrySink> sink;
+	finalMask->Open(&sink);
+	newMask->CombineWithGeometry(d2dsurf->clipMask,
+				     D2D1_COMBINE_MODE_INTERSECT,
+				     D2D1::Matrix3x2F::Identity(),
+				     sink);
+	sink->Close();
+	d2dsurf->clipMask = finalMask;
+    } else if (d2dsurf->clipRect) {
+	/** 
+	 * We have a clip rect, if we contain it, we can keep using that, if
+	 * it contains the new path, use the new path, otherwise, go into a
+	 * potentially expensive combine.
+	 */
+	RefPtr<ID2D1RectangleGeometry> currentMask;
+	D2DSurfFactory::Instance()->CreateRectangleGeometry(d2dsurf->clipRect, &currentMask);
+	RefPtr<ID2D1Geometry> newMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
+        D2D1_GEOMETRY_RELATION relation;
+	newMask->CompareWithGeometry(currentMask, D2D1::Matrix3x2F::Identity(), &relation);
+	if (relation == D2D1_GEOMETRY_RELATION_CONTAINS) {
+	    return CAIRO_STATUS_SUCCESS;
+	} else if (relation == D2D1_GEOMETRY_RELATION_IS_CONTAINED) {
+	    d2dsurf->clipMask = newMask;
+	} else {
+	    RefPtr<ID2D1PathGeometry> finalMask;
+	    D2DSurfFactory::Instance()->CreatePathGeometry(&finalMask);
+	    RefPtr<ID2D1GeometrySink> sink;
+	    finalMask->Open(&sink);
+	    newMask->CombineWithGeometry(currentMask,
+					 D2D1_COMBINE_MODE_INTERSECT,
+					 D2D1::Matrix3x2F::Identity(),
+					 sink);
+	    sink->Close();
+	    d2dsurf->clipMask = finalMask;
+	}
+    }
+
+    if (d2dsurf->clipRect) {
+	delete d2dsurf->clipRect;
+	d2dsurf->clipRect = NULL;
+    }
+  
+    return CAIRO_STATUS_SUCCESS;
+}
 
 static cairo_status_t
 _cairo_d2d_flush(void                  *surface)
@@ -1826,15 +1761,13 @@ _cairo_d2d_flush(void                  *surface)
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
 
     if (d2dsurf->isDrawing) {
-	reset_clip(d2dsurf);
+	_cairo_d2d_surface_pop_clip(d2dsurf);
 	HRESULT hr = d2dsurf->rt->EndDraw();
 	d2dsurf->isDrawing = false;
     }
 
     return CAIRO_STATUS_SUCCESS;
 }
-
-
 
 static cairo_int_status_t
 _cairo_d2d_paint(void			*surface,
@@ -1845,18 +1778,18 @@ _cairo_d2d_paint(void			*surface,
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
     cairo_int_status_t status;
 
+    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
+    if (unlikely(status))
+	return status;
+
+    _begin_draw_state(d2dsurf);
+
     op = _cairo_d2d_simplify_operator(op, source);
 
     if (op == CAIRO_OPERATOR_CLEAR) {
-	return _cairo_d2d_clear(d2dsurf, clip);
+	_cairo_d2d_clear_geometry(d2dsurf, NULL);
+	return CAIRO_INT_STATUS_SUCCESS;
     }
-
-
-    _begin_draw_state(d2dsurf);
-    status = (cairo_int_status_t)_cairo_d2d_set_clip (d2dsurf, clip);
-
-    if (unlikely(status))
-	return status;
 
     d2dsurf->rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
@@ -1900,12 +1833,11 @@ _cairo_d2d_mask(void			*surface,
 
     cairo_int_status_t status;
 
-    _begin_draw_state(d2dsurf);
-    status = (cairo_int_status_t)_cairo_d2d_set_clip (d2dsurf, clip);
-
+    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
     if (unlikely (status))
 	return status;
 
+    _begin_draw_state(d2dsurf);
 
     status = (cairo_int_status_t)_cairo_surface_mask_extents (&d2dsurf->base,
 		    op, source,
@@ -1983,7 +1915,8 @@ _cairo_d2d_stroke(void			*surface,
 
     op = _cairo_d2d_simplify_operator(op, source);
 
-    if (op != CAIRO_OPERATOR_OVER && op != CAIRO_OPERATOR_ADD) {
+    if (op != CAIRO_OPERATOR_OVER && op != CAIRO_OPERATOR_ADD &&
+	op != CAIRO_OPERATOR_CLEAR) {
 	/** 
 	 * We don't really support ADD yet. True ADD support requires getting
 	 * the tesselated mesh from D2D, and blending that using D3D which has
@@ -1992,13 +1925,11 @@ _cairo_d2d_stroke(void			*surface,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    _begin_draw_state(d2dsurf);
-
-    status = (cairo_int_status_t)_cairo_d2d_set_clip (d2dsurf, clip);
-
+    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
     if (unlikely (status))
 	return status;
 
+    _begin_draw_state(d2dsurf);
 
     if (antialias == CAIRO_ANTIALIAS_NONE) {
 	d2dsurf->rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -2013,6 +1944,24 @@ _cairo_d2d_stroke(void			*surface,
     D2D1::Matrix3x2F mat = _cairo_d2d_matrix_from_matrix(ctm);
 
     _cairo_path_fixed_transform(path, ctm_inverse);
+
+    if (op == CAIRO_OPERATOR_CLEAR) {
+	RefPtr<ID2D1Geometry> d2dpath = _cairo_d2d_create_path_geometry_for_path(path,
+										 CAIRO_FILL_RULE_WINDING,
+										 D2D1_FIGURE_BEGIN_FILLED);
+
+        ID2D1PathGeometry *strokeGeometry;
+	D2DSurfFactory::Instance()->CreatePathGeometry(&strokeGeometry);
+
+	RefPtr<ID2D1GeometrySink> sink;
+	strokeGeometry->Open(&sink);
+	d2dpath->Widen((FLOAT)style->line_width, strokeStyle, mat, (FLOAT)tolerance, sink);
+	sink->Close();
+
+	_cairo_d2d_clear_geometry(d2dsurf, strokeGeometry);
+
+	return CAIRO_INT_STATUS_SUCCESS;
+    }
 
     d2dsurf->rt->SetTransform(mat);
 
@@ -2066,7 +2015,8 @@ _cairo_d2d_fill(void			*surface,
 
     op = _cairo_d2d_simplify_operator(op, source);
 
-    if (op != CAIRO_OPERATOR_OVER && op != CAIRO_OPERATOR_ADD) {
+    if (op != CAIRO_OPERATOR_OVER && op != CAIRO_OPERATOR_ADD &&
+	op != CAIRO_OPERATOR_CLEAR) {
 	/** 
 	 * We don't really support ADD yet. True ADD support requires getting
 	 * the tesselated mesh from D2D, and blending that using D3D which has
@@ -2075,12 +2025,11 @@ _cairo_d2d_fill(void			*surface,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    _begin_draw_state(d2dsurf);
-    status = (cairo_int_status_t)_cairo_d2d_set_clip (d2dsurf, clip);
-
+    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
     if (unlikely(status))
 	return status;
 
+    _begin_draw_state(d2dsurf);
 
     if (antialias == CAIRO_ANTIALIAS_NONE) {
 	d2dsurf->rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -2091,11 +2040,23 @@ _cairo_d2d_fill(void			*surface,
     cairo_box_t box;
 
     if (op == CAIRO_OPERATOR_CLEAR) {
-	if (_cairo_path_fixed_is_box(path, &box)) {
-	    return _cairo_d2d_clear_box (d2dsurf, clip, &box);
-	} else {
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+	if (_cairo_path_fixed_is_box(path, &box) && !d2dsurf->clipMask) {
+	    /** No layers needed! We can clear using out axis aligned clips */
+	    d2dsurf->rt->PushAxisAlignedClip(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
+							 _cairo_fixed_to_float(box.p1.y),
+							 _cairo_fixed_to_float(box.p2.x),
+							 _cairo_fixed_to_float(box.p2.y)),
+					     D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+	    d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
+	    d2dsurf->rt->PopAxisAlignedClip();
+	    return CAIRO_INT_STATUS_SUCCESS;
 	}
+	RefPtr<ID2D1Geometry> d2dpath = _cairo_d2d_create_path_geometry_for_path(path,
+										 fill_rule,
+										 D2D1_FIGURE_BEGIN_FILLED);
+	_cairo_d2d_clear_geometry(d2dsurf, d2dpath);
+	
+	return CAIRO_INT_STATUS_SUCCESS;
     }
 
     if (_cairo_path_fixed_is_box(path, &box)) {
@@ -2190,6 +2151,7 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd,
     new (newSurf) cairo_d2d_surface_t();
 
     _cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, content);
+    _cairo_surface_clipper_init(&newSurf->clipper, _cairo_d2d_surface_clipper_intersect_clip_path);
 
     RECT rc;
     HRESULT hr;
@@ -2238,7 +2200,6 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd,
     swapDesc.SampleDesc.Quality = 0;
     swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapDesc.BufferCount = 1;
-    swapDesc.Flags = DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE;
     swapDesc.OutputWindow = wnd;
     swapDesc.Windowed = TRUE;
 
@@ -2276,7 +2237,7 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd,
 					 D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED),
 					 dpiX,
 					 dpiY,
-					 D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE);
+					 D2D1_RENDER_TARGET_USAGE_NONE);
     hr = D2DSurfFactory::Instance()->CreateDxgiSurfaceRenderTarget(newSurf->backBuf,
 								   props,
 								   &newSurf->rt);
@@ -2326,6 +2287,7 @@ cairo_d2d_surface_create(cairo_format_t format,
 	dxgiformat = DXGI_FORMAT_A8_UNORM;
     }
 
+    _cairo_surface_clipper_init(&newSurf->clipper, _cairo_d2d_surface_clipper_intersect_clip_path);
 
     newSurf->format = format;
 
@@ -2343,7 +2305,6 @@ cairo_d2d_surface_create(cairo_format_t format,
     desc.MipLevels = 1;
     desc.Usage = D3D10_USAGE_DEFAULT;
     desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-    desc.MiscFlags = D3D10_RESOURCE_MISC_GDI_COMPATIBLE;
     
     RefPtr<ID3D10Texture2D> texture;
     RefPtr<IDXGISurface> dxgiSurface;
@@ -2366,7 +2327,6 @@ cairo_d2d_surface_create(cairo_format_t format,
 
     props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
 					 D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, alpha));
-    props.usage = D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE;
     hr = D2DSurfFactory::Instance()->CreateDxgiSurfaceRenderTarget(dxgiSurface,
 								   props,
 								   &newSurf->rt);
@@ -2377,19 +2337,12 @@ cairo_d2d_surface_create(cairo_format_t format,
 
     bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, 
 				      alpha));
+    hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
+					 dxgiSurface,
+					 &bitProps,
+					 &newSurf->surfaceBitmap);
 
-    if (dxgiformat != DXGI_FORMAT_A8_UNORM) {
-	/* For some reason creation of shared bitmaps for A8 UNORM surfaces
-	 * doesn't work even though the documentation suggests it does. The
-	 * function will return an error if we try */
-	hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
-					     dxgiSurface,
-					     &bitProps,
-					     &newSurf->surfaceBitmap);
-
-	if (FAILED(hr)) {
-	    goto FAIL_CREATE;
-	}
+    if (FAILED(hr)) {
     }
 
     newSurf->rt->CreateSolidColorBrush(D2D1::ColorF(0, 1.0), &newSurf->solidColorBrush);
@@ -2477,74 +2430,4 @@ cairo_d2d_has_support()
 	return false;
     }
     return true;
-}
-
-HDC
-cairo_d2d_get_dc(cairo_surface_t *surface, cairo_bool_t retain_contents)
-{
-    if (surface->type != CAIRO_SURFACE_TYPE_D2D) {
-        return NULL;
-    }
-    cairo_d2d_surface_t *d2dsurf = reinterpret_cast<cairo_d2d_surface_t*>(surface);
-
-    /* We'll pop the clip here manually so that we'll stay in drawing state if we
-     * already are, we need to ensure d2dsurf->isDrawing manually then though 
-     */
-
-    /* Clips aren't allowed as per MSDN docs */
-    reset_clip(d2dsurf);
-
-    if (!d2dsurf->isDrawing) {
-      /* GetDC must be called between BeginDraw/EndDraw */
-      d2dsurf->rt->BeginDraw();
-      d2dsurf->isDrawing = true;
-    }
-
-    RefPtr<ID2D1GdiInteropRenderTarget> interopRT;
-
-    d2dsurf->rt->QueryInterface(&interopRT);
-
-    HDC retval;
-    HRESULT rv;
-
-    rv = interopRT->GetDC(retain_contents ? D2D1_DC_INITIALIZE_MODE_COPY :
-	D2D1_DC_INITIALIZE_MODE_CLEAR, &retval);
-
-    if (FAILED(rv)) {
-	return NULL;
-    }
-
-    return retval;
-}
-
-void
-cairo_d2d_release_dc(cairo_surface_t *surface, const cairo_rectangle_int_t *updated_rect)
-{
-    if (surface->type != CAIRO_SURFACE_TYPE_D2D) {
-        return;
-    }
-    cairo_d2d_surface_t *d2dsurf = reinterpret_cast<cairo_d2d_surface_t*>(surface);
-
-    RefPtr<ID2D1GdiInteropRenderTarget> interopRT;
-
-    d2dsurf->rt->QueryInterface(&interopRT);
-
-    if (!updated_rect) {
-	interopRT->ReleaseDC(NULL);
-	return;
-    }
-    
-    RECT r;
-    r.left = updated_rect->x;
-    r.top = updated_rect->y;
-    r.right = r.left + updated_rect->width;
-    r.bottom = r.top + updated_rect->height;
-
-    interopRT->ReleaseDC(&r);
-}
-
-int
-cairo_d2d_get_image_surface_cache_usage()
-{
-  return _cairo_atomic_int_get(&cache_usage);
 }

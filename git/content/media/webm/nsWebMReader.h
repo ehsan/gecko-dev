@@ -74,12 +74,10 @@ class PacketQueue : private nsDeque {
   }
   
   inline void Push(nestegg_packet* aItem) {
-    NS_ASSERTION(aItem, "NULL pushed to PacketQueue");
     nsDeque::Push(aItem);
   }
   
   inline void PushFront(nestegg_packet* aItem) {
-    NS_ASSERTION(aItem, "NULL pushed to PacketQueue");
     nsDeque::PushFront(aItem);
   }
 

@@ -47,7 +47,6 @@
 #include "nsIXULAppInfo.h"
 
 #include "mozilla/Mutex.h"
-#include "mozilla/PaintTracker.h"
 
 using mozilla::ipc::SyncChannel;
 using mozilla::ipc::RPCChannel;
@@ -624,10 +623,6 @@ RPCChannel::ProcessNativeEventsInRPCCall()
 void
 RPCChannel::SpinInternalEventLoop()
 {
-  if (mozilla::PaintTracker::IsPainting()) {
-    NS_RUNTIMEABORT("Don't spin an event loop while painting.");
-  }
-
   NS_ASSERTION(mTopFrame && mTopFrame->mSpinNestedEvents,
                "Spinning incorrectly");
 

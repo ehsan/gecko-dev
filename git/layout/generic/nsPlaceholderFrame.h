@@ -128,9 +128,6 @@ public:
                                  InlineMinWidthData *aData);
   virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -166,11 +163,11 @@ public:
   virtual PRBool CanContinueTextRun() const;
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible()
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible)
   {
-    nsIFrame* realFrame = GetRealFrameForPlaceholder(this);
-    return realFrame ? realFrame->CreateAccessible() :
-                       nsFrame::CreateAccessible();
+    nsIFrame *realFrame = GetRealFrameForPlaceholder(this);
+    return realFrame ? realFrame->GetAccessible(aAccessible) :
+                       nsFrame::GetAccessible(aAccessible);
   }
 #endif
 

@@ -64,13 +64,13 @@ class nsTPtrArray : public nsTArray<E*> {
 
     // Initialize this array and pre-allocate some number of elements.
     explicit nsTPtrArray(size_type capacity) {
-      this->SetCapacity(capacity);
+      SetCapacity(capacity);
     }
     
     // The array's copy-constructor performs a 'deep' copy of the given array.
     // @param other  The array object to copy.
     nsTPtrArray(const self_type& other) {
-      this->AppendElements(other);
+      AppendElements(other);
     }
 
     //

@@ -45,9 +45,9 @@
 // nsOuterDocAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-nsOuterDocAccessible::
-  nsOuterDocAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+nsOuterDocAccessible::nsOuterDocAccessible(nsIDOMNode* aNode, 
+                                           nsIWeakReference* aShell):
+  nsAccessibleWrap(aNode, aShell)
 {
 }
 
@@ -156,24 +156,21 @@ nsOuterDocAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public
 
-void
+nsresult
 nsOuterDocAccessible::Shutdown()
 {
-  // XXX: sometimes outerdoc accessible is shutdown because of layout style
-  // change however the presshell of underlying document isn't destroyed and
-  // the document doesn't get pagehide events. Shutdown underlying document if
-  // any to avoid hanging document accessible.
-  NS_LOG_ACCDOCDESTROY_MSG("A11y outerdoc shutdown")
-  NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
-
+  // Shutdown child document if any.
   nsAccessible *childAcc = mChildren.SafeElementAt(0, nsnull);
   if (childAcc) {
-    NS_LOG_ACCDOCDESTROY("outerdoc's child document shutdown",
-                         childAcc->GetDocumentNode())
-    GetAccService()->ShutdownDocAccessiblesInTree(childAcc->GetDocumentNode());
+    nsRefPtr<nsDocAccessible> docAcc(do_QueryObject(childAcc));
+    NS_LOG_ACCDOCDESTROY_FOR("outerdoc document shutdown",
+                             docAcc->GetDOMDocument(), docAcc.get())
+    GetAccService()->ShutdownDocAccessiblesInTree(docAcc->GetDOMDocument());
   }
 
-  nsAccessibleWrap::Shutdown();
+  nsAccessible::InvalidateChildren();
+
+  return nsAccessibleWrap::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,11 +201,6 @@ nsOuterDocAccessible::AppendChild(nsAccessible *aAccessible)
     return PR_FALSE;
 
   aAccessible->SetParent(this);
-
-  NS_LOG_ACCDOCCREATE("append document to outerdoc",
-                      aAccessible->GetDocumentNode())
-  NS_LOG_ACCDOCCREATE_ACCADDRESS("outerdoc", this)
-
   return PR_TRUE;
 }
 
@@ -221,18 +213,12 @@ nsOuterDocAccessible::RemoveChild(nsAccessible *aAccessible)
     return PR_FALSE;
   }
 
-  NS_LOG_ACCDOCDESTROY("remove document from outerdoc",
-                       child->GetDocumentNode())
-  NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
-
   mChildren.RemoveElement(child);
-
   NS_ASSERTION(!mChildren.Length(),
                "This child document of outerdoc accessible wasn't removed!");
 
   return PR_TRUE;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible protected
@@ -242,12 +228,14 @@ nsOuterDocAccessible::CacheChildren()
 {
   // Request document accessible for the content document to make sure it's
   // created because once it's created it appends itself as a child.
-  nsIDocument *outerDoc = mContent->GetCurrentDoc();
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  nsIDocument *outerDoc = content->GetCurrentDoc();
   if (!outerDoc)
     return;
 
-  nsIDocument *innerDoc = outerDoc->GetSubDocumentFor(mContent);
-  if (!innerDoc)
+  nsIDocument *innerDoc = outerDoc->GetSubDocumentFor(content);
+  nsCOMPtr<nsIDOMNode> innerNode(do_QueryInterface(innerDoc));
+  if (!innerNode)
     return;
 
   nsDocAccessible *docAcc = GetAccService()->GetDocAccessible(innerDoc);

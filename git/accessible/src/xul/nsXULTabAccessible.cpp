@@ -54,8 +54,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTabAccessible::
-  nsXULTabAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+  nsXULTabAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+  nsAccessibleWrap(aNode, aShell)
 {
 }
 
@@ -82,7 +82,7 @@ NS_IMETHODIMP nsXULTabAccessible::GetActionName(PRUint8 aIndex, nsAString& aName
 NS_IMETHODIMP nsXULTabAccessible::DoAction(PRUint8 index)
 {
   if (index == eAction_Switch) {
-    nsCOMPtr<nsIDOMXULElement> tab(do_QueryInterface(mContent));
+    nsCOMPtr<nsIDOMXULElement> tab(do_QueryInterface(mDOMNode));
     if ( tab )
     {
       tab->Click();
@@ -116,18 +116,19 @@ nsXULTabAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   // They may be again in the future
   // Check style for -moz-user-focus: normal to see if it's focusable
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
-
-  nsIFrame *frame = mContent->GetPrimaryFrame();
-  if (frame) {
-    const nsStyleUserInterface* ui = frame->GetStyleUserInterface();
-    if (ui->mUserFocus == NS_STYLE_USER_FOCUS_NORMAL)
-      *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (content) {
+    nsIFrame *frame = content->GetPrimaryFrame();
+    if (frame) {
+      const nsStyleUserInterface* ui = frame->GetStyleUserInterface();
+      if (ui->mUserFocus == NS_STYLE_USER_FOCUS_NORMAL)
+        *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
+    }
   }
-
   // Check whether the tab is selected
   *aState |= nsIAccessibleStates::STATE_SELECTABLE;
   *aState &= ~nsIAccessibleStates::STATE_SELECTED;
-  nsCOMPtr<nsIDOMXULSelectControlItemElement> tab(do_QueryInterface(mContent));
+  nsCOMPtr<nsIDOMXULSelectControlItemElement> tab(do_QueryInterface(mDOMNode));
   if (tab) {
     PRBool selected = PR_FALSE;
     if (NS_SUCCEEDED(tab->GetSelected(&selected)) && selected)
@@ -149,14 +150,14 @@ nsXULTabAccessible::GetRelationByType(PRUint32 aRelationType,
     return NS_OK;
 
   // Expose 'LABEL_FOR' relation on tab accessible for tabpanel accessible.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   nsCOMPtr<nsIDOMXULRelatedElement> tabsElm =
-    do_QueryInterface(mContent->GetParent());
+    do_QueryInterface(content->GetParent());
   if (!tabsElm)
     return NS_OK;
 
-  nsCOMPtr<nsIDOMNode> DOMNode(GetDOMNode());
   nsCOMPtr<nsIDOMNode> tabpanelNode;
-  tabsElm->GetRelatedElement(DOMNode, getter_AddRefs(tabpanelNode));
+  tabsElm->GetRelatedElement(mDOMNode, getter_AddRefs(tabpanelNode));
   if (!tabpanelNode)
     return NS_OK;
 
@@ -169,7 +170,7 @@ void
 nsXULTabAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                                PRInt32 *aSetSize)
 {
-  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mContent, aPosInSet,
+  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mDOMNode, aPosInSet,
                                                         aSetSize);
 }
 
@@ -179,8 +180,8 @@ nsXULTabAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTabsAccessible::
-  nsXULTabsAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsXULSelectableAccessible(aContent, aShell)
+  nsXULTabsAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell) :
+  nsXULSelectableAccessible(aNode, aShell)
 {
 }
 
@@ -219,8 +220,8 @@ nsXULTabsAccessible::GetNameInternal(nsAString& aName)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTabpanelsAccessible::
-  nsXULTabpanelsAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+  nsXULTabpanelsAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aNode, aShell)
 {
 }
 
@@ -237,8 +238,8 @@ nsXULTabpanelsAccessible::GetRoleInternal(PRUint32 *aRole)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTabpanelAccessible::
-  nsXULTabpanelAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+  nsXULTabpanelAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+  nsAccessibleWrap(aNode, aShell)
 {
 }
 
@@ -260,14 +261,14 @@ nsXULTabpanelAccessible::GetRelationByType(PRUint32 aRelationType,
     return NS_OK;
 
   // Expose 'LABELLED_BY' relation on tabpanel accessible for tab accessible.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   nsCOMPtr<nsIDOMXULRelatedElement> tabpanelsElm =
-    do_QueryInterface(mContent->GetParent());
+    do_QueryInterface(content->GetParent());
   if (!tabpanelsElm)
     return NS_OK;
 
-  nsCOMPtr<nsIDOMNode> DOMNode(GetDOMNode());
   nsCOMPtr<nsIDOMNode> tabNode;
-  tabpanelsElm->GetRelatedElement(DOMNode, getter_AddRefs(tabNode));
+  tabpanelsElm->GetRelatedElement(mDOMNode, getter_AddRefs(tabNode));
   if (!tabNode)
     return NS_OK;
 

@@ -113,6 +113,3 @@ done
 if test -z "$LIBXUL_SDK"; then
   . "${srcdir}/toolkit/toolkit-makefiles.sh"
 fi
-
-# Services makefiles
-. "${srcdir}/services/makefiles.sh"

@@ -62,7 +62,6 @@ enum eHtml5TreeOperation {
   eTreeOpCreateElementNotNetwork,
   eTreeOpSetFormElement,
   eTreeOpAppendText,
-  eTreeOpAppendIsindexPrompt,
   eTreeOpFosterParentText,
   eTreeOpAppendComment,
   eTreeOpAppendCommentToDocument,
@@ -320,12 +319,12 @@ class nsHtml5TreeOperation {
 
   private:
 
-    nsresult AppendTextToTextNode(const PRUnichar* aBuffer,
+    nsresult AppendTextToTextNode(PRUnichar* aBuffer,
                                   PRInt32 aLength,
                                   nsIContent* aTextNode,
                                   nsHtml5TreeOpExecutor* aBuilder);
 
-    nsresult AppendText(const PRUnichar* aBuffer,
+    nsresult AppendText(PRUnichar* aBuffer,
                         PRInt32 aLength,
                         nsIContent* aParent,
                         nsHtml5TreeOpExecutor* aBuilder);

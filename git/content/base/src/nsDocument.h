@@ -145,21 +145,17 @@ class nsHTMLCSSStyleSheet;
  * Perhaps the document.all results should have their own hashtable
  * in nsHTMLDocument.
  */
-class nsIdentifierMapEntry : public nsStringHashKey
+class nsIdentifierMapEntry : public nsISupportsHashKey
 {
 public:
   typedef mozilla::dom::Element Element;
   
-  nsIdentifierMapEntry(const nsAString& aKey) :
-    nsStringHashKey(&aKey), mNameContentList(nsnull)
-  {
-  }
-  nsIdentifierMapEntry(const nsAString *aKey) :
-    nsStringHashKey(aKey), mNameContentList(nsnull)
+  nsIdentifierMapEntry(const nsISupports* aKey) :
+    nsISupportsHashKey(aKey), mNameContentList(nsnull)
   {
   }
   nsIdentifierMapEntry(const nsIdentifierMapEntry& aOther) :
-    nsStringHashKey(&aOther.GetKey())
+    nsISupportsHashKey(GetKey())
   {
     NS_ERROR("Should never be called");
   }
@@ -500,8 +496,6 @@ class nsDocument : public nsIDocument,
                    public nsStubMutationObserver
 {
 public:
-  typedef mozilla::dom::Element Element;
-
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   using nsINode::GetScriptTypeID;
@@ -957,16 +951,8 @@ protected:
    * service if it is.
    * @returns PR_TRUE if aId looks correct, PR_FALSE otherwise.
    */
-  static inline PRBool CheckGetElementByIdArg(const nsAString& aId)
-  {
-    if (aId.IsEmpty()) {
-      ReportEmptyGetElementByIdArg();
-      return PR_FALSE;
-    }
-    return PR_TRUE;
-  }
-
-  static void ReportEmptyGetElementByIdArg();
+  static PRBool CheckGetElementByIdArg(const nsIAtom* aId);
+  nsIdentifierMapEntry* GetElementByIdInternal(nsIAtom* aID);
 
   void DispatchContentLoadedEvents();
 

@@ -60,6 +60,7 @@
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
+#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 
@@ -418,14 +419,15 @@ nsVideoFrame::GetType() const
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsVideoFrame::CreateAccessible()
+NS_IMETHODIMP
+nsVideoFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService =
     do_GetService("@mozilla.org/accessibilityService;1");
-  return accService ?
-    accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
-    nsnull;
+  NS_ENSURE_STATE(accService);
+
+  return accService->CreateHTMLMediaAccessible(static_cast<nsIFrame*>(this),
+                                               aAccessible);
 }
 #endif
 
@@ -513,7 +515,7 @@ nsSize
 nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
-  nsIntSize size(300, 150);
+  nsIntSize size(300,150);
 
   if (ShouldDisplayPoster()) {
     // Use the poster image frame's size.
@@ -526,7 +528,7 @@ nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
     }
   }
 
-  if (!HasVideoElement()) {
+  if (!HasVideoData()) {
     if (!aRenderingContext || !mFrames.FirstChild()) {
       // We just want our intrinsic ratio, but audio elements need no
       // intrinsic ratio, so just return "no ratio". Also, if there's

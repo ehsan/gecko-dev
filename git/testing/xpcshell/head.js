@@ -51,14 +51,6 @@ var _passedChecks = 0, _falsePassedChecks = 0;
 var _cleanupFunctions = [];
 var _pendingCallbacks = [];
 
-function _dump(str) {
-  if (typeof _XPCSHELL_PROCESS == "undefined") {
-    dump(str);
-  } else {
-    dump(_XPCSHELL_PROCESS + ": " + str);
-  }
-}
-
 // Disable automatic network detection, so tests work correctly when
 // not connected to a network.
 let (ios = Components.classes["@mozilla.org/network/io-service;1"]
@@ -109,7 +101,7 @@ function _do_main() {
   if (_quit)
     return;
 
-  _dump("TEST-INFO | (xpcshell/head.js) | running event loop\n");
+  dump("TEST-INFO | (xpcshell/head.js) | running event loop\n");
 
   var thr = Components.classes["@mozilla.org/thread-manager;1"]
                       .getService().currentThread;
@@ -122,7 +114,7 @@ function _do_main() {
 }
 
 function _do_quit() {
-  _dump("TEST-INFO | (xpcshell/head.js) | exiting test\n");
+  dump("TEST-INFO | (xpcshell/head.js) | exiting test\n");
 
   _quit = true;
 }
@@ -167,13 +159,13 @@ function _execute_test() {
     // possible that this will mask an NS_ERROR_ABORT that happens after a
     // do_check failure though.
     if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-      _dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e);
+      dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e);
       if (e.stack) {
-        _dump(" - See following stack:\n");
+        dump(" - See following stack:\n");
         _dump_exception_stack(e.stack);
       }
       else {
-        _dump("\n");
+        dump("\n");
       }
     }
   }
@@ -190,13 +182,12 @@ function _execute_test() {
     return;
 
   var truePassedChecks = _passedChecks - _falsePassedChecks;
-  if (truePassedChecks > 0) {
-    _dump("TEST-PASS | (xpcshell/head.js) | " + truePassedChecks + " (+ " +
+  if (truePassedChecks > 0)
+    dump("TEST-PASS | (xpcshell/head.js) | " + truePassedChecks + " (+ " +
             _falsePassedChecks + ") check(s) passed\n");
-  } else {
+  else
     // ToDo: switch to TEST-UNEXPECTED-FAIL when all tests have been updated. (Bug 496443)
-    _dump("TEST-INFO | (xpcshell/head.js) | No (+ " + _falsePassedChecks + ") checks actually run\n");
-  }
+    dump("TEST-INFO | (xpcshell/head.js) | No (+ " + _falsePassedChecks + ") checks actually run\n");
 }
 
 /**
@@ -261,11 +252,11 @@ function do_throw(text, stack) {
     stack = Components.stack.caller;
 
   _passed = false;
-  _dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | " + text +
+  dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | " + text +
          " - See following stack:\n");
   var frame = Components.stack;
   while (frame != null) {
-    _dump(frame + "\n");
+    dump(frame + "\n");
     frame = frame.caller;
   }
 
@@ -278,11 +269,11 @@ function do_check_neq(left, right, stack) {
     stack = Components.stack.caller;
 
   var text = left + " != " + right;
-  if (left == right) {
+  if (left == right)
     do_throw(text, stack);
-  } else {
+  else {
     ++_passedChecks;
-    _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
+    dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
          stack.lineNumber + "] " + text + "\n");
   }
 }
@@ -292,11 +283,11 @@ function do_check_eq(left, right, stack) {
     stack = Components.stack.caller;
 
   var text = left + " == " + right;
-  if (left != right) {
+  if (left != right)
     do_throw(text, stack);
-  } else {
+  else {
     ++_passedChecks;
-    _dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
+    dump("TEST-PASS | " + stack.filename + " | [" + stack.name + " : " +
          stack.lineNumber + "] " + text + "\n");
   }
 }
@@ -318,12 +309,12 @@ function do_check_false(condition, stack) {
 function do_test_pending() {
   ++_tests_pending;
 
-  _dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
+  dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
          " pending\n");
 }
 
 function do_test_finished() {
-  _dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
+  dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
          " finished\n");
 
   if (--_tests_pending == 0)
@@ -350,7 +341,7 @@ function do_get_file(path, allowNonexistent) {
       // Not using do_throw(): caller will continue.
       _passed = false;
       var stack = Components.stack.caller;
-      _dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | [" +
+      dump("TEST-UNEXPECTED-FAIL | " + stack.filename + " | [" +
              stack.name + " : " + stack.lineNumber + "] " + lf.path +
              " does not exist\n");
     }
@@ -482,70 +473,3 @@ function do_get_profile() {
         .registerProvider(provider);
   return file.clone();
 }
-
-/**
- * This function loads head.js (this file) in the child process, so that all
- * functions defined in this file (do_throw, etc) are available to subsequent
- * sendCommand calls.  It also sets various constants used by these functions.
- *
- * (Note that you may use sendCommand without calling this function first;  you
- * simply won't have any of the functions in this file available.)
- */
-function do_load_child_test_harness()
-{
-  // Make sure this isn't called from child process
-  var runtime = Components.classes["@mozilla.org/xre/app-info;1"]
-                  .getService(Components.interfaces.nsIXULRuntime);
-  if (runtime.processType != 
-            Components.interfaces.nsIXULRuntime.PROCESS_TYPE_DEFAULT) 
-  {
-    do_throw("run_test_in_child cannot be called from child!");
-  }
-
-  // Allow to be called multiple times, but only run once
-  if (typeof do_load_child_test_harness.alreadyRun != "undefined")
-    return;
-  do_load_child_test_harness.alreadyRun = 1;
-  
-  function addQuotes (str)  { 
-    return '"' + str + '"'; 
-  }
-  var quoted_head_files = _HEAD_FILES.map(addQuotes);
-  var quoted_tail_files = _TAIL_FILES.map(addQuotes);
-
-  _XPCSHELL_PROCESS = "parent";
- 
-  sendCommand(
-        "const _HEAD_JS_PATH='" + _HEAD_JS_PATH + "'; "
-      + "const _HTTPD_JS_PATH='" + _HTTPD_JS_PATH + "'; "
-      + "const _HEAD_FILES=[" + quoted_head_files.join() + "];"
-      + "const _TAIL_FILES=[" + quoted_tail_files.join() + "];"
-      + "const _XPCSHELL_PROCESS='child';"
-      + "load(_HEAD_JS_PATH);");
-}
-
-/**
- * Runs an entire xpcshell unit test in a child process (rather than in chrome,
- * which is the default).
- *
- * This function returns immediately, before the test has completed.  
- *
- * @param testFile
- *        The name of the script to run.  Path format same as load().
- * @param optionalCallback.
- *        Optional function to be called (in parent) when test on child is
- *        complete.  If provided, the function must call do_test_finished();
- */
-function run_test_in_child(testFile, optionalCallback) 
-{
-  var callback = (typeof optionalCallback == 'undefined') ? 
-                    do_test_finished : optionalCallback;
-
-  do_load_child_test_harness();
-
-  var testPath = do_get_file(testFile).path.replace(/\\/g, "/");
-  do_test_pending();
-  sendCommand("const _TEST_FILE=['" + testPath + "']; _execute_test();", 
-              callback);
-}
-

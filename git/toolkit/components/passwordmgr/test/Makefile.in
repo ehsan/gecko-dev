@@ -43,7 +43,7 @@ relativesrcdir  = toolkit/components/passwordmgr/test
 
 include $(DEPTH)/config/autoconf.mk
 
-ifneq (mobile,$(MOZ_BUILD_APP))
+ifeq (browser,$(MOZ_BUILD_APP))
 DIRS = \
 	browser \
 	$(NULL)

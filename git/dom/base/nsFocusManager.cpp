@@ -1335,7 +1335,7 @@ nsFocusManager::CheckIfFocusable(nsIContent* aContent, PRUint32 aFlags)
   if (doc)
     doc->FlushPendingNotifications(Flush_Frames);
 
-  nsIPresShell *shell = doc->GetShell();
+  nsIPresShell *shell = doc->GetPrimaryShell();
   if (!shell)
     return nsnull;
 
@@ -2179,7 +2179,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
   nsIContent* rootContent = doc->GetRootElement();
   NS_ENSURE_TRUE(rootContent, NS_OK);
 
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   NS_ENSURE_TRUE(presShell, NS_OK);
 
   if (aType == MOVEFOCUS_FIRST) {
@@ -2399,7 +2399,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
       doc = do_QueryInterface(piParentWindow->GetExtantDocument());
       NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
-      presShell = doc->GetShell();
+      presShell = doc->GetPrimaryShell();
 
       rootContent = doc->GetRootElement();
       startContent = do_QueryInterface(piWindow->GetFrameElementInternal());
@@ -2613,7 +2613,7 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
                 }
               }
               Element* rootElement = subdoc->GetRootElement();
-              nsIPresShell* subShell = subdoc->GetShell();
+              nsIPresShell* subShell = subdoc->GetPrimaryShell();
               if (rootElement && subShell) {
                 rv = GetNextTabbableContent(subShell, rootElement,
                                             aOriginalStartContent, rootElement,
@@ -2977,7 +2977,7 @@ nsFocusManager::GetNextTabbableDocument(PRBool aForward)
         // that we always go forward and not back here.
         nsCOMPtr<nsIContent> nextFocus;
         Element* rootElement = doc->GetRootElement();
-        nsIPresShell* presShell = doc->GetShell();
+        nsIPresShell* presShell = doc->GetPrimaryShell();
         if (presShell) {
           nsresult rv = GetNextTabbableContent(presShell, rootElement,
                                                nsnull, rootElement,

@@ -47,14 +47,13 @@ DIRS += chrome \
 	navigation \
 	$(NULL)
 
-XPCSHELL_TESTS = unit
-
-include $(DEPTH)/config/autoconf.mk
-
-ifneq (mobile,$(MOZ_BUILD_APP))
+ifeq (browser,$(MOZ_BUILD_APP))
 	DIRS += browser
 endif
 
+XPCSHELL_TESTS = unit
+
+include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = \

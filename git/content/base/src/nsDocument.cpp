@@ -70,7 +70,6 @@
 #include "nsCOMArray.h"
 
 #include "nsGUIEvent.h"
-#include "nsPLDOMEvent.h"
 
 #include "nsIDOMStyleSheet.h"
 #include "nsDOMAttribute.h"
@@ -89,7 +88,6 @@
 #include "nsNodeUtils.h"
 #include "nsLayoutUtils.h" // for GetFrameForPoint
 #include "nsIFrame.h"
-#include "nsITabChild.h"
 
 #include "nsRange.h"
 #include "nsIDOMText.h"
@@ -1085,8 +1083,7 @@ nsExternalResourceMap::LoadgroupCallbacks::GetInterface(const nsIID & aIID,
                                                         void **aSink)
 {
   if (mCallbacks &&
-      (IID_IS(nsIPrompt) || IID_IS(nsIAuthPrompt) || IID_IS(nsIAuthPrompt2) ||
-       IID_IS(nsITabChild))) {
+      (IID_IS(nsIPrompt) || IID_IS(nsIAuthPrompt) || IID_IS(nsIAuthPrompt2))) {
     return mCallbacks->GetInterface(aIID, aSink);
   }
 
@@ -1395,7 +1392,7 @@ nsDOMImplementation::Init(nsIURI* aDocumentURI, nsIURI* aBaseURI,
 nsDocument::nsDocument(const char* aContentType)
   : nsIDocument()
 {
-  SetContentTypeInternal(nsDependentCString(aContentType));
+  mContentType = aContentType;
   
 #ifdef PR_LOGGING
   if (!gDocumentLeakPRLog)
@@ -1690,7 +1687,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDOMImplementation)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginalDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCachedEncoder)
 
   // Traverse all our nsCOMArrays.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mStyleSheets)
@@ -1734,7 +1730,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstBaseNodeWithHref)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDOMImplementation)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginalDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCachedEncoder)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 
@@ -1951,7 +1946,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   mLastModified.Truncate();
   // XXXbz I guess we're assuming that the caller will either pass in
   // a channel with a useful type or call SetContentType?
-  SetContentTypeInternal(EmptyCString());
+  mContentType.Truncate();
   mContentLanguage.Truncate();
   mBaseTarget.Truncate();
   mReferrer.Truncate();
@@ -2002,7 +1997,7 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
     sheet->SetOwningDocument(nsnull);
 
     if (sheet->IsApplicable()) {
-      nsCOMPtr<nsIPresShell> shell = GetShell();
+      nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
       if (shell) {
         shell->StyleSet()->RemoveStyleSheet(nsStyleSet::eAgentSheet, sheet);
       }
@@ -2023,7 +2018,7 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   nsStyleSet::sheetType attrSheetType = GetAttrSheetType();
   if (mAttrStyleSheet) {
     // Remove this sheet from all style sets
-    nsCOMPtr<nsIPresShell> shell = GetShell();
+    nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
     if (shell) {
       shell->StyleSet()->RemoveStyleSheet(attrSheetType, mAttrStyleSheet);
     }
@@ -2039,7 +2034,7 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   
   if (mStyleAttrStyleSheet) {
     // Remove this sheet from all style sets
-    nsCOMPtr<nsIPresShell> shell = GetShell();
+    nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
     if (shell) {
       shell->StyleSet()->
         RemoveStyleSheet(nsStyleSet::eStyleAttrSheet, mStyleAttrStyleSheet);
@@ -2057,7 +2052,7 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   mStyleAttrStyleSheet->SetOwningDocument(this);
 
   // Now set up our style sets
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (shell) {
     FillStyleSet(shell->StyleSet());
   }
@@ -2159,7 +2154,7 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     contentType.EndReading(end);
     semicolon = start;
     FindCharInReadable(';', semicolon, end);
-    SetContentTypeInternal(Substring(start, semicolon));
+    mContentType = Substring(start, semicolon);
   }
 
   RetrieveRelevantHeaders(aChannel);
@@ -2342,8 +2337,7 @@ nsDocument::AddToNameTable(Element *aElement, nsIAtom* aName)
   if (!mIsRegularHTML)
     return;
 
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.GetEntry(nsDependentAtomString(aName));
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aName);
 
   // entry is null if we're not tracking the elements with this name
 
@@ -2359,8 +2353,7 @@ nsDocument::RemoveFromNameTable(Element *aElement, nsIAtom* aName)
   if (!mIsRegularHTML || mIdentifierMap.Count() == 0)
     return;
 
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.GetEntry(nsDependentAtomString(aName));
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aName);
   if (!entry) // Should never be false unless we had OOM when adding the entry
     return;
 
@@ -2370,8 +2363,7 @@ nsDocument::RemoveFromNameTable(Element *aElement, nsIAtom* aName)
 void
 nsDocument::AddToIdTable(Element *aElement, nsIAtom* aId)
 {
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.PutEntry(nsDependentAtomString(aId));
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aId);
 
   if (entry) { /* True except on OOM */
     entry->AddIdElement(aElement);
@@ -2388,13 +2380,12 @@ nsDocument::RemoveFromIdTable(Element *aElement, nsIAtom* aId)
     return;
   }
 
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.GetEntry(nsDependentAtomString(aId));
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
   if (!entry) // Can be null for XML elements with changing ids.
     return;
 
   if (entry->RemoveIdElement(aElement)) {
-    mIdentifierMap.RawRemoveEntry(entry);
+    mIdentifierMap.RemoveEntry(aId);
   }
 }
 
@@ -2440,7 +2431,7 @@ nsDocument::SetApplicationCache(nsIApplicationCache *aApplicationCache)
 NS_IMETHODIMP
 nsDocument::GetContentType(nsAString& aContentType)
 {
-  CopyUTF8toUTF16(GetContentTypeInternal(), aContentType);
+  CopyUTF8toUTF16(mContentType, aContentType);
 
   return NS_OK;
 }
@@ -2448,11 +2439,11 @@ nsDocument::GetContentType(nsAString& aContentType)
 void
 nsDocument::SetContentType(const nsAString& aContentType)
 {
-  NS_ASSERTION(GetContentTypeInternal().IsEmpty() ||
-               GetContentTypeInternal().Equals(NS_ConvertUTF16toUTF8(aContentType)),
+  NS_ASSERTION(mContentType.IsEmpty() ||
+               mContentType.Equals(NS_ConvertUTF16toUTF8(aContentType)),
                "Do you really want to change the content-type?");
 
-  SetContentTypeInternal(NS_ConvertUTF16toUTF8(aContentType));
+  CopyUTF16toUTF8(aContentType, mContentType);
 }
 
 /* Return true if the document is in the focused top-level window, and is an
@@ -2573,7 +2564,7 @@ nsDocument::ElementFromPointHelper(float aX, float aY,
   if (aFlushLayout)
     FlushPendingNotifications(Flush_Layout);
 
-  nsIPresShell *ps = GetShell();
+  nsIPresShell *ps = GetPrimaryShell();
   NS_ENSURE_STATE(ps);
   nsIFrame *rootFrame = ps->GetRootFrame();
 
@@ -2643,7 +2634,7 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
     FlushPendingNotifications(Flush_Layout);
   }
 
-  nsIPresShell *ps = GetShell();
+  nsIPresShell *ps = GetPrimaryShell();
   NS_ENSURE_STATE(ps);
   nsIFrame *rootFrame = ps->GetRootFrame();
 
@@ -3244,7 +3235,7 @@ nsDocument::GetIndexOfStyleSheet(nsIStyleSheet* aSheet) const
 void
 nsDocument::AddStyleSheetToStyleSets(nsIStyleSheet* aSheet)
 {
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (shell) {
     shell->StyleSet()->AddDocStyleSheet(aSheet, this);
   }
@@ -3267,7 +3258,7 @@ nsDocument::AddStyleSheet(nsIStyleSheet* aSheet)
 void
 nsDocument::RemoveStyleSheetFromStyleSets(nsIStyleSheet* aSheet)
 {
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (shell) {
     shell->StyleSet()->RemoveStyleSheet(nsStyleSet::eDocSheet, aSheet);
   }
@@ -3395,7 +3386,7 @@ nsDocument::AddCatalogStyleSheet(nsIStyleSheet* aSheet)
 
   if (aSheet->IsApplicable()) {
     // This is like |AddStyleSheetToStyleSets|, but for an agent sheet.
-    nsCOMPtr<nsIPresShell> shell = GetShell();
+    nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
     if (shell) {
       shell->StyleSet()->AppendStyleSheet(nsStyleSet::eAgentSheet, aSheet);
     }
@@ -3730,27 +3721,38 @@ nsDocument::BeginLoad()
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginLoad, (this));
 }
 
-// static
-void
-nsDocument::ReportEmptyGetElementByIdArg()
+PRBool
+nsDocument::CheckGetElementByIdArg(const nsIAtom* aId)
 {
-  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                  "EmptyGetElementByIdParam",
-                                  nsnull, 0,
-                                  nsnull,
-                                  EmptyString(), 0, 0,
-                                  nsIScriptError::warningFlag,
-                                  "DOM");
+  if (aId == nsGkAtoms::_empty) {
+    nsContentUtils::ReportToConsole(
+        nsContentUtils::eDOM_PROPERTIES,
+        "EmptyGetElementByIdParam",
+        nsnull, 0,
+        nsnull,
+        EmptyString(), 0, 0,
+        nsIScriptError::warningFlag,
+        "DOM");
+    return PR_FALSE;
+  }
+  return PR_TRUE;
 }
 
 Element*
 nsDocument::GetElementById(const nsAString& aElementId)
 {
-  if (!CheckGetElementByIdArg(aElementId)) {
+  nsCOMPtr<nsIAtom> idAtom(do_GetAtom(aElementId));
+  if (!idAtom) {
+    // This can only fail due to OOM when the atom doesn't exist, in which
+    // case there can't be an entry for it.
     return nsnull;
   }
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aElementId);
+  if (!CheckGetElementByIdArg(idAtom)) {
+    return nsnull;
+  }
+
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(idAtom);
   return entry ? entry->GetIdElement() : nsnull;
 }
 
@@ -3771,12 +3773,10 @@ Element*
 nsDocument::AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
                                 void* aData)
 {
-  nsDependentAtomString id(aID);
-
-  if (!CheckGetElementByIdArg(id))
+  if (!CheckGetElementByIdArg(aID))
     return nsnull;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aID);
   NS_ENSURE_TRUE(entry, nsnull);
 
   entry->AddContentChangeCallback(aObserver, aData);
@@ -3787,12 +3787,10 @@ void
 nsDocument::RemoveIDTargetObserver(nsIAtom* aID,
                                    IDTargetObserver aObserver, void* aData)
 {
-  nsDependentAtomString id(aID);
-
-  if (!CheckGetElementByIdArg(id))
+  if (!CheckGetElementByIdArg(aID))
     return;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(id);
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aID);
   if (!entry) {
     return;
   }
@@ -3864,7 +3862,7 @@ nsDocument::DispatchContentLoadedEvents()
         if (innerEvent) {
           nsEventStatus status = nsEventStatus_eIgnore;
 
-          nsIPresShell *shell = parent->GetShell();
+          nsIPresShell *shell = parent->GetPrimaryShell();
           if (shell) {
             nsRefPtr<nsPresContext> context = shell->GetPresContext();
 
@@ -4952,7 +4950,7 @@ nsDocument::DoNotifyPossibleTitleChange()
   nsAutoString title;
   GetTitle(title);
 
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (shell) {
     nsCOMPtr<nsISupports> container = shell->GetPresContext()->GetContainer();
     if (container) {
@@ -5226,7 +5224,7 @@ nsDocument::GetAnimationController()
   
   // If there's a presContext then check the animation mode and pause if
   // necessary.
-  nsIPresShell *shell = GetShell();
+  nsIPresShell *shell = GetPrimaryShell();
   if (mAnimationController && shell) {
     nsPresContext *context = shell->GetPresContext();
     if (context &&
@@ -5283,7 +5281,7 @@ nsDocument::SetDir(const nsAString& aDirection)
     if (aDirection == NS_ConvertASCIItoUTF16(elt->mName)) {
       if (GET_BIDI_OPTION_DIRECTION(options) != elt->mValue) {
         SET_BIDI_OPTION_DIRECTION(options, elt->mValue);
-        nsIPresShell *shell = GetShell();
+        nsIPresShell *shell = GetPrimaryShell();
         if (shell) {
           nsPresContext *context = shell->GetPresContext();
           NS_ENSURE_TRUE(context, NS_ERROR_UNEXPECTED);
@@ -5964,7 +5962,7 @@ NS_IMETHODIMP
 nsDocument::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 {
   // Obtain a presentation context
-  nsIPresShell *shell = GetShell();
+  nsIPresShell *shell = GetPrimaryShell();
   nsRefPtr<nsPresContext> context;
   if (shell) {
      context = shell->GetPresContext();
@@ -6049,7 +6047,7 @@ nsDocument::CreateEvent(const nsAString& aEventType, nsIDOMEvent** aReturn)
 
   // Obtain a presentation shell
 
-  nsIPresShell *shell = GetShell();
+  nsIPresShell *shell = GetPrimaryShell();
 
   nsPresContext *presContext = nsnull;
 
@@ -6119,7 +6117,7 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
     mParentDocument->FlushPendingNotifications(parentType);
   }
 
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (shell) {
     shell->FlushPendingNotifications(aType);
   }
@@ -6549,7 +6547,7 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 PRBool
 nsDocument::IsSafeToFlush() const
 {
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (!shell)
     return PR_TRUE;
 
@@ -7309,7 +7307,7 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
   clone->mCompatMode = mCompatMode;
   clone->mBidiOptions = mBidiOptions;
   clone->mContentLanguage = mContentLanguage;
-  clone->SetContentTypeInternal(GetContentTypeInternal());
+  clone->mContentType = mContentType;
   clone->mSecurityInfo = mSecurityInfo;
 
   // State from nsDocument
@@ -7323,12 +7321,7 @@ void
 nsDocument::SetReadyStateInternal(ReadyState rs)
 {
   mReadyState = rs;
-
-  nsRefPtr<nsPLDOMEvent> plevent =
-    new nsPLDOMEvent(this, NS_LITERAL_STRING("readystatechange"), PR_FALSE, PR_FALSE); 
-  if (plevent) {
-    plevent->RunDOMEventWhenSafe();
-  }
+  // TODO fire "readystatechange"
 }
 
 nsIDocument::ReadyState
@@ -7381,7 +7374,7 @@ FireOrClearDelayedEvents(nsTArray<nsCOMPtr<nsIDocument> >& aDocuments,
   for (PRUint32 i = 0; i < aDocuments.Length(); ++i) {
     if (!aDocuments[i]->EventHandlingSuppressed()) {
       fm->FireDelayedEvents(aDocuments[i]);
-      nsCOMPtr<nsIPresShell> shell = aDocuments[i]->GetShell();
+      nsCOMPtr<nsIPresShell> shell = aDocuments[i]->GetPrimaryShell();
       if (shell) {
         shell->FireOrClearDelayedEvents(aFireEvents);
       }
@@ -7431,7 +7424,7 @@ nsDocument::GetDocumentState()
     mGotDocumentState |= NS_DOCUMENT_STATE_RTL_LOCALE;
   }
   if (!(mGotDocumentState & NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
-    nsIPresShell* shell = GetShell();
+    nsIPresShell* shell = GetPrimaryShell();
     if (shell && shell->GetPresContext() &&
         shell->GetPresContext()->IsTopLevelWindowInactive()) {
       mDocumentState |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
@@ -7596,7 +7589,7 @@ nsDocument::ScrollToRef()
   // http://www.w3.org/TR/html4/appendix/notes.html#h-B.2.1
   NS_ConvertUTF8toUTF16 ref(unescapedRef);
 
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   if (shell) {
     // Check an empty string which might be caused by the UTF-8 conversion
     if (!ref.IsEmpty()) {

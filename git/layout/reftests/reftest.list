@@ -26,9 +26,6 @@ include border-image/reftest.list
 # border-radius/
 include border-radius/reftest.list
 
-# box-ordinal/
-include box-ordinal/reftest.list
-
 # box-properties/
 include box-properties/reftest.list
 
@@ -165,9 +162,6 @@ include ../../modules/plugin/test/reftest/reftest.list
 # printing
 include printing/reftest.list
 include pagination/reftest.list
-
-# scrolling
-include scrolling/reftest.list
 
 # selection
 include selection/reftest.list

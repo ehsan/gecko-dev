@@ -68,8 +68,7 @@ class nsRootAccessible : public nsDocAccessibleWrap,
   NS_DECL_ISUPPORTS_INHERITED
 
 public:
-  nsRootAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
-                   nsIWeakReference *aShell);
+  nsRootAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell);
   virtual ~nsRootAccessible();
 
   // nsIAccessible
@@ -81,12 +80,13 @@ public:
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
   // nsAccessNode
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsAccessible* GetParent();
 
   // nsRootAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ROOTACCESSIBLE_IMPL_CID)
@@ -103,8 +103,8 @@ public:
    *                             item was the same
    * @return                    boolean -- was a focus event actually fired
    */
-  PRBool FireAccessibleFocusEvent(nsAccessible *aFocusAccessible,
-                                  nsINode *aFocusNode,
+  PRBool FireAccessibleFocusEvent(nsIAccessible *aFocusAccessible,
+                                  nsIDOMNode *aFocusNode,
                                   nsIDOMEvent *aFocusEvent,
                                   PRBool aForceEvent = PR_FALSE,
                                   PRBool aIsAsynch = PR_FALSE,
@@ -123,16 +123,16 @@ protected:
 
     nsresult AddEventListeners();
     nsresult RemoveEventListeners();
+    nsresult HandleEventWithTarget(nsIDOMEvent* aEvent,
+                                   nsIDOMNode* aTargetNode);
+    static void GetTargetNode(nsIDOMEvent *aEvent, nsIDOMNode **aTargetNode);
 
-  /**
-   * Process "popupshown" event. Used by HandleEvent().
-   */
-
-  nsresult HandlePopupShownEvent(nsAccessible *aAccessible);
-  /*
-   * Process "popuphiding" event. Used by HandleEvent().
-   */
-  nsresult HandlePopupHidingEvent(nsINode *aNode, nsAccessible *aAccessible);
+    /**
+     * Used in HandleEventWithTarget().
+     */
+    nsresult HandlePopupShownEvent(nsIAccessible *aAccessible);
+    nsresult HandlePopupHidingEvent(nsIDOMNode *aNode,
+                                    nsIAccessible *aAccessible);
 
 #ifdef MOZ_XUL
     nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
@@ -145,7 +145,7 @@ protected:
     already_AddRefed<nsIDocShellTreeItem>
            GetContentDocShell(nsIDocShellTreeItem *aStart);
     nsRefPtr<nsCaretAccessible> mCaretAccessible;
-  nsCOMPtr<nsINode> mCurrentARIAMenubar;
+    nsCOMPtr<nsIDOMNode> mCurrentARIAMenubar;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsRootAccessible, NS_ROOTACCESSIBLE_IMPL_CID)

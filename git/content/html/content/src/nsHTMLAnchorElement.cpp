@@ -104,7 +104,7 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -245,17 +245,16 @@ nsHTMLAnchorElement::Focus()
 }
 
 PRBool
-nsHTMLAnchorElement::IsHTMLFocusable(PRBool aWithMouse,
-                                     PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLAnchorElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
 
   // cannot focus links if there is no link handler
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
-    nsIPresShell* presShell = doc->GetShell();
+    nsIPresShell* presShell = doc->GetPrimaryShell();
     if (presShell) {
       nsPresContext* presContext = presShell->GetPresContext();
       if (presContext && !presContext->GetLinkHandler()) {
@@ -440,18 +439,10 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   bool reset = false;
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    // If we do not have a cached URI, we have some value here so we must reset
-    // our link state after calling the parent.
-    if (!Link::HasCachedURI()) {
+    nsAutoString val;
+    GetHref(val);
+    if (!val.Equals(aValue)) {
       reset = true;
-    }
-    // However, if we have a cached URI, we'll want to see if the value changed.
-    else {
-      nsAutoString val;
-      GetHref(val);
-      if (!val.Equals(aValue)) {
-        reset = true;
-      }
     }
   }
 

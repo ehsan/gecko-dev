@@ -384,7 +384,8 @@ inDOMView::GetCellProperties(PRInt32 row, nsITreeColumn* col, nsISupportsArray *
 
     nsCOMPtr<nsIAccessible> accessible;
     nsresult rv =
-      accService->GetAccessibleFor(node->node, getter_AddRefs(accessible));
+      accService->GetAttachedAccessibleFor(node->node,
+                                           getter_AddRefs(accessible));
     if (NS_SUCCEEDED(rv) && accessible)
       properties->AppendElement(kAccessibleNodeAtom);
   }
@@ -757,8 +758,7 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
     inDOMViewNode* insertNode = nsnull;
     RowToNode(attrRow, &insertNode);
     if (insertNode) {
-      if (contentNode &&
-          insertNode->level <= contentNode->level) {
+      if (insertNode->level <= contentNode->level) {
         RowToNode(attrRow-1, &insertNode);
         InsertLinkAfter(newNode, insertNode);
       } else

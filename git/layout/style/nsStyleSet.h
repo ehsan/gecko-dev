@@ -174,13 +174,9 @@ class nsStyleSet
   // Get a new style context that lives in a different parent
   // The new context will be the same as the old if the new parent is the
   // same as the old parent.
-  // aElement should be non-null if this is a style context for an
-  // element or pseudo-element; in the latter case it should be the
-  // real element the pseudo-element is for.
   already_AddRefed<nsStyleContext>
   ReparentStyleContext(nsStyleContext* aStyleContext,
-                       nsStyleContext* aNewParentContext,
-                       mozilla::dom::Element* aElement);
+                       nsStyleContext* aNewParentContext);
 
   // Test if style is dependent on a document state.
   PRBool HasDocumentStateDependentStyle(nsPresContext* aPresContext,

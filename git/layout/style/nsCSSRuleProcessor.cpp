@@ -708,67 +708,6 @@ static const PLDHashTableOps AttributeSelectorOps = {
 
 //--------------------------------
 
-// Class selectors hash table.
-struct ClassSelectorEntry : public PLDHashEntryHdr {
-  nsIAtom *mClass;
-  nsTArray<nsCSSSelector*> mSelectors;
-};
-
-static void
-ClassSelector_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
-{
-  (static_cast<ClassSelectorEntry*>(hdr))->~ClassSelectorEntry();
-}
-
-static PRBool
-ClassSelector_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                       const void *key)
-{
-  ClassSelectorEntry *entry = static_cast<ClassSelectorEntry*>(hdr);
-  new (entry) ClassSelectorEntry();
-  entry->mClass = const_cast<nsIAtom*>(static_cast<const nsIAtom*>(key));
-  return PR_TRUE;
-}
-
-static nsIAtom*
-ClassSelector_GetKey(PLDHashTable *table, const PLDHashEntryHdr *hdr)
-{
-  const ClassSelectorEntry *entry = static_cast<const ClassSelectorEntry*>(hdr);
-  return entry->mClass;
-}
-
-// Case-sensitive ops.
-static const RuleHashTableOps ClassSelector_CSOps = {
-  {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
-  PL_DHashVoidPtrKeyStub,
-  RuleHash_CSMatchEntry,
-  PL_DHashMoveEntryStub,
-  ClassSelector_ClearEntry,
-  PL_DHashFinalizeStub,
-  ClassSelector_InitEntry
-  },
-  ClassSelector_GetKey
-};
-
-// Case-insensitive ops.
-static const RuleHashTableOps ClassSelector_CIOps = {
-  {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
-  RuleHash_CIHashKey,
-  RuleHash_CIMatchEntry,
-  PL_DHashMoveEntryStub,
-  ClassSelector_ClearEntry,
-  PL_DHashFinalizeStub,
-  ClassSelector_InitEntry
-  },
-  ClassSelector_GetKey
-};
-
-//--------------------------------
-
 struct RuleCascadeData {
   RuleCascadeData(nsIAtom *aMedium, PRBool aQuirksMode)
     : mRuleHash(aQuirksMode),
@@ -782,10 +721,6 @@ struct RuleCascadeData {
                       sizeof(AttributeSelectorEntry), 16);
     PL_DHashTableInit(&mAnonBoxRules, &RuleHash_TagTable_Ops, nsnull,
                       sizeof(RuleHashTagTableEntry), 16);
-    PL_DHashTableInit(&mClassSelectors,
-                      aQuirksMode ? &ClassSelector_CIOps.ops :
-                                    &ClassSelector_CSOps.ops,
-                      nsnull, sizeof(ClassSelectorEntry), 16);
     memset(mPseudoElementRuleHashes, 0, sizeof(mPseudoElementRuleHashes));
 #ifdef MOZ_XUL
     PL_DHashTableInit(&mXULTreeRules, &RuleHash_TagTable_Ops, nsnull,
@@ -797,10 +732,7 @@ struct RuleCascadeData {
   {
     PL_DHashTableFinish(&mAttributeSelectors);
     PL_DHashTableFinish(&mAnonBoxRules);
-    PL_DHashTableFinish(&mClassSelectors);
-#ifdef MOZ_XUL
     PL_DHashTableFinish(&mXULTreeRules);
-#endif
     for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mPseudoElementRuleHashes); ++i) {
       delete mPseudoElementRuleHashes[i];
     }
@@ -810,8 +742,7 @@ struct RuleCascadeData {
     mPseudoElementRuleHashes[nsCSSPseudoElements::ePseudo_PseudoElementCount];
   nsTArray<nsCSSSelector*> mStateSelectors;
   PRUint32                 mSelectorDocumentStates;
-  PLDHashTable             mClassSelectors;
-  nsTArray<nsCSSSelector*> mPossiblyNegatedClassSelectors;
+  nsTArray<nsCSSSelector*> mClassSelectors;
   nsTArray<nsCSSSelector*> mIDSelectors;
   PLDHashTable             mAttributeSelectors;
   PLDHashTable             mAnonBoxRules;
@@ -2398,17 +2329,10 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 }
 #endif
 
-static inline nsRestyleHint RestyleHintForOp(PRUnichar oper)
+inline PRBool
+IsSiblingOperator(PRUnichar oper)
 {
-  if (oper == PRUnichar('+') || oper == PRUnichar('~')) {
-    return eRestyle_LaterSiblings;
-  }
-
-  if (oper != PRUnichar(0)) {
-    return eRestyle_Subtree;
-  }
-
-  return eRestyle_Self;
+  return oper == PRUnichar('+') || oper == PRUnichar('~');
 }
 
 nsRestyleHint
@@ -2431,7 +2355,8 @@ nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData)
     for(; iter != end; ++iter) {
       nsCSSSelector* selector = *iter;
 
-      nsRestyleHint possibleChange = RestyleHintForOp(selector->mOperator);
+      nsRestyleHint possibleChange = IsSiblingOperator(selector->mOperator) ?
+        eRestyle_LaterSiblings : eRestyle_Self;
 
       // If hint already includes all the bits of possibleChange,
       // don't bother calling SelectorMatches, since even if it returns false
@@ -2472,7 +2397,8 @@ AttributeEnumFunc(nsCSSSelector* aSelector, AttributeEnumData* aData)
 {
   AttributeRuleProcessorData *data = aData->data;
 
-  nsRestyleHint possibleChange = RestyleHintForOp(aSelector->mOperator);
+  nsRestyleHint possibleChange = IsSiblingOperator(aSelector->mOperator) ?
+    eRestyle_LaterSiblings : eRestyle_Self;
 
   // If enumData->change already includes all the bits of possibleChange, don't
   // bother calling SelectorMatches, since even if it returns false
@@ -2504,7 +2430,7 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
         aData->mNameSpaceID == kNameSpaceID_XUL &&
         aData->mElement == aData->mElement->GetOwnerDoc()->GetRootElement())
       {
-        data.change = nsRestyleHint(data.change | eRestyle_Subtree);
+        data.change = nsRestyleHint(data.change | eRestyle_Self);
       }
   }
 
@@ -2526,29 +2452,9 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
     }
     
     if (aData->mAttribute == aData->mElement->GetClassAttributeName()) {
-      const nsAttrValue* elementClasses = aData->mClasses;
-      if (elementClasses) {
-        PRInt32 atomCount = elementClasses->GetAtomCount();
-        for (PRInt32 i = 0; i < atomCount; ++i) {
-          nsIAtom* curClass = elementClasses->AtomAt(i);
-          ClassSelectorEntry *entry =
-            static_cast<ClassSelectorEntry*>
-                       (PL_DHashTableOperate(&cascade->mClassSelectors,
-                                             curClass, PL_DHASH_LOOKUP));
-          if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-            nsCSSSelector **iter = entry->mSelectors.Elements(),
-                          **end = iter + entry->mSelectors.Length();
-            for(; iter != end; ++iter) {
-              AttributeEnumFunc(*iter, &data);
-            }
-          }
-        }
-      }
-
-      nsCSSSelector **iter = cascade->mPossiblyNegatedClassSelectors.Elements(),
-                    **end = iter +
-                              cascade->mPossiblyNegatedClassSelectors.Length();
-      for (; iter != end; ++iter) {
+      nsCSSSelector **iter = cascade->mClassSelectors.Elements(),
+                    **end = iter + cascade->mClassSelectors.Length();
+      for(; iter != end; ++iter) {
         AttributeEnumFunc(*iter, &data);
       }
     }
@@ -2674,19 +2580,8 @@ AddSelector(RuleCascadeData* aCascade,
   }
 
   // Build mClassSelectors
-  if (aSelectorPart == aSelectorInTopLevel) {
-    for (nsAtomList* curClass = aSelectorPart->mClassList; curClass;
-         curClass = curClass->mNext) {
-      ClassSelectorEntry *entry =
-        static_cast<ClassSelectorEntry*>(PL_DHashTableOperate(&aCascade->mClassSelectors,
-                                                              curClass->mAtom,
-                                                              PL_DHASH_ADD));
-      if (entry) {
-        entry->mSelectors.AppendElement(aSelectorInTopLevel);
-      }
-    }
-  } else if (aSelectorPart->mClassList) {
-    aCascade->mPossiblyNegatedClassSelectors.AppendElement(aSelectorInTopLevel);
+  if (aSelectorPart->mClassList) {
+    aCascade->mClassSelectors.AppendElement(aSelectorInTopLevel);
   }
 
   // Build mAttributeSelectors.

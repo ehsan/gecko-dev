@@ -80,7 +80,7 @@ public:
                               const nsDisplayListSet& aLists);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHODIMP GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 #ifdef DEBUG

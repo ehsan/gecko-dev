@@ -111,13 +111,13 @@
     <key id="key_textZoomReset2" key="&textReset.commandkey2;" command="cmd_textZoomReset" modifiers="accel"/>
   </keyset>
 
-  <menupopup id="viewSourceContextMenu">
+  <popup id="viewSourceContextMenu">
     <menuitem id="cMenu_findAgain"/>
     <menuseparator/>
     <menuitem id="cMenu_copy"/>
     <menuseparator/>
     <menuitem id="cMenu_selectAll"/>
-  </menupopup>
+  </popup>
 
   <!-- Menu --> 
   <toolbox id="viewSource-toolbox">

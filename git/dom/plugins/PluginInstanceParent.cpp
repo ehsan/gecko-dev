@@ -213,6 +213,16 @@ PluginInstanceParent::DeallocPPluginStream(PPluginStreamParent* stream)
     return true;
 }
 
+#ifdef MOZ_X11
+static Display* GetXDisplay() {
+#  ifdef MOZ_WIDGET_GTK2
+        return GDK_DISPLAY();
+#  elif defined(MOZ_WIDGET_QT)
+        return QX11Info::display();
+#  endif
+}
+#endif
+
 bool
 PluginInstanceParent::AnswerNPN_GetValue_NPNVjavascriptEnabledBool(
                                                        bool* value,
@@ -244,9 +254,6 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
     XID id;
 #elif defined(XP_MACOSX)
     intptr_t id;
-#elif defined(ANDROID)
-#warning Need Android impl
-    int id;
 #else
 #warning Implement me
 #endif
@@ -693,14 +700,14 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // process does not need to wait; the child is the process that needs
         // to wait.  A possibly-slightly-better alternative would be to send
         // an X event to the child that the child would wait for.
-        XSync(DefaultXDisplay(), False);
+        XSync(GetXDisplay(), False);
 
         return CallPaint(npremoteevent, &handled) ? handled : 0;
 
     case ButtonPress:
         // Release any active pointer grab so that the plugin X client can
         // grab the pointer if it wishes.
-        Display *dpy = DefaultXDisplay();
+        Display *dpy = GetXDisplay();
 #  ifdef MOZ_WIDGET_GTK2
         // GDK attempts to (asynchronously) track whether there is an active
         // grab so ungrab through GDK.
@@ -1299,7 +1306,7 @@ PluginInstanceParent::SharedSurfaceAfterPaint(NPEvent* npevent)
 #endif // defined(OS_WIN)
 
 bool
-PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
+PluginInstanceParent::AnswerPluginGotFocus()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
@@ -1308,10 +1315,10 @@ PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
     // focus. We forward the event down to widget so the dom/focus manager can
     // be updated.
 #if defined(OS_WIN)
-    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, gotFocus ? 1 : 0, 0);
+    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, 0, 0);
     return true;
 #else
-    NS_NOTREACHED("PluginInstanceParent::AnswerPluginFocusChange not implemented!");
+    NS_NOTREACHED("PluginInstanceParent::AnswerPluginGotFocus not implemented!");
     return false;
 #endif
 }

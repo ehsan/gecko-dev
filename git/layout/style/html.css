@@ -117,16 +117,15 @@ xmp {
 
 article,
 aside,
-div,
-dt,
-figcaption,
 footer,
-form,
 header,
 hgroup,
 html,
-isindex,
+div,
 map,
+dt,
+isindex,
+form,
 nav,
 section {
   display: block;
@@ -147,7 +146,7 @@ dd {
   -moz-margin-start: 40px;
 }
 
-blockquote, figure {
+blockquote {
   display: block;
   margin: 1em 40px;
 }
@@ -525,11 +524,6 @@ sup {
 
 nobr {
   white-space: nowrap;
-}
-
-mark {
-  background: yellow;
-  color: black;
 }
 
 /* titles */

@@ -666,12 +666,14 @@ case "$target" in
         elif test "$_CC_MAJOR_VERSION" = "15"; then
             _CC_SUITE=9
             CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
+            LDFLAGS="$LDFLAGS -MANIFESTUAC:NO"
             _USE_DYNAMICBASE=1
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         elif test "$_CC_MAJOR_VERSION" = "16"; then
             _CC_SUITE=10
             CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
+            LDFLAGS="$LDFLAGS -MANIFESTUAC:NO"
             _USE_DYNAMICBASE=1
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
@@ -999,6 +1001,7 @@ fi
 AC_SUBST(NSINSTALL_BIN)
 
 MOZ_PATH_PROG(DOXYGEN, doxygen, :)
+MOZ_PATH_PROG(WHOAMI, whoami, :)
 MOZ_PATH_PROG(AUTOCONF, autoconf, :)
 MOZ_PATH_PROG(UNZIP, unzip, :)
 MOZ_PATH_PROGS(ZIP, zip)
@@ -1231,6 +1234,8 @@ MOZ_COMPONENT_NSPR_LIBS='-L$(LIBXUL_DIST)/bin $(NSPR_LIBS)'
 USE_DEPENDENT_LIBS=1
 
 _PLATFORM_DEFAULT_TOOLKIT=cairo-gtk2
+
+MOZ_ENABLE_POSTSCRIPT=1 
 
 if test -n "$CROSS_COMPILE"; then
     OS_TARGET="${target_os}"
@@ -1600,6 +1605,15 @@ if test "$GNU_CC"; then
     _DEFINES_CFLAGS='-include $(DEPTH)/mozilla-config.h -DMOZILLA_CLIENT'
     _USE_CPP_INCLUDE_FLAG=1
 elif test "$SOLARIS_SUNPRO_CC"; then
+    MKSHLIB='$(LD) $(DSO_LDOPTS) -h $@ -o $@'
+    MKCSHLIB='$(LD) $(DSO_LDOPTS) -h $@ -o $@'
+
+    DSO_LDOPTS='-shared'
+    if test "$GNU_LD"; then
+        # Don't allow undefined symbols in libraries
+        DSO_LDOPTS="$DSO_LDOPTS -z defs"
+    fi
+
     DSO_CFLAGS=''
     if test "$CPU_ARCH" = "sparc"; then
         # for Sun Studio on Solaris/SPARC
@@ -2028,6 +2042,7 @@ case "$target" in
     DSO_LDOPTS=''
     STRIP="$STRIP -x -S"
     _PLATFORM_DEFAULT_TOOLKIT='cairo-cocoa'
+    MOZ_ENABLE_POSTSCRIPT=
     TARGET_NSPR_MDCPUCFG='\"md/_darwin.cfg\"'
     # The ExceptionHandling framework is needed for Objective-C exception
     # logging code in nsObjCExceptions.h. Currently we only use that in debug
@@ -2294,6 +2309,7 @@ ia64*-hpux*)
     TARGET_MD_ARCH=win32
     _PLATFORM_DEFAULT_TOOLKIT='cairo-windows'
     BIN_SUFFIX='.exe'
+    MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
 
     MOZ_GFX_OPTIMIZE_MOBILE=1
@@ -2416,6 +2432,7 @@ ia64*-hpux*)
     TARGET_MD_ARCH=win32
     _PLATFORM_DEFAULT_TOOLKIT='cairo-windows'
     BIN_SUFFIX='.exe'
+    MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
 
     dnl Hardcode to win95 for now - cls
@@ -2619,6 +2636,7 @@ ia64*-hpux*)
     LIBXUL_LIBS='-L$(LIBXUL_DIST)/lib $(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
     TARGET_MD_ARCH=os2
     _PLATFORM_DEFAULT_TOOLKIT="cairo-os2"
+    MOZ_ENABLE_POSTSCRIPT=
     RC=rc.exe
     RCFLAGS='-n'
     MOZ_USER_DIR="Mozilla"
@@ -2705,19 +2723,19 @@ alpha*-*-osf*)
     AC_DEFINE(SOLARIS)
     TARGET_NSPR_MDCPUCFG='\"md/_solaris.cfg\"'
     SYSTEM_MAKEDEPEND=
-    MOZ_FIX_LINK_PATHS=
     # $ORIGIN/.. is for shared libraries under components/ to locate shared
     # libraries one level up (e.g. libnspr4.so)
+    LDFLAGS="$LDFLAGS -z ignore -R '\$\$ORIGIN:\$\$ORIGIN/..'"
     if test "$SOLARIS_SUNPRO_CC"; then
-       LDFLAGS="$LDFLAGS -z ignore -R '\$\$ORIGIN:\$\$ORIGIN/..' -z lazyload -z combreloc -z muldefs"
-       LIBS="-lCrun -lCstd -lc $LIBS"
+       LIBS="-lCrun -lCstd $LIBS"
        NS_USE_NATIVE=1
+       MOZ_FIX_LINK_PATHS=
        AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
-       CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all -D__FUNCTION__=__func__"
-       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__"
+       CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all"
+       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic -norunpath"
        _MOZ_EXCEPTIONS_FLAGS_ON='-features=except'
        _MOZ_EXCEPTIONS_FLAGS_OFF='-features=no%except'
-       LDFLAGS="-xildoff $LDFLAGS"
+       LDFLAGS="-xildoff -z lazyload -z combreloc $LDFLAGS"
        if test -z "$CROSS_COMPILE" && test -f /usr/lib/ld/map.noexstk; then
            _SAVE_LDFLAGS=$LDFLAGS
            LDFLAGS="-M /usr/lib/ld/map.noexstk $LDFLAGS" 
@@ -2729,10 +2747,10 @@ alpha*-*-osf*)
        WARNINGS_AS_ERRORS='-Werror'
        MOZ_OPTIMIZE_FLAGS="-xO4"
        MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $@ -o $@'
-       MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $@ -o $@'
+       MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_FLAGS) -G -z muldefs -h $@ -o $@'
        MKSHLIB_FORCE_ALL='-z allextract'
        MKSHLIB_UNFORCE_ALL='-z defaultextract'
-       DSO_LDOPTS='-G'
+       DSO_LDOPTS='-G -z muldefs'
        AR_LIST="$AR t"
        AR_EXTRACT="$AR x"
        AR_DELETE="$AR d"
@@ -2752,38 +2770,25 @@ alpha*-*-osf*)
            #error "Denied"
            #endif],
            _BAD_COMPILER=,_BAD_COMPILER=1)
-       if test -n "$_BAD_COMPILER"; then
-           _res="no"
-           AC_MSG_ERROR([Sun C++ 5.9 (Sun Studio 12) or higher is required to build. Your compiler version is $CXX_VERSION .])
-       else
-           _res="yes"
-       fi
-       AC_TRY_COMPILE([],
-           [#if (__SUNPRO_CC >= 0x5100)
-           #error "Sun C++ 5.10 or above"
-           #endif],
-           _ABOVE_SS12U1=,_ABOVE_SS12U1=1)
-       if test "$_ABOVE_SS12U1"; then
-           # disable xannotate
-           CXXFLAGS="$CXXFLAGS -xannotate=no"
-       fi
-       AC_MSG_RESULT([$_res])
-       AC_LANG_RESTORE
+        if test -n "$_BAD_COMPILER"; then
+            _res="no"
+            AC_MSG_ERROR([Sun C++ 5.9 (Sun Studio 12) or higher is required to build. Your compiler version is $CXX_VERSION .])
+        else
+            _res="yes"
+        fi
+        AC_MSG_RESULT([$_res])
+        AC_LANG_RESTORE
     else
-       LDFLAGS="$LDFLAGS -Wl,-z,ignore -Wl,-R,'\$\$ORIGIN:\$\$ORIGIN/..' -Wl,-z,lazyload -Wl,-z,combreloc -Wl,-z,muldefs"
-       LIBS="-lc $LIBS"
-       MKSHLIB_FORCE_ALL='-Wl,-z -Wl,allextract'
-       MKSHLIB_UNFORCE_ALL='-Wl,-z -Wl,defaultextract'
        ASFLAGS="$ASFLAGS -fPIC"
-       DSO_LDOPTS='-shared'
+       DSO_LDOPTS='-G'
        _WARNINGS_CFLAGS=''
        _WARNINGS_CXXFLAGS=''
        if test "$OS_RELEASE" = "5.3"; then
-           AC_DEFINE(MUST_UNDEF_HAVE_BOOLEAN_AFTER_INCLUDES)
+	  AC_DEFINE(MUST_UNDEF_HAVE_BOOLEAN_AFTER_INCLUDES)
        fi
     fi
     if test "$OS_RELEASE" = "5.5.1"; then
-        AC_DEFINE(NEED_USLEEP_PROTOTYPE)
+       AC_DEFINE(NEED_USLEEP_PROTOTYPE)
     fi
     ;;
 
@@ -2894,19 +2899,17 @@ fi
 if test -z "$SKIP_COMPILER_CHECKS"; then
 dnl Checks for typedefs, structures, and compiler characteristics.
 dnl ========================================================
+AC_LANG_C
 AC_HEADER_STDC
 AC_C_CONST
 AC_TYPE_MODE_T
 AC_TYPE_OFF_T
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
-AC_LANG_CPLUSPLUS
 AC_MSG_CHECKING(for __stdcall)
 AC_CACHE_VAL(ac_cv___stdcall,
- [AC_TRY_COMPILE([template <typename Method> struct foo;
-                  template <> struct foo<void (*)()> {};
-                  template <> struct foo<void (__stdcall*)()> {};],
-                 [],
+ [AC_TRY_COMPILE([],
+                 [void foo(); void __stdcall foo();],
                  [ac_cv___stdcall=true],
                  [ac_cv___stdcall=false])])
 if test "$ac_cv___stdcall" = true ; then
@@ -2915,7 +2918,6 @@ if test "$ac_cv___stdcall" = true ; then
 else
   AC_MSG_RESULT(no)
 fi
-AC_LANG_C
 AC_MSG_CHECKING(for ssize_t)
 AC_CACHE_VAL(ac_cv_type_ssize_t,
  [AC_TRY_COMPILE([#include <stdio.h>
@@ -3300,7 +3302,7 @@ AC_CHECK_HEADERS(sys/statvfs.h sys/statfs.h sys/vfs.h sys/mount.h)
 
 dnl Quota support
 AC_CHECK_HEADERS(sys/quota.h)
-AC_CHECK_HEADERS(linux/quota.h)
+AC_CHECK_HEADERS(sys/sysmacros.h)
 
 dnl Try for MMX support
 dnl NB - later gcc versions require -mmmx for this header to be successfully
@@ -4948,7 +4950,7 @@ NSS_DISABLE_DBM=
 NECKO_WIFI=1
 NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
-NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource"
+NECKO_PROTOCOLS_DEFAULT="about data file ftp gopher http res viewsource"
 USE_ARM_KUSER=
 BUILD_CTYPES=1
 XPC_IDISPATCH_SUPPORT=
@@ -4985,6 +4987,7 @@ case "${target}" in
         MOZ_CRASHREPORTER=
         NS_PRINTING=
         NECKO_WIFI=
+        MOZ_PLUGINS=
         MOZ_THUMB2=1
         MOZ_THEME_FASTSTRIPE=1
         MOZ_TREE_FREETYPE=1
@@ -5699,7 +5702,7 @@ dnl ========================================================
 dnl = Disable IPC support for tabs and plugins
 dnl ========================================================
 case "${target}" in
-*-wince*)
+*-wince*|*-android*)
     MOZ_IPC=
     ;;
 esac
@@ -5906,7 +5909,7 @@ if test -n "$MOZ_WEBM"; then
 
     dnl Detect if we can use an assembler to compile optimized assembly for libvpx.
     dnl For Win32 (MSVC) we must use MASM.
-    if test "$OS_ARCH" = "WINNT" -a "$CPU_ARCH" = "x86" -a -z "$GNU_CC"; then
+    if test "$OS_ARCH" = "WINNT" -a "$CPU_ARCH" = "x86" -a "$GNU_CC" != "yes"; then
         AC_MSG_CHECKING([for MASM assembler])
         AC_CHECK_PROGS(VPX_AS, ml, "")
         if test -n "$VPX_AS"; then
@@ -5918,7 +5921,7 @@ if test -n "$MOZ_WEBM"; then
     else 
 
       dnl For Darwin x86, Darwin x86_64, Linux x86, and WINNT x86_64
-      dnl we can use YASM.
+      dhl we can use YASM.
       AC_MSG_CHECKING([for YASM assembler])
       AC_CHECK_PROGS(VPX_AS, yasm, "")
       if test -n "$VPX_AS"; then
@@ -5926,18 +5929,6 @@ if test -n "$MOZ_WEBM"; then
         case "$OS_ARCH:$OS_TEST" in
         Linux:x86|Linux:i?86)
           VPX_ASFLAGS="-f elf32 -rnasm -pnasm"
-          VPX_X86_ASM=1
-        ;;
-        Linux:x86_64)
-          VPX_ASFLAGS="-f elf64 -rnasm -pnasm -DPIC"
-          VPX_X86_ASM=1
-        ;;
-        SunOS:i?86)
-          VPX_ASFLAGS="-f elf32 -rnasm -pnasm"
-          VPX_X86_ASM=1
-        ;;
-        SunOS:x86_64)
-          VPX_ASFLAGS="-f elf64 -rnasm -pnasm -DPIC"
           VPX_X86_ASM=1
         ;;
         Darwin:i?86)
@@ -5949,10 +5940,8 @@ if test -n "$MOZ_WEBM"; then
           VPX_X86_ASM=1
         ;;
         WINNT:x86_64)
-          if test -z "$GNU_CC"; then
-            VPX_ASFLAGS="-f x64 -rnasm -pnasm"
-            VPX_X86_ASM=1
-          fi
+          VPX_ASFLAGS="-f x64 -rnasm -pnasm"
+          VPX_X86_ASM=1
         ;;
         esac
       fi # end have YASM
@@ -6512,7 +6501,6 @@ if test -z "$MOZ_UPDATE_CHANNEL"; then
     MOZ_UPDATE_CHANNEL=default
 fi
 AC_DEFINE_UNQUOTED(MOZ_UPDATE_CHANNEL, $MOZ_UPDATE_CHANNEL)
-AC_SUBST(MOZ_UPDATE_CHANNEL)
 
 # tools/update-packaging is not checked out by default.
 MOZ_ARG_ENABLE_BOOL(update-packaging,
@@ -6712,7 +6700,7 @@ else
     dnl === SQLITE_ENABLE_FTS3 check ===
     dnl ================================
     dnl check to see if the system SQLite package is compiled with
-    dnl SQLITE_ENABLE_FTS3 enabled.
+    dnl SQLITE_THREADSAFE enabled.
     AC_MSG_CHECKING(for SQLITE_ENABLE_FTS3 support in system SQLite)
     _SAVE_CFLAGS="$CFLAGS"
     CFLAGS="$CFLAGS $SQLITE_CFLAGS"
@@ -6735,35 +6723,6 @@ else
     LIBS="$_SAVE_LIBS"
     if test "x$ac_cv_sqlite_enable_fts3" = "xno"; then
         AC_MSG_ERROR([System SQLite library is not compiled with SQLITE_ENABLE_FTS3.])
-    fi
-
-    dnl =========================================
-    dnl === SQLITE_ENABLE_UNLOCK_NOTIFY check ===
-    dnl =========================================
-    dnl check to see if the system SQLite package is compiled with
-    dnl SQLITE_ENABLE_UNLOCK_NOTIFY enabled.
-    AC_MSG_CHECKING(for SQLITE_ENABLE_UNLOCK_NOTIFY support in system SQLite)
-    _SAVE_CFLAGS="$CFLAGS"
-    CFLAGS="$CFLAGS $SQLITE_CFLAGS"
-    _SAVE_LIBS="$LIBS"
-    LIBS="$LIBS $SQLITE_LIBS"
-    AC_CACHE_VAL(ac_cv_sqlite_enable_unlock_notify,[
-        AC_TRY_RUN([
-            #include "sqlite3.h"
-
-            int main(int argc, char **argv){
-              return !sqlite3_compileoption_used("SQLITE_ENABLE_UNLOCK_NOTIFY");
-            }],
-            ac_cv_sqlite_enable_unlock_notify=yes,
-            ac_cv_sqlite_enable_unlock_notify=no,
-            ac_cv_sqlite_enable_unlock_notify=no
-        )
-    ])
-    AC_MSG_RESULT($ac_cv_sqlite_enable_unlock_notify)
-    CFLAGS="$_SAVE_CFLAGS"
-    LIBS="$_SAVE_LIBS"
-    if test "x$ac_cv_sqlite_enable_unlock_notify" = "xno"; then
-        AC_MSG_ERROR([System SQLite library is not compiled with SQLITE_ENABLE_UNLOCK_NOTIFY.])
     fi
 fi
 
@@ -8445,18 +8404,11 @@ AC_SUBST(MOZ_TREE_CAIRO)
 AC_SUBST(MOZ_CAIRO_CFLAGS)
 AC_SUBST(MOZ_CAIRO_LIBS)
 
-dnl ========================================================
 dnl qcms
 dnl ========================================================
 
 QCMS_LIBS='$(DEPTH)/gfx/qcms/$(LIB_PREFIX)mozqcms.$(LIB_SUFFIX)'
 AC_SUBST(QCMS_LIBS)
-
-dnl ========================================================
-dnl HarfBuzz
-dnl ========================================================
-MOZ_HARFBUZZ_LIBS='$(DEPTH)/gfx/harfbuzz/src/$(LIB_PREFIX)mozharfbuzz.$(LIB_SUFFIX)'
-AC_SUBST(MOZ_HARFBUZZ_LIBS)
 
 dnl ========================================================
 dnl disable xul
@@ -8627,12 +8579,6 @@ if test "$MOZ_PLACES"; then
   AC_DEFINE(MOZ_PLACES)
 fi
 
-dnl Build Sync Services if required
-AC_SUBST(MOZ_SERVICES_SYNC)
-if test -n "$MOZ_SERVICES_SYNC"; then
-  AC_DEFINE(MOZ_SERVICES_SYNC)
-fi
-
 dnl ========================================================
 if test "$MOZ_DEBUG" || test "$NS_TRACE_MALLOC"; then
     MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS=
@@ -8716,6 +8662,7 @@ AC_SUBST(MOZ_PROFILELOCKING)
 
 AC_SUBST(HAVE_XIE)
 AC_SUBST(MOZ_XIE_LIBS)
+AC_SUBST(MOZ_ENABLE_POSTSCRIPT)
 
 AC_SUBST(BUILD_STATIC_LIBS)
 AC_SUBST(MOZ_ENABLE_LIBXUL)

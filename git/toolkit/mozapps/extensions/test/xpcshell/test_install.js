@@ -4,10 +4,6 @@
 
 // This verifies that add-ons can be installed from XPI files
 
-// The maximum allowable time since install. If an add-on claims to have been
-// installed longer ago than this the the test will fail.
-const MAX_INSTALL_TIME = 10000;
-
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
@@ -64,7 +60,7 @@ function run_test_1() {
 
     let file = do_get_addon("test_install1");
     let uri = Services.io.newFileURI(file).spec;
-    do_check_eq(install.addon.getResourceURI("install.rdf").spec, "jar:" + uri + "!/install.rdf");
+    do_check_eq(install.addon.getResourceURL("install.rdf"), "jar:" + uri + "!/install.rdf");
     do_check_eq(install.addon.iconURL, "jar:" + uri + "!/icon.png");
     do_check_eq(install.iconURL, null);
 
@@ -122,7 +118,7 @@ function check_test_1() {
 
           // Should have been installed sometime in the last two second.
           let difference = Date.now() - a1.installDate.getTime();
-          if (difference > MAX_INSTALL_TIME)
+          if (difference > 2000)
             do_throw("Add-on was installed " + difference + "ms ago");
           if (difference < 0)
             do_throw("Add-on was installed " + difference + "ms in the future");
@@ -136,7 +132,7 @@ function check_test_1() {
           dir.append("addon1@tests.mozilla.org");
           dir.append("install.rdf");
           let uri = Services.io.newFileURI(dir).spec;
-          do_check_eq(a1.getResourceURI("install.rdf").spec, uri);
+          do_check_eq(a1.getResourceURL("install.rdf"), uri);
 
           a1.uninstall();
           restartManager(0);
@@ -227,7 +223,7 @@ function check_test_3() {
 
         // Should have been installed sometime in the last two second.
         let difference = Date.now() - a2.installDate.getTime();
-        if (difference > MAX_INSTALL_TIME)
+        if (difference > 2000)
           do_throw("Add-on was installed " + difference + "ms ago");
         if (difference < 0)
           do_throw("Add-on was installed " + difference + "ms in the future");

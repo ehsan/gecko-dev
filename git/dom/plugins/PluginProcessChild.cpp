@@ -59,9 +59,8 @@ bool
 PluginProcessChild::Init()
 {
 #ifdef XP_WIN
-    // Drag-and-drop needs OleInitialize to be called, and Silverlight depends
-    // on the host calling CoInitialize (which is called by OleInitialize).
-    ::OleInitialize(NULL);
+    // Silverlight depends on the host calling CoInitialize.
+    ::CoInitialize(NULL);
 #endif
 
     // Certain plugins, such as flash, steal the unhandled exception filter
@@ -101,7 +100,7 @@ void
 PluginProcessChild::CleanUp()
 {
 #ifdef XP_WIN
-    ::OleUninitialize();
+    ::CoUninitialize();
 #endif
 }
 

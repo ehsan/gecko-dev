@@ -685,17 +685,25 @@ FeedWriter.prototype = {
     if (file instanceof Ci.nsILocalFileWin) {
       try {
         return file.getVersionInfoField("FileDescription");
-      } catch (e) {}
+      }
+      catch (e) {
+      }
     }
 #endif
 #ifdef XP_MACOSX
-    if (file instanceof Ci.nsILocalFileMac) {
-      try {
-        return file.bundleDisplayName;
-      } catch (e) {}
+    var lfm = file.QueryInterface(Ci.nsILocalFileMac);
+    try {
+      return lfm.bundleDisplayName;
+    }
+    catch (e) {
+      // fall through to the file name
     }
 #endif
-    return file.leafName;
+    var ios = 
+        Cc["@mozilla.org/network/io-service;1"].
+        getService(Ci.nsIIOService);
+    var url = ios.newFileURI(file).QueryInterface(Ci.nsIURL);
+    return url.fileName;
   },
 
   /**

@@ -125,7 +125,7 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   // SetAttr override.  C++ is stupid, so have to override both
   // overloaded methods.
@@ -450,8 +450,7 @@ nsHTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 }
 
 PRBool
-nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
-                                    PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLImageElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
   PRInt32 tabIndex;
   GetTabIndex(&tabIndex);
@@ -482,11 +481,8 @@ nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
     *aTabIndex = (sTabFocusModel & eTabFocus_formElementsMask)? tabIndex : -1;
   }
 
-  *aIsFocusable = 
-#ifdef XP_MACOSX
-    !aWithMouse &&
-#endif
-    (tabIndex >= 0 || HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
+  *aIsFocusable = tabIndex >= 0 ||
+                  HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex);
 
   return PR_FALSE;
 }

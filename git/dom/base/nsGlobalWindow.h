@@ -101,7 +101,6 @@
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 #include "nsIContent.h"
-#include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
@@ -685,8 +684,6 @@ protected:
   
   void ClearStatus();
 
-  virtual void UpdateParentTarget();
-
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
   // could own objects that are implemented in JavaScript, then those
@@ -829,8 +826,6 @@ protected:
   nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
-
-  nsCOMPtr<nsIIDBFactory> mIndexedDB;
 
   // A unique (as long as our 64-bit counter doesn't roll over) id for
   // this window.

@@ -120,7 +120,11 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     mWindow.ws_info = &mWsInfo;
     memset(&mWsInfo, 0, sizeof(mWsInfo));
-    mWsInfo.display = DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+    mWsInfo.display = GDK_DISPLAY();
+#elif defined(MOZ_WIDGET_QT)
+    mWsInfo.display = QX11Info::display();
+#endif // MOZ_WIDGET_GTK2
 #endif // MOZ_X11 && XP_UNIX && !XP_MACOSX
 #if defined(OS_WIN)
     memset(&mAlphaExtract, 0, sizeof(mAlphaExtract));
@@ -615,8 +619,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-    PaintTracker pt;
-
     NPCocoaEvent evcopy = event.event;
 
     if (evcopy.type == NPCocoaEventDrawRect) {
@@ -688,12 +690,10 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-    PaintTracker pt;
-
     NPCocoaEvent evcopy = event.event;
     nsIOSurface* surf = nsIOSurface::LookupSurface(surfaceid);
     if (!surf) {
-        NS_ERROR("Invalid IOSurface.");
+        NS_ERROR("Invalid IOSurface.\n");
         *handled = false;
         return false;
     }
@@ -892,8 +892,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
     if (mPluginIface->setwindow)
         (void) mPluginIface->setwindow(&mData, &mWindow);
 
-#elif defined(ANDROID)
-#  warning Need Android impl
 #else
 #  error Implement me for your OS
 #endif
@@ -1072,7 +1070,7 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
 
     // The plugin received keyboard focus, let the parent know so the dom is up to date.
     if (message == WM_MOUSEACTIVATE)
-      self->CallPluginFocusChange(PR_TRUE);
+        self->CallPluginGotFocus();
 
     // Prevent lockups due to plugins making rpc calls when the parent
     // is making a synchronous SendMessage call to the child window. Add
@@ -1088,9 +1086,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
             break;
         }
     }
-
-    if (message == WM_KILLFOCUS)
-      self->CallPluginFocusChange(PR_FALSE);
 
     if (message == WM_USER+1 &&
         (self->mQuirks & PluginInstanceChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {

@@ -248,7 +248,9 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
                              : nsnull;
       NS_ASSERTION(!firstPopup || !firstPopup->GetNextSibling(),
                    "We assume popupList only has one child, but it has more.");
-      listName = firstPopup == aChildFrame ? nsGkAtoms::popupList : nsnull;
+      listName = (!firstPopup || firstPopup == aChildFrame)
+                 ? nsGkAtoms::popupList
+                 : nsnull;
     } else if (nsGkAtoms::tableColGroupFrame == childType) {
       listName = nsGkAtoms::colGroupList;
     } else if (nsGkAtoms::tableCaptionFrame == aChildFrame->GetType()) {
@@ -2191,10 +2193,8 @@ nsLayoutUtils::ComputeWidthDependentValue(
                  nscoord              aContainingBlockWidth,
                  const nsStyleCoord&  aCoord)
 {
-  NS_WARN_IF_FALSE(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_PRECONDITION(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
+                  "unconstrained widths no longer supported");
 
   if (eStyleUnit_Coord == aCoord.GetUnit()) {
     return aCoord.GetCoordValue();
@@ -2921,79 +2921,47 @@ MapToFloatUserPixels(const gfxSize& aSize,
                   aPt.y*aDest.size.height/aSize.height + aDest.pos.y);
 }
 
-// helper function to convert a nsRect to a gfxRect
-// borrowed from nsCSSRendering.cpp
-static gfxRect
-RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
-{
-  return gfxRect(gfxFloat(aRect.x) / aAppUnitsPerDevPixel,
-                 gfxFloat(aRect.y) / aAppUnitsPerDevPixel,
-                 gfxFloat(aRect.width) / aAppUnitsPerDevPixel,
-                 gfxFloat(aRect.height) / aAppUnitsPerDevPixel);
-}
-
-struct SnappedImageDrawingParameters {
-  // A transform from either device space or user space (depending on mResetCTM)
-  // to image space
-  gfxMatrix mUserSpaceToImageSpace;
-  // A device-space, pixel-aligned rectangle to fill
-  gfxRect mFillRect;
-  // A pixel rectangle in tiled image space outside of which gfx should not
-  // sample (using EXTEND_PAD as necessary)
-  nsIntRect mSubimage;
-  // Whether there's anything to draw at all
-  PRPackedBool mShouldDraw;
-  // PR_TRUE iff the CTM of the rendering context needs to be reset to the
-  // identity matrix before drawing
-  PRPackedBool mResetCTM;
-
-  SnappedImageDrawingParameters()
-   : mShouldDraw(PR_FALSE)
-   , mResetCTM(PR_FALSE)
-  {}
-
-  SnappedImageDrawingParameters(const gfxMatrix& aUserSpaceToImageSpace,
-                                const gfxRect&   aFillRect,
-                                const nsIntRect& aSubimage,
-                                PRBool           aResetCTM)
-   : mUserSpaceToImageSpace(aUserSpaceToImageSpace)
-   , mFillRect(aFillRect)
-   , mSubimage(aSubimage)
-   , mShouldDraw(PR_TRUE)
-   , mResetCTM(aResetCTM)
-  {}
-};
-
-/**
- * Given a set of input parameters, compute certain output parameters
- * for drawing an image with the image snapping algorithm.
- * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
- *
- *  @see nsLayoutUtils::DrawImage() for the descriptions of input parameters
- */
-static SnappedImageDrawingParameters
-ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
-                                     PRInt32         aAppUnitsPerDevPixel,
-                                     const nsRect    aDest,
-                                     const nsRect    aFill,
-                                     const nsPoint   aAnchor,
-                                     const nsRect    aDirty,
-                                     const nsIntSize aImageSize)
-
+static nsresult
+DrawImageInternal(nsIRenderingContext* aRenderingContext,
+                  imgIContainer*       aImage,
+                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                  const nsRect&        aDest,
+                  const nsRect&        aFill,
+                  const nsPoint&       aAnchor,
+                  const nsRect&        aDirty,
+                  const nsIntSize&     aImageSize,
+                  PRUint32             aImageFlags)
 {
   if (aDest.IsEmpty() || aFill.IsEmpty())
-    return SnappedImageDrawingParameters();
+    return NS_OK;
 
-  gfxRect devPixelDest = RectToGfxRect(aDest, aAppUnitsPerDevPixel);
-  gfxRect devPixelFill = RectToGfxRect(aFill, aAppUnitsPerDevPixel);
-  gfxRect devPixelDirty = RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
+  nsCOMPtr<nsIDeviceContext> dc;
+  aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
+  gfxFloat appUnitsPerDevPixel = dc->AppUnitsPerDevPixel();
+  gfxContext *ctx = aRenderingContext->ThebesContext();
 
+  gfxRect devPixelDest(aDest.x/appUnitsPerDevPixel,
+                       aDest.y/appUnitsPerDevPixel,
+                       aDest.width/appUnitsPerDevPixel,
+                       aDest.height/appUnitsPerDevPixel);
+
+  // Compute the pixel-snapped area that should be drawn
+  gfxRect devPixelFill(aFill.x/appUnitsPerDevPixel,
+                       aFill.y/appUnitsPerDevPixel,
+                       aFill.width/appUnitsPerDevPixel,
+                       aFill.height/appUnitsPerDevPixel);
   PRBool ignoreScale = PR_FALSE;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
   ignoreScale = PR_TRUE;
 #endif
   gfxRect fill = devPixelFill;
-  PRBool didSnap = aCtx->UserToDevicePixelSnapped(fill, ignoreScale);
+  PRBool didSnap = ctx->UserToDevicePixelSnapped(fill, ignoreScale);
+
+  // Compute dirty rect in gfx space
+  gfxRect dirty(aDirty.x/appUnitsPerDevPixel,
+                aDirty.y/appUnitsPerDevPixel,
+                aDirty.width/appUnitsPerDevPixel,
+                aDirty.height/appUnitsPerDevPixel);
 
   gfxSize imageSize(aImageSize.width, aImageSize.height);
 
@@ -3011,33 +2979,35 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   // Compute the anchor point and compute final fill rect.
   // This code assumes that pixel-based devices have one pixel per
   // device unit!
-  gfxPoint anchorPoint(gfxFloat(aAnchor.x)/aAppUnitsPerDevPixel,
-                       gfxFloat(aAnchor.y)/aAppUnitsPerDevPixel);
+  gfxPoint anchorPoint(aAnchor.x/appUnitsPerDevPixel,
+                       aAnchor.y/appUnitsPerDevPixel);
   gfxPoint imageSpaceAnchorPoint =
     MapToFloatImagePixels(imageSize, devPixelDest, anchorPoint);
-  gfxMatrix currentMatrix = aCtx->CurrentMatrix();
+  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
 
   if (didSnap) {
-    NS_ASSERTION(!currentMatrix.HasNonAxisAlignedTransform(),
+    NS_ASSERTION(!saveMatrix.Matrix().HasNonAxisAlignedTransform(),
                  "How did we snap, then?");
     imageSpaceAnchorPoint.Round();
     anchorPoint = imageSpaceAnchorPoint;
     anchorPoint = MapToFloatUserPixels(imageSize, devPixelDest, anchorPoint);
-    anchorPoint = currentMatrix.Transform(anchorPoint);
+    anchorPoint = saveMatrix.Matrix().Transform(anchorPoint);
     anchorPoint.Round();
 
     // This form of Transform is safe to call since non-axis-aligned
     // transforms wouldn't be snapped.
-    devPixelDirty = currentMatrix.Transform(devPixelDirty);
+    dirty = saveMatrix.Matrix().Transform(dirty);
+
+    ctx->IdentityMatrix();
   }
 
-  gfxFloat scaleX = imageSize.width*aAppUnitsPerDevPixel/aDest.width;
-  gfxFloat scaleY = imageSize.height*aAppUnitsPerDevPixel/aDest.height;
+  gfxFloat scaleX = imageSize.width*appUnitsPerDevPixel/aDest.width;
+  gfxFloat scaleY = imageSize.height*appUnitsPerDevPixel/aDest.height;
   if (didSnap) {
-    // We'll reset aCTX to the identity matrix before drawing, so we need to
-    // adjust our scales to match.
-    scaleX /= currentMatrix.xx;
-    scaleY /= currentMatrix.yy;
+    // ctx now has the identity matrix, so we need to adjust our
+    // scales to match
+    scaleX /= saveMatrix.Matrix().xx;
+    scaleY /= saveMatrix.Matrix().yy;
   }
   gfxFloat translateX = imageSpaceAnchorPoint.x - anchorPoint.x*scaleX;
   gfxFloat translateY = imageSpaceAnchorPoint.y - anchorPoint.y*scaleY;
@@ -3048,51 +3018,18 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   // translation by integers, then filtering will occur, and
   // restricting the fill rect to the dirty rect would change the values
   // computed for edge pixels, which we can't allow.
-  // Also, if didSnap is false then rounding out 'devPixelDirty' might not
+  // Also, if didSnap is false then rounding out 'dirty' might not
   // produce pixel-aligned coordinates, which would also break the values
   // computed for edge pixels.
   if (didSnap && !transform.HasNonIntegerTranslation()) {
-    devPixelDirty.RoundOut();
-    finalFillRect = fill.Intersect(devPixelDirty);
+    dirty.RoundOut();
+    finalFillRect = fill.Intersect(dirty);
   }
   if (finalFillRect.IsEmpty())
-    return SnappedImageDrawingParameters();
-
-  return SnappedImageDrawingParameters(transform, finalFillRect, intSubimage,
-                                       didSnap);
-}
-
-
-static nsresult
-DrawImageInternal(nsIRenderingContext* aRenderingContext,
-                  imgIContainer*       aImage,
-                  gfxPattern::GraphicsFilter aGraphicsFilter,
-                  const nsRect&        aDest,
-                  const nsRect&        aFill,
-                  const nsPoint&       aAnchor,
-                  const nsRect&        aDirty,
-                  const nsIntSize&     aImageSize,
-                  PRUint32             aImageFlags)
-{
-  nsCOMPtr<nsIDeviceContext> dc;
-  aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
-  PRInt32 appUnitsPerDevPixel = dc->AppUnitsPerDevPixel();
-  gfxContext* ctx = aRenderingContext->ThebesContext();
-
-  SnappedImageDrawingParameters drawingParams =
-    ComputeSnappedImageDrawingParameters(ctx, appUnitsPerDevPixel, aDest, aFill,
-                                         aAnchor, aDirty, aImageSize);
-
-  if (!drawingParams.mShouldDraw)
     return NS_OK;
 
-  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
-  if (drawingParams.mResetCTM) {
-    ctx->IdentityMatrix();
-  }
-
-  aImage->Draw(ctx, aGraphicsFilter, drawingParams.mUserSpaceToImageSpace,
-               drawingParams.mFillRect, drawingParams.mSubimage, aImageFlags);
+  aImage->Draw(ctx, aGraphicsFilter, transform, finalFillRect, intSubimage,
+               aImageFlags);
   return NS_OK;
 }
 
@@ -3279,11 +3216,9 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
   if (HasNonZeroCorner(aCSSRootFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
-  nsITheme::Transparency transparency;
+  nsTransparencyMode transparency;
   if (aCSSRootFrame->IsThemed(&transparency))
-    return transparency == nsITheme::eTransparent
-         ? eTransparencyTransparent
-         : eTransparencyOpaque;
+    return transparency;
 
   if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
@@ -3504,14 +3439,6 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
   if (node && ve) {
     nsHTMLVideoElement *video = static_cast<nsHTMLVideoElement*>(ve.get());
 
-    unsigned short readyState;
-    if (NS_SUCCEEDED(ve->GetReadyState(&readyState)) &&
-        (readyState == nsIDOMHTMLMediaElement::HAVE_NOTHING ||
-         readyState == nsIDOMHTMLMediaElement::HAVE_METADATA)) {
-      result.mIsStillLoading = PR_TRUE;
-      return result;
-    }
-
     // If it doesn't have a principal, just bail
     nsCOMPtr<nsIPrincipal> principal = video->GetCurrentPrincipal();
     if (!principal)
@@ -3563,13 +3490,8 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 
   PRUint32 status;
   imgRequest->GetImageStatus(&status);
-  if ((status & imgIRequest::STATUS_LOAD_COMPLETE) == 0) {
-    // Spec says to use GetComplete, but that only works on
-    // nsIDOMHTMLImageElement, and we support all sorts of other stuff
-    // here.  Do this for now pending spec clarification.
-    result.mIsStillLoading = (status & imgIRequest::STATUS_ERROR) == 0;
+  if ((status & imgIRequest::STATUS_LOAD_COMPLETE) == 0)
     return result;
-  }
 
   // In case of data: URIs, we want to ignore principals;
   // they should have the originating content's principal,

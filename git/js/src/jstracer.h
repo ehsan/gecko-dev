@@ -375,15 +375,13 @@ const uint32 TT_INVALID = uint32(-1);
 typedef Queue<uint16> SlotList;
 
 class TypeMap : public Queue<TraceType> {
-    Oracle *oracle;
 public:
     TypeMap(nanojit::Allocator* alloc) : Queue<TraceType>(alloc) {}
     void set(unsigned stackSlots, unsigned ngslots,
              const TraceType* stackTypeMap, const TraceType* globalTypeMap);
-    JS_REQUIRES_STACK void captureTypes(JSContext* cx, JSObject* globalObj, SlotList& slots, unsigned callDepth,
-                                        bool speculate);
+    JS_REQUIRES_STACK void captureTypes(JSContext* cx, JSObject* globalObj, SlotList& slots, unsigned callDepth);
     JS_REQUIRES_STACK void captureMissingGlobalTypes(JSContext* cx, JSObject* globalObj, SlotList& slots,
-                                                     unsigned stackSlots, bool speculate);
+                                                     unsigned stackSlots);
     bool matches(TypeMap& other) const;
     void fromRaw(TraceType* other, unsigned numSlots);
 };
@@ -742,7 +740,7 @@ struct TreeFragment : public LinkableFragment
         return typeMap.data();
     }
 
-    JS_REQUIRES_STACK void initialize(JSContext* cx, SlotList *globalSlots, bool speculate);
+    JS_REQUIRES_STACK void initialize(JSContext* cx, SlotList *globalSlots);
     UnstableExit* removeUnstableExit(VMSideExit* exit);
 };
 
@@ -811,14 +809,12 @@ enum AbortableRecordingStatusCodes {
     ARECORD_ABORTED_code   = 2,
     ARECORD_CONTINUE_code  = 3,
     ARECORD_IMACRO_code    = 4,
-    ARECORD_IMACRO_ABORTED_code = 5,
-    ARECORD_COMPLETED_code = 6
+    ARECORD_COMPLETED_code = 5
 };
 AbortableRecordingStatus ARECORD_ERROR    = { ARECORD_ERROR_code };
 AbortableRecordingStatus ARECORD_STOP     = { ARECORD_STOP_code };
 AbortableRecordingStatus ARECORD_CONTINUE = { ARECORD_CONTINUE_code };
 AbortableRecordingStatus ARECORD_IMACRO   = { ARECORD_IMACRO_code };
-AbortableRecordingStatus ARECORD_IMACRO_ABORTED   = { ARECORD_IMACRO_ABORTED_code };
 AbortableRecordingStatus ARECORD_ABORTED =  { ARECORD_ABORTED_code };
 AbortableRecordingStatus ARECORD_COMPLETED =  { ARECORD_COMPLETED_code };
 
@@ -878,10 +874,9 @@ enum AbortableRecordingStatus {
                             // should goto error
     ARECORD_CONTINUE  = 2,  // see RECORD_CONTINUE
     ARECORD_IMACRO    = 3,  // see RECORD_IMACRO
-    ARECORD_IMACRO_ABORTED = 4, // see comment in TR::monitorRecording.
-    ARECORD_ABORTED   = 5,  // Recording has already been aborted; the
+    ARECORD_ABORTED   = 4,  // Recording has already been aborted; the
                             // interpreter should continue executing
-    ARECORD_COMPLETED = 6   // Recording completed successfully, the
+    ARECORD_COMPLETED = 5   // Recording completed successfully, the
                             // trace recorder has been deleted
 };
 
@@ -1434,7 +1429,7 @@ class TraceRecorder
     TraceRecorder(JSContext* cx, VMSideExit*, VMFragment*,
                   unsigned stackSlots, unsigned ngslots, TraceType* typeMap,
                   VMSideExit* expectedInnerExit, jsbytecode* outerTree,
-                  uint32 outerArgc, RecordReason reason, bool speculate);
+                  uint32 outerArgc, RecordReason reason);
 
     /* The destructor should only be called through finish*, not directly. */
     ~TraceRecorder();
@@ -1461,14 +1456,12 @@ public:
     startRecorder(JSContext*, VMSideExit*, VMFragment*,
                   unsigned stackSlots, unsigned ngslots, TraceType* typeMap,
                   VMSideExit* expectedInnerExit, jsbytecode* outerTree,
-                  uint32 outerArgc, RecordReason reason,
-                  bool speculate);
+                  uint32 outerArgc, RecordReason reason);
 
     /* Accessors. */
     VMFragment*         getFragment() const { return fragment; }
     TreeFragment*       getTree() const { return tree; }
     bool                outOfMemory() const { return traceMonitor->outOfMemory(); }
-    Oracle*             getOracle() const { return oracle; }
 
     /* Entry points / callbacks from the interpreter. */
     JS_REQUIRES_STACK AbortableRecordingStatus monitorRecording(JSOp op);

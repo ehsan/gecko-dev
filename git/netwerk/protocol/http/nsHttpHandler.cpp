@@ -77,10 +77,6 @@
 
 #include "nsIXULAppInfo.h"
 
-#ifdef MOZ_IPC
-#include "mozilla/net/NeckoChild.h"
-#endif 
-
 #if defined(XP_UNIX) || defined(XP_BEOS)
 #include <sys/utsname.h>
 #endif
@@ -97,12 +93,6 @@
 #define INCL_DOSMISC
 #include <os2.h>
 #endif
-
-//-----------------------------------------------------------------------------
-using namespace mozilla::net;
-#ifdef MOZ_IPC
-#include "mozilla/net/HttpChannelChild.h"
-#endif 
 
 #include "mozilla/FunctionTimer.h"
 
@@ -216,9 +206,6 @@ nsHttpHandler::~nsHttpHandler()
         NS_RELEASE(mConnMgr);
     }
 
-    // Note: don't call NeckoChild::DestroyNeckoChild() here, as it's too late
-    // and it'll segfault.  NeckoChild will get cleaned up by process exit.
-
     nsHttp::DestroyAtomTable();
 
     gHttpHandler = nsnull;
@@ -242,11 +229,6 @@ nsHttpHandler::Init()
         NS_WARNING("unable to continue without io service");
         return rv;
     }
-
-#ifdef MOZ_IPC
-    if (IsNeckoChild())
-        NeckoChild::InitNeckoChild();
-#endif // MOZ_IPC
 
     InitUserAgentComponents();
 
@@ -1558,7 +1540,7 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
                                  nsIProxyInfo* givenProxyInfo,
                                  nsIChannel **result)
 {
-    nsRefPtr<HttpBaseChannel> httpChannel;
+    nsHttpChannel *httpChannel = nsnull;
 
     LOG(("nsHttpHandler::NewProxiedChannel [proxyInfo=%p]\n",
         givenProxyInfo));
@@ -1574,14 +1556,10 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
     if (NS_FAILED(rv))
         return rv;
 
-#ifdef MOZ_IPC
-    if (IsNeckoChild()) {
-        httpChannel = new HttpChannelChild();
-    } else
-#endif
-    {
-        httpChannel = new nsHttpChannel();
-    }
+    NS_NEWXPCOM(httpChannel, nsHttpChannel);
+    if (!httpChannel)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(httpChannel);
 
     // select proxy caps if using a non-transparent proxy.  SSL tunneling
     // should not use proxy settings.
@@ -1606,10 +1584,13 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
     }
 
     rv = httpChannel->Init(uri, caps, proxyInfo);
-    if (NS_FAILED(rv))
-        return rv;
 
-    httpChannel.forget(result);
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(httpChannel);
+        return rv;
+    }
+
+    *result = httpChannel;
     return NS_OK;
 }
 

@@ -559,11 +559,9 @@ public:
   static PRBool NumberFromString(const nsAString& aString, float* aValue,
                                  PRBool aAllowPercentages = PR_FALSE);
 
-  static void Shutdown();
-
 private:
   /* Computational (nil) surfaces */
-  static gfxASurface *gThebesComputationalSurface;
+  static gfxASurface *mThebesComputationalSurface;
 };
 
 #endif

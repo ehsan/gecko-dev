@@ -57,7 +57,6 @@ class nsClassHashtable :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef T* UserDataType;
-  typedef nsBaseHashtable< KeyClass, nsAutoPtr<T>, T* > base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -81,7 +80,6 @@ class nsClassHashtableMT :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef T* UserDataType;
-  typedef nsBaseHashtableMT< KeyClass, nsAutoPtr<T>, T* > base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -99,7 +97,8 @@ template<class KeyClass,class T>
 PRBool
 nsClassHashtable<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass,nsAutoPtr<T>,T*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {
@@ -126,7 +125,8 @@ nsClassHashtableMT<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 {
   PR_Lock(this->mLock);
 
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtableMT<KeyClass,nsAutoPtr<T>,T*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {

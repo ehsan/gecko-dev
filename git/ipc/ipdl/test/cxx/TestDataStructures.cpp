@@ -1,10 +1,6 @@
-#include "mozilla/unused.h"
-
 #include "TestDataStructures.h"
 
 #include "IPDLUnitTests.h"      // fail etc.
-
-typedef nsTArray<nsIntRegion> RegionArray;
 
 namespace mozilla {
 namespace _ipdltest {
@@ -428,19 +424,6 @@ bool TestDataStructuresParent::RecvTest17(const nsTArray<Op>& sa)
     return true;
 }
 
-bool TestDataStructuresParent::RecvTest18(const RegionArray& ra)
-{
-    for (RegionArray::index_type i = 0; i < ra.Length(); ++i) {
-        nsIntRegionRectIterator it(ra[i]);
-        // if |ra| has been realloc()d and given a different allocator
-        // chunk, this next line will nondeterministically crash or
-        // iloop
-        while (const nsIntRect* sr = it.Next()) unused << sr;
-    }
-
-    return true;
-}
-
 //-----------------------------------------------------------------------------
 // child
 
@@ -476,7 +459,6 @@ TestDataStructuresChild::RecvStart()
     Test15();
     Test16();
     Test17();
-    Test18();
 
     for (uint32 i = 0; i < nactors; ++i)
         if (!PTestDataStructuresSubChild::Send__delete__(mKids[i]))
@@ -911,28 +893,6 @@ TestDataStructuresChild::Test17()
 
     if (!SendTest17(ops))
         fail("sending Test17");
-
-    printf("  passed %s\n", __FUNCTION__);
-}
-
-void
-TestDataStructuresChild::Test18()
-{
-    const int nelements = 1000;
-    RegionArray ra;
-    // big enough to hopefully force a realloc to a different chunk of
-    // memory on the receiving side, if the workaround isn't working
-    // correctly.  But SetCapacity() here because we don't want to
-    // crash on the sending side.
-    ra.SetCapacity(nelements);
-    for (int i = 0; i < nelements; ++i) {
-        nsIntRegion r;
-        r = r.Or(nsIntRect(0, 0, 10, 10), nsIntRect(10, 10, 10, 10));
-        ra.AppendElement(r);
-    }
-
-    if (!SendTest18(ra))
-        fail("sending Test18");
 
     printf("  passed %s\n", __FUNCTION__);
 }

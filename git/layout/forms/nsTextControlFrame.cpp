@@ -142,17 +142,15 @@ NS_QUERYFRAME_HEAD(nsTextControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTextControlFrame::CreateAccessible()
+NS_IMETHODIMP nsTextControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextFieldAccessible(mContent,
-                                                     PresContext()->PresShell());
+    return accService->CreateHTMLTextFieldAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -1216,8 +1214,7 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
   nsISelectionController* selCon = txtCtrl->GetSelectionController();
   const PRBool needEditor = nsGkAtoms::maxlength == aAttribute ||
                             nsGkAtoms::readonly == aAttribute ||
-                            nsGkAtoms::disabled == aAttribute ||
-                            nsGkAtoms::spellcheck == aAttribute;
+                            nsGkAtoms::disabled == aAttribute;
   nsCOMPtr<nsIEditor> editor;
   if (needEditor) {
     GetEditor(getter_AddRefs(editor));

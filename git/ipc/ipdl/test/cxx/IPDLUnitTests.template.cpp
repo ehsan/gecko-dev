@@ -10,8 +10,6 @@
 #include "base/command_line.h"
 #include "base/string_util.h"
 
-#include "nsRegion.h"
-
 #include "IPDLUnitTestSubprocess.h"
 
 //-----------------------------------------------------------------------------
@@ -131,9 +129,6 @@ IPDLUnitTestMain(void* aData)
         NS_RUNTIMEABORT("can't continue");
     }
     gIPDLUnitTestName = testString;
-
-    if (NS_FAILED(nsRegion::InitStatic()))
-        fail("initializing nsRegion");
 
     printf(MOZ_IPDL_TESTINFO_LABEL "| running test | %s\n", gIPDLUnitTestName);
 

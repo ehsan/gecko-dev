@@ -185,11 +185,6 @@
         ok(false, "some crazy exception was thrown");
     }
 
-    try {
-        new XPCSafeJSObjectWrapped(<x />).foo;
-        ok(false, "Allowed to wrap E4X in SJOWs?");
-    } catch (e) {
-    }
     </script>
 </body>
 </html>

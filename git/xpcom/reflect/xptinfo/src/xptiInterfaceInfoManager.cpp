@@ -45,8 +45,6 @@
 #include "nsISupportsArray.h"
 #include "nsArrayEnumerator.h"
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Omnijar.h"
-#include "nsXPTZipLoader.h"
 
 #define NS_ZIPLOADER_CONTRACTID NS_XPTLOADER_CONTRACTID_PREFIX "zip"
 
@@ -63,7 +61,8 @@ static int gCallCount = 0;
 xptiInterfaceInfoManager*
 xptiInterfaceInfoManager::GetSingleton()
 {
-    if (!gInterfaceInfoManager) {
+    if(!gInterfaceInfoManager)
+    {
         NS_TIME_FUNCTION;
 
         gInterfaceInfoManager = new xptiInterfaceInfoManager();
@@ -95,13 +94,13 @@ xptiInterfaceInfoManager::~xptiInterfaceInfoManager()
     // We only do this on shutdown of the service.
     mWorkingSet.InvalidateInterfaceInfos();
 
-    if (mResolveLock)
+    if(mResolveLock)
         PR_DestroyLock(mResolveLock);
-    if (mAutoRegLock)
+    if(mAutoRegLock)
         PR_DestroyLock(mAutoRegLock);
-    if (mInfoMonitor)
+    if(mInfoMonitor)
         nsAutoMonitor::DestroyMonitor(mInfoMonitor);
-    if (mAdditionalManagersLock)
+    if(mAdditionalManagersLock)
         PR_DestroyLock(mAdditionalManagersLock);
 
     gInterfaceInfoManager = nsnull;
@@ -223,7 +222,7 @@ xptiInterfaceInfoManager::ReadXPTFile(nsILocalFile* aFile)
                                       PRInt32(fileInfo.size));
 
     XPTCursor cursor;
-    if (!XPT_MakeCursor(state, XPT_HEADER, 0, &cursor)) {
+    if(!XPT_MakeCursor(state, XPT_HEADER, 0, &cursor)) {
         XPT_DestroyXDRState(state);
         return NULL;
     }
@@ -249,6 +248,8 @@ xptiInterfaceInfoManager::ReadXPTFileFromInputStream(nsIInputStream *stream)
     if (!whole)
         return nsnull;
 
+    // all exits from on here should be via 'goto out' 
+
     for (PRUint32 totalRead = 0; totalRead < flen; ) {
         PRUint32 avail;
         PRUint32 read;
@@ -270,13 +271,15 @@ xptiInterfaceInfoManager::ReadXPTFileFromInputStream(nsIInputStream *stream)
         return NULL;
     
     XPTCursor cursor;
-    if (!XPT_MakeCursor(state, XPT_HEADER, 0, &cursor)) {
+    if(!XPT_MakeCursor(state, XPT_HEADER, 0, &cursor))
+    {
         XPT_DestroyXDRState(state);
         return NULL;
     }
     
     XPTHeader *header = nsnull;
-    if (!XPT_DoHeader(gXPTIStructArena, &cursor, &header)) {
+    if (!XPT_DoHeader(gXPTIStructArena, &cursor, &header))
+    {
         XPT_DestroyXDRState(state);
         return NULL;
     }
@@ -298,14 +301,14 @@ xptiInterfaceInfoManager::RegisterFile(nsILocalFile* aFile, xptiFileType::Type a
         RegisterXPTHeader(header);
         break;
     }
-
+        
     case xptiFileType::ZIP: {
-#ifndef MOZ_ENABLE_LIBXUL
-        NS_WARNING("Trying to register XPTs in a JAR in a non-libxul build");
-#else
-        nsCOMPtr<nsIXPTLoader> loader = new nsXPTZipLoader();
+        // XXX XPCOM registration ordering issue, use C++!
+        nsCOMPtr<nsIXPTLoader> loader = do_GetService(NS_ZIPLOADER_CONTRACTID);
+        if (!loader)
+            return;
+
         loader->EnumerateEntries(aFile, this);
-#endif
         break;
     }
 
@@ -346,7 +349,8 @@ xptiInterfaceInfoManager::VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* ifa
         return;
     
     xptiInterfaceEntry* entry = mWorkingSet.mIIDTable.Get(iface->iid);
-    if (entry) {
+    if (entry)
+    {
         // XXX validate this info to find possible inconsistencies
         LOG_AUTOREG(("      ignoring repeated interface: %s\n", iface->name));
         return;
@@ -358,7 +362,7 @@ xptiInterfaceInfoManager::VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* ifa
                                        iface->iid,
                                        iface->interface_descriptor,
                                        typelib);
-    if (!entry)
+    if(!entry)
         return;
 
     //XXX  We should SetHeader too as part of the validation, no?
@@ -379,13 +383,14 @@ EntryToInfo(xptiInterfaceEntry* entry, nsIInterfaceInfo **_retval)
     xptiInterfaceInfo* info;
     nsresult rv;
 
-    if (!entry) {
+    if(!entry)
+    {
         *_retval = nsnull;
         return NS_ERROR_FAILURE;    
     }
 
     rv = entry->GetInterfaceInfo(&info);
-    if (NS_FAILED(rv))
+    if(NS_FAILED(rv))
         return rv;
 
     // Transfer the AddRef done by GetInterfaceInfo.
@@ -427,7 +432,8 @@ NS_IMETHODIMP xptiInterfaceInfoManager::GetIIDForName(const char *name, nsIID * 
 
 
     xptiInterfaceEntry* entry = mWorkingSet.mNameTable.Get(name);
-    if (!entry) {
+    if(!entry)
+    {
         *_retval = nsnull;
         return NS_ERROR_FAILURE;    
     }
@@ -442,7 +448,8 @@ NS_IMETHODIMP xptiInterfaceInfoManager::GetNameForIID(const nsIID * iid, char **
     NS_ASSERTION(_retval, "bad param");
 
     xptiInterfaceEntry* entry = mWorkingSet.mIIDTable.Get(*iid);
-    if (!entry) {
+    if(!entry)
+    {
         *_retval = nsnull;
         return NS_ERROR_FAILURE;    
     }
@@ -456,7 +463,7 @@ xpti_ArrayAppender(const char* name, xptiInterfaceEntry* entry, void* arg)
     nsISupportsArray* array = (nsISupportsArray*) arg;
 
     nsCOMPtr<nsIInterfaceInfo> ii;
-    if (NS_SUCCEEDED(EntryToInfo(entry, getter_AddRefs(ii))))
+    if(NS_SUCCEEDED(EntryToInfo(entry, getter_AddRefs(ii))))
         array->AppendElement(ii);
     return PL_DHASH_NEXT;
 }
@@ -471,7 +478,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfaces(nsIEnumerator **_ret
 
     nsCOMPtr<nsISupportsArray> array;
     NS_NewISupportsArray(getter_AddRefs(array));
-    if (!array)
+    if(!array)
         return NS_ERROR_UNEXPECTED;
 
     mWorkingSet.mNameTable.EnumerateRead(xpti_ArrayAppender, array);
@@ -492,11 +499,11 @@ xpti_ArrayPrefixAppender(const char* keyname, xptiInterfaceEntry* entry, void* a
     ArrayAndPrefix* args = (ArrayAndPrefix*) arg;
 
     const char* name = entry->GetTheName();
-    if (name != PL_strnstr(name, args->prefix, args->length))
+    if(name != PL_strnstr(name, args->prefix, args->length))
         return PL_DHASH_NEXT;
 
     nsCOMPtr<nsIInterfaceInfo> ii;
-    if (NS_SUCCEEDED(EntryToInfo(entry, getter_AddRefs(ii))))
+    if(NS_SUCCEEDED(EntryToInfo(entry, getter_AddRefs(ii))))
         args->array->AppendElement(ii);
     return PL_DHASH_NEXT;
 }
@@ -506,7 +513,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfacesWhoseNamesStartWith(c
 {
     nsCOMPtr<nsISupportsArray> array;
     NS_NewISupportsArray(getter_AddRefs(array));
-    if (!array)
+    if(!array)
         return NS_ERROR_UNEXPECTED;
 
     ArrayAndPrefix args = {array, prefix, PL_strlen(prefix)};
@@ -550,15 +557,6 @@ NS_IMETHODIMP xptiInterfaceInfoManager::AutoRegisterInterfaces()
         }
     }
 
-#ifdef MOZ_OMNIJAR
-    nsCOMPtr<nsIFile> omniJar(mozilla::OmnijarPath());
-    nsCOMPtr<nsILocalFile> file;
-    if (omniJar)
-        file = do_QueryInterface(omniJar);
-    if (file)
-        RegisterFile(file, xptiFileType::ZIP);
-#endif
-
     return NS_OK;
 }
 
@@ -573,9 +571,9 @@ NS_IMETHODIMP xptiInterfaceInfoManager::AddAdditionalManager(nsIInterfaceInfoMan
                     static_cast<nsISupports*>(manager);
     { // scoped lock...
         nsAutoLock lock(mAdditionalManagersLock);
-        if (mAdditionalManagers.IndexOf(ptrToAdd) != -1)
+        if(mAdditionalManagers.IndexOf(ptrToAdd) != -1)
             return NS_ERROR_FAILURE;
-        if (!mAdditionalManagers.AppendObject(ptrToAdd))
+        if(!mAdditionalManagers.AppendObject(ptrToAdd))
             return NS_ERROR_OUT_OF_MEMORY;
     }
     return NS_OK;
@@ -590,7 +588,7 @@ NS_IMETHODIMP xptiInterfaceInfoManager::RemoveAdditionalManager(nsIInterfaceInfo
                     static_cast<nsISupports*>(manager);
     { // scoped lock...
         nsAutoLock lock(mAdditionalManagersLock);
-        if (!mAdditionalManagers.RemoveObject(ptrToRemove))
+        if(!mAdditionalManagers.RemoveObject(ptrToRemove))
             return NS_ERROR_FAILURE;
     }
     return NS_OK;
@@ -610,19 +608,23 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateAdditionalManagers(nsISimpleEnu
 
     nsCOMArray<nsISupports> managerArray(mAdditionalManagers);
     /* Resolve all the weak references in the array. */
-    for(PRInt32 i = managerArray.Count(); i--; ) {
+    for(PRInt32 i = managerArray.Count(); i--; )
+    {
         nsISupports *raw = managerArray.ObjectAt(i);
-        if (!raw)
+        if(!raw)
             return NS_ERROR_FAILURE;
         nsCOMPtr<nsIWeakReference> weakRef = do_QueryInterface(raw);
-        if (weakRef) {
+        if(weakRef)
+        {
             nsCOMPtr<nsIInterfaceInfoManager> manager = 
                 do_QueryReferent(weakRef);
-            if (manager) {
-                if (!managerArray.ReplaceObjectAt(manager, i))
+            if(manager)
+            {
+                if(!managerArray.ReplaceObjectAt(manager, i))
                     return NS_ERROR_FAILURE;
             }
-            else {
+            else
+            {
                 // The manager is no more. Remove the element.
                 mAdditionalManagers.RemoveObjectAt(i);
                 managerArray.RemoveObjectAt(i);

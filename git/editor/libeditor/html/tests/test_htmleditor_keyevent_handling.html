@@ -62,7 +62,8 @@ function runTests()
   };
 
   function check(aDescription,
-                 aFiredOnCapture, aFiredOnBubbling, aPreventedOnBubbling)
+                 aFiredOnCapture, aPreventedOnCapture,
+                 aFiredOnBubbling, aPreventedOnBubbling)
   {
     function getDesciption(aExpected)
     {
@@ -70,17 +71,10 @@ function runTests()
     }
     is(capturingPhase.fired, aFiredOnCapture,
        getDesciption(aFiredOnCapture) + "fired on capture phase");
+    is(capturingPhase.prevented, aPreventedOnCapture,
+       getDesciption(aPreventedOnCapture) + "prevented on capture phase");
     is(bubblingPhase.fired, aFiredOnBubbling,
        getDesciption(aFiredOnBubbling) + "fired on bubbling phase");
-
-    // If the event is fired on bubbling phase and it was already prevented
-    // on capture phase, it must be prevented on bubbling phase too.
-    if (capturingPhase.prevented) {
-      todo(false, aDescription +
-           " was consumed already, so, we cannot test the editor behavior actually");
-      aPreventedOnBubbling = true;
-    }
-
     is(bubblingPhase.prevented, aPreventedOnBubbling,
        getDesciption(aPreventedOnBubbling) + "prevented on bubbling phase");
   }
@@ -138,22 +132,22 @@ function runTests()
     //   Only when editor is editable, it consumes.
     reset("");
     synthesizeKey("VK_META", { });
-    check(aDescription + "Meta", true, true, !aIsReadonly);
+    check(aDescription + "Meta", true, false, true, !aIsReadonly);
 
     reset("");
     synthesizeKey("VK_SHIFT", { });
-    check(aDescription + "Shift", true, true, !aIsReadonly);
+    check(aDescription + "Shift", true, false, true, !aIsReadonly);
 
     reset("");
     synthesizeKey("VK_CONTROL", { });
-    check(aDescription + "Control", true, true, !aIsReadonly);
+    check(aDescription + "Control", true, false, true, !aIsReadonly);
 
     // Alt key press event installs menubar key event listener, so,
     // we should pass Alt key testing on Windows and Linux.
     if (!kIsWin && !kIsLinux) {
       reset("");
       synthesizeKey("VK_ALT", { });
-      check(aDescription + "Alt", true, true, !aIsReadonly);
+      check(aDescription + "Alt", true, false, true, !aIsReadonly);
     }
 
     // Backspace key:
@@ -162,23 +156,23 @@ function runTests()
     //   Otherwise, editor doesn't consume the event.
     reset("");
     synthesizeKey("VK_BACK_SPACE", { });
-    check(aDescription + "Backspace", true, true, true);
+    check(aDescription + "Backspace", true, false, true, true);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { shiftKey: true });
-    check(aDescription + "Shift+Backspace", true, true, true);
+    check(aDescription + "Shift+Backspace", true, false, true, true);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { ctrlKey: true });
-    check(aDescription + "Ctrl+Backspace", true, true, aIsReadonly);
+    check(aDescription + "Ctrl+Backspace", true, false, true, aIsReadonly);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { altKey: true });
-    check(aDescription + "Alt+Backspace", true, true, aIsReadonly);
+    check(aDescription + "Alt+Backspace", true, false, true, aIsReadonly);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { metaKey: true });
-    check(aDescription + "Meta+Backspace", true, true, aIsReadonly);
+    check(aDescription + "Meta+Backspace", true, false, true, aIsReadonly);
 
     // Delete key:
     //   If editor is readonly, it doesn't consume.
@@ -186,23 +180,23 @@ function runTests()
     //   Otherwise, editor doesn't consume the event.
     reset("");
     synthesizeKey("VK_DELETE", { });
-    check(aDescription + "Delete", true, true, !aIsReadonly);
+    check(aDescription + "Delete", true, false, true, !aIsReadonly);
 
     reset("");
     synthesizeKey("VK_DELETE", { shiftKey: true });
-    check(aDescription + "Shift+Delete", true, true, false);
+    check(aDescription + "Shift+Delete", true, false, true, false);
 
     reset("");
     synthesizeKey("VK_DELETE", { ctrlKey: true });
-    check(aDescription + "Ctrl+Delete", true, true, false);
+    check(aDescription + "Ctrl+Delete", true, false, true, false);
 
     reset("");
     synthesizeKey("VK_DELETE", { altKey: true });
-    check(aDescription + "Alt+Delete", true, true, false);
+    check(aDescription + "Alt+Delete", true, false, true, false);
 
     reset("");
     synthesizeKey("VK_DELETE", { metaKey: true });
-    check(aDescription + "Meta+Delete", true, true, false);
+    check(aDescription + "Meta+Delete", true, false, true, false);
 
     // Return key:
     //   If editor is readonly, it doesn't consume.
@@ -212,30 +206,30 @@ function runTests()
     reset("a");
     synthesizeKey("VK_RETURN", { });
     check(aDescription + "Return",
-          true, true, !aIsReadonly);
+          true, false, true, !aIsReadonly);
     is(aElement.innerHTML, aIsReadonly ? "a" : "a<br><br>",
        aDescription + "Return");
 
     reset("a");
     synthesizeKey("VK_RETURN", { shiftKey: true });
     check(aDescription + "Shift+Return",
-          true, true, !aIsReadonly);
+          true, false, true, !aIsReadonly);
     is(aElement.innerHTML, aIsReadonly ? "a" : "a<br><br>",
        aDescription + "Shift+Return");
 
     reset("a");
     synthesizeKey("VK_RETURN", { ctrlKey: true });
-    check(aDescription + "Ctrl+Return", true, true, false);
+    check(aDescription + "Ctrl+Return", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Ctrl+Return");
 
     reset("a");
     synthesizeKey("VK_RETURN", { altKey: true });
-    check(aDescription + "Alt+Return", true, true, false);
+    check(aDescription + "Alt+Return", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Alt+Return");
 
     reset("a");
     synthesizeKey("VK_RETURN", { metaKey: true });
-    check(aDescription + "Meta+Return", true, true, false);
+    check(aDescription + "Meta+Return", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Meta+Return");
 
     // Enter key (same as Return key):
@@ -246,30 +240,30 @@ function runTests()
     reset("a");
     synthesizeKey("VK_ENTER", { });
     check(aDescription + "Enter",
-          true, true, !aIsReadonly);
+          true, false, true, !aIsReadonly);
     is(aElement.innerHTML, aIsReadonly ? "a" : "a<br><br>",
        aDescription + "Enter");
 
     reset("a");
     synthesizeKey("VK_ENTER", { shiftKey: true });
     check(aDescription + "Shift+Enter",
-          true, true, !aIsReadonly);
+          true, false, true, !aIsReadonly);
     is(aElement.innerHTML, aIsReadonly ? "a" : "a<br><br>",
        aDescription + "Shift+Enter");
 
     reset("a");
     synthesizeKey("VK_ENTER", { ctrlKey: true });
-    check(aDescription + "Ctrl+Enter", true, true, false);
+    check(aDescription + "Ctrl+Enter", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Ctrl+Enter");
 
     reset("a");
     synthesizeKey("VK_ENTER", { altKey: true });
-    check(aDescription + "Alt+Enter", true, true, false);
+    check(aDescription + "Alt+Enter", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Alt+Enter");
 
     reset("a");
     synthesizeKey("VK_ENTER", { metaKey: true });
-    check(aDescription + "Meta+Enter", true, true, false);
+    check(aDescription + "Meta+Enter", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Meta+Enter");
 
     // Tab key:
@@ -278,7 +272,7 @@ function runTests()
     reset("a");
     synthesizeKey("VK_TAB", { });
     check(aDescription + "Tab",
-          true, true, !aIsTabbable && !aIsReadonly);
+          true, false, true, !aIsTabbable && !aIsReadonly);
     is(aElement.innerHTML,
        aIsTabbable || aIsReadonly ? "a" :
          aIsPlaintext ? "a\t" : "a&nbsp;&nbsp;&nbsp; <br>",
@@ -288,29 +282,29 @@ function runTests()
 
     reset("a");
     synthesizeKey("VK_TAB", { shiftKey: true });
-    check(aDescription + "Shift+Tab", true, true, false);
+    check(aDescription + "Shift+Tab", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Shift+Tab");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab)");
 
-    // Ctrl+Tab may be consumed by tabbrowser but editor shouldn't consume this.
+    // Ctrl+Tab is consumed by tabbrowser.
     reset("a");
     synthesizeKey("VK_TAB", { ctrlKey: true });
-    check(aDescription + "Ctrl+Tab", true, true, false);
+    check(aDescription + "Ctrl+Tab", true, true, true, true);
     is(aElement.innerHTML, "a", aDescription + "Ctrl+Tab");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Ctrl+Tab)");
 
     reset("a");
     synthesizeKey("VK_TAB", { altKey: true });
-    check(aDescription + "Alt+Tab", true, true, false);
+    check(aDescription + "Alt+Tab", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Alt+Tab");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Alt+Tab)");
 
     reset("a");
     synthesizeKey("VK_TAB", { metaKey: true });
-    check(aDescription + "Meta+Tab", true, true, false);
+    check(aDescription + "Meta+Tab", true, false, true, false);
     is(aElement.innerHTML, "a", aDescription + "Meta+Tab");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab)");
@@ -320,7 +314,7 @@ function runTests()
     resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
     synthesizeKey("VK_TAB", { });
     check(aDescription + "Tab on UL",
-          true, true, !aIsTabbable && !aIsReadonly);
+          true, false, true, !aIsTabbable && !aIsReadonly);
     is(aElement.innerHTML,
        aIsReadonly || aIsTabbable ?
          "<ul><li id=\"target\">ul list item</li></ul>" :
@@ -331,7 +325,7 @@ function runTests()
        aDescription + "focus moved unexpectedly (Tab on UL)");
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on UL",
-          true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+          true, false, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     // XXX why do we fail to outdent on non-tabbable HTML editor?
     is(aElement.innerHTML,
        aIsReadonly || aIsTabbable ?
@@ -345,7 +339,7 @@ function runTests()
     resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab on UL",
-          true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+          true, false, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
        aIsReadonly || aIsTabbable ?
          "<ul><li id=\"target\">ul list item</li></ul>" :
@@ -355,10 +349,10 @@ function runTests()
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on UL)");
 
-    // Ctrl+Tab may be consumed by tabbrowser but editor shouldn't consume this.
+    // Ctrl+Tab is consumed by tabbrowser.
     resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
     synthesizeKey("VK_TAB", { ctrlKey: true });
-    check(aDescription + "Ctrl+Tab on UL", true, true, false);
+    check(aDescription + "Ctrl+Tab on UL", true, true, true, true);
     is(aElement.innerHTML, "<ul><li id=\"target\">ul list item</li></ul>",
        aDescription + "Ctrl+Tab on UL");
     is(fm.focusedElement, aElement,
@@ -366,7 +360,7 @@ function runTests()
 
     resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
     synthesizeKey("VK_TAB", { altKey: true });
-    check(aDescription + "Alt+Tab on UL", true, true, false);
+    check(aDescription + "Alt+Tab on UL", true, false, true, false);
     is(aElement.innerHTML, "<ul><li id=\"target\">ul list item</li></ul>",
        aDescription + "Alt+Tab on UL");
     is(fm.focusedElement, aElement,
@@ -374,7 +368,7 @@ function runTests()
 
     resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
     synthesizeKey("VK_TAB", { metaKey: true });
-    check(aDescription + "Meta+Tab on UL", true, true, false);
+    check(aDescription + "Meta+Tab on UL", true, false, true, false);
     is(aElement.innerHTML, "<ul><li id=\"target\">ul list item</li></ul>",
        aDescription + "Meta+Tab on UL");
     is(fm.focusedElement, aElement,
@@ -384,7 +378,7 @@ function runTests()
     resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
     synthesizeKey("VK_TAB", { });
     check(aDescription + "Tab on OL",
-          true, true, !aIsTabbable && !aIsReadonly);
+          true, false, true, !aIsTabbable && !aIsReadonly);
     is(aElement.innerHTML,
        aIsReadonly || aIsTabbable ?
          "<ol><li id=\"target\">ol list item</li></ol>" :
@@ -395,7 +389,7 @@ function runTests()
        aDescription + "focus moved unexpectedly (Tab on OL)");
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on OL",
-          true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+          true, false, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     // XXX why do we fail to outdent on non-tabbable HTML editor?
     is(aElement.innerHTML,
        aIsReadonly || aIsTabbable ?
@@ -409,7 +403,7 @@ function runTests()
     resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab on OL",
-          true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+          true, false, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
        aIsReadonly || aIsTabbable ?
          "<ol><li id=\"target\">ol list item</li></ol>" :
@@ -419,10 +413,10 @@ function runTests()
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on OL)");
 
-    // Ctrl+Tab may be consumed by tabbrowser but editor shouldn't consume this.
+    // Ctrl+Tab is consumed by tabbrowser.
     resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
     synthesizeKey("VK_TAB", { ctrlKey: true });
-    check(aDescription + "Ctrl+Tab on OL", true, true, false);
+    check(aDescription + "Ctrl+Tab on OL", true, true, true, true);
     is(aElement.innerHTML, "<ol><li id=\"target\">ol list item</li></ol>",
        aDescription + "Ctrl+Tab on OL");
     is(fm.focusedElement, aElement,
@@ -430,7 +424,7 @@ function runTests()
 
     resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
     synthesizeKey("VK_TAB", { altKey: true });
-    check(aDescription + "Alt+Tab on OL", true, true, false);
+    check(aDescription + "Alt+Tab on OL", true, false, true, false);
     is(aElement.innerHTML, "<ol><li id=\"target\">ol list item</li></ol>",
        aDescription + "Alt+Tab on OL");
     is(fm.focusedElement, aElement,
@@ -438,7 +432,7 @@ function runTests()
 
     resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
     synthesizeKey("VK_TAB", { metaKey: true });
-    check(aDescription + "Meta+Tab on OL", true, true, false);
+    check(aDescription + "Meta+Tab on OL", true, false, true, false);
     is(aElement.innerHTML, "<ol><li id=\"target\">ol list item</li></ol>",
        aDescription + "Meta+Tab on OL");
     is(fm.focusedElement, aElement,
@@ -448,7 +442,7 @@ function runTests()
     resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
     synthesizeKey("VK_TAB", { });
     check(aDescription + "Tab on TD",
-          true, true, !aIsTabbable && !aIsReadonly);
+          true, false, true, !aIsTabbable && !aIsReadonly);
     is(aElement.innerHTML,
        aIsTabbable || aIsReadonly ?
          "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>" :
@@ -459,7 +453,7 @@ function runTests()
        aDescription + "focus moved unexpectedly (Tab on TD)");
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on TD",
-          true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+          true, false, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
        aIsTabbable || aIsReadonly ?
          "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>" :
@@ -471,17 +465,17 @@ function runTests()
 
     resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
     synthesizeKey("VK_TAB", { shiftKey: true });
-    check(aDescription + "Shift+Tab on TD", true, true, false);
+    check(aDescription + "Shift+Tab on TD", true, false, true, false);
     is(aElement.innerHTML,
        "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>",
        aDescription + "Shift+Tab on TD");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on TD)");
 
-    // Ctrl+Tab may be consumed by tabbrowser but editor shouldn't consume this.
+    // Ctrl+Tab is consumed by tabbrowser.
     resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
     synthesizeKey("VK_TAB", { ctrlKey: true });
-    check(aDescription + "Ctrl+Tab on TD", true, true, false);
+    check(aDescription + "Ctrl+Tab on TD", true, true, true, true);
     is(aElement.innerHTML,
        "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>",
        aDescription + "Ctrl+Tab on TD");
@@ -490,7 +484,7 @@ function runTests()
 
     resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
     synthesizeKey("VK_TAB", { altKey: true });
-    check(aDescription + "Alt+Tab on TD", true, true, false);
+    check(aDescription + "Alt+Tab on TD", true, false, true, false);
     is(aElement.innerHTML,
        "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>",
        aDescription + "Alt+Tab on TD");
@@ -499,7 +493,7 @@ function runTests()
 
     resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
     synthesizeKey("VK_TAB", { metaKey: true });
-    check(aDescription + "Meta+Tab on TD", true, true, false);
+    check(aDescription + "Meta+Tab on TD", true, false, true, false);
     is(aElement.innerHTML,
        "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>",
        aDescription + "Meta+Tab on TD");
@@ -510,7 +504,7 @@ function runTests()
     resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
     synthesizeKey("VK_TAB", { });
     check(aDescription + "Tab on TH",
-          true, true, !aIsTabbable && !aIsReadonly);
+          true, false, true, !aIsTabbable && !aIsReadonly);
     is(aElement.innerHTML,
        aIsTabbable || aIsReadonly ?
          "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>" :
@@ -521,7 +515,7 @@ function runTests()
        aDescription + "focus moved unexpectedly (Tab on TH)");
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on TH",
-          true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+          true, false, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
        aIsTabbable || aIsReadonly ?
          "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>" :
@@ -533,17 +527,17 @@ function runTests()
 
     resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
     synthesizeKey("VK_TAB", { shiftKey: true });
-    check(aDescription + "Shift+Tab on TH", true, true, false);
+    check(aDescription + "Shift+Tab on TH", true, false, true, false);
     is(aElement.innerHTML,
        "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>",
        aDescription + "Shift+Tab on TH");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on TH)");
 
-    // Ctrl+Tab may be consumed by tabbrowser but editor shouldn't consume this.
+    // Ctrl+Tab is consumed by tabbrowser.
     resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
     synthesizeKey("VK_TAB", { ctrlKey: true });
-    check(aDescription + "Ctrl+Tab on TH", true, true, false);
+    check(aDescription + "Ctrl+Tab on TH", true, true, true, true);
     is(aElement.innerHTML,
        "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>",
        aDescription + "Ctrl+Tab on TH");
@@ -552,7 +546,7 @@ function runTests()
 
     resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
     synthesizeKey("VK_TAB", { altKey: true });
-    check(aDescription + "Alt+Tab on TH", true, true, false);
+    check(aDescription + "Alt+Tab on TH", true, false, true, false);
     is(aElement.innerHTML,
        "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>",
        aDescription + "Alt+Tab on TH");
@@ -561,7 +555,7 @@ function runTests()
 
     resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
     synthesizeKey("VK_TAB", { metaKey: true });
-    check(aDescription + "Meta+Tab on TH", true, true, false);
+    check(aDescription + "Meta+Tab on TH", true, false, true, false);
     is(aElement.innerHTML,
        "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>",
        aDescription + "Meta+Tab on TH");
@@ -572,42 +566,42 @@ function runTests()
     //   In all cases, esc key events are not consumed
     reset("abc");
     synthesizeKey("VK_ESCAPE", { });
-    check(aDescription + "Esc", true, true, false);
+    check(aDescription + "Esc", true, false, true, !aIsReadonly);
 
     reset("abc");
     synthesizeKey("VK_ESCAPE", { shiftKey: true });
-    check(aDescription + "Shift+Esc", true, true, false);
+    check(aDescription + "Shift+Esc", true, false, true, !aIsReadonly);
 
     reset("abc");
     synthesizeKey("VK_ESCAPE", { ctrlKey: true });
-    check(aDescription + "Ctrl+Esc", true, true, false);
+    check(aDescription + "Ctrl+Esc", true, false, true, !aIsReadonly);
 
     reset("abc");
     synthesizeKey("VK_ESCAPE", { altKey: true });
-    check(aDescription + "Alt+Esc", true, true, false);
+    check(aDescription + "Alt+Esc", true, false, true, !aIsReadonly);
 
     reset("abc");
     synthesizeKey("VK_ESCAPE", { metaKey: true });
-    check(aDescription + "Meta+Esc", true, true, false);
+    check(aDescription + "Meta+Esc", true, false, true, !aIsReadonly);
 
     // typical typing tests:
     reset("");
     synthesizeKey("M", { shiftKey: true });
-    check(aDescription + "M", true, true, !aIsReadonly);
+    check(aDescription + "M", true, false, true, !aIsReadonly);
     synthesizeKey("o", { });
-    check(aDescription + "o", true, true, !aIsReadonly);
+    check(aDescription + "o", true, false, true, !aIsReadonly);
     synthesizeKey("z", { });
-    check(aDescription + "z", true, true, !aIsReadonly);
+    check(aDescription + "z", true, false, true, !aIsReadonly);
     synthesizeKey("i", { });
-    check(aDescription + "i", true, true, !aIsReadonly);
+    check(aDescription + "i", true, false, true, !aIsReadonly);
     synthesizeKey("l", { });
-    check(aDescription + "l", true, true, !aIsReadonly);
+    check(aDescription + "l", true, false, true, !aIsReadonly);
     synthesizeKey("l", { });
-    check(aDescription + "l", true, true, !aIsReadonly);
+    check(aDescription + "l", true, false, true, !aIsReadonly);
     synthesizeKey("a", { });
-    check(aDescription + "a", true, true, !aIsReadonly);
+    check(aDescription + "a", true, false, true, !aIsReadonly);
     synthesizeKey(" ", { });
-    check(aDescription + "' '", true, true, !aIsReadonly);
+    check(aDescription + "' '", true, false, true, !aIsReadonly);
     is(aElement.innerHTML,
        aIsReadonly ? "" : aIsPlaintext ? "Mozilla " : "Mozilla <br>",
        aDescription + "typed \"Mozilla \"");

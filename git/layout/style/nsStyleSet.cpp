@@ -437,11 +437,6 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
                      aPseudoType),
                   "Pseudo mismatch");
 
-  if (aVisitedRuleNode == aRuleNode) {
-    // No need to force creation of a visited style in this case.
-    aVisitedRuleNode = nsnull;
-  }
-
   // Ensure |aVisitedRuleNode != nsnull| corresponds to the need to
   // create an if-visited style context, and that in that case, we have
   // parentIfVisited set correctly.
@@ -1134,37 +1129,15 @@ nsStyleSet::GCRuleTrees()
   }
 }
 
-static inline nsRuleNode*
-SkipTransitionRules(nsRuleNode* aRuleNode, Element* aElement, PRBool isPseudo)
-{
-  nsRuleNode* ruleNode = aRuleNode;
-  while (!ruleNode->IsRoot() &&
-         ruleNode->GetLevel() == nsStyleSet::eTransitionSheet) {
-    ruleNode = ruleNode->GetParent();
-  }
-  if (ruleNode != aRuleNode) {
-    NS_ASSERTION(aElement, "How can we have transition rules but no element?");
-    // Need to do an animation restyle, just like
-    // nsTransitionManager::WalkTransitionRule would.
-    nsRestyleHint hint = isPseudo ? eRestyle_Subtree : eRestyle_Self;
-    aRuleNode->GetPresContext()->PresShell()->RestyleForAnimation(aElement,
-                                                                  hint);
-  }
-  return ruleNode;
-}
-
 already_AddRefed<nsStyleContext>
 nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
-                                 nsStyleContext* aNewParentContext,
-                                 Element* aElement)
+                                 nsStyleContext* aNewParentContext)
 {
   if (!aStyleContext) {
     NS_NOTREACHED("must have style context");
     return nsnull;
   }
 
-  // This short-circuit is OK because we don't call TryStartingTransition
-  // during style reresolution if the style context pointer hasn't changed.
   if (aStyleContext->GetParent() == aNewParentContext) {
     aStyleContext->AddRef();
     return aStyleContext;
@@ -1173,20 +1146,6 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
   nsIAtom* pseudoTag = aStyleContext->GetPseudo();
   nsCSSPseudoElements::Type pseudoType = aStyleContext->GetPseudoType();
   nsRuleNode* ruleNode = aStyleContext->GetRuleNode();
-
-  // Skip transition rules as needed just like
-  // nsTransitionManager::WalkTransitionRule would.
-  PRBool skipTransitionRules = PresContext()->IsProcessingRestyles() &&
-    !PresContext()->IsProcessingAnimationStyleChange();
-  if (skipTransitionRules) {
-    // Make sure that we're not using transition rules for our new style
-    // context.  If we need them, an animation restyle will provide.
-    ruleNode =
-      SkipTransitionRules(ruleNode, aElement,
-                          pseudoType !=
-                            nsCSSPseudoElements::ePseudo_NotPseudoElement);
-  }
-
   nsRuleNode* visitedRuleNode = nsnull;
   nsStyleContext* visitedContext = aStyleContext->GetStyleIfVisited();
   // Reparenting a style context just changes where we inherit from,
@@ -1195,12 +1154,10 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
   // a link.
   if (visitedContext) {
      visitedRuleNode = visitedContext->GetRuleNode();
-     // Again, skip transition rules as needed
-     if (skipTransitionRules) {
-       visitedRuleNode =
-         SkipTransitionRules(visitedRuleNode, aElement,
-                             pseudoType !=
-                               nsCSSPseudoElements::ePseudo_NotPseudoElement);
+     if (visitedRuleNode == ruleNode) {
+       // We don't want to force creation of an if-visited style
+       // context if it's not actually needed.
+       visitedRuleNode = nsnull;
      }
   }
 
