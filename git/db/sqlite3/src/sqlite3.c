@@ -1,6 +1,6 @@
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
-** version 3.8.6.  By combining all the individual C code files into this 
+** version 3.8.6.1.  By combining all the individual C code files into this 
 ** single large file, the entire code can be compiled as a single translation
 ** unit.  This allows many compilers to do optimizations that would not be
 ** possible if the files were compiled separately.  Performance improvements
@@ -222,9 +222,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.8.6"
+#define SQLITE_VERSION        "3.8.6.1"
 #define SQLITE_VERSION_NUMBER 3008006
-#define SQLITE_SOURCE_ID      "2014-08-15 11:46:33 9491ba7d738528f168657adb43a198238abde19e"
+#define SQLITE_SOURCE_ID      "2014-10-22 14:22:11 1581c30c389acb2af2c7040d3583c89d48f9bea5"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -42202,6 +42202,14 @@ static int pager_end_transaction(Pager *pPager, int hasMaster, int bCommit){
         rc = SQLITE_OK;
       }else{
         rc = sqlite3OsTruncate(pPager->jfd, 0);
+        if( rc==SQLITE_OK && pPager->fullSync ){
+          /* Make sure the new file size is written into the inode right away.
+          ** Otherwise the journal might resurrect following a power loss and
+          ** cause the last transaction to roll back.  See
+          ** https://bugzilla.mozilla.org/show_bug.cgi?id=1072773
+          */
+          rc = sqlite3OsSync(pPager->jfd, pPager->syncFlags);
+        }
       }
       pPager->journalOff = 0;
     }else if( pPager->journalMode==PAGER_JOURNALMODE_PERSIST
