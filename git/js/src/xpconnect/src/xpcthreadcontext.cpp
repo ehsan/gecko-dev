@@ -255,7 +255,7 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
             {
                 // scoped JS Request
                 JSAutoRequest req(mSafeJSContext);
-                glob = JS_NewGlobalObject(mSafeJSContext, &global_class);
+                glob = JS_NewObject(mSafeJSContext, &global_class, NULL, NULL);
 
 #ifndef XPCONNECT_STANDALONE
                 if(glob)

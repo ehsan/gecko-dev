@@ -1130,7 +1130,7 @@ obj_eval(JSContext *cx, uintN argc, jsval *vp)
         argv[1] = OBJECT_TO_JSVAL(scopeobj);
         JSObject *obj = scopeobj;
         while (obj) {
-            if (obj->isDenseArray() && !obj->makeDenseArraySlow(cx))
+            if (obj->isDenseArray() && !js_MakeArraySlow(cx, obj))
                 return false;
             JSObject *parent = obj->getParent();
             if (!obj->isNative() ||
@@ -1441,7 +1441,7 @@ obj_watch(JSContext *cx, uintN argc, jsval *vp)
 
     if (attrs & JSPROP_READONLY)
         return JS_TRUE;
-    if (obj->isDenseArray() && !obj->makeDenseArraySlow(cx))
+    if (obj->isDenseArray() && !js_MakeArraySlow(cx, obj))
         return JS_FALSE;
     return JS_SetWatchPoint(cx, obj, userid, obj_watch_handler, callable);
 }
@@ -1512,7 +1512,6 @@ JSBool
 js_HasOwnProperty(JSContext *cx, JSLookupPropOp lookup, JSObject *obj, jsid id,
                   JSObject **objp, JSProperty **propp)
 {
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DETECTING);
     if (!lookup(cx, obj, id, objp, propp))
         return false;
     if (!*propp)
@@ -2379,7 +2378,7 @@ DefinePropertyOnArray(JSContext *cx, JSObject *obj, const PropertyDescriptor &de
      * attributes).  Such definitions are probably unlikely, so we don't bother
      * for now.
      */
-    if (obj->isDenseArray() && !obj->makeDenseArraySlow(cx))
+    if (obj->isDenseArray() && !js_MakeArraySlow(cx, obj))
         return JS_FALSE;
 
     jsuint oldLen = obj->getArrayLength();
@@ -3731,10 +3730,9 @@ static JSObjectOp lazy_prototype_init[JSProto_LIMIT] = {
 JS_END_EXTERN_C
 
 static jsval
-GetGlobalObjectReservedSlot(JSContext *cx, JSObject *obj, uint32 index)
+GetGlobalObjectSlot(JSContext *cx, JSObject *obj, uint32 index)
 {
     JSClass *clasp = obj->getClass();
-    JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
     uint32 slot = JSSLOT_START(clasp) + index;
     return (slot < obj->numSlots()) ? obj->getSlot(slot) : JSVAL_VOID;
 }
@@ -3757,7 +3755,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
         return JS_TRUE;
     }
 
-    v = GetGlobalObjectReservedSlot(cx, obj, key);
+    v = GetGlobalObjectSlot(cx, obj, key);
     if (!JSVAL_IS_PRIMITIVE(v)) {
         *objp = JSVAL_TO_OBJECT(v);
         return JS_TRUE;
@@ -3781,7 +3779,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
         if (!init(cx, obj)) {
             ok = JS_FALSE;
         } else {
-            v = GetGlobalObjectReservedSlot(cx, obj, key);
+            v = GetGlobalObjectSlot(cx, obj, key);
             if (!JSVAL_IS_PRIMITIVE(v))
                 cobj = JSVAL_TO_OBJECT(v);
         }
@@ -5764,7 +5762,7 @@ js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
         }
         scope = scope->getGlobal();
         if (scope->getClass()->flags & JSCLASS_IS_GLOBAL) {
-            jsval v = GetGlobalObjectReservedSlot(cx, scope, JSProto_LIMIT + protoKey);
+            jsval v = GetGlobalObjectSlot(cx, scope, JSProto_LIMIT + protoKey);
             if (!JSVAL_IS_PRIMITIVE(v)) {
                 *protop = JSVAL_TO_OBJECT(v);
                 return true;
@@ -6159,8 +6157,6 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
         else if (IS_GC_MARKING_TRACER(trc))
             (void) clasp->mark(cx, obj, trc);
     }
-    if (clasp->flags & JSCLASS_IS_GLOBAL)
-        obj->getCompartment(cx)->marked = true;
 
     obj->traceProtoAndParent(trc);
 
@@ -6335,13 +6331,6 @@ js_ReportGetterOnlyAssignment(JSContext *cx)
                                         JSMSG_GETTER_ONLY);
 }
 
-JSCompartment *
-JSObject::getCompartment(JSContext *cx) {
-    JSObject *obj = getGlobal();
-    jsval v = GetGlobalObjectReservedSlot(cx, obj, JSRESERVED_GLOBAL_COMPARTMENT);
-    return (JSCompartment *) JSVAL_TO_PRIVATE(v);
-}
-
 JS_FRIEND_API(JSBool)
 js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
@@ -6415,9 +6404,7 @@ js_DumpAtom(JSAtom *atom)
 void
 dumpValue(jsval val)
 {
-    if ((val & 0xfffffff0) == 0xdadadad0) {
-        fprintf(stderr, "**uninitialized** %p", (void *) val);
-    } else if (JSVAL_IS_NULL(val)) {
+    if (JSVAL_IS_NULL(val)) {
         fprintf(stderr, "null");
     } else if (JSVAL_IS_VOID(val)) {
         fprintf(stderr, "undefined");
@@ -6651,6 +6638,8 @@ js_DumpStackFrame(JSContext *cx, JSStackFrame *start)
             fprintf(stderr, " none");
         if (fp->flags & JSFRAME_CONSTRUCTING)
             fprintf(stderr, " constructing");
+        if (fp->flags & JSFRAME_COMPUTED_THIS)
+            fprintf(stderr, " computed_this");
         if (fp->flags & JSFRAME_ASSIGNING)
             fprintf(stderr, " assigning");
         if (fp->flags & JSFRAME_DEBUGGER)

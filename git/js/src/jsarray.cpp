@@ -139,7 +139,7 @@ INDEX_TOO_BIG(jsuint index)
 JS_STATIC_ASSERT(sizeof(JSScopeProperty) > 4 * sizeof(jsval));
 
 #define ENSURE_SLOW_ARRAY(cx, obj)                                             \
-    (obj->getClass() == &js_SlowArrayClass || obj->makeDenseArraySlow(cx))
+    (obj->getClass() == &js_SlowArrayClass || js_MakeArraySlow(cx, obj))
 
 /*
  * Determine if the id represents an array index or an XML property index.
@@ -514,7 +514,7 @@ SetArrayElement(JSContext *cx, JSObject *obj, jsdouble index, jsval v)
             }
         }
 
-        if (!obj->makeDenseArraySlow(cx))
+        if (!js_MakeArraySlow(cx, obj))
             return JS_FALSE;
     }
 
@@ -611,6 +611,11 @@ js_IsArrayLike(JSContext *cx, JSObject *obj, JSBool *answerp, jsuint *lengthp)
 }
 
 /*
+ * The 'length' property of all native Array instances is a shared permanent
+ * property of Array.prototype, so it appears to be a direct property of each
+ * array instance delegating to that Array.prototype. It accesses the private
+ * slot reserved by js_ArrayClass.
+ *
  * Since SpiderMonkey supports cross-class prototype-based delegation, we have
  * to be careful about the length getter and setter being called on an object
  * not of Array class. For the getter, we search obj's prototype chain for the
@@ -863,7 +868,7 @@ array_setProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
         return js_SetProperty(cx, obj, id, vp);
 
     if (!js_IdIsIndex(id, &i) || INDEX_TOO_SPARSE(obj, i)) {
-        if (!obj->makeDenseArraySlow(cx))
+        if (!js_MakeArraySlow(cx, obj))
             return JS_FALSE;
         return js_SetProperty(cx, obj, id, vp);
     }
@@ -1127,16 +1132,15 @@ JSClass js_SlowArrayClass = {
  * Convert an array object from fast-and-dense to slow-and-flexible.
  */
 JSBool
-JSObject::makeDenseArraySlow(JSContext *cx)
+js_MakeArraySlow(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(isDenseArray());
+    JS_ASSERT(obj->isDenseArray());
 
     /*
      * Create a native scope. All slow arrays other than Array.prototype get
      * the same initial shape.
      */
     uint32 emptyShape;
-    JSObject *obj = this;
     JSObject *arrayProto = obj->getProto();
     if (arrayProto->getClass() == &js_ObjectClass) {
         /* obj is Array.prototype. */
@@ -1161,16 +1165,11 @@ JSObject::makeDenseArraySlow(JSContext *cx)
         scope->freeslot = obj->numSlots();
     }
 
-    /* Begin with the length property to share more of the property tree. */
-    if (!scope->addProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom),
-                            array_length_getter, array_length_setter,
-                            JSSLOT_ARRAY_LENGTH, JSPROP_PERMANENT | JSPROP_SHARED, 0, 0)) {
-        goto out_bad;
-    }
-
     /* Create new properties pointing to existing elements. */
     for (uint32 i = 0; i < capacity; i++) {
         jsid id;
+        JSScopeProperty *sprop;
+
         if (!JS_ValueToId(cx, INT_TO_JSVAL(i), &id))
             goto out_bad;
 
@@ -1179,7 +1178,9 @@ JSObject::makeDenseArraySlow(JSContext *cx)
             continue;
         }
 
-        if (!scope->addDataProperty(cx, id, JS_INITIAL_NSLOTS + i, JSPROP_ENUMERATE))
+        sprop = scope->addDataProperty(cx, id, JS_INITIAL_NSLOTS + i,
+                                       JSPROP_ENUMERATE);
+        if (!sprop)
             goto out_bad;
     }
 
@@ -2177,7 +2178,7 @@ array_push1_dense(JSContext* cx, JSObject* obj, jsval v, jsval *rval)
 {
     uint32 length = obj->getArrayLength();
     if (INDEX_TOO_SPARSE(obj, length)) {
-        if (!obj->makeDenseArraySlow(cx))
+        if (!js_MakeArraySlow(cx, obj))
             return JS_FALSE;
         return array_push_slowly(cx, obj, 1, &v, rval);
     }
@@ -3048,6 +3049,12 @@ array_isArray(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
 }
 
+static JSPropertySpec array_props[] = {
+    {js_length_str,   -1,   JSPROP_SHARED | JSPROP_PERMANENT,
+                            array_length_getter,    array_length_setter},
+    {0,0,0,0,0}
+};
+
 static JSFunctionSpec array_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,      array_toSource,     0,0),
@@ -3178,7 +3185,7 @@ JSObject *
 js_InitArrayClass(JSContext *cx, JSObject *obj)
 {
     JSObject *proto = JS_InitClass(cx, obj, NULL, &js_ArrayClass, js_Array, 1,
-                                   NULL, array_methods, NULL, array_static_methods);
+                                   array_props, array_methods, NULL, array_static_methods);
 
     /* Initialize the Array prototype object so it gets a length property. */
     if (!proto || !InitArrayObject(cx, proto, 0, NULL))

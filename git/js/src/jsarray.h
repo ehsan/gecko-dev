@@ -119,6 +119,9 @@ extern JSObject *
 js_NewSlowArrayObject(JSContext *cx);
 
 extern JSBool
+js_MakeArraySlow(JSContext *cx, JSObject *obj);
+
+extern JSBool
 js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
 
 extern JSBool

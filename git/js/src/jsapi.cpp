@@ -549,9 +549,6 @@ JSRuntime::JSRuntime()
 bool
 JSRuntime::init(uint32 maxbytes)
 {
-    if (!(defaultCompartment = new JSCompartment(this)))
-        return false;
-
     if (!js_InitGC(this, maxbytes) || !js_InitAtomState(this))
         return false;
 
@@ -635,8 +632,6 @@ JSRuntime::~JSRuntime()
         JS_DESTROY_LOCK(debuggerLock);
 #endif
     propertyTree.finish();
-    if (defaultCompartment)
-        delete defaultCompartment;
 }
 
 JS_PUBLIC_API(JSRuntime *)
@@ -2771,27 +2766,12 @@ JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_NewGlobalObject(JSContext *cx, JSClass *clasp)
-{
-    CHECK_REQUEST(cx);
-    JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
-    JSObject *obj = NewObjectWithGivenProto(cx, clasp, NULL, NULL);
-    if (obj && !js_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_COMPARTMENT,
-                                   PRIVATE_TO_JSVAL(cx->compartment)))
-        return false;
-    return obj;
-}
-
-JS_PUBLIC_API(JSObject *)
 JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent)
 {
     CHECK_REQUEST(cx);
     if (!clasp)
         clasp = &js_ObjectClass;    /* default class is Object */
-    JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
-    JSObject *obj = NewObject(cx, clasp, proto, parent);
-    JS_ASSERT_IF(obj, obj->getParent());
-    return obj;
+    return NewObject(cx, clasp, proto, parent);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2800,7 +2780,6 @@ JS_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto, JSObj
     CHECK_REQUEST(cx);
     if (!clasp)
         clasp = &js_ObjectClass;    /* default class is Object */
-    JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
     return NewObjectWithGivenProto(cx, clasp, proto, parent);
 }
 
@@ -2812,7 +2791,7 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
     uint32 nslots, i;
     jsval v;
 
-    if (obj->isDenseArray() && !obj->makeDenseArraySlow(cx))
+    if (obj->isDenseArray() && !js_MakeArraySlow(cx, obj))
         return JS_FALSE;
 
     if (!obj->isNative()) {
@@ -4602,8 +4581,11 @@ JS_PUBLIC_API(JSBool)
 JS_CallFunction(JSContext *cx, JSObject *obj, JSFunction *fun, uintN argc, jsval *argv,
                 jsval *rval)
 {
+    JSBool ok;
+
     CHECK_REQUEST(cx);
-    JSBool ok = js_InternalCall(cx, obj, OBJECT_TO_JSVAL(FUN_OBJECT(fun)), argc, argv, rval);
+    ok = js_InternalCall(cx, obj, OBJECT_TO_JSVAL(FUN_OBJECT(fun)), argc, argv,
+                         rval);
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
 }
@@ -4627,8 +4609,10 @@ JS_PUBLIC_API(JSBool)
 JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, uintN argc, jsval *argv,
                      jsval *rval)
 {
+    JSBool ok;
+
     CHECK_REQUEST(cx);
-    JSBool ok = js_InternalCall(cx, obj, fval, argc, argv, rval);
+    ok = js_InternalCall(cx, obj, fval, argc, argv, rval);
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
 }

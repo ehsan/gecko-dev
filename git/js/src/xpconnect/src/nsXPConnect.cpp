@@ -48,7 +48,6 @@
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
 #include "jsatom.h"
-#include "jsobj.h"
 #include "jsfun.h"
 #include "jsscript.h"
 #include "nsThreadUtilsInternal.h"
@@ -1155,10 +1154,10 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
 
     PRBool system = (aFlags & nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT) != 0;
-    JSObject* tempGlobal = JS_NewGlobalObject(aJSContext, &xpcTempGlobalClass);
+    JSObject* tempGlobal = JS_NewSystemObject(aJSContext, &xpcTempGlobalClass,
+                                              nsnull, nsnull, system);
 
     if(!tempGlobal ||
-       (system && !JS_MakeSystemObject(aJSContext, tempGlobal)) ||
        !JS_SetParent(aJSContext, tempGlobal, nsnull) ||
        !JS_SetPrototype(aJSContext, tempGlobal, nsnull))
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1193,7 +1192,7 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
 
     // voodoo to fixup scoping and parenting...
 
-    JS_ASSERT(!globalJSObj->getParent());
+    JS_SetParent(aJSContext, globalJSObj, nsnull);
 
     JSObject* oldGlobal = JS_GetGlobalObject(aJSContext);
     if(!oldGlobal || oldGlobal == tempGlobal)

@@ -243,7 +243,7 @@ protected:
 
     virtual JSObject * createGlobal() {
         /* Create the global object. */
-        JSObject *global = JS_NewGlobalObject(cx, getGlobalClass());
+        JSObject *global = JS_NewObject(cx, getGlobalClass(), NULL, NULL);
         if (!global)
             return NULL;
 
