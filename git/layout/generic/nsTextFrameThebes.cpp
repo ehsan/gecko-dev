@@ -304,10 +304,6 @@ public:
                                       float* aRelativeSize,
                                       PRUint8* aStyle);
 
-  // if this returns false, no text-shadow was specified for the selection
-  // and the *aShadow parameter was not modified.
-  bool GetSelectionShadow(nsCSSShadowArray** aShadow);
-
   nsPresContext* PresContext() const { return mPresContext; }
 
   enum {
@@ -341,15 +337,13 @@ protected:
   nsTextFrame*   mFrame;
   nsPresContext* mPresContext;
   bool           mInitCommonColors;
-  bool           mInitSelectionColorsAndShadow;
+  bool           mInitSelectionColors;
 
   // Selection data
 
   PRInt16      mSelectionStatus; // see nsIDocument.h SetDisplaySelection()
   nscolor      mSelectionTextColor;
   nscolor      mSelectionBGColor;
-  nsRefPtr<nsCSSShadowArray> mSelectionShadow;
-  bool                       mHasSelectionShadow;
 
   // Common data
 
@@ -371,7 +365,7 @@ protected:
 
   // Color initializations
   void InitCommonColors();
-  bool InitSelectionColorsAndShadow();
+  bool InitSelectionColors();
 
   nsSelectionStyle* GetSelectionStyle(PRInt32 aIndex);
   void InitSelectionStyle(PRInt32 aIndex);
@@ -3396,8 +3390,7 @@ nsTextPaintStyle::nsTextPaintStyle(nsTextFrame* aFrame)
   : mFrame(aFrame),
     mPresContext(aFrame->PresContext()),
     mInitCommonColors(false),
-    mInitSelectionColorsAndShadow(false),
-    mHasSelectionShadow(false)
+    mInitSelectionColors(false)
 {
   for (PRUint32 i = 0; i < ArrayLength(mSelectionStyle); i++)
     mSelectionStyle[i].mInit = false;
@@ -3441,7 +3434,7 @@ nsTextPaintStyle::GetSelectionColors(nscolor* aForeColor,
   NS_ASSERTION(aForeColor, "aForeColor is null");
   NS_ASSERTION(aBackColor, "aBackColor is null");
 
-  if (!InitSelectionColorsAndShadow())
+  if (!InitSelectionColors())
     return false;
 
   *aForeColor = mSelectionTextColor;
@@ -3573,9 +3566,9 @@ FindElementAncestorForMozSelection(nsIContent* aContent)
 }
 
 bool
-nsTextPaintStyle::InitSelectionColorsAndShadow()
+nsTextPaintStyle::InitSelectionColors()
 {
-  if (mInitSelectionColorsAndShadow)
+  if (mInitSelectionColors)
     return true;
 
   PRInt16 selectionFlags;
@@ -3588,7 +3581,7 @@ nsTextPaintStyle::InitSelectionColorsAndShadow()
     return false;
   }
 
-  mInitSelectionColorsAndShadow = true;
+  mInitSelectionColors = true;
 
   nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(mFrame);
   Element* selectionElement =
@@ -3606,13 +3599,6 @@ nsTextPaintStyle::InitSelectionColorsAndShadow()
       mSelectionBGColor =
         sc->GetVisitedDependentColor(eCSSProperty_background_color);
       mSelectionTextColor = sc->GetVisitedDependentColor(eCSSProperty_color);
-      mHasSelectionShadow =
-        nsRuleNode::HasAuthorSpecifiedRules(sc,
-                                            NS_AUTHOR_SPECIFIED_TEXT_SHADOW,
-                                            true);
-      if (mHasSelectionShadow) {
-        mSelectionShadow = sc->GetStyleText()->mTextShadow;
-      }
       return true;
     }
   }
@@ -3771,21 +3757,6 @@ nsTextPaintStyle::GetSelectionUnderline(nsPresContext* aPresContext,
   return style != NS_STYLE_TEXT_DECORATION_STYLE_NONE &&
          color != NS_TRANSPARENT &&
          size > 0.0f;
-}
-
-bool
-nsTextPaintStyle::GetSelectionShadow(nsCSSShadowArray** aShadow)
-{
-  if (!InitSelectionColorsAndShadow()) {
-    return false;
-  }
-
-  if (mHasSelectionShadow) {
-    *aShadow = mSelectionShadow;
-    return true;
-  }
-
-  return false;
 }
 
 inline nscolor Get40PercentColor(nscolor aForeColor, nscolor aBackColor)
@@ -4964,24 +4935,6 @@ static bool GetSelectionTextColors(SelectionType aType,
 }
 
 /**
- * This sets *aShadow to the appropriate shadow, if any, for the given
- * type of selection. Returns true if *aShadow was set.
- * If text-shadow was not specified, *aShadow is left untouched
- * (NOT reset to null), and the function returns false.
- */
-static bool GetSelectionTextShadow(SelectionType aType,
-                                   nsTextPaintStyle& aTextPaintStyle,
-                                   nsCSSShadowArray** aShadow)
-{
-  switch (aType) {
-    case nsISelectionController::SELECTION_NORMAL:
-      return aTextPaintStyle.GetSelectionShadow(aShadow);
-    default:
-      return false;
-  }
-}
-
-/**
  * This class lets us iterate over chunks of text in a uniform selection state,
  * observing cluster boundaries, in content order, maintaining the current
  * x-offset as we go, and telling whether the text chunk has a hyphen after
@@ -5264,13 +5217,8 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
                            &foreground, &background);
     gfxPoint textBaselinePt(aFramePt.x + xOffset, aTextBaselinePt.y);
 
-    // Determine what shadow, if any, to draw - either from textStyle
-    // or from the ::-moz-selection pseudo-class if specified there
-    nsCSSShadowArray *shadow = textStyle->mTextShadow;
-    GetSelectionTextShadow(type, aTextPaintStyle, &shadow);
-
     // Draw shadows, if any
-    if (shadow) {
+    if (textStyle->mTextShadow) {
       gfxTextRun::Metrics shadowMetrics =
         mTextRun->MeasureText(offset, length, gfxFont::LOOSE_INK_EXTENTS,
                               nullptr, &aProvider);
@@ -5278,9 +5226,9 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
         AddHyphenToMetrics(this, mTextRun, &shadowMetrics,
                            gfxFont::LOOSE_INK_EXTENTS, aCtx);
       }
-      for (PRUint32 i = shadow->Length(); i > 0; --i) {
+      for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
         PaintOneShadow(offset, length,
-                       shadow->ShadowAt(i - 1), &aProvider,
+                       textStyle->mTextShadow->ShadowAt(i - 1), &aProvider,
                        dirtyRect, aFramePt, textBaselinePt, aCtx,
                        foreground, aClipEdges, 
                        xOffset - (mTextRun->IsRightToLeft() ?

@@ -20,7 +20,6 @@ namespace layers {
 
 class CompositorParent;
 class GestureEventListener;
-class ContainerLayer;
 
 /**
  * Controller for all panning and zooming logic. Any time a user input is
@@ -118,7 +117,8 @@ public:
    * composite.
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
-                                      ContainerLayer* aLayer,
+                                      const FrameMetrics& aFrame,
+                                      Layer* aLayer,
                                       gfx3DMatrix* aNewTransform);
 
   /**

@@ -50,7 +50,7 @@ except AttributeError:
 
         rel_list = [os.path.pardir] * (len(start_list)-i) + path_list[i:]
         if not rel_list:
-            return os.curdir
+            return start
         return os.path.join(*rel_list)
 
 # expr.py

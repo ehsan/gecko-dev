@@ -33,16 +33,6 @@ PASS
     self.pp.do_include(f)
     self.assertEqual(self.pp.out.getvalue(), "PASS\n")
 
-  def test_no_marker(self):
-    no_marker = """#if 0
-PASS
-#endif
-"""
-    f = NamedIO("no_marker.in", no_marker)
-    self.pp.setMarker(None)
-    self.pp.do_include(f)
-    self.assertEqual(self.pp.out.getvalue(), no_marker)
-
   def test_string_value(self):
     f = NamedIO("string_value.in", """#define FOO STRING
 #if FOO
@@ -182,11 +172,11 @@ BAR
   
   def test_filter_attemptSubstitution(self):
     f = NamedIO('filter_attemptSubstitution.in', '''#filter attemptSubstitution
-@PASS@
+P@VAR@ASS
 #unfilter attemptSubstitution
 ''')
     self.pp.do_include(f)
-    self.assertEqual(self.pp.out.getvalue(), "@PASS@\n")
+    self.assertEqual(self.pp.out.getvalue(), "PASS\n")
   
   def test_filter_emptyLines(self):
     f = NamedIO('filter_emptyLines.in', '''lines with a

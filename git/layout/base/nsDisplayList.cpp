@@ -989,8 +989,8 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     return;
   }
   // Root is being scaled up by the X/Y resolution. Scale it back down.
-  root->SetPostScale(1.0f/containerParameters.mXScale,
-                     1.0f/containerParameters.mYScale);
+  root->SetScale(1.0f/containerParameters.mXScale,
+                 1.0f/containerParameters.mYScale);
 
   ViewID id = presContext->IsRootContentDocument() ? FrameMetrics::ROOT_SCROLL_ID
                                                    : FrameMetrics::NULL_SCROLL_ID;
@@ -1650,6 +1650,7 @@ nsDisplayBackground::ConfigureLayer(ImageLayer* aLayer)
   transform.Scale(mDestRect.width/imageSize.width,
                   mDestRect.height/imageSize.height);
   aLayer->SetBaseTransform(gfx3DMatrix::From2D(transform));
+
   aLayer->SetVisibleRegion(nsIntRect(0, 0, imageSize.width, imageSize.height));
 }
 

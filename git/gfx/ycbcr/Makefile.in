@@ -1,4 +1,4 @@
-DEPTH		= @DEPTH@
+DEPTH		= ../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
@@ -54,13 +54,23 @@ CPPSRCS += yuv_row_win.cpp \
            $(NULL)
 endif
 else
-ifneq (,$(filter Linux SunOS Darwin DragonFly FreeBSD NetBSD OpenBSD, $(OS_ARCH)))
+ifeq ($(OS_ARCH),Linux)
+CPPSRCS += yuv_row_posix.cpp \
+           $(NULL)
+else
+ifeq ($(OS_ARCH),SunOS)
+CPPSRCS += yuv_row_posix.cpp \
+           $(NULL)
+else
+ifeq ($(OS_ARCH),Darwin)
 CPPSRCS += yuv_row_posix.cpp \
            $(NULL)
 else
 CPPSRCS += yuv_row_other.cpp \
            $(NULL)
-endif # posix
+endif # Darwin
+endif # SunOS
+endif # linux
 endif # windows
 
 ifeq (arm,$(findstring arm,$(OS_TEST)))

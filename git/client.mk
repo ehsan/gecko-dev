@@ -320,7 +320,8 @@ endif
 
 ifneq (,$(CONFIG_STATUS))
 $(OBJDIR)/config/autoconf.mk: $(TOPSRCDIR)/config/autoconf.mk.in
-	$(OBJDIR)/config.status -n --file=$(OBJDIR)/config/autoconf.mk
+	cd $(OBJDIR); \
+	  CONFIG_FILES=config/autoconf.mk ./config.status
 endif
 
 

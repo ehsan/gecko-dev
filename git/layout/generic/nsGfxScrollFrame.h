@@ -32,10 +32,6 @@ class nsIScrollFrameInternal;
 class nsPresState;
 struct ScrollReflowState;
 
-namespace mozilla {
-class ScrollbarActivity;
-}
-
 // When set, the next scroll operation on the scrollframe will invalidate its
 // entire contents. Useful for text-overflow.
 // This bit is cleared after each time the scrollframe is scrolled. Whoever
@@ -116,12 +112,13 @@ public:
     nsGfxScrollFrameInner *mInner;
   };
 
-  void FinishReflowForScrollbar(nsIContent* aContent, nscoord aMinXY,
-                                nscoord aMaxXY, nscoord aCurPosXY,
-                                nscoord aPageIncrement,
-                                nscoord aIncrement);
+  static void FinishReflowForScrollbar(nsIContent* aContent, nscoord aMinXY,
+                                       nscoord aMaxXY, nscoord aCurPosXY,
+                                       nscoord aPageIncrement,
+                                       nscoord aIncrement);
   static void SetScrollbarEnabled(nsIContent* aContent, nscoord aMaxPos);
-  void SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom, nscoord aSize);
+  static void SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom,
+                                nscoord aSize);
   nscoord GetCoordAttribute(nsIBox* aFrame, nsIAtom* aAtom, nscoord aDefaultValue,
                             nscoord* aRangeStart, nscoord* aRangeLength);
 
@@ -272,7 +269,6 @@ public:
   nsIBox* mResizerBox;
   nsContainerFrame* mOuter;
   nsRefPtr<AsyncScroll> mAsyncScroll;
-  nsAutoPtr<mozilla::ScrollbarActivity> mScrollbarActivity;
   nsTArray<nsIScrollPositionListener*> mListeners;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.

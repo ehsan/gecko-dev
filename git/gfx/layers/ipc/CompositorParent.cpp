@@ -418,16 +418,6 @@ private:
     gfx3DMatrix m(aContainer->GetTransform());
     m.Translate(gfxPoint3D(-fm.mViewportScrollOffset.x,
                            -fm.mViewportScrollOffset.y, 0));
-
-    // The transform already takes the resolution scale into account.  Since we
-    // will apply the resolution scale again when computing the effective
-    // transform, we must apply the inverse resolution scale here.
-    m.Scale(1.0f/c->GetPreXScale(),
-            1.0f/c->GetPreYScale(),
-            1);
-    m.ScalePost(1.0f/c->GetPostXScale(),
-                1.0f/c->GetPostYScale(),
-                1);
     aContainer->AsShadowLayer()->SetShadowTransform(m);
   }
 
@@ -529,19 +519,11 @@ CompositorParent::TransformFixedLayers(Layer* aLayer,
     gfxPoint translation(aTranslation.x - (anchor.x - anchor.x / aScaleDiff.x),
                          aTranslation.y - (anchor.y - anchor.y / aScaleDiff.y));
 
-    // The transform already takes the resolution scale into account.  Since we
-    // will apply the resolution scale again when computing the effective
-    // transform, we must apply the inverse resolution scale here.
-    gfx3DMatrix layerTransform = aLayer->GetTransform();
+    // We are only translating the transform, so it is OK to translate the
+    // transform without the resolution scale.  This allows us to avoid applying
+    // the resolution scale and its inverse an extra time.
+    gfx3DMatrix layerTransform = aLayer->GetBaseTransform();
     Translate2D(layerTransform, translation);
-    if (ContainerLayer* c = aLayer->AsContainerLayer()) {
-      layerTransform.Scale(1.0f/c->GetPreXScale(),
-                           1.0f/c->GetPreYScale(),
-                           1);
-    }
-    layerTransform.ScalePost(1.0f/aLayer->GetPostXScale(),
-                             1.0f/aLayer->GetPostYScale(),
-                             1);
     ShadowLayer* shadow = aLayer->AsShadowLayer();
     shadow->SetShadowTransform(layerTransform);
 
@@ -709,7 +691,8 @@ CompositorParent::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame,
     gfx3DMatrix newTransform;
     *aWantNextFrame |=
       controller->SampleContentTransformForFrame(aCurrentFrame,
-                                                 container,
+                                                 container->GetFrameMetrics(),
+                                                 aLayer,
                                                  &newTransform);
 
     shadow->SetShadowTransform(newTransform);
@@ -741,7 +724,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
   // FIXME/bug 775437: unify this interface with the ~native-fennec
   // derived code
-  //
+  // 
   // Attempt to apply an async content transform to any layer that has
   // an async pan zoom controller (which means that it is rendered
   // async using Gecko). If this fails, fall back to transforming the
@@ -831,12 +814,9 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
     // will apply the resolution scale again when computing the effective
     // transform, we must apply the inverse resolution scale here.
     gfx3DMatrix computedTransform = treeTransform * currentTransform;
-    computedTransform.Scale(1.0f/container->GetPreXScale(),
-                            1.0f/container->GetPreYScale(),
+    computedTransform.Scale(1.0f/layer->GetXScale(),
+                            1.0f/layer->GetYScale(),
                             1);
-    computedTransform.ScalePost(1.0f/container->GetPostXScale(),
-                                1.0f/container->GetPostYScale(),
-                                1);
     shadow->SetShadowTransform(computedTransform);
     TransformFixedLayers(layer, offset, scaleDiff);
   }

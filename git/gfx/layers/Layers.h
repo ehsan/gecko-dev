@@ -393,7 +393,7 @@ public:
    */
   bool HasUserData(void* aKey)
   {
-    return mUserData.Has(static_cast<gfx::UserDataKey*>(aKey));
+    return GetUserData(aKey);
   }
   /**
    * This getter can be used anytime. Ownership is retained by the layer
@@ -654,10 +654,10 @@ public:
     Mutated();
   }
 
-  void SetPostScale(float aXScale, float aYScale)
+  void SetScale(float aXScale, float aYScale)
   {
-    mPostXScale = aXScale;
-    mPostYScale = aYScale;
+    mXScale = aXScale;
+    mYScale = aYScale;
     Mutated();
   }
 
@@ -698,8 +698,8 @@ public:
   virtual Layer* GetLastChild() { return nullptr; }
   const gfx3DMatrix GetTransform();
   const gfx3DMatrix& GetBaseTransform() { return mTransform; }
-  float GetPostXScale() { return mPostXScale; }
-  float GetPostYScale() { return mPostYScale; }
+  float GetXScale() { return mXScale; }
+  float GetYScale() { return mYScale; }
   bool GetIsFixedPosition() { return mIsFixedPosition; }
   gfxPoint GetFixedPositionAnchor() { return mAnchor; }
   Layer* GetMaskLayer() { return mMaskLayer; }
@@ -756,7 +756,7 @@ public:
    */
   bool HasUserData(void* aKey)
   {
-    return mUserData.Has(static_cast<gfx::UserDataKey*>(aKey));
+    return GetUserData(aKey);
   }
   /**
    * This getter can be used anytime. Ownership is retained by the layer
@@ -953,8 +953,8 @@ protected:
   gfx::UserData mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
-  float mPostXScale;
-  float mPostYScale;
+  float mXScale;
+  float mYScale;
   gfx3DMatrix mEffectiveTransform;
   AnimationArray mAnimations;
   InfallibleTArray<AnimData> mAnimationData;
@@ -1108,13 +1108,6 @@ public:
     Mutated();
   }
 
-  void SetPreScale(float aXScale, float aYScale)
-  {
-    mPreXScale = aXScale;
-    mPreYScale = aYScale;
-    Mutated();
-  }
-
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs);
 
   void SortChildrenBy3DZOrder(nsTArray<Layer*>& aArray);
@@ -1126,8 +1119,6 @@ public:
   virtual Layer* GetFirstChild() { return mFirstChild; }
   virtual Layer* GetLastChild() { return mLastChild; }
   const FrameMetrics& GetFrameMetrics() { return mFrameMetrics; }
-  float GetPreXScale() { return mPreXScale; }
-  float GetPreYScale() { return mPreYScale; }
 
   MOZ_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
 
@@ -1178,8 +1169,6 @@ protected:
     : Layer(aManager, aImplData),
       mFirstChild(nullptr),
       mLastChild(nullptr),
-      mPreXScale(1.0f),
-      mPreYScale(1.0f),
       mUseIntermediateSurface(false),
       mSupportsComponentAlphaChildren(false),
       mMayHaveReadbackChild(false)
@@ -1203,8 +1192,6 @@ protected:
   Layer* mFirstChild;
   Layer* mLastChild;
   FrameMetrics mFrameMetrics;
-  float mPreXScale;
-  float mPreYScale;
   bool mUseIntermediateSurface;
   bool mSupportsComponentAlphaChildren;
   bool mMayHaveReadbackChild;

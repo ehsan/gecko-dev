@@ -697,7 +697,8 @@ void AsyncPanZoomController::RequestContentRepaint() {
 }
 
 bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSampleTime,
-                                                            ContainerLayer* aLayer,
+                                                            const FrameMetrics& aFrame,
+                                                            Layer* aLayer,
                                                             gfx3DMatrix* aNewTransform) {
   // The eventual return value of this function. The compositor needs to know
   // whether or not to advance by a frame as soon as it can. For example, if a
@@ -715,7 +716,7 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
   nsIntPoint metricsScrollOffset(0, 0);
   nsIntPoint scrollOffset;
   float localScaleX, localScaleY;
-  const FrameMetrics& frame = aLayer->GetFrameMetrics();
+
   {
     MonitorAutoLock mon(mMonitor);
 
@@ -730,8 +731,8 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
     localScaleX = mFrameMetrics.mResolution.width;
     localScaleY = mFrameMetrics.mResolution.height;
 
-    if (frame.IsScrollable()) {
-      metricsScrollOffset = frame.mViewportScrollOffset;
+    if (aFrame.IsScrollable()) {
+      metricsScrollOffset = aFrame.mViewportScrollOffset;
     }
 
     scrollOffset = mFrameMetrics.mViewportScrollOffset;
@@ -747,12 +748,9 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
   // The transform already takes the resolution scale into account.  Since we
   // will apply the resolution scale again when computing the effective
   // transform, we must apply the inverse resolution scale here.
-  aNewTransform->Scale(1.0f/aLayer->GetPreXScale(),
-                       1.0f/aLayer->GetPreYScale(),
+  aNewTransform->Scale(1.0f/aLayer->GetXScale(),
+                       1.0f/aLayer->GetYScale(),
                        1);
-  aNewTransform->ScalePost(1.0f/aLayer->GetPostXScale(),
-                           1.0f/aLayer->GetPostYScale(),
-                           1);
 
   mLastSampleTime = aSampleTime;
 

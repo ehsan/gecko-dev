@@ -2487,15 +2487,6 @@ CSSParserImpl::ParseSupportsConditionInParensInsideParens(bool& aConditionMet)
         return false;
       }
 
-      if (ExpectSymbol(')', true)) {
-        const PRUnichar *params[] = {
-          propertyName.get()
-        };
-        REPORT_UNEXPECTED_P(PEValueParsingError, params);
-        UngetToken();
-        return false;
-      }
-
       nsCSSProperty propID = nsCSSProps::LookupProperty(propertyName,
                                                         nsCSSProps::eEnabled);
       if (propID == eCSSProperty_UNKNOWN) {

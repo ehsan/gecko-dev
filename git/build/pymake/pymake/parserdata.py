@@ -88,7 +88,6 @@ def parsecommandlineargs(args):
             vname = vname.strip()
             vnameexp = data.Expansion.fromstring(vname, "Command-line argument")
 
-            stmts.append(ExportDirective(vnameexp, concurrent_set=True))
             stmts.append(SetVariable(vnameexp, token=t,
                                      value=val, valueloc=Location('<command-line>', i, len(vname) + len(t)),
                                      targetexp=None, source=data.Variables.SOURCE_COMMANDLINE))
@@ -549,22 +548,20 @@ class ExportDirective(Statement):
 
     See https://www.gnu.org/software/make/manual/make.html#Variables_002fRecursion
 
-    The `concurrent_set` field defines whether this statement occurred with or
-    without a variable assignment. If False, no variable assignment was
-    present. If True, the SetVariable immediately following this statement
-    originally came from this export directive (the parser splits it into
-    multiple statements).
+    The `single` field defines whether this statement occurred with or without
+    a variable assignment. If True, no variable assignment was present. If
+    False, the SetVariable immediately following this statement originally came
+    from this export directive (the parser splits it into multiple statements).
     """
+    __slots__ = ('exp', 'single')
 
-    __slots__ = ('exp', 'concurrent_set')
-
-    def __init__(self, exp, concurrent_set):
+    def __init__(self, exp, single):
         assert isinstance(exp, (data.Expansion, data.StringExpansion))
         self.exp = exp
-        self.concurrent_set = concurrent_set
+        self.single = single
 
     def execute(self, makefile, context):
-        if self.concurrent_set:
+        if self.single:
             vlist = [self.exp.resolvestr(makefile, makefile.variables)]
         else:
             vlist = list(self.exp.resolvesplit(makefile, makefile.variables))

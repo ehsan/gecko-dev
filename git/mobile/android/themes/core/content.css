@@ -22,7 +22,7 @@ xul|window xul|scrollbar {
   display: block;
 }
 
-xul|window xul|scrollbar[orient="vertical"] {
+xul|scrollbar[orient="vertical"] {
   -moz-appearance: none !important;
   opacity: 0;
   position: relative;
@@ -33,17 +33,17 @@ xul|window xul|scrollbar[orient="vertical"] {
   border: 0px solid transparent !important;
 }
 
-xul|window xul|scrollbar[orient="vertical"]:-moz-locale-dir(rtl) {
+xul|scrollbar[orient="vertical"]:-moz-locale-dir(rtl) {
   margin-left: 2px;
   margin-right: -10px;
 }
 
-xul|window xul|scrollbar[orient="vertical"] xul|thumb {
+xul|scrollbar[orient="vertical"] xul|thumb {
   max-width: 6px !important;
   min-width: 6px !important;
 }
 
-xul|window xul|scrollbar[orient="horizontal"] {
+xul|scrollbar[orient="horizontal"] {
   -moz-appearance: none !important;
   opacity: 0;
   position: relative;
@@ -54,7 +54,7 @@ xul|window xul|scrollbar[orient="horizontal"] {
   border: 0px solid transparent !important;
 }
 
-xul|window xul|scrollbar[orient="horizontal"] xul|thumb {
+xul|scrollbar[orient="horizontal"] xul|thumb {
   max-height: 6px !important;
   min-height: 6px !important;
 }
@@ -63,24 +63,24 @@ xul|*[panning="true"] xul|scrollbar {
   opacity: 1;
 }
 
-xul|window xul|scrollbox {
+xul|scrollbox {
   overflow-y: scroll;
   overflow-x: scroll;
 }
 
-xul|window xul|scrollbarbutton {
+xul|scrollbarbutton {
   min-height: 8px !important;
   min-width: 8px !important;
   -moz-appearance: none !important;
   visibility: hidden;
 }
 
-xul|window xul|scrollbarbutton[sbattr="scrollbar-up-top"],
-xul|window xul|scrollbarbutton[sbattr="scrollbar-bottom-top"] {
+xul|scrollbarbutton[sbattr="scrollbar-up-top"],
+xul|scrollbarbutton[sbattr="scrollbar-bottom-top"] {
   display: none;
 }
 
-xul|window xul|scrollbar xul|thumb {
+xul|scrollbar xul|thumb {
   background-color: @color_background_scroller@ !important;
   -moz-border-top-colors: none !important;
   -moz-border-bottom-colors: none !important;

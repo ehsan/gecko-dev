@@ -53,7 +53,6 @@
 #include "nsSubDocumentFrame.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "mozilla/Attributes.h"
-#include "ScrollbarActivity.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -479,9 +478,8 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
     computedMaxHeight = NS_UNCONSTRAINEDSIZE;
   }
   if (aAssumeHScroll) {
-    nsSize hScrollbarPrefSize;
-    GetScrollbarMetrics(aState->mBoxState, mInner.mHScrollbarBox,
-                        nsnull, &hScrollbarPrefSize, false);
+    nsSize hScrollbarPrefSize = 
+      mInner.mHScrollbarBox->GetPrefSize(const_cast<nsBoxLayoutState&>(aState->mBoxState));
     if (computedHeight != NS_UNCONSTRAINEDSIZE)
       computedHeight = NS_MAX(0, computedHeight - hScrollbarPrefSize.height);
     computedMinHeight = NS_MAX(0, computedMinHeight - hScrollbarPrefSize.height);
@@ -490,9 +488,8 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   }
 
   if (aAssumeVScroll) {
-    nsSize vScrollbarPrefSize;
-    GetScrollbarMetrics(aState->mBoxState, mInner.mVScrollbarBox,
-                        &vScrollbarPrefSize, nsnull, true);
+    nsSize vScrollbarPrefSize = 
+      mInner.mVScrollbarBox->GetPrefSize(const_cast<nsBoxLayoutState&>(aState->mBoxState));
     availWidth = NS_MAX(0, availWidth - vScrollbarPrefSize.width);
   }
 
@@ -1610,10 +1607,6 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
   , mShouldBuildLayer(false)
 {
   mScrollingActive = IsAlwaysActive();
-
-  if (LookAndFeel::GetInt(LookAndFeel::eIntID_ShowHideScrollbars) != 0) {
-    mScrollbarActivity = new ScrollbarActivity(do_QueryFrame(aOuter));
-  }
 }
 
 nsGfxScrollFrameInner::~nsGfxScrollFrameInner()
@@ -2854,10 +2847,6 @@ nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements,
 void
 nsGfxScrollFrameInner::Destroy()
 {
-  if (mScrollbarActivity) {
-    mScrollbarActivity = nsnull;
-  }
-
   // Unbind any content created in CreateAnonymousContent from the tree
   nsContentUtils::DestroyAnonymousContent(&mHScrollbarContent);
   nsContentUtils::DestroyAnonymousContent(&mVScrollbarContent);
@@ -2900,10 +2889,6 @@ void nsGfxScrollFrameInner::CurPosAttributeChanged(nsIContent* aContent)
   NS_ASSERTION((mHScrollbarBox && mHScrollbarBox->GetContent() == aContent) ||
                (mVScrollbarBox && mVScrollbarBox->GetContent() == aContent),
                "unexpected child");
-
-  if (mScrollbarActivity) {
-    mScrollbarActivity->ActivityOccurred();
-  }
 
   // Attribute changes on the scrollbars happen in one of three ways:
   // 1) The scrollbar changed the attribute in response to some user event
@@ -3762,11 +3747,9 @@ nsGfxScrollFrameInner::LayoutScrollbars(nsBoxLayoutState& aState,
     nsRect vRect(mScrollPort);
     vRect.width = aContentArea.width - mScrollPort.width;
     vRect.x = scrollbarOnLeft ? aContentArea.x : mScrollPort.XMost();
-    if (mHasVerticalScrollbar) {
-      nsMargin margin;
-      mVScrollbarBox->GetMargin(margin);
-      vRect.Deflate(margin);
-    }
+    nsMargin margin;
+    mVScrollbarBox->GetMargin(margin);
+    vRect.Deflate(margin);
     AdjustScrollbarRectForResizer(mOuter, presContext, vRect, hasResizer, true);
     LayoutAndInvalidate(aState, mVScrollbarBox, vRect, !mHasVerticalScrollbar);
   }
@@ -3776,11 +3759,9 @@ nsGfxScrollFrameInner::LayoutScrollbars(nsBoxLayoutState& aState,
     nsRect hRect(mScrollPort);
     hRect.height = aContentArea.height - mScrollPort.height;
     hRect.y = true ? mScrollPort.YMost() : aContentArea.y;
-    if (mHasHorizontalScrollbar) {
-      nsMargin margin;
-      mHScrollbarBox->GetMargin(margin);
-      hRect.Deflate(margin);
-    }
+    nsMargin margin;
+    mHScrollbarBox->GetMargin(margin);
+    hRect.Deflate(margin);
     AdjustScrollbarRectForResizer(mOuter, presContext, hRect, hasResizer, false);
     LayoutAndInvalidate(aState, mHScrollbarBox, hRect, !mHasHorizontalScrollbar);
   }
@@ -3830,10 +3811,6 @@ nsGfxScrollFrameInner::SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom,
     return;
 
   aContent->SetAttr(kNameSpaceID_None, aAtom, newValue, true);
-
-  if (mScrollbarActivity) {
-    mScrollbarActivity->ActivityOccurred();
-  }
 }
 
 static void
