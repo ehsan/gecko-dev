@@ -26,7 +26,7 @@ function test() {
 }
 
 function startRecording() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   ok(gPanel, "Profiler panel exists");
   ok(!gPanel.activeProfile, "Active profile doesn't exist");
@@ -52,7 +52,7 @@ function startRecording() {
 }
 
 function stopRecording() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   gPanel.once("parsed", () => {
     let item = gPanel.sidebar.getItemByProfile(gPanel.activeProfile);
@@ -80,7 +80,7 @@ function stopRecording() {
 }
 
 function startRecordingAgain() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   let record = gPanel.controls.record;
   ok(!record.getAttribute("checked"), "Record button is unchecked");
@@ -100,7 +100,7 @@ function startRecordingAgain() {
 }
 
 function switchBackToTheFirstOne() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let button = gPanel.sidebar.getElementByProfile({ uid: 1 });
   let item = gPanel.sidebar.getItemByProfile({ uid: 1 });
 

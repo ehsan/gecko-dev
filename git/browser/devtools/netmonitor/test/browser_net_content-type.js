@@ -180,7 +180,7 @@ function test() {
             is(jsonScope.querySelectorAll(".variables-view-property .value")[1].getAttribute("value"),
               "Object", "The second json property value was incorrect.");
 
-            return promise.resolve();
+            return Promise.resolve();
           }
           case "html": {
             checkVisibility("textarea");
@@ -196,7 +196,7 @@ function test() {
             checkVisibility("image");
 
             let imageNode = tabpanel.querySelector("#response-content-image");
-            let deferred = promise.defer();
+            let deferred = Promise.defer();
 
             imageNode.addEventListener("load", function onLoad() {
               imageNode.removeEventListener("load", onLoad);

@@ -11,7 +11,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
 
 var ProfilerController = devtools.require("devtools/profiler/controller");
@@ -187,22 +187,22 @@ DevTools.prototype = {
    *        The toolbox that was opened
    */
   showToolbox: function(target, toolId, hostType) {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
     let toolbox = this._toolboxes.get(target);
     if (toolbox) {
 
-      let hostPromise = (hostType != null && toolbox.hostType != hostType) ?
+      let promise = (hostType != null && toolbox.hostType != hostType) ?
           toolbox.switchHost(hostType) :
-          promise.resolve(null);
+          Promise.resolve(null);
 
       if (toolId != null && toolbox.currentToolId != toolId) {
-        hostPromise = hostPromise.then(function() {
+        promise = promise.then(function() {
           return toolbox.selectTool(toolId);
         });
       }
 
-      return hostPromise.then(function() {
+      return promise.then(function() {
         toolbox.raise();
         return toolbox;
       });

@@ -13,7 +13,7 @@ var gDebugger = null;
 var gToolbox = null;
 var gToolboxTab = null;
 var gFocusedWindow = null;
-promise._reportErrors = true;
+Promise._reportErrors = true;
 
 function test() {
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {

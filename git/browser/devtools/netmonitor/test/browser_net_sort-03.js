@@ -169,7 +169,7 @@ function test() {
           });
       }
 
-      return promise.resolve(null);
+      return Promise.resolve(null);
     }
 
     aDebuggee.performRequests();

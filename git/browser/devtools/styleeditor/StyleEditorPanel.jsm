@@ -10,7 +10,7 @@ this.EXPORTED_SYMBOLS = ["StyleEditorPanel"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/StyleEditorDebuggee.jsm");
 Cu.import("resource:///modules/devtools/StyleEditorUI.jsm");
@@ -41,17 +41,17 @@ StyleEditorPanel.prototype = {
    * open is effectively an asynchronous constructor
    */
   open: function() {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
-    let targetPromise;
+    let promise;
     // We always interact with the target as if it were remote
     if (!this.target.isRemote) {
-      targetPromise = this.target.makeRemote();
+      promise = this.target.makeRemote();
     } else {
-      targetPromise = promise.resolve(this.target);
+      promise = Promise.resolve(this.target);
     }
 
-    targetPromise.then(() => {
+    promise.then(() => {
       this.target.on("close", this.destroy);
 
       this._debuggee = new StyleEditorDebuggee(this.target);
@@ -119,7 +119,7 @@ StyleEditorPanel.prototype = {
       this.UI.destroy();
     }
 
-    return promise.resolve(null);
+    return Promise.resolve(null);
   },
 }
 

@@ -10,7 +10,7 @@ function testSteps()
   // Blob constructor is not implemented outside of windows yet (Bug 827723).
   if (!this.window) {
     finishTest();
-    yield undefined;
+    yield;
   }
 
   const name = this.window ? window.location.pathname : "Splendid Test";
@@ -52,7 +52,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
   let db = event.target.result;
 
   let objectStore = db.createObjectStore(objectStoreName, { keyPath: null });
@@ -69,14 +69,14 @@ function testSteps()
       }
     }
   }
-  event = yield undefined;
+  event = yield;
   // Now create the indexes.
   for (let i in indexData) {
     objectStore.createIndex(indexData[i].name, indexData[i].keyPath,
                             indexData[i].options);
   }
   is(objectStore.indexNames.length, indexData.length, "Good index count");
-  yield undefined;
+  yield;
   objectStore = db.transaction(objectStoreName)
                   .objectStore(objectStoreName);
 
@@ -128,7 +128,7 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataTypeSort.length, "Saw all the expected keys");
 
@@ -159,10 +159,10 @@ function testSteps()
       testGenerator.next();
     }
   }
-  yield undefined;
+  yield;
 
   is(keyIndex, objectStoreDataLengthSort.length, "Saw all the expected keys");
 
   finishTest();
-  yield undefined;
+  yield;
 }

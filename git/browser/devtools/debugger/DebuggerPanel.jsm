@@ -12,8 +12,8 @@ this.EXPORTED_SYMBOLS = ["DebuggerPanel"];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "promise",
-  "resource://gre/modules/commonjs/sdk/core/promise.js", "Promise");
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+  "resource://gre/modules/commonjs/sdk/core/promise.js");
 
 this.DebuggerPanel = function DebuggerPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
@@ -35,19 +35,19 @@ DebuggerPanel.prototype = {
    * Open is effectively an asynchronous constructor.
    *
    * @return object
-   *         A promise that is resolved when the Debugger completes opening.
+   *         A Promise that is resolved when the Debugger completes opening.
    */
   open: function DebuggerPanel_open() {
-    let targetPromise;
+    let promise;
 
     // Local debugging needs to make the target remote.
     if (!this.target.isRemote) {
-      targetPromise = this.target.makeRemote();
+      promise = this.target.makeRemote();
     } else {
-      targetPromise = promise.resolve(this.target);
+      promise = Promise.resolve(this.target);
     }
 
-    return targetPromise
+    return promise
       .then(() => this._controller.startupDebugger())
       .then(() => this._controller.connect())
       .then(() => {
@@ -70,7 +70,7 @@ DebuggerPanel.prototype = {
     this.target.off("thread-paused", this.highlightWhenPaused);
     this.target.off("thread-resumed", this.unhighlightWhenResumed);
     this.emit("destroyed");
-    return promise.resolve(null);
+    return Promise.resolve(null);
   },
 
   // DebuggerPanel API

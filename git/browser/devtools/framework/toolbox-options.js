@@ -6,7 +6,7 @@
 
 const {Cu, Cc, Ci} = require("chrome");
 
-let promise = require("sdk/core/promise");
+let Promise = require("sdk/core/promise");
 let EventEmitter = require("devtools/shared/event-emitter");
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
@@ -53,7 +53,7 @@ OptionsPanel.prototype = {
   },
 
   open: function() {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
     this.setupToolsList();
     this.populatePreferences();

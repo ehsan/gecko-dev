@@ -14,7 +14,7 @@ function testSteps()
   openRequest.onerror = errorHandler;
   openRequest.onupgradeneeded = grabEventAndContinueHandler;
   openRequest.onsuccess = unexpectedSuccessHandler;
-  let event = yield undefined;
+  let event = yield;
   let db = event.target.result;
   db.onerror = errorHandler;
   let tests =
@@ -79,29 +79,29 @@ function testSteps()
       ok(false, "borked test");
     }
     req.onsuccess = grabEventAndContinueHandler;
-    let e = yield undefined;
+    let e = yield;
     
     req = index.openKeyCursor();
     req.onsuccess = grabEventAndContinueHandler;
     for (let j = 0; j < test.indexes.length; ++j) {
-      e = yield undefined;
+      e = yield;
       is(req.result.key, test.indexes[j].v, "found expected index key at index " + j + testName);
       is(req.result.primaryKey, test.indexes[j].k, "found expected index primary key at index " + j + testName);
       req.result.continue();
     }
-    e = yield undefined;
+    e = yield;
     is(req.result, undefined, "exhausted indexes");
 
     let tempIndex = store.createIndex("temp index", "x", { multiEntry: true });
     req = tempIndex.openKeyCursor();
     req.onsuccess = grabEventAndContinueHandler;
     for (let j = 0; j < test.indexes.length; ++j) {
-      e = yield undefined;
+      e = yield;
       is(req.result.key, test.indexes[j].v, "found expected temp index key at index " + j + testName);
       is(req.result.primaryKey, test.indexes[j].k, "found expected temp index primary key at index " + j + testName);
       req.result.continue();
     }
-    e = yield undefined;
+    e = yield;
     is(req.result, undefined, "exhausted temp index");
     store.deleteIndex("temp index");
   }
@@ -164,14 +164,14 @@ function testSteps()
     
     if (!test.fail) {
       req.onsuccess = grabEventAndContinueHandler;
-      let e = yield undefined;
+      let e = yield;
       indexes = test.indexes;
     }
     else {
       req.onsuccess = unexpectedSuccessHandler;
       req.onerror = grabEventAndContinueHandler;
       ok(true, "waiting for error");
-      let e = yield undefined;
+      let e = yield;
       ok(true, "got error: " + e.type);
       e.preventDefault();
       e.stopPropagation();
@@ -181,39 +181,39 @@ function testSteps()
     req = index.openKeyCursor();
     req.onsuccess = grabEventAndContinueHandler;
     for (let j = 0; j < indexes.length; ++j) {
-      e = yield undefined;
+      e = yield;
       is(req.result.key, indexes[j].v, "found expected index key at index " + j + testName);
       is(req.result.primaryKey, indexes[j].k, "found expected index primary key at index " + j + testName);
       req.result.continue();
     }
-    e = yield undefined;
+    e = yield;
     is(req.result, undefined, "exhausted indexes");
 
     let tempIndex = store.createIndex("temp index", "x", { multiEntry: true, unique: true });
     req = tempIndex.openKeyCursor();
     req.onsuccess = grabEventAndContinueHandler;
     for (let j = 0; j < indexes.length; ++j) {
-      e = yield undefined;
+      e = yield;
       is(req.result.key, indexes[j].v, "found expected temp index key at index " + j + testName);
       is(req.result.primaryKey, indexes[j].k, "found expected temp index primary key at index " + j + testName);
       req.result.continue();
     }
-    e = yield undefined;
+    e = yield;
     is(req.result, undefined, "exhausted temp index");
     store.deleteIndex("temp index");
   }
 
 
   openRequest.onsuccess = grabEventAndContinueHandler;
-  yield undefined;
+  yield;
 
   let trans = db.transaction(["mystore"], "readwrite");
   store = trans.objectStore("mystore");
   index = store.index("myindex");
   is(index.multiEntry, true, "index still is multiEntry");
   trans.oncomplete = grabEventAndContinueHandler;
-  yield undefined;
+  yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

@@ -25,7 +25,7 @@ function test() {
 }
 
 function recordProfile() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let record = gPanel.controls.record;
 
   gPanel.once("started", () => {

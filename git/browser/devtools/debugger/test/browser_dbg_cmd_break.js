@@ -42,7 +42,7 @@ function test() {
       {
         name: 'open toolbox',
         setup: function() {
-          var deferred = promise.defer();
+          var deferred = Promise.defer();
 
           var openDone = gDevTools.showToolbox(options.target, "jsdebugger");
           openDone.then(function(toolbox) {
@@ -128,7 +128,7 @@ function test() {
         name: 'cleanup',
         setup: function() {
           // a.k.a "return client.activeThread.resume();"
-          var deferred = promise.defer();
+          var deferred = Promise.defer();
           client.activeThread.resume(function() {
             deferred.resolve();
           });

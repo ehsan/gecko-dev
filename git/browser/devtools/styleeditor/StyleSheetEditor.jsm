@@ -11,7 +11,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -241,10 +241,10 @@ StyleSheetEditor.prototype = {
    *         Promise that will resolve with the editor.
    */
   getSourceEditor: function() {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
     if (this.sourceEditor) {
-      return promise.resolve(this);
+      return Promise.resolve(this);
     }
     this.on("source-editor-load", (event) => {
       deferred.resolve(this);

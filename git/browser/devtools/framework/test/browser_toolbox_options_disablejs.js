@@ -65,7 +65,7 @@ function testJSEnabledIframe(secondPass) {
 }
 
 function toggleJS() {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let panel = toolbox.getCurrentPanel();
   let cbx = panel.panelDoc.getElementById("devtools-disable-javascript");
 

@@ -173,11 +173,11 @@ function observeConsoleTest() {
   let win = XPCNativeWrapper.unwrap(gWindow);
   expect("log", "arg");
   win.console.log("arg");
-  yield undefined;
+  yield;
 
   expect("info", "arg", "extra arg");
   win.console.info("arg", "extra arg");
-  yield undefined;
+  yield;
 
   // We don't currently support width and precision qualifiers, but we don't
   // choke on them either.
@@ -186,53 +186,53 @@ function observeConsoleTest() {
                    1,
                    "PI",
                    3.14159);
-  yield undefined;
+  yield;
 
   expect("log", "%d, %s, %l");
   win.console.log("%d, %s, %l");
-  yield undefined;
+  yield;
 
   expect("log", "%a %b %c");
   win.console.log("%a %b %c");
-  yield undefined;
+  yield;
 
   expect("log", "%a %b %c", "a", "b");
   win.console.log("%a %b %c", "a", "b");
-  yield undefined;
+  yield;
 
   expect("log", "2, a, %l", 3);
   win.console.log("%d, %s, %l", 2, "a", 3);
-  yield undefined;
+  yield;
 
   // Bug #692550 handle null and undefined.
   expect("log", "null, undefined");
   win.console.log("%s, %s", null, undefined);
-  yield undefined;
+  yield;
 
   // Bug #696288 handle object as first argument.
   let obj = { a: 1 };
   expect("log", obj, "a");
   win.console.log(obj, "a");
-  yield undefined;
+  yield;
 
   expect("dir", win.toString());
   win.console.dir(win);
-  yield undefined;
+  yield;
 
   expect("error", "arg");
   win.console.error("arg");
-  yield undefined;
+  yield;
 
   let obj2 = { b: 2 };
   expect("log", "omg ", obj, " foo ", 4, obj2);
   win.console.log("omg %o foo %o", obj, 4, obj2);
-  yield undefined;
+  yield;
 
   startTraceTest();
-  yield undefined;
+  yield;
 
   startLocationTest();
-  yield undefined;
+  yield;
 }
 
 function consoleAPISanityTest() {

@@ -17,7 +17,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -26,7 +26,7 @@ function testSteps()
 
   let objectStore = db.createObjectStore(objectStoreName, { });
 
-  event = yield undefined;
+  event = yield;
 
   is(event.type, "success", "Got correct event type");
 
@@ -35,13 +35,13 @@ function testSteps()
 
   request = objectStore.get(data.key);
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, null, "Got no data");
 
   request = objectStore.add(data.value, data.key);
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, data.key, "Got correct key");
 
@@ -56,7 +56,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -65,7 +65,7 @@ function testSteps()
 
   objectStore = db.createObjectStore(objectStoreName, { });
 
-  event = yield undefined;
+  event = yield;
 
   is(event.type, "success", "Got correct event type");
 
@@ -74,7 +74,7 @@ function testSteps()
 
   request = objectStore.get(data.key);
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   is(event.target.result, null, "Got no data");
 
@@ -83,8 +83,8 @@ function testSteps()
   request = indexedDB.deleteForPrincipal(principal, name);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler
-  event = yield undefined;
+  event = yield;
 
   finishTest();
-  yield undefined;
+  yield;
 }

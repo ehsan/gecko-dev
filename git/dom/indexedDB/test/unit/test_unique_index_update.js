@@ -12,7 +12,7 @@ function testSteps()
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
 
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -27,7 +27,7 @@ function testSteps()
     }
   }
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "success", "expect a success event");
 
   for each (let autoIncrement in [false, true]) {
@@ -37,7 +37,7 @@ function testSteps()
     request = objectStore.put({ id: 5, index: 6 });
     request.onsuccess = unexpectedSuccessHandler;
     request.addEventListener("error", new ExpectError("ConstraintError", true));
-    event = yield undefined;
+    event = yield;
 
     event.preventDefault();
 
@@ -56,9 +56,9 @@ function testSteps()
       request.addEventListener("error", new ExpectError("ConstraintError", true));
     };
 
-    yield undefined;
+    yield;
   }
 
   finishTest();
-  yield undefined;
+  yield;
 }

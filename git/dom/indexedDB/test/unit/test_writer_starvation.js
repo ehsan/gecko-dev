@@ -23,7 +23,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
   db.onerror = errorHandler;
@@ -35,12 +35,12 @@ function testSteps()
   request = objectStore.add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield undefined;
+  event = yield;
 
   let key = event.target.result;
   ok(key, "Got a key");
 
-  yield undefined;
+  yield;
 
   let continueReading = true;
   let readerCount = 0;
@@ -89,16 +89,16 @@ function testSteps()
     };
 
     setTimeout(function() { testGenerator.next(); }, writerCount ? 1000 : 100);
-    yield undefined;
+    yield;
   }
 
   while (callbackCount < (readerCount + writerCount)) {
     executeSoon(function() { testGenerator.next(); });
-    yield undefined;
+    yield;
   }
 
   is(callbackCount, readerCount + writerCount, "All requests accounted for");
 
   finishTest();
-  yield undefined;
+  yield;
 }

@@ -166,7 +166,7 @@ function addTabWithToolbarRunTests(win) {
 
 function addWindow(windowOptions, callback) {
   waitForExplicitFinish();
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   let win = OpenBrowserWindow(windowOptions);
 
@@ -178,7 +178,7 @@ function addWindow(windowOptions, callback) {
     executeSoon(function() {
       try {
         let reply = callback(win);
-        promise.resolve(reply).then(function() {
+        Promise.resolve(reply).then(function() {
           win.close();
           deferred.resolve();
         });

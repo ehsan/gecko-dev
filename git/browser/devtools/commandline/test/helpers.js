@@ -26,7 +26,7 @@ Components.utils.import("resource://gre/modules/devtools/gcli.jsm", {});
 let console = (Cu.import("resource://gre/modules/devtools/Console.jsm", {})).console;
 let TargetFactory = (Cu.import("resource://gre/modules/devtools/Loader.jsm", {})).devtools.TargetFactory;
 
-let promise = (Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {})).Promise;
+let Promise = (Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {})).Promise;
 let assert = { ok: ok, is: is, log: info };
 
 var util = require('util/util');
@@ -60,7 +60,7 @@ var converters = require('gcli/converters');
  * @param options An optional set of options to customize the way the tests run
  */
 helpers.addTab = function(url, callback, options) {
-  var deferred = promise.defer();
+  var deferred = Promise.defer();
 
   waitForExplicitFinish();
 
@@ -96,7 +96,7 @@ helpers.addTab = function(url, callback, options) {
     };
 
     var reply = callback(options);
-    promise.resolve(reply).then(cleanUp, function(error) {
+    Promise.resolve(reply).then(cleanUp, function(error) {
       ok(false, error);
       cleanUp();
     });
@@ -118,7 +118,7 @@ helpers.addTab = function(url, callback, options) {
 helpers.addTabWithToolbar = function(url, callback, options) {
   return helpers.addTab(url, function(innerOptions) {
     var win = innerOptions.chromeWindow;
-    var deferred = promise.defer();
+    var deferred = Promise.defer();
 
     win.DeveloperToolbar.show(true, function() {
       innerOptions.display = win.DeveloperToolbar.display;
@@ -130,7 +130,7 @@ helpers.addTabWithToolbar = function(url, callback, options) {
       };
 
       var reply = callback(innerOptions);
-      promise.resolve(reply).then(cleanUp, function(error) {
+      Promise.resolve(reply).then(cleanUp, function(error) {
         ok(false, error);
         cleanUp();
       });
@@ -163,8 +163,8 @@ helpers.runTests = function(options, tests) {
 
   info("SETUP");
   var setupDone = (tests.setup != null) ?
-      promise.resolve(tests.setup(options)) :
-      promise.resolve();
+      Promise.resolve(tests.setup(options)) :
+      Promise.resolve();
 
   var testDone = setupDone.then(function() {
     return util.promiseEach(testNames, function(testName) {
@@ -173,13 +173,13 @@ helpers.runTests = function(options, tests) {
 
       if (typeof action === "function") {
         var reply = action.call(tests, options);
-        return promise.resolve(reply);
+        return Promise.resolve(reply);
       }
       else if (Array.isArray(action)) {
         return helpers.audit(options, action);
       }
 
-      return promise.reject("test action '" + testName +
+      return Promise.reject("test action '" + testName +
                             "' is not a function or helpers.audit() object");
     });
   }, recover);
@@ -187,8 +187,8 @@ helpers.runTests = function(options, tests) {
   return testDone.then(function() {
     info("SHUTDOWN");
     return (tests.shutdown != null) ?
-        promise.resolve(tests.shutdown(options)) :
-        promise.resolve();
+        Promise.resolve(tests.shutdown(options)) :
+        Promise.resolve();
   }, recover);
 };
 
@@ -226,7 +226,7 @@ helpers._actual = {
                 .replace(/ $/, '');
     };
 
-    var promisedJoin = promise.promised(join);
+    var promisedJoin = Promise.promised(join);
     return promisedJoin(templateData.directTabText,
                         templateData.emptyParameters,
                         templateData.arrowTabText);
@@ -314,7 +314,7 @@ helpers._createDebugCheck = function(options) {
   var hintsPromise = helpers._actual.hints(options);
   var predictionsPromise = helpers._actual.predictions(options);
 
-  return promise.all(hintsPromise, predictionsPromise).then(function(values) {
+  return Promise.all(hintsPromise, predictionsPromise).then(function(values) {
     var hints = values[0];
     var predictions = values[1];
     var output = '';
@@ -459,7 +459,7 @@ var CHUNKER = /([^<]*)(<[A-Z]+>)/;
  */
 helpers.setInput = function(options, typed, cursor) {
   checkOptions(options);
-  var inputPromise = undefined;
+  var promise = undefined;
   var inputter = options.display.inputter;
   // We try to measure average keypress time, but setInput can simulate
   // several, so we try to keep track of how many
@@ -467,7 +467,7 @@ helpers.setInput = function(options, typed, cursor) {
 
   // The easy case is a simple string without things like <TAB>
   if (typed.indexOf('<') === -1) {
-    inputPromise = inputter.setInput(typed);
+    promise = inputter.setInput(typed);
   }
   else {
     // Cut the input up into input strings separated by '<KEY>' tokens. The
@@ -478,7 +478,7 @@ helpers.setInput = function(options, typed, cursor) {
     chunkLen = chunks.length + 1;
 
     // We're working on this in chunks so first clear the input
-    inputPromise = inputter.setInput('').then(function() {
+    promise = inputter.setInput('').then(function() {
       return util.promiseEach(chunks, function(chunk) {
         if (chunk.charAt(0) === '<') {
           var action = ACTIONS[chunk];
@@ -495,7 +495,7 @@ helpers.setInput = function(options, typed, cursor) {
     });
   }
 
-  return inputPromise.then(function() {
+  return promise.then(function() {
     if (cursor != null) {
       options.display.inputter.setCursor({ start: cursor, end: cursor });
     }
@@ -531,7 +531,7 @@ helpers.setInput = function(options, typed, cursor) {
  */
 helpers._check = function(options, name, checks) {
   if (checks == null) {
-    return promise.resolve();
+    return Promise.resolve();
   }
 
   var outstanding = [];
@@ -700,7 +700,7 @@ helpers._check = function(options, name, checks) {
     });
   }
 
-  return promise.all(outstanding).then(function() {
+  return Promise.all(outstanding).then(function() {
     // Ensure the promise resolves to nothing
     return undefined;
   });
@@ -715,7 +715,7 @@ helpers._check = function(options, name, checks) {
  */
 helpers._exec = function(options, name, expected) {
   if (expected == null) {
-    return promise.resolve({});
+    return Promise.resolve({});
   }
 
   var output;
@@ -726,7 +726,7 @@ helpers._exec = function(options, name, expected) {
     assert.ok(false, 'Failure executing \'' + name + '\': ' + ex);
     util.errorHandler(ex);
 
-    return promise.resolve({});
+    return Promise.resolve({});
   }
 
   if ('completed' in expected) {
@@ -737,11 +737,11 @@ helpers._exec = function(options, name, expected) {
 
   if (!options.window.document.createElement) {
     assert.log('skipping output tests (missing doc.createElement) for ' + name);
-    return promise.resolve({ output: output });
+    return Promise.resolve({ output: output });
   }
 
   if (!('output' in expected)) {
-    return promise.resolve({ output: output });
+    return Promise.resolve({ output: output });
   }
 
   var checkOutput = function() {
@@ -804,10 +804,10 @@ helpers._setup = function(options, name, action) {
   }
 
   if (typeof action === 'function') {
-    return promise.resolve(action());
+    return Promise.resolve(action());
   }
 
-  return promise.reject('\'setup\' property must be a string or a function. Is ' + action);
+  return Promise.reject('\'setup\' property must be a string or a function. Is ' + action);
 };
 
 /**
@@ -815,9 +815,9 @@ helpers._setup = function(options, name, action) {
  */
 helpers._post = function(name, action, data) {
   if (typeof action === 'function') {
-    return promise.resolve(action(data.output, data.text));
+    return Promise.resolve(action(data.output, data.text));
   }
-  return promise.resolve(action);
+  return Promise.resolve(action);
 };
 
 /*
@@ -947,7 +947,7 @@ helpers.audit = function(options, audits) {
       if (skip) {
         var reason = audit.skipIf.name ? 'due to ' + audit.skipIf.name : '';
         assert.log('Skipped ' + name + ' ' + reason);
-        return promise.resolve(undefined);
+        return Promise.resolve(undefined);
       }
     }
 
@@ -960,13 +960,13 @@ helpers.audit = function(options, audits) {
             'due to ' + audit.skipRemainingIf.name :
             '';
         assert.log('Skipped ' + name + ' ' + skipReason);
-        return promise.resolve(undefined);
+        return Promise.resolve(undefined);
       }
     }
 
     if (skipReason != null) {
       assert.log('Skipped ' + name + ' ' + skipReason);
-      return promise.resolve(undefined);
+      return Promise.resolve(undefined);
     }
 
     var start = new Date().getTime();

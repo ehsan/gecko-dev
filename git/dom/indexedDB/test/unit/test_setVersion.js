@@ -12,7 +12,7 @@ function testSteps()
   let request = indexedDB.open(name, 1);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield undefined;
+  let event = yield;
 
   let db = event.target.result;
 
@@ -32,7 +32,7 @@ function testSteps()
     let request = indexedDB.open(name, version);
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
-    let event = yield undefined;
+    let event = yield;
 
     let db = event.target.result;
 
@@ -40,11 +40,11 @@ function testSteps()
     is(event.target.transaction.mode, "versionchange", "Correct mode");
 
     executeSoon(function() { testGenerator.next(); });
-    yield undefined;
+    yield;
     db.close();
   }
 
   finishTest();
-  yield undefined;
+  yield;
 }
 
