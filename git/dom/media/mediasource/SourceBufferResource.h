@@ -36,7 +36,6 @@ class nsIStreamListener;
 namespace mozilla {
 
 class MediaDecoder;
-class LargeDataBuffer;
 
 namespace dom {
 
@@ -112,7 +111,7 @@ public:
   }
 
   // Used by SourceBuffer.
-  void AppendData(LargeDataBuffer* aData);
+  void AppendData(const uint8_t* aData, uint32_t aLength);
   void Ended();
   // Remove data from resource if it holds more than the threshold
   // number of bytes. Returns amount evicted.

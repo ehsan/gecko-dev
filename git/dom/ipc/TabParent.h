@@ -29,13 +29,10 @@ class nsIPrincipal;
 class nsIURI;
 class nsIWidget;
 class nsILoadContext;
+class CpowHolder;
 class nsIDocShell;
 
 namespace mozilla {
-
-namespace jsipc {
-class CpowHolder;
-}
 
 namespace layers {
 struct FrameMetrics;
@@ -366,7 +363,7 @@ protected:
     bool ReceiveMessage(const nsString& aMessage,
                         bool aSync,
                         const StructuredCloneData* aCloneData,
-                        mozilla::jsipc::CpowHolder* aCpows,
+                        CpowHolder* aCpows,
                         nsIPrincipal* aPrincipal,
                         InfallibleTArray<nsString>* aJSONRetVal = nullptr);
 

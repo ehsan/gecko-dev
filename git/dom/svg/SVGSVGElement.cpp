@@ -447,7 +447,9 @@ SVGSVGElement::ViewBox()
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGSVGElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 uint16_t

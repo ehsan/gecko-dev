@@ -1001,7 +1001,7 @@ class InterpreterStack
     }
 };
 
-void MarkInterpreterActivations(JSRuntime *rt, JSTracer *trc);
+void MarkInterpreterActivations(PerThreadData *ptd, JSTracer *trc);
 
 /*****************************************************************************/
 
@@ -1220,6 +1220,7 @@ class ActivationIterator
 
   public:
     explicit ActivationIterator(JSRuntime *rt);
+    explicit ActivationIterator(PerThreadData *perThreadData);
 
     ActivationIterator &operator++();
 
@@ -1410,6 +1411,12 @@ class JitActivationIterator : public ActivationIterator
   public:
     explicit JitActivationIterator(JSRuntime *rt)
       : ActivationIterator(rt)
+    {
+        settle();
+    }
+
+    explicit JitActivationIterator(PerThreadData *perThreadData)
+      : ActivationIterator(perThreadData)
     {
         settle();
     }

@@ -4,25 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGL2Context.h"
-
 #include "GLContext.h"
-#include "WebGLProgram.h"
 
-namespace mozilla {
+using namespace mozilla;
+using namespace mozilla::dom;
 
 // -------------------------------------------------------------------------
 // Programs and shaders
-
 GLint
-WebGL2Context::GetFragDataLocation(WebGLProgram* prog, const nsAString& name)
+WebGL2Context::GetFragDataLocation(WebGLProgram* program, const nsAString& name)
 {
-    if (IsContextLost())
-        return -1;
-
-    if (!ValidateObject("getFragDataLocation: program", prog))
-        return -1;
-
-    return prog->GetFragDataLocation(name);
+    MOZ_CRASH("Not Implemented.");
+    return 0;
 }
-
-} // namespace mozilla

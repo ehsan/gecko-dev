@@ -7,7 +7,6 @@
 #include "TrackBuffer.h"
 
 #include "ContainerParser.h"
-#include "MediaData.h"
 #include "MediaSourceDecoder.h"
 #include "SharedThreadPool.h"
 #include "MediaTaskQueue.h"
@@ -145,12 +144,12 @@ TrackBuffer::ContinueShutdown()
 }
 
 bool
-TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
+TrackBuffer::AppendData(const uint8_t* aData, uint32_t aLength, int64_t aTimestampOffset)
 {
   MOZ_ASSERT(NS_IsMainThread());
   DecodersToInitialize decoders(this);
   // TODO: Run more of the buffer append algorithm asynchronously.
-  if (mParser->IsInitSegmentPresent(aData)) {
+  if (mParser->IsInitSegmentPresent(aData, aLength)) {
     MSE_DEBUG("TrackBuffer(%p)::AppendData: New initialization segment.", this);
     if (!decoders.NewDecoder(aTimestampOffset)) {
       return false;
@@ -161,10 +160,10 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
   }
 
   int64_t start, end;
-  if (mParser->ParseStartAndEndTimestamps(aData, start, end)) {
+  if (mParser->ParseStartAndEndTimestamps(aData, aLength, start, end)) {
     start += aTimestampOffset;
     end += aTimestampOffset;
-    if (mParser->IsMediaSegmentPresent(aData) &&
+    if (mParser->IsMediaSegmentPresent(aData, aLength) &&
         mLastEndTimestamp &&
         (!mParser->TimestampsFuzzyEqual(start, mLastEndTimestamp.value()) ||
          mLastTimestampOffset != aTimestampOffset ||
@@ -178,8 +177,8 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
         return false;
       }
       MSE_DEBUG("TrackBuffer(%p)::AppendData: Decoder marked as initialized.", this);
-      nsRefPtr<LargeDataBuffer> initData = mParser->InitData();
-      AppendDataToCurrentResource(initData, end - start);
+      const nsTArray<uint8_t>& initData = mParser->InitData();
+      AppendDataToCurrentResource(initData.Elements(), initData.Length(), end - start);
       mLastStartTimestamp = start;
     } else {
       MSE_DEBUG("TrackBuffer(%p)::AppendData: Segment last=[%lld, %lld] [%lld, %lld]",
@@ -189,7 +188,7 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
     mLastEndTimestamp.emplace(end);
   }
 
-  if (!AppendDataToCurrentResource(aData, end - start)) {
+  if (!AppendDataToCurrentResource(aData, aLength, end - start)) {
     return false;
   }
 
@@ -200,7 +199,7 @@ TrackBuffer::AppendData(LargeDataBuffer* aData, int64_t aTimestampOffset)
 }
 
 bool
-TrackBuffer::AppendDataToCurrentResource(LargeDataBuffer* aData, uint32_t aDuration)
+TrackBuffer::AppendDataToCurrentResource(const uint8_t* aData, uint32_t aLength, uint32_t aDuration)
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (!mCurrentDecoder) {
@@ -209,11 +208,11 @@ TrackBuffer::AppendDataToCurrentResource(LargeDataBuffer* aData, uint32_t aDurat
 
   SourceBufferResource* resource = mCurrentDecoder->GetResource();
   int64_t appendOffset = resource->GetLength();
-  resource->AppendData(aData);
+  resource->AppendData(aData, aLength);
   mCurrentDecoder->SetRealMediaDuration(mCurrentDecoder->GetRealMediaDuration() + aDuration);
   // XXX: For future reference: NDA call must run on the main thread.
-  mCurrentDecoder->NotifyDataArrived(reinterpret_cast<const char*>(aData->Elements()),
-                                     aData->Length(), appendOffset);
+  mCurrentDecoder->NotifyDataArrived(reinterpret_cast<const char*>(aData),
+                                     aLength, appendOffset);
   mParentDecoder->NotifyBytesDownloaded();
   mParentDecoder->NotifyTimeRangesChanged();
 

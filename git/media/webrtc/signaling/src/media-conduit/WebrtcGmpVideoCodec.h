@@ -147,7 +147,6 @@ public:
   }
 
   virtual void Error(GMPErr aError) MOZ_OVERRIDE {
-     mDecoderStatus = aError;
   }
 
 private:
@@ -166,7 +165,6 @@ private:
   GMPVideoHost* mHost;
   webrtc::DecodedImageCallback* mCallback;
   uint64_t mCachedPluginId;
-  GMPErr mDecoderStatus;
 };
 
 }

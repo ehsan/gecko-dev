@@ -73,8 +73,9 @@ public:
   bool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
 
-  already_AddRefed<mozilla::dom::DOMSVGAnimatedPreserveAspectRatio>
-  ToDOMAnimatedPreserveAspectRatio(nsSVGElement* aSVGElement);
+  nsresult ToDOMAnimatedPreserveAspectRatio(
+    mozilla::dom::DOMSVGAnimatedPreserveAspectRatio **aResult,
+    nsSVGElement* aSVGElement);
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
 

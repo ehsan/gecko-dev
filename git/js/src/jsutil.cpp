@@ -50,7 +50,7 @@ namespace js {
 // This function calls all the vanilla heap allocation functions.  It is never
 // called, and exists purely to help config/check_vanilla_allocations.py.  See
 // that script for more details.
-extern MOZ_COLD void
+extern void
 AllTheNonBasicVanillaNewAllocations()
 {
     // posix_memalign and aligned_alloc aren't available on all Linux

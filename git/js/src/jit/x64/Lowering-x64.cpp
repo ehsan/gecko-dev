@@ -171,7 +171,7 @@ LIRGeneratorX64::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
                            ? useRegisterAtStart(ptr)
                            : useRegisterOrNonNegativeConstantAtStart(ptr);
 
-    LAsmJSStoreHeap *lir = nullptr;  // initialize to silence GCC warning
+    LAsmJSStoreHeap *lir;
     switch (ins->viewType()) {
       case Scalar::Int8:
       case Scalar::Uint8:

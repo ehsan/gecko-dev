@@ -509,9 +509,9 @@ js::gc::GCRuntime::markRuntime(JSTracer *trc,
             c->lazyArrayBuffers->trace(trc);
     }
 
-    MarkInterpreterActivations(rt, trc);
+    MarkInterpreterActivations(&rt->mainThread, trc);
 
-    jit::MarkJitActivations(rt, trc);
+    jit::MarkJitActivations(&rt->mainThread, trc);
 
     if (!isHeapMinorCollecting()) {
         gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_EMBEDDING);
