@@ -16,7 +16,8 @@
 #include "AudioContext.h"
 #include "PannerNode.h"
 #include "WebAudioUtils.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
 
 namespace mozilla {
 

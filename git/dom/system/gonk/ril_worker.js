@@ -1063,9 +1063,9 @@ let RIL = {
   /**
    * Request the radio's network selection mode
    */
-  getNetworkSelectionMode: function getNetworkSelectionMode() {
+  getNetworkSelectionMode: function getNetworkSelectionMode(options) {
     if (DEBUG) debug("Getting network selection mode");
-    Buf.simpleRequest(REQUEST_QUERY_NETWORK_SELECTION_MODE);
+    Buf.simpleRequest(REQUEST_QUERY_NETWORK_SELECTION_MODE, options);
   },
 
   /**
@@ -5384,6 +5384,8 @@ RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELEC
   this._receivedNetworkInfo(NETWORK_INFO_NETWORK_SELECTION_MODE);
 
   if (options.rilRequestError) {
+    options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    this.sendChromeMessage(options);
     return;
   }
 

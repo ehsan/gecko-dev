@@ -7,7 +7,7 @@
 #ifndef ds_IdValuePair_h
 #define ds_IdValuePair_h
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 namespace js {
 

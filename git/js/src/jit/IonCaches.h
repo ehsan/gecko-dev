@@ -14,6 +14,9 @@
 #include "jit/Registers.h"
 #include "jit/shared/Assembler-shared.h"
 
+class JSFunction;
+class JSScript;
+
 namespace js {
 
 class LockedJSContext;

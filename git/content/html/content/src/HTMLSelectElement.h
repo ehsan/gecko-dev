@@ -18,9 +18,7 @@
 #include "nsError.h"
 #include "mozilla/dom/HTMLFormElement.h"
 
-class nsContentList;
 class nsIDOMHTMLOptionElement;
-class nsIHTMLCollection;
 class nsISelectControlFrame;
 class nsPresState;
 
@@ -209,11 +207,6 @@ public:
   {
     mOptions->IndexedSetter(aIndex, aOption, aRv);
   }
-
-  static bool MatchSelectedOptions(nsIContent* aContent, int32_t, nsIAtom*,
-                                   void*);
-
-  nsIHTMLCollection* SelectedOptions();
 
   int32_t SelectedIndex() const
   {
@@ -561,12 +554,6 @@ protected:
   void SetSelectionChanged(bool aValue, bool aNotify);
 
   /**
-   * Marks the selectedOptions list as dirty, so that it'll populate itself
-   * again.
-   */
-  void UpdateSelectedOptions();
-
-  /**
    * Return whether an element should have a validity UI.
    * (with :-moz-ui-invalid and :-moz-ui-valid pseudo-classes).
    *
@@ -631,11 +618,6 @@ protected:
    * done adding options
    */
   nsCOMPtr<SelectState> mRestoreState;
-
-  /**
-   * The live list of selected options.
-  */
-  nsRefPtr<nsContentList> mSelectedOptions;
 };
 
 } // namespace dom

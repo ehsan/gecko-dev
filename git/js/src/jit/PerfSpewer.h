@@ -11,6 +11,8 @@
 
 #include "jit/IonMacroAssembler.h"
 
+class JSScript;
+
 namespace js {
 namespace jit {
 

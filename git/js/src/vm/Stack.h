@@ -18,6 +18,7 @@
 #endif
 #include "js/OldDebugAPI.h"
 
+struct JSContext;
 struct JSCompartment;
 struct JSGenerator;
 

@@ -20,8 +20,10 @@
 
 #include "js/Vector.h"
 
+struct JSContext;
 struct JSRuntime;
 struct JSCompartment;
+class JSScript;
 
 namespace js {
 

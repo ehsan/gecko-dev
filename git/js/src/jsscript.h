@@ -20,7 +20,6 @@
 #include "jsopcode.h"
 
 #include "gc/Barrier.h"
-#include "gc/Rooting.h"
 #include "vm/Shape.h"
 
 namespace js {
@@ -631,7 +630,7 @@ class JSScript : public js::gc::Cell
     static JSScript *Create(js::ExclusiveContext *cx,
                             js::HandleObject enclosingScope, bool savedCallerFun,
                             const JS::CompileOptions &options, unsigned staticLevel,
-                            js::HandleScriptSource sourceObject, uint32_t sourceStart,
+                            JS::HandleScriptSource sourceObject, uint32_t sourceStart,
                             uint32_t sourceEnd);
 
     void initCompartment(js::ExclusiveContext *cx);

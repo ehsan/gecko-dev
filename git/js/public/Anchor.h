@@ -11,7 +11,12 @@
 
 #include "mozilla/Attributes.h"
 
-#include "js/TypeDecls.h"
+class JSFunction;
+class JSObject;
+class JSScript;
+class JSString;
+
+namespace JS { class Value; }
 
 namespace JS {
 

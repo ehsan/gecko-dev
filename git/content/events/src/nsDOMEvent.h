@@ -18,11 +18,12 @@
 #include "mozilla/dom/EventBinding.h"
 #include "nsIScriptGlobalObject.h"
 #include "Units.h"
-#include "js/TypeDecls.h"
 
 class nsIContent;
 class nsIDOMEventTarget;
 class nsPresContext;
+struct JSContext;
+class JSObject;
 
 namespace mozilla {
 namespace dom {

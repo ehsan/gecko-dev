@@ -13,6 +13,7 @@
 #include "js/Utility.h"
 
 struct JSRuntime;
+class JSScript;
 
 namespace js {
 

@@ -14,7 +14,6 @@
 
 #include "jsfriendapi.h"
 #include "jsinfer.h"
-#include "NamespaceImports.h"
 
 #include "gc/Barrier.h"
 #include "gc/Heap.h"

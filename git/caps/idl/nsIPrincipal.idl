@@ -8,6 +8,7 @@
 #include "nsISerializable.idl"
 
 %{C++
+struct JSContext;
 struct JSPrincipals;
 #include "nsCOMPtr.h"
 #include "nsTArray.h"

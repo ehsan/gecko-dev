@@ -223,8 +223,7 @@ if test "$GNU_CC"; then
         CFLAGS="$CFLAGS -ffunction-sections -fdata-sections"
         CXXFLAGS="$CXXFLAGS -ffunction-sections -fdata-sections"
     fi
-    CFLAGS="$CFLAGS -fno-math-errno"
-    CXXFLAGS="$CXXFLAGS -fno-exceptions -fno-math-errno"
+    CXXFLAGS="$CXXFLAGS -fno-exceptions"
 fi
 
 dnl ========================================================

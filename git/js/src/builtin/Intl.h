@@ -7,9 +7,12 @@
 #ifndef builtin_Intl_h
 #define builtin_Intl_h
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 #include "js/RootingAPI.h"
+
+struct JSContext;
+class JSObject;
 
 /*
  * The Intl module specified by standard ECMA-402,
@@ -22,6 +25,7 @@
  */
 extern JSObject *
 js_InitIntlClass(JSContext *cx, js::HandleObject obj);
+
 
 namespace js {
 

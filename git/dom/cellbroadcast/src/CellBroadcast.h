@@ -10,7 +10,9 @@
 #include "mozilla/ErrorResult.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsICellBroadcastProvider.h"
-#include "js/TypeDecls.h"
+
+class JSObject;
+struct JSContext;
 
 class nsPIDOMWindow;
 

@@ -9,6 +9,7 @@
 
 #include "mozilla/Endian.h"
 
+#include "jsapi.h"
 #include "jsatom.h"
 
 namespace js {

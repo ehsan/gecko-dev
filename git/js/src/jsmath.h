@@ -9,7 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 namespace js {
 
