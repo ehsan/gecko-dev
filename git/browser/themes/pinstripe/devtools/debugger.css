@@ -14,7 +14,11 @@
  * Debugger content
  */
 
-#chrome-globals, #sources {
+#dbg-content {
+  padding: 0;
+}
+
+#scripts {
   min-width: 150px;
 }
 
@@ -41,15 +45,16 @@
 }
 
 /**
- * Sources searching
+ * Scripts searching
  */
 
 #globalsearch {
   background-color: white;
+  min-height: 50px;
   max-height: 150px;
 }
 
-.dbg-source-results:not(:last-child) {
+.dbg-script-results:not(:last-child) {
   border-bottom: 1px dotted #aaa;
 }
 
@@ -57,7 +62,7 @@
   -moz-padding-start: 6px;
 }
 
-.dbg-results-header .location {
+.dbg-results-header .script-url {
   font-weight: 600;
 }
 
@@ -67,13 +72,12 @@
 }
 
 .dbg-results-container .line-number {
-  background: hsl(0,0%,89%);
-  min-width: 40px;
+  background: #eee;
+  min-width: 35px;
   -moz-padding-end: 4px;
   -moz-border-end: 1px dotted #aaa;
   text-align: end;
   font: 8pt monospace;
-  color: hsl(0,0%,55%);
 }
 
 .dbg-results-container .line-contents {
@@ -95,7 +99,8 @@
   border: 1px solid #aaa;
   border-radius: 4px;
   cursor: pointer;
-  transition: transform 0.25s ease-in-out;
+  transition: transform 0.2s ease-in-out;
+  transform: scale(1, 1);
 }
 
 .dbg-results-container .line-contents > .string[match=true][focused] {
@@ -103,24 +108,27 @@
   transform: scale(1.75, 1.75);
 }
 
-#searchbox-panel .description {
-  margin: -6px 0 8px 0;
+#scripts-search-panel .description {
+  margin-top: -6px;
+  margin-bottom: 8px;
+  -moz-margin-start: 0;
+  -moz-margin-end: 0;
 }
 
-#searchbox-panel button.operator {
+#scripts-search-panel button.operator {
   min-width: 0;
   margin: 0;
   padding: 0;
   font: 9pt monospace;
 }
 
-#searchbox-panel label.operator {
+#scripts-search-panel label.operator {
   -moz-padding-start: 6px;
   padding-bottom: 1px;
 }
 
 /**
- * Stack frames and breakpoints pane
+ * Stack frames and breakpoints panel
  */
 
 #stackframes\+breakpoints {
@@ -129,7 +137,7 @@
 }
 
 #stackframes\+breakpoints[animated] {
-  transition: margin 0.25s ease-in-out;
+  -moz-transition: margin 0.25s ease-in-out;
 }
 
 /**
@@ -167,7 +175,7 @@
 }
 
 /**
- * Variables view
+ * Properties view
  */
 
 #variables {
@@ -176,7 +184,15 @@
 }
 
 #variables[animated] {
-  transition: margin 0.25s ease-in-out;
+  -moz-transition: margin 0.25s ease-in-out;
+}
+
+/**
+ * Property element details container
+ */
+
+.details {
+  -moz-margin-start: 10px;
 }
 
 /**
@@ -188,13 +204,17 @@
   color: #fff;
 }
 
+.scope > .title > .arrow {
+  margin-top: -2px;
+}
+
+.scope > .title > .name {
+  padding-top: 2px;
+}
+
 .scope > .details {
   -moz-margin-start: 2px;
   -moz-margin-end: 2px;
-}
-
-.scope > .details.nonenum:not(:empty) {
-  border-top: 1px solid #ddd;
 }
 
 /**
@@ -204,6 +224,7 @@
 .variable {
   -moz-margin-start: 1px;
   -moz-margin-end: 1px;
+  margin-top: 2px;
   transition: background 1s ease-in-out;
   background: #fff;
 }
@@ -222,64 +243,49 @@
   background: rgba(255, 255, 0, 0.65);
 }
 
+.variable[added] {
+  transition-duration: 0.4s;
+  background: rgba(0, 255, 0, 0.15);
+}
+
+.variable > .title > .arrow {
+  margin-top: -2px;
+}
+
 .variable > .title > .name {
   color: #048;
   font-weight: 600;
-}
-
-.variable > .title > .value {
-  -moz-padding-start: 6px;
-}
-
-.variable > .details {
-  -moz-margin-start: 10px;
 }
 
 /**
  * Property element
  */
 
-.property {
-  transition: background 1s ease-in-out;
-  background: #fff;
-  border-radius: 8px;
+.property > .title > .arrow {
+  margin-top: -2px;
 }
 
-.property[changed] {
-  transition-duration: 0.4s;
-  background: rgba(255, 255, 0, 0.65);
-}
-
-.property > .title > .name {
+.property > .title > .key {
   color: #881090;
-}
-
-.property > .title > .value {
-  -moz-padding-start: 6px;
-}
-
-.property > .details {
-  -moz-margin-start: 10px;
 }
 
 /**
  * Non enumerable, configurable and writable variables and properties.
  */
 
-.variable[proto] > .title > .name,
-.property[proto] > .title > .name,
-.variable[non-enumerable]:not([self]):not([exception]) > .title > .name,
-.property[non-enumerable]:not([self]):not([exception]) > .title > .name {
+.property[proto] > .title > .key,
+.variable[non-enumerable] > .title > .name,
+.property[non-enumerable] > .title > .key {
   opacity: 0.5;
 }
 
 .variable[non-configurable] > .title > .name,
-.property[non-configurable] > .title > .name {
+.property[non-configurable] > .title > .key {
   border-bottom: 1px dashed #99f;
 }
 
-.variable[non-configurable][non-writable] > .title > .name,
-.property[non-configurable][non-writable] > .title > .name {
+.variable[non-writable] > .title > .name,
+.property[non-writable] > .title > .key {
   border-bottom: 1px dashed #f99;
 }
 
@@ -301,51 +307,47 @@
   }
 }
 
-.variable[exception] > .title > .name,
-.property[exception] > .title > .name {
-  color: #a00;
-  text-shadow: 0 0 8px #fcc;
-}
-
-.variable > tooltip > label,
-.property > tooltip > label {
+#element-tooltip > label {
   margin: 0 2px 0 2px;
 }
 
-.variable[non-enumerable] > tooltip > label[value="enumerable"],
-.property[non-enumerable] > tooltip > label[value="enumerable"],
-.variable[non-configurable] > tooltip > label[value="configurable"],
-.property[non-configurable] > tooltip > label[value="configurable"],
-.variable[non-writable] > tooltip > label[value="writable"],
-.property[non-writable] > tooltip > label[value="writable"] {
+#element-tooltip > label[non-enumerable],
+#element-tooltip > label[non-configurable],
+#element-tooltip > label[non-writable]{
   text-decoration: line-through;
 }
 
 /**
- * Token value colors
+ * Property values colors
  */
 
 .token-undefined {
+  -moz-padding-start: 6px;
   color: #bbb;
 }
 
 .token-null {
+  -moz-padding-start: 6px;
   color: #999;
 }
 
 .token-boolean {
+  -moz-padding-start: 6px;
   color: #777;
 }
 
 .token-number {
+  -moz-padding-start: 6px;
   color: #c40a16;
 }
 
 .token-string {
+  -moz-padding-start: 6px;
   color: #1c00cf;
 }
 
 .token-other {
+  -moz-padding-start: 6px;
   color: #333;
 }
 
@@ -361,16 +363,12 @@
   -moz-appearance: treetwistyopen;
 }
 
-.arrow[invisible] {
-  visibility: hidden;
-}
-
 /**
  * Animations
  */
 
-#variables .details[open][animated],
-#globalsearch .dbg-results-container[open][animated] {
+.details[open][animated],
+.dbg-results-container[open][animated] {
   animation-duration: 0.25s;
   animation-name: showblock;
 }
@@ -395,13 +393,13 @@
 
 #toggle-panes {
   background: none;
-  box-shadow: none;
   border: none;
+  box-shadow: none;
   list-style-image: url("chrome://browser/skin/devtools/debugger-expand.png");
   -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
 
-#toggle-panes:not([panesHidden]) {
+#toggle-panes:not([stackframesAndBreakpointsHidden]):not([variablesHidden]) {
   list-style-image: url("chrome://browser/skin/devtools/debugger-collapse.png");
 }
 

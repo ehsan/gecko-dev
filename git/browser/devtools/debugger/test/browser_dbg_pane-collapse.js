@@ -21,10 +21,12 @@ function test() {
 
     testPanesState();
 
-    gView.togglePanes({ visible: true, animated: false });
+    gView.toggleStackframesAndBreakpointsPane({ visible: true });
+    gView.toggleVariablesPane({ visible: true });
     testPaneCollapse1();
     testPaneCollapse2();
-    testPanesStartupPref(closeDebuggerAndFinish);
+
+    closeDebuggerAndFinish();
   });
 }
 
@@ -32,12 +34,15 @@ function testPanesState() {
   let togglePanesButton =
     gDebugger.document.getElementById("toggle-panes");
 
-  ok(togglePanesButton.getAttribute("panesHidden"),
-    "The debugger view panes should initially be hidden.");
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should initially be preffed as hidden.");
-  isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-    "The options menu item should not be checked.");
+  ok(togglePanesButton.getAttribute("stackframesAndBreakpointsHidden"),
+    "The stackframes and breakpoints pane should initially be invisible.");
+  is(gDebugger.Prefs.stackframesPaneVisible, true,
+    "The stackframes and breakpoints pane should initially be preffed as visible.");
+
+  ok(togglePanesButton.getAttribute("variablesHidden"),
+    "The stackframes and breakpoints pane should initially be invisible.");
+  is(gDebugger.Prefs.variablesPaneVisible, true,
+    "The stackframes and breakpoints pane should initially be preffed as visible.");
 }
 
 function testPaneCollapse1() {
@@ -53,15 +58,16 @@ function testPaneCollapse1() {
     "The stackframes and breakpoints pane has an incorrect left margin.");
   ok(!stackframesAndBrekpoints.hasAttribute("animated"),
     "The stackframes and breakpoints pane has an incorrect animated attribute.");
-  ok(!togglePanesButton.getAttribute("panesHidden"),
+  ok(!togglePanesButton.getAttribute("stackframesAndBreakpointsHidden"),
     "The stackframes and breakpoints pane should at this point be visible.");
 
-  gView.togglePanes({ visible: false, animated: true });
+  is(gDebugger.Prefs.stackframesPaneVisible, true,
+    "The stackframes and breakpoints pane should at this point be visible.");
 
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should still initially be preffed as hidden.");
-  isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-    "The options menu item should still not be checked.");
+  gView.toggleStackframesAndBreakpointsPane({ visible: false, animated: true });
+
+  is(gDebugger.Prefs.stackframesPaneVisible, false,
+    "The stackframes and breakpoints pane should be hidden after collapsing.");
 
   let margin = -(width + 1) + "px";
   is(width, gDebugger.Prefs.stackframesWidth,
@@ -70,15 +76,16 @@ function testPaneCollapse1() {
     "The stackframes and breakpoints pane has an incorrect left margin after collapsing.");
   ok(stackframesAndBrekpoints.hasAttribute("animated"),
     "The stackframes and breakpoints pane has an incorrect attribute after an animated collapsing.");
-  ok(togglePanesButton.hasAttribute("panesHidden"),
+  ok(togglePanesButton.hasAttribute("stackframesAndBreakpointsHidden"),
     "The stackframes and breakpoints pane should not be visible after collapsing.");
 
-  gView.togglePanes({ visible: true, animated: false });
+  is(gDebugger.Prefs.stackframesPaneVisible, false,
+    "The stackframes and breakpoints pane should be hidden before uncollapsing.");
 
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should still initially be preffed as hidden.");
-  isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-    "The options menu item should still not be checked.");
+  gView.toggleStackframesAndBreakpointsPane({ visible: true, animated: false });
+
+  is(gDebugger.Prefs.stackframesPaneVisible, true,
+    "The stackframes and breakpoints pane should be visible after uncollapsing.");
 
   is(width, gDebugger.Prefs.stackframesWidth,
     "The stackframes and breakpoints pane has an incorrect width after uncollapsing.");
@@ -86,7 +93,7 @@ function testPaneCollapse1() {
     "The stackframes and breakpoints pane has an incorrect left margin after uncollapsing.");
   ok(!stackframesAndBrekpoints.hasAttribute("animated"),
     "The stackframes and breakpoints pane has an incorrect attribute after an unanimated uncollapsing.");
-  ok(!togglePanesButton.getAttribute("panesHidden"),
+  ok(!togglePanesButton.getAttribute("stackframesAndBreakpointsHidden"),
     "The stackframes and breakpoints pane should be visible again after uncollapsing.");
 }
 
@@ -103,15 +110,16 @@ function testPaneCollapse2() {
     "The variables pane has an incorrect right margin.");
   ok(!variables.hasAttribute("animated"),
     "The variables pane has an incorrect animated attribute.");
-  ok(!togglePanesButton.getAttribute("panesHidden"),
+  ok(!togglePanesButton.getAttribute("variablesHidden"),
     "The variables pane should at this point be visible.");
 
-  gView.togglePanes({ visible: false, animated: true });
+  is(gDebugger.Prefs.variablesPaneVisible, true,
+    "The variables pane should at this point be visible.");
 
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should still initially be preffed as hidden.");
-  isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-    "The options menu item should still not be checked.");
+  gView.toggleVariablesPane({ visible: false, animated: true });
+
+  is(gDebugger.Prefs.variablesPaneVisible, false,
+    "The variables pane should be hidden after collapsing.");
 
   let margin = -(width + 1) + "px";
   is(width, gDebugger.Prefs.variablesWidth,
@@ -120,15 +128,16 @@ function testPaneCollapse2() {
     "The variables pane has an incorrect right margin after collapsing.");
   ok(variables.hasAttribute("animated"),
     "The variables pane has an incorrect attribute after an animated collapsing.");
-  ok(togglePanesButton.hasAttribute("panesHidden"),
+  ok(togglePanesButton.hasAttribute("variablesHidden"),
     "The variables pane should not be visible after collapsing.");
 
-  gView.togglePanes({ visible: true, animated: false });
+  is(gDebugger.Prefs.variablesPaneVisible, false,
+    "The variables pane should be hidden before uncollapsing.");
 
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should still initially be preffed as hidden.");
-  isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-    "The options menu item should still not be checked.");
+  gView.toggleVariablesPane({ visible: true, animated: false });
+
+  is(gDebugger.Prefs.variablesPaneVisible, true,
+    "The variables pane should be visible after uncollapsing.");
 
   is(width, gDebugger.Prefs.variablesWidth,
     "The variables pane has an incorrect width after uncollapsing.");
@@ -136,55 +145,8 @@ function testPaneCollapse2() {
     "The variables pane has an incorrect right margin after uncollapsing.");
   ok(!variables.hasAttribute("animated"),
     "The variables pane has an incorrect attribute after an unanimated uncollapsing.");
-  ok(!togglePanesButton.getAttribute("panesHidden"),
+  ok(!togglePanesButton.getAttribute("variablesHidden"),
     "The variables pane should be visible again after uncollapsing.");
-}
-
-function testPanesStartupPref(aCallback) {
-  let stackframesAndBrekpoints =
-    gDebugger.document.getElementById("stackframes+breakpoints");
-  let variables =
-    gDebugger.document.getElementById("variables");
-  let togglePanesButton =
-    gDebugger.document.getElementById("toggle-panes");
-
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should still initially be preffed as hidden.");
-
-  ok(!togglePanesButton.getAttribute("panesHidden"),
-    "The debugger panes should at this point be visible.");
-  is(gDebugger.Prefs.panesVisibleOnStartup, false,
-    "The debugger view panes should initially be preffed as hidden.");
-  isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-    "The options menu item should still not be checked.");
-
-  gDebugger.DebuggerView.Options._showPanesOnStartupItem.setAttribute("checked", "true");
-  gDebugger.DebuggerView.Options._toggleShowPanesOnStartup();
-
-  executeSoon(function() {
-    ok(!togglePanesButton.getAttribute("panesHidden"),
-      "The debugger panes should at this point be visible.");
-    is(gDebugger.Prefs.panesVisibleOnStartup, true,
-      "The debugger view panes should now be preffed as visible.");
-    is(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-      "The options menu item should now be checked.");
-
-    gDebugger.DebuggerView.Options._showPanesOnStartupItem.setAttribute("checked", "false");
-    gDebugger.DebuggerView.Options._toggleShowPanesOnStartup();
-
-    executeSoon(function() {
-      ok(!togglePanesButton.getAttribute("panesHidden"),
-        "The debugger panes should at this point be visible.");
-      is(gDebugger.Prefs.panesVisibleOnStartup, false,
-        "The debugger view panes should now be preffed as hidden.");
-      isnot(gDebugger.DebuggerView.Options._showPanesOnStartupItem.getAttribute("checked"), "true",
-        "The options menu item should now be unchecked.");
-
-      executeSoon(function() {
-        aCallback();
-      });
-    });
-  });
 }
 
 registerCleanupFunction(function() {
