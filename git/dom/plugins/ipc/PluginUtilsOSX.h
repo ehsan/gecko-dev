@@ -9,7 +9,7 @@
 
 #include "npapi.h"
 #include "nsRect.h"
-#include "mozilla/gfx/QuartzSupport.h"
+#include "nsCoreAnimationSupport.h"
 
 namespace mozilla {
 namespace plugins {
@@ -61,9 +61,9 @@ public:
 
 private:
   void *mCALayer;
-  RefPtr<nsCARenderer> mCARenderer;
-  RefPtr<MacIOSurface> mFrontSurface;
-  RefPtr<MacIOSurface> mBackSurface;
+  nsRefPtr<nsCARenderer> mCARenderer;
+  nsRefPtr<nsIOSurface> mFrontSurface;
+  nsRefPtr<nsIOSurface> mBackSurface;
 };
 
 } // namespace PluginUtilsOSX

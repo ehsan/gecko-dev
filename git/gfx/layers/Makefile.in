@@ -32,18 +32,16 @@ EXPORTS = \
         BasicTiledThebesLayer.h \
         BasicImplData.h \
         FrameMetrics.h \
-        CompositorParent.h \
         ImageLayers.h \
         Layers.h \
         LayersTypes.h \
         LayerManagerOGLShaders.h \
         LayerManagerOGL.h \
         LayerManagerOGLProgram.h \
-        LayerSorter.h \
         ReadbackLayer.h \
-        ShadowLayersManager.h \
-        SharedTextureImage.h \
+        LayerSorter.h \
         TexturePoolOGL.h \
+        SharedTextureImage.h \
         $(NULL)
 
 CPPSRCS = \

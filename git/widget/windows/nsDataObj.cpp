@@ -503,7 +503,7 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC aFormat, LPSTGMEDIUM pSTM)
         return GetFile(*aFormat, *pSTM);
 
       // Someone is asking for an image
-      case CF_DIBV5:
+      case CF_DIB:
         return GetDib(df, *aFormat, *pSTM);
 
       default:

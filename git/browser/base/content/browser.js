@@ -2494,42 +2494,26 @@ function BrowserOnAboutPageLoad(document) {
 /**
  * Handle command events bubbling up from error page content
  */
-let BrowserOnClick = {
-  handleEvent: function BrowserOnClick_handleEvent(aEvent) {
-    if (!aEvent.isTrusted || // Don't trust synthetic events
-        aEvent.button == 2 || aEvent.target.localName != "button") {
+function BrowserOnClick(event) {
+    if (!event.isTrusted || // Don't trust synthetic events
+        event.button == 2 || event.target.localName != "button")
       return;
-    }
 
-    let originalTarget = aEvent.originalTarget;
-    let ownerDoc = originalTarget.ownerDocument;
+    var ot = event.originalTarget;
+    var ownerDoc = ot.ownerDocument;
 
     // If the event came from an ssl error page, it is probably either the "Add
     // Exception…" or "Get me out of here!" button
     if (/^about:certerror/.test(ownerDoc.documentURI)) {
-      this.onAboutCertError(originalTarget, ownerDoc);
-    }
-    else if (/^about:blocked/.test(ownerDoc.documentURI)) {
-      this.onAboutBlocked(originalTarget, ownerDoc);
-    }
-    else if (/^about:home$/i.test(ownerDoc.documentURI)) {
-      this.onAboutHome(originalTarget, ownerDoc);
-    }
-  },
-
-  onAboutCertError: function BrowserOnClick_onAboutCertError(aTargetElm, aOwnerDoc) {
-    let elmId = aTargetElm.getAttribute("id");
-
-    switch (elmId) {
-      case "exceptionDialogButton":
-        let params = { exceptionAdded : false, handlePrivateBrowsing : true };
+      if (ot == ownerDoc.getElementById('exceptionDialogButton')) {
+        var params = { exceptionAdded : false, handlePrivateBrowsing : true };
 
         try {
-          switch (Services.prefs.getIntPref("browser.ssl_override_behavior")) {
+          switch (gPrefService.getIntPref("browser.ssl_override_behavior")) {
             case 2 : // Pre-fetch & pre-populate
               params.prefetchCert = true;
             case 1 : // Pre-populate
-              params.location = aOwnerDoc.location.href;
+              params.location = ownerDoc.location.href;
           }
         } catch (e) {
           Components.utils.reportError("Couldn't get ssl_override pref: " + e);
@@ -2539,31 +2523,23 @@ let BrowserOnClick = {
                           '','chrome,centerscreen,modal', params);
 
         // If the user added the exception cert, attempt to reload the page
-        if (params.exceptionAdded) {
-          aOwnerDoc.location.reload();
-        }
-        break;
-
-      case "getMeOutOfHereButton":
+        if (params.exceptionAdded)
+          ownerDoc.location.reload();
+      }
+      else if (ot == ownerDoc.getElementById('getMeOutOfHereButton')) {
         getMeOutOfHere();
-        break;
+      }
     }
-  },
+    else if (/^about:blocked/.test(ownerDoc.documentURI)) {
+      // The event came from a button on a malware/phishing block page
+      // First check whether it's malware or phishing, so that we can
+      // use the right strings/links
+      var isMalware = /e=malwareBlocked/.test(ownerDoc.documentURI);
 
-  onAboutBlocked: function BrowserOnClick_onAboutBlocked(aTargetElm, aOwnerDoc) {
-    let elmId = aTargetElm.getAttribute("id");
-
-    // The event came from a button on a malware/phishing block page
-    // First check whether it's malware or phishing, so that we can
-    // use the right strings/links
-    let isMalware = /e=malwareBlocked/.test(aOwnerDoc.documentURI);
-
-    switch (elmId) {
-      case "getMeOutButton":
+      if (ot == ownerDoc.getElementById('getMeOutButton')) {
         getMeOutOfHere();
-        break;
-
-      case "reportButton":
+      }
+      else if (ot == ownerDoc.getElementById('reportButton')) {
         // This is the "Why is this site blocked" button.  For malware,
         // we can fetch a site-specific report, for phishing, we redirect
         // to the generic page describing phishing protection.
@@ -2573,7 +2549,7 @@ let BrowserOnClick = {
           // append the current url, and go there.
           try {
             let reportURL = formatURL("browser.safebrowsing.malware.reportURL", true);
-            reportURL += aOwnerDoc.location.href;
+            reportURL += ownerDoc.location.href;
             content.location = reportURL;
           } catch (e) {
             Components.utils.reportError("Couldn't get malware report URL: " + e);
@@ -2586,116 +2562,96 @@ let BrowserOnClick = {
             Components.utils.reportError("Couldn't get phishing info URL: " + e);
           }
         }
-        break;
+      }
+      else if (ot == ownerDoc.getElementById('ignoreWarningButton')) {
+        // Allow users to override and continue through to the site,
+        // but add a notify bar as a reminder, so that they don't lose
+        // track after, e.g., tab switching.
+        gBrowser.loadURIWithFlags(content.location.href,
+                                  nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
+                                  null, null, null);
 
-      case "ignoreWarningButton":
-        this.ignoreWarningButton(isMalware);
-        break;
-    }
-  },
+        Services.perms.add(makeURI(content.location.href), "safe-browsing",
+                           Ci.nsIPermissionManager.ALLOW_ACTION,
+                           Ci.nsIPermissionManager.EXPIRE_SESSION);
 
-  ignoreWarningButton: function BrowserOnClick_ignoreWarningButton(aIsMalware) {
-    // Allow users to override and continue through to the site,
-    // but add a notify bar as a reminder, so that they don't lose
-    // track after, e.g., tab switching.
-    gBrowser.loadURIWithFlags(content.location.href,
-                              nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
-                              null, null, null);
+        let buttons = [{
+          label: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.label"),
+          accessKey: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.accessKey"),
+          callback: function() { getMeOutOfHere(); }
+        }];
 
-    Services.perms.add(makeURI(content.location.href), "safe-browsing",
-                       Ci.nsIPermissionManager.ALLOW_ACTION,
-                       Ci.nsIPermissionManager.EXPIRE_SESSION);
-
-    let buttons = [{
-      label: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.label"),
-      accessKey: gNavigatorBundle.getString("safebrowsing.getMeOutOfHereButton.accessKey"),
-      callback: function() { getMeOutOfHere(); }
-    }];
-
-    let title;
-    if (aIsMalware) {
-      title = gNavigatorBundle.getString("safebrowsing.reportedAttackSite");
-      buttons[1] = {
-        label: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.label"),
-        accessKey: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.accessKey"),
-        callback: function() {
-          openUILinkIn(gSafeBrowsing.getReportURL('MalwareError'), 'tab');
+        let title;
+        if (isMalware) {
+          title = gNavigatorBundle.getString("safebrowsing.reportedAttackSite");
+          buttons[1] = {
+            label: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.label"),
+            accessKey: gNavigatorBundle.getString("safebrowsing.notAnAttackButton.accessKey"),
+            callback: function() {
+              openUILinkIn(gSafeBrowsing.getReportURL('MalwareError'), 'tab');
+            }
+          };
+        } else {
+          title = gNavigatorBundle.getString("safebrowsing.reportedWebForgery");
+          buttons[1] = {
+            label: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.label"),
+            accessKey: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.accessKey"),
+            callback: function() {
+              openUILinkIn(gSafeBrowsing.getReportURL('Error'), 'tab');
+            }
+          };
         }
-      };
-    } else {
-      title = gNavigatorBundle.getString("safebrowsing.reportedWebForgery");
-      buttons[1] = {
-        label: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.label"),
-        accessKey: gNavigatorBundle.getString("safebrowsing.notAForgeryButton.accessKey"),
-        callback: function() {
-          openUILinkIn(gSafeBrowsing.getReportURL('Error'), 'tab');
-        }
-      };
+
+        let notificationBox = gBrowser.getNotificationBox();
+        let value = "blocked-badware-page";
+
+        let previousNotification = notificationBox.getNotificationWithValue(value);
+        if (previousNotification)
+          notificationBox.removeNotification(previousNotification);
+
+        let notification = notificationBox.appendNotification(
+          title,
+          value,
+          "chrome://global/skin/icons/blacklist_favicon.png",
+          notificationBox.PRIORITY_CRITICAL_HIGH,
+          buttons
+        );
+        // Persist the notification until the user removes so it
+        // doesn't get removed on redirects.
+        notification.persistence = -1;
+      }
     }
-
-    let notificationBox = gBrowser.getNotificationBox();
-    let value = "blocked-badware-page";
-
-    let previousNotification = notificationBox.getNotificationWithValue(value);
-    if (previousNotification) {
-      notificationBox.removeNotification(previousNotification);
-    }
-
-    let notification = notificationBox.appendNotification(
-      title,
-      value,
-      "chrome://global/skin/icons/blacklist_favicon.png",
-      notificationBox.PRIORITY_CRITICAL_HIGH,
-      buttons
-    );
-    // Persist the notification until the user removes so it
-    // doesn't get removed on redirects.
-    notification.persistence = -1;
-  },
-
-  onAboutHome: function BrowserOnClick_onAboutHome(aTargetElm, aOwnerDoc) {
-    let elmId = aTargetElm.getAttribute("id");
-
-    switch (elmId) {
-      case "restorePreviousSession":
+    else if (/^about:home$/i.test(ownerDoc.documentURI)) {
+      if (ot == ownerDoc.getElementById("restorePreviousSession")) {
         let ss = Cc["@mozilla.org/browser/sessionstore;1"].
                  getService(Ci.nsISessionStore);
-        if (ss.canRestoreLastSession) {
+        if (ss.canRestoreLastSession)
           ss.restoreLastSession();
-        }
-        aOwnerDoc.getElementById("launcher").removeAttribute("session");
-        break;
-
-      case "downloads":
+        ownerDoc.getElementById("launcher").removeAttribute("session");
+      }
+      else if (ot == ownerDoc.getElementById("downloads")) {
         BrowserDownloadsUI();
-        break;
-
-      case "bookmarks":
+      }
+      else if (ot == ownerDoc.getElementById("bookmarks")) {
         PlacesCommandHook.showPlacesOrganizer("AllBookmarks");
-        break;
-
-      case "history":
+      }
+      else if (ot == ownerDoc.getElementById("history")) {
         PlacesCommandHook.showPlacesOrganizer("History");
-        break;
-
-      case "apps":
+      }
+      else if (ot == ownerDoc.getElementById("apps")) {
         openUILinkIn("https://marketplace.mozilla.org/", "tab");
-        break;
-
-      case "addons":
+      }
+      else if (ot == ownerDoc.getElementById("addons")) {
         BrowserOpenAddonsMgr();
-        break;
-
-      case "sync":
+      }
+      else if (ot == ownerDoc.getElementById("sync")) {
         openPreferences("paneSync");
-        break;
-
-      case "settings":
+      }
+      else if (ot == ownerDoc.getElementById("settings")) {
         openPreferences();
-        break;
+      }
     }
-  },
-};
+}
 
 /**
  * Re-direct the browser to a known-safe page.  This function is

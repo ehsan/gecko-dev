@@ -55,8 +55,6 @@ public class MenuItemActionBar extends ImageButton
 
     @Override
     public void setTitle(CharSequence title) {
-        // set accessibility contentDescription here
-        setContentDescription(title);
     }
 
     @Override

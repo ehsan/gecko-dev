@@ -4380,14 +4380,10 @@ nsCanvasRenderingContext2DAzure::PutImageData(JSContext* cx,
 }
 
 // void putImageData (in ImageData d, in float x, in float y);
-// void putImageData (in ImageData d, in double x, in double y, in double dirtyX, in double dirtyY, in double dirtyWidth, in double dirtyHeight);
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::PutImageData(const JS::Value&, double, double,
-                                              double, double, double, double,
-                                              JSContext*, PRUint8)
+nsCanvasRenderingContext2DAzure::PutImageData()
 {
-  /* Should never be called -- the new binding code handles it, and
-     C++ callers should call PutImageData_explicit */
+  /* Should never be called -- PutImageData_explicit is the QS entry point */
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -4591,13 +4587,9 @@ nsCanvasRenderingContext2DAzure::CreateImageData(JSContext* cx,
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::CreateImageData(const JS::Value &arg1,
-                                                 const JS::Value &arg2,
-                                                 JSContext* cx,
-                                                 PRUint8 optional_argc,
-                                                 nsIDOMImageData** retval)
+nsCanvasRenderingContext2DAzure::CreateImageData()
 {
-  /* Should never be called; handled entirely in new bindings */
+  /* Should never be called; handled entirely in the quickstub */
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "QuartzSupport.h"
+#include "nsCoreAnimationSupport.h"
 #include "nsDebug.h"
 
 #import <QuartzCore/QuartzCore.h>
@@ -15,11 +15,7 @@
   "/System/Library/Frameworks/IOSurface.framework/IOSurface"
 #define OPENGL_FRAMEWORK_PATH \
   "/System/Library/Frameworks/OpenGL.framework/OpenGL"
-#define COREGRAPHICS_FRAMEWORK_PATH \
-  "/System/Library/Frameworks/ApplicationServices.framework/Frameworks/CoreGraphics.framework/CoreGraphics"
 
-using mozilla::RefPtr;
-using mozilla::TemporaryRef;
 
 // IOSurface signatures
 typedef CFTypeRef IOSurfacePtr;
@@ -41,12 +37,6 @@ typedef CGLError (*CGLTexImageIOSurface2DFunc) (CGLContextObj ctxt,
                              GLsizei width, GLsizei height,
                              GLenum format, GLenum type,
                              IOSurfacePtr ioSurface, GLuint plane);
-typedef CGContextRef (*IOSurfaceContextCreateFunc)(CFTypeRef io_surface,
-                             unsigned width, unsigned height,
-                             unsigned bitsPerComponent, unsigned bytes,
-                             CGColorSpaceRef colorSpace, CGBitmapInfo bitmapInfo);
-typedef CGImageRef (*IOSurfaceContextCreateImageFunc)(CGContextRef ref);
-typedef IOSurfacePtr (*IOSurfaceContextGetSurfaceFunc)(CGContextRef ref);
 
 #define GET_CONST(const_name) \
   ((CFStringRef*) dlsym(sIOSurfaceFramework, const_name))
@@ -54,14 +44,11 @@ typedef IOSurfacePtr (*IOSurfaceContextGetSurfaceFunc)(CGContextRef ref);
   (typeof(dest)) dlsym(sIOSurfaceFramework, sym_name)
 #define GET_CGLSYM(dest,sym_name) \
   (typeof(dest)) dlsym(sOpenGLFramework, sym_name)
-#define GET_CGSYM(dest,sym_name) \
-  (typeof(dest)) dlsym(sCoreGraphicsFramework, sym_name)
 
-class MacIOSurfaceLib: public MacIOSurface {
+class nsIOSurfaceLib: public nsIOSurface {
 public:
   static void                        *sIOSurfaceFramework;
   static void                        *sOpenGLFramework;
-  static void                        *sCoreGraphicsFramework;
   static bool                         isLoaded;
   static IOSurfaceCreateFunc          sCreate;
   static IOSurfaceGetIDFunc           sGetID;
@@ -73,9 +60,6 @@ public:
   static IOSurfaceGetHeightFunc       sHeight;
   static IOSurfaceGetBytesPerRowFunc  sBytesPerRow;
   static CGLTexImageIOSurface2DFunc   sTexImage;
-  static IOSurfaceContextCreateFunc   sIOSurfaceContextCreate;
-  static IOSurfaceContextCreateImageFunc  sIOSurfaceContextCreateImage;
-  static IOSurfaceContextGetSurfaceFunc   sIOSurfaceContextGetSurface;
   static CFStringRef                  kPropWidth;
   static CFStringRef                  kPropHeight;
   static CFStringRef                  kPropBytesPerElem;
@@ -100,13 +84,6 @@ public:
                              GLsizei width, GLsizei height,
                              GLenum format, GLenum type,
                              IOSurfacePtr ioSurface, GLuint plane);
-  static CGContextRef IOSurfaceContextCreate(IOSurfacePtr aIOSurfacePtr,
-                             unsigned aWidth, unsigned aHeight,
-                             unsigned aBitsPerCompoent, unsigned aBytes,
-                             CGColorSpaceRef aColorSpace, CGBitmapInfo bitmapInfo);
-  static CGImageRef   IOSurfaceContextCreateImage(CGContextRef ref);
-  static IOSurfacePtr IOSurfaceContextGetSurface(CGContextRef ref);
-  static unsigned int (*sCGContextGetTypePtr) (CGContextRef);
   static void LoadLibrary();
   static void CloseLibrary();
 
@@ -119,82 +96,76 @@ public:
   } sLibraryUnloader;
 };
 
-MacIOSurfaceLib::LibraryUnloader MacIOSurfaceLib::sLibraryUnloader;
-bool                          MacIOSurfaceLib::isLoaded = false;
-void*                         MacIOSurfaceLib::sIOSurfaceFramework;
-void*                         MacIOSurfaceLib::sOpenGLFramework;
-void*                         MacIOSurfaceLib::sCoreGraphicsFramework;
-IOSurfaceCreateFunc           MacIOSurfaceLib::sCreate;
-IOSurfaceGetIDFunc            MacIOSurfaceLib::sGetID;
-IOSurfaceLookupFunc           MacIOSurfaceLib::sLookup;
-IOSurfaceGetBaseAddressFunc   MacIOSurfaceLib::sGetBaseAddress;
-IOSurfaceGetHeightFunc        MacIOSurfaceLib::sWidth;
-IOSurfaceGetWidthFunc         MacIOSurfaceLib::sHeight;
-IOSurfaceGetBytesPerRowFunc   MacIOSurfaceLib::sBytesPerRow;
-IOSurfaceLockFunc             MacIOSurfaceLib::sLock;
-IOSurfaceUnlockFunc           MacIOSurfaceLib::sUnlock;
-CGLTexImageIOSurface2DFunc    MacIOSurfaceLib::sTexImage;
-IOSurfaceContextCreateFunc    MacIOSurfaceLib::sIOSurfaceContextCreate;
-IOSurfaceContextCreateImageFunc   MacIOSurfaceLib::sIOSurfaceContextCreateImage;
-IOSurfaceContextGetSurfaceFunc    MacIOSurfaceLib::sIOSurfaceContextGetSurface;
-unsigned int                  (*MacIOSurfaceLib::sCGContextGetTypePtr) (CGContextRef) = NULL;
+nsIOSurfaceLib::LibraryUnloader nsIOSurfaceLib::sLibraryUnloader;
+bool                          nsIOSurfaceLib::isLoaded = false;
+void*                         nsIOSurfaceLib::sIOSurfaceFramework;
+void*                         nsIOSurfaceLib::sOpenGLFramework;
+IOSurfaceCreateFunc           nsIOSurfaceLib::sCreate;
+IOSurfaceGetIDFunc            nsIOSurfaceLib::sGetID;
+IOSurfaceLookupFunc           nsIOSurfaceLib::sLookup;
+IOSurfaceGetBaseAddressFunc   nsIOSurfaceLib::sGetBaseAddress;
+IOSurfaceGetHeightFunc        nsIOSurfaceLib::sWidth;
+IOSurfaceGetWidthFunc         nsIOSurfaceLib::sHeight;
+IOSurfaceGetBytesPerRowFunc   nsIOSurfaceLib::sBytesPerRow;
+IOSurfaceLockFunc             nsIOSurfaceLib::sLock;
+IOSurfaceUnlockFunc           nsIOSurfaceLib::sUnlock;
+CGLTexImageIOSurface2DFunc    nsIOSurfaceLib::sTexImage;
+CFStringRef                   nsIOSurfaceLib::kPropWidth;
+CFStringRef                   nsIOSurfaceLib::kPropHeight;
+CFStringRef                   nsIOSurfaceLib::kPropBytesPerElem;
+CFStringRef                   nsIOSurfaceLib::kPropBytesPerRow;
+CFStringRef                   nsIOSurfaceLib::kPropIsGlobal;
 
-CFStringRef                   MacIOSurfaceLib::kPropWidth;
-CFStringRef                   MacIOSurfaceLib::kPropHeight;
-CFStringRef                   MacIOSurfaceLib::kPropBytesPerElem;
-CFStringRef                   MacIOSurfaceLib::kPropBytesPerRow;
-CFStringRef                   MacIOSurfaceLib::kPropIsGlobal;
-
-bool MacIOSurfaceLib::isInit() {
+bool nsIOSurfaceLib::isInit() {
   // Guard against trying to reload the library
   // if it is not available.
   if (!isLoaded)
     LoadLibrary();
   if (!sIOSurfaceFramework) {
-    NS_ERROR("MacIOSurfaceLib failed to initialize");
+    NS_ERROR("nsIOSurfaceLib failed to initialize");
   }
   return sIOSurfaceFramework;
 }
 
-IOSurfacePtr MacIOSurfaceLib::IOSurfaceCreate(CFDictionaryRef properties) {
+IOSurfacePtr nsIOSurfaceLib::IOSurfaceCreate(CFDictionaryRef properties) {
   return sCreate(properties);
 }
 
-IOSurfacePtr MacIOSurfaceLib::IOSurfaceLookup(IOSurfaceID aIOSurfaceID) {
+IOSurfacePtr nsIOSurfaceLib::IOSurfaceLookup(IOSurfaceID aIOSurfaceID) {
   return sLookup(aIOSurfaceID);
 }
 
-IOSurfaceID MacIOSurfaceLib::IOSurfaceGetID(IOSurfacePtr aIOSurfacePtr) {
+IOSurfaceID nsIOSurfaceLib::IOSurfaceGetID(IOSurfacePtr aIOSurfacePtr) {
   return sGetID(aIOSurfacePtr);
 }
 
-void* MacIOSurfaceLib::IOSurfaceGetBaseAddress(IOSurfacePtr aIOSurfacePtr) {
+void* nsIOSurfaceLib::IOSurfaceGetBaseAddress(IOSurfacePtr aIOSurfacePtr) {
   return sGetBaseAddress(aIOSurfacePtr);
 }
 
-size_t MacIOSurfaceLib::IOSurfaceGetWidth(IOSurfacePtr aIOSurfacePtr) {
+size_t nsIOSurfaceLib::IOSurfaceGetWidth(IOSurfacePtr aIOSurfacePtr) {
   return sWidth(aIOSurfacePtr);
 }
 
-size_t MacIOSurfaceLib::IOSurfaceGetHeight(IOSurfacePtr aIOSurfacePtr) {
+size_t nsIOSurfaceLib::IOSurfaceGetHeight(IOSurfacePtr aIOSurfacePtr) {
   return sHeight(aIOSurfacePtr);
 }
 
-size_t MacIOSurfaceLib::IOSurfaceGetBytesPerRow(IOSurfacePtr aIOSurfacePtr) {
+size_t nsIOSurfaceLib::IOSurfaceGetBytesPerRow(IOSurfacePtr aIOSurfacePtr) {
   return sBytesPerRow(aIOSurfacePtr);
 }
 
-IOReturn MacIOSurfaceLib::IOSurfaceLock(IOSurfacePtr aIOSurfacePtr, 
+IOReturn nsIOSurfaceLib::IOSurfaceLock(IOSurfacePtr aIOSurfacePtr, 
                                        uint32_t options, uint32_t *seed) {
   return sLock(aIOSurfacePtr, options, seed);
 }
 
-IOReturn MacIOSurfaceLib::IOSurfaceUnlock(IOSurfacePtr aIOSurfacePtr, 
+IOReturn nsIOSurfaceLib::IOSurfaceUnlock(IOSurfacePtr aIOSurfacePtr, 
                                          uint32_t options, uint32_t *seed) {
   return sUnlock(aIOSurfacePtr, options, seed);
 }
 
-CGLError MacIOSurfaceLib::CGLTexImageIOSurface2D(CGLContextObj ctxt,
+CGLError nsIOSurfaceLib::CGLTexImageIOSurface2D(CGLContextObj ctxt,
                              GLenum target, GLenum internalFormat,
                              GLsizei width, GLsizei height,
                              GLenum format, GLenum type,
@@ -203,28 +174,7 @@ CGLError MacIOSurfaceLib::CGLTexImageIOSurface2D(CGLContextObj ctxt,
                    format, type, ioSurface, plane);
 }
 
-CGContextRef MacIOSurfaceLib::IOSurfaceContextCreate(IOSurfacePtr aIOSurfacePtr,
-                             unsigned aWidth, unsigned aHeight,
-                             unsigned aBitsPerComponent, unsigned aBytes,
-                             CGColorSpaceRef aColorSpace, CGBitmapInfo bitmapInfo) {
-  if (!sIOSurfaceContextCreate)
-    return NULL;
-  return sIOSurfaceContextCreate(aIOSurfacePtr, aWidth, aHeight, aBitsPerComponent, aBytes, aColorSpace, bitmapInfo);
-}
-
-CGImageRef MacIOSurfaceLib::IOSurfaceContextCreateImage(CGContextRef aContext) {
-  if (!sIOSurfaceContextCreateImage)
-    return NULL;
-  return sIOSurfaceContextCreateImage(aContext);
-}
-
-IOSurfacePtr MacIOSurfaceLib::IOSurfaceContextGetSurface(CGContextRef aContext) {
-  if (!sIOSurfaceContextGetSurface)
-    return NULL;
-  return sIOSurfaceContextGetSurface(aContext);
-}
-
-CFStringRef MacIOSurfaceLib::GetIOConst(const char* symbole) {
+CFStringRef nsIOSurfaceLib::GetIOConst(const char* symbole) {
   CFStringRef *address = (CFStringRef*)dlsym(sIOSurfaceFramework, symbole);
   if (!address)
     return nullptr;
@@ -232,28 +182,21 @@ CFStringRef MacIOSurfaceLib::GetIOConst(const char* symbole) {
   return *address;
 }
 
-void MacIOSurfaceLib::LoadLibrary() {
+void nsIOSurfaceLib::LoadLibrary() {
   if (isLoaded) {
     return;
   } 
   isLoaded = true;
-  sIOSurfaceFramework = dlopen(IOSURFACE_FRAMEWORK_PATH,
+  sIOSurfaceFramework = dlopen(IOSURFACE_FRAMEWORK_PATH, 
                             RTLD_LAZY | RTLD_LOCAL);
-  sOpenGLFramework = dlopen(OPENGL_FRAMEWORK_PATH,
+  sOpenGLFramework = dlopen(OPENGL_FRAMEWORK_PATH, 
                             RTLD_LAZY | RTLD_LOCAL);
-
-  sCoreGraphicsFramework = dlopen(COREGRAPHICS_FRAMEWORK_PATH,
-                            RTLD_LAZY | RTLD_LOCAL);
-  if (!sIOSurfaceFramework || !sOpenGLFramework || !sCoreGraphicsFramework) {
-    if (sIOSurfaceFramework)
-      dlclose(sIOSurfaceFramework);
-    if (sOpenGLFramework)
-      dlclose(sOpenGLFramework);
-    if (sCoreGraphicsFramework)
-      dlclose(sCoreGraphicsFramework);
-    sIOSurfaceFramework = nsnull;
-    sOpenGLFramework = nsnull;
-    sCoreGraphicsFramework = nsnull;
+  if (!sIOSurfaceFramework) {
+    return;
+  }
+  if (!sOpenGLFramework) {
+    dlclose(sIOSurfaceFramework);
+    sIOSurfaceFramework = nullptr;
     return;
   }
 
@@ -272,12 +215,6 @@ void MacIOSurfaceLib::LoadLibrary() {
   sUnlock = GET_IOSYM(sUnlock, "IOSurfaceUnlock");
   sGetBaseAddress = GET_IOSYM(sGetBaseAddress, "IOSurfaceGetBaseAddress");
   sTexImage = GET_CGLSYM(sTexImage, "CGLTexImageIOSurface2D");
-  sCGContextGetTypePtr = (unsigned int (*)(CGContext*))dlsym(RTLD_DEFAULT, "CGContextGetType");
-
-  // Optional symbols
-  sIOSurfaceContextCreate = GET_CGSYM(sIOSurfaceContextCreate, "CGIOSurfaceContextCreate");
-  sIOSurfaceContextCreateImage = GET_CGSYM(sIOSurfaceContextCreateImage, "CGIOSurfaceContextCreateImage");
-  sIOSurfaceContextGetSurface = GET_CGSYM(sIOSurfaceContextGetSurface, "CGIOSurfaceContextGetSurface");
 
   if (!sCreate || !sGetID || !sLookup || !sTexImage || !sGetBaseAddress ||
       !kPropWidth || !kPropHeight || !kPropBytesPerElem || !kPropIsGlobal ||
@@ -287,7 +224,7 @@ void MacIOSurfaceLib::LoadLibrary() {
   }
 }
 
-void MacIOSurfaceLib::CloseLibrary() {
+void nsIOSurfaceLib::CloseLibrary() {
   if (sIOSurfaceFramework) {
     dlclose(sIOSurfaceFramework);
   }
@@ -298,12 +235,12 @@ void MacIOSurfaceLib::CloseLibrary() {
   sOpenGLFramework = nullptr;
 }
 
-MacIOSurface::~MacIOSurface() {
+nsIOSurface::~nsIOSurface() {
   CFRelease(mIOSurfacePtr);
 }
 
-TemporaryRef<MacIOSurface> MacIOSurface::CreateIOSurface(int aWidth, int aHeight) {
-  if (!MacIOSurfaceLib::isInit())
+already_AddRefed<nsIOSurface> nsIOSurface::CreateIOSurface(int aWidth, int aHeight) { 
+  if (!nsIOSurfaceLib::isInit())
     return nullptr;
 
   CFMutableDictionaryRef props = ::CFDictionaryCreateMutable(
@@ -317,25 +254,25 @@ TemporaryRef<MacIOSurface> MacIOSurface::CreateIOSurface(int aWidth, int aHeight
   CFNumberRef cfWidth = ::CFNumberCreate(NULL, kCFNumberSInt32Type, &aWidth);
   CFNumberRef cfHeight = ::CFNumberCreate(NULL, kCFNumberSInt32Type, &aHeight);
   CFNumberRef cfBytesPerElem = ::CFNumberCreate(NULL, kCFNumberSInt32Type, &bytesPerElem);
-  ::CFDictionaryAddValue(props, MacIOSurfaceLib::kPropWidth,
+  ::CFDictionaryAddValue(props, nsIOSurfaceLib::kPropWidth,
                                 cfWidth);
   ::CFRelease(cfWidth);
-  ::CFDictionaryAddValue(props, MacIOSurfaceLib::kPropHeight,
+  ::CFDictionaryAddValue(props, nsIOSurfaceLib::kPropHeight,
                                 cfHeight);
   ::CFRelease(cfHeight);
-  ::CFDictionaryAddValue(props, MacIOSurfaceLib::kPropBytesPerElem, 
+  ::CFDictionaryAddValue(props, nsIOSurfaceLib::kPropBytesPerElem, 
                                 cfBytesPerElem);
   ::CFRelease(cfBytesPerElem);
-  ::CFDictionaryAddValue(props, MacIOSurfaceLib::kPropIsGlobal, 
+  ::CFDictionaryAddValue(props, nsIOSurfaceLib::kPropIsGlobal, 
                                 kCFBooleanTrue);
 
-  IOSurfacePtr surfaceRef = MacIOSurfaceLib::IOSurfaceCreate(props);
+  IOSurfacePtr surfaceRef = nsIOSurfaceLib::IOSurfaceCreate(props);
   ::CFRelease(props);
 
   if (!surfaceRef)
     return nullptr;
 
-  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef);
+  nsRefPtr<nsIOSurface> ioSurface = new nsIOSurface(surfaceRef);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nullptr;
@@ -344,15 +281,15 @@ TemporaryRef<MacIOSurface> MacIOSurface::CreateIOSurface(int aWidth, int aHeight
   return ioSurface.forget();
 }
 
-TemporaryRef<MacIOSurface> MacIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID) { 
-  if (!MacIOSurfaceLib::isInit())
+already_AddRefed<nsIOSurface> nsIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID) { 
+  if (!nsIOSurfaceLib::isInit())
     return nullptr;
 
-  IOSurfacePtr surfaceRef = MacIOSurfaceLib::IOSurfaceLookup(aIOSurfaceID);
+  IOSurfacePtr surfaceRef = nsIOSurfaceLib::IOSurfaceLookup(aIOSurfaceID);
   if (!surfaceRef)
     return nullptr;
 
-  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef);
+  nsRefPtr<nsIOSurface> ioSurface = new nsIOSurface(surfaceRef);
   if (!ioSurface) {
     ::CFRelease(surfaceRef);
     return nullptr;
@@ -360,74 +297,75 @@ TemporaryRef<MacIOSurface> MacIOSurface::LookupSurface(IOSurfaceID aIOSurfaceID)
   return ioSurface.forget();
 }
 
-IOSurfaceID MacIOSurface::GetIOSurfaceID() { 
-  return MacIOSurfaceLib::IOSurfaceGetID(mIOSurfacePtr);
+IOSurfaceID nsIOSurface::GetIOSurfaceID() { 
+  return nsIOSurfaceLib::IOSurfaceGetID(mIOSurfacePtr);
 }
 
-void* MacIOSurface::GetBaseAddress() { 
-  return MacIOSurfaceLib::IOSurfaceGetBaseAddress(mIOSurfacePtr);
+void* nsIOSurface::GetBaseAddress() { 
+  return nsIOSurfaceLib::IOSurfaceGetBaseAddress(mIOSurfacePtr);
 }
 
-size_t MacIOSurface::GetWidth() { 
-  return MacIOSurfaceLib::IOSurfaceGetWidth(mIOSurfacePtr);
+size_t nsIOSurface::GetWidth() { 
+  return nsIOSurfaceLib::IOSurfaceGetWidth(mIOSurfacePtr);
 }
 
-size_t MacIOSurface::GetHeight() { 
-  return MacIOSurfaceLib::IOSurfaceGetHeight(mIOSurfacePtr);
+size_t nsIOSurface::GetHeight() { 
+  return nsIOSurfaceLib::IOSurfaceGetHeight(mIOSurfacePtr);
 }
 
-size_t MacIOSurface::GetBytesPerRow() { 
-  return MacIOSurfaceLib::IOSurfaceGetBytesPerRow(mIOSurfacePtr);
+size_t nsIOSurface::GetBytesPerRow() { 
+  return nsIOSurfaceLib::IOSurfaceGetBytesPerRow(mIOSurfacePtr);
 }
 
 #define READ_ONLY 0x1
-void MacIOSurface::Lock() {
-  MacIOSurfaceLib::IOSurfaceLock(mIOSurfacePtr, READ_ONLY, NULL);
+void nsIOSurface::Lock() {
+  nsIOSurfaceLib::IOSurfaceLock(mIOSurfacePtr, READ_ONLY, NULL);
 }
 
-void MacIOSurface::Unlock() {
-  MacIOSurfaceLib::IOSurfaceUnlock(mIOSurfacePtr, READ_ONLY, NULL);
+void nsIOSurface::Unlock() {
+  nsIOSurfaceLib::IOSurfaceUnlock(mIOSurfacePtr, READ_ONLY, NULL);
 }
 
-#include "SourceSurfaceRawData.h"
-using mozilla::gfx::SourceSurface;
-using mozilla::gfx::SourceSurfaceRawData;
-using mozilla::gfx::IntSize;
+#include "gfxImageSurface.h"
 
-TemporaryRef<SourceSurface>
-MacIOSurface::GetAsSurface() {
+already_AddRefed<gfxASurface>
+nsIOSurface::GetAsSurface() {
   Lock();
   size_t bytesPerRow = GetBytesPerRow();
   size_t ioWidth = GetWidth();
   size_t ioHeight = GetHeight();
 
   unsigned char* ioData = (unsigned char*)GetBaseAddress();
-  unsigned char* dataCpy = (unsigned char*)malloc(bytesPerRow*ioHeight);
-  for (size_t i = 0; i < ioHeight; i++) {
-    memcpy(dataCpy + i * bytesPerRow,
+
+  nsRefPtr<gfxImageSurface> imgSurface =
+    new gfxImageSurface(gfxIntSize(ioWidth, ioHeight), gfxASurface::ImageFormatARGB32);
+
+  for (int i = 0; i < ioHeight; i++) {
+    memcpy(imgSurface->Data() + i * imgSurface->Stride(),
            ioData + i * bytesPerRow, ioWidth * 4);
   }
 
   Unlock();
 
-  RefPtr<SourceSurfaceRawData> surf = new SourceSurfaceRawData();
-  surf->InitWrappingData(dataCpy, IntSize(ioWidth, ioHeight), bytesPerRow, mozilla::gfx::FORMAT_B8G8R8A8, true);
-
-  return surf.forget();
+  return imgSurface.forget();
 }
 
 CGLError 
-MacIOSurface::CGLTexImageIOSurface2D(void *c,
+nsIOSurface::CGLTexImageIOSurface2D(void *c,
                                     GLenum internalFormat, GLenum format, 
                                     GLenum type, GLuint plane)
 {
   NSOpenGLContext *ctxt = static_cast<NSOpenGLContext*>(c);
-  return MacIOSurfaceLib::CGLTexImageIOSurface2D((CGLContextObj)[ctxt CGLContextObj],
+  return nsIOSurfaceLib::CGLTexImageIOSurface2D((CGLContextObj)[ctxt CGLContextObj],
                                                 GL_TEXTURE_RECTANGLE_ARB,
                                                 internalFormat,
                                                 GetWidth(), GetHeight(),
                                                 format, type,
                                                 mIOSurfacePtr, plane);
+}
+
+nsCARenderer::~nsCARenderer() {
+  Destroy();
 }
 
 CGColorSpaceRef CreateSystemColorSpace() {
@@ -446,16 +384,6 @@ CGColorSpaceRef CreateSystemColorSpace() {
     return cspace;
 }
 
-CGContextRef MacIOSurface::CreateIOSurfaceContext() {
-  CGContextRef ref = MacIOSurfaceLib::IOSurfaceContextCreate(mIOSurfacePtr, GetWidth(), GetHeight(),
-                                                8, 32, CreateSystemColorSpace(), 0x2002);
-  return ref;
-}
-
-nsCARenderer::~nsCARenderer() {
-  Destroy();
-}
-
 void cgdata_release_callback(void *aCGData, const void *data, size_t size) {
   if (aCGData) {
     free(aCGData);
@@ -463,7 +391,6 @@ void cgdata_release_callback(void *aCGData, const void *data, size_t size) {
 }
 
 void nsCARenderer::Destroy() {
-  printf("Destroy\n");
   if (mCARenderer) {
     CARenderer* caRenderer = (CARenderer*)mCARenderer;
     // Bug 556453:
@@ -503,11 +430,9 @@ void nsCARenderer::Destroy() {
   mFBOTexture = 0;
   mOpenGLContext = nullptr;
   mCGImage = nullptr;
-  printf("Destroy: set null\n");
   mIOSurface = nullptr;
   mFBO = 0;
   mIOTexture = 0;
-  printf("Destroy: cleanup\n");
 }
 
 nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
@@ -616,7 +541,7 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
     ::glBindTexture(GL_TEXTURE_RECTANGLE_ARB, mIOTexture);
     ::glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     ::glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    MacIOSurfaceLib::CGLTexImageIOSurface2D(mOpenGLContext, GL_TEXTURE_RECTANGLE_ARB,
+    nsIOSurfaceLib::CGLTexImageIOSurface2D(mOpenGLContext, GL_TEXTURE_RECTANGLE_ARB,
                                            GL_RGBA, aWidth, aHeight,
                                            GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
                                            mIOSurface->mIOSurfacePtr, 0);
@@ -710,8 +635,7 @@ void nsCARenderer::SetViewport(int aWidth, int aHeight) {
   ::glScalef(1.0, -1.0, 1.0);
 }
 
-void nsCARenderer::AttachIOSurface(RefPtr<MacIOSurface> aSurface) {
-  printf("*****Attach*****\n\n\n\n\n");
+void nsCARenderer::AttachIOSurface(nsRefPtr<nsIOSurface> aSurface) {
   if (mIOSurface &&
       aSurface->GetIOSurfaceID() == mIOSurface->GetIOSurfaceID()) {
     // This object isn't needed since we already have a
@@ -731,7 +655,7 @@ void nsCARenderer::AttachIOSurface(RefPtr<MacIOSurface> aSurface) {
     CGLContextObj oldContext = ::CGLGetCurrentContext();
     ::CGLSetCurrentContext(mOpenGLContext);
     ::glBindTexture(GL_TEXTURE_RECTANGLE_ARB, mIOTexture);
-    MacIOSurfaceLib::CGLTexImageIOSurface2D(mOpenGLContext, GL_TEXTURE_RECTANGLE_ARB,
+    nsIOSurfaceLib::CGLTexImageIOSurface2D(mOpenGLContext, GL_TEXTURE_RECTANGLE_ARB,
                                            GL_RGBA, mIOSurface->GetWidth(), mIOSurface->GetHeight(),
                                            GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
                                            mIOSurface->mIOSurfacePtr, 0);
@@ -846,7 +770,7 @@ nsresult nsCARenderer::Render(int aWidth, int aHeight,
 }
 
 nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext, 
-                                              MacIOSurface *surf, 
+                                              nsIOSurface *surf, 
                                               CGColorSpaceRef aColorSpace,
                                               int aX, int aY,
                                               size_t aWidth, size_t aHeight) {
@@ -921,7 +845,7 @@ void nsCARenderer::AttachCALayer(void *aCALayer) {
 #ifdef DEBUG
 
 int sSaveToDiskSequence = 0;
-void nsCARenderer::SaveToDisk(MacIOSurface *surf) {
+void nsCARenderer::SaveToDisk(nsIOSurface *surf) {
   surf->Lock();
   size_t bytesPerRow = surf->GetBytesPerRow();
   size_t ioWidth = surf->GetWidth();
@@ -975,47 +899,4 @@ void nsCARenderer::SaveToDisk(MacIOSurface *surf) {
 }
 
 #endif
-
-CGImageRef MacIOSurface::CreateImageFromIOSurfaceContext(CGContextRef aContext) {
-  if (!MacIOSurfaceLib::isInit())
-    return nsnull;
-
-  return MacIOSurfaceLib::IOSurfaceContextCreateImage(aContext);
-}
-
-TemporaryRef<MacIOSurface> MacIOSurface::IOSurfaceContextGetSurface(CGContextRef aContext) {
-  if (!MacIOSurfaceLib::isInit())
-    return nsnull;
-
-  IOSurfacePtr surfaceRef = MacIOSurfaceLib::IOSurfaceContextGetSurface(aContext);
-  if (!surfaceRef)
-    return nsnull;
-
-  // Retain the IOSurface because MacIOSurface will release it
-  CFRetain(surfaceRef);
-
-  RefPtr<MacIOSurface> ioSurface = new MacIOSurface(surfaceRef);
-  if (!ioSurface) {
-    ::CFRelease(surfaceRef);
-    return nsnull;
-  }
-  return ioSurface.forget();
-}
-
-
-CGContextType GetContextType(CGContextRef ref)
-{
-  if (!MacIOSurfaceLib::isInit() || !MacIOSurfaceLib::sCGContextGetTypePtr)
-    return CG_CONTEXT_TYPE_UNKNOWN;
-
-  unsigned int type = MacIOSurfaceLib::sCGContextGetTypePtr(ref);
-  if (type == CG_CONTEXT_TYPE_BITMAP) {
-    return CG_CONTEXT_TYPE_BITMAP;
-  } else if (type == CG_CONTEXT_TYPE_IOSURFACE) {
-    return CG_CONTEXT_TYPE_IOSURFACE;
-  } else {
-    return CG_CONTEXT_TYPE_UNKNOWN;
-  }
-}
-
 

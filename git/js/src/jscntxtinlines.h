@@ -380,8 +380,6 @@ STATIC_PRECONDITION_ASSUME(ubound(args.argv_) >= argc)
 JS_ALWAYS_INLINE bool
 CallJSNative(JSContext *cx, Native native, const CallArgs &args)
 {
-    JS_CHECK_RECURSION(cx, return false);
-
 #ifdef DEBUG
     bool alreadyThrowing = cx->isExceptionPending();
 #endif
@@ -450,8 +448,6 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
 JS_ALWAYS_INLINE bool
 CallJSPropertyOp(JSContext *cx, PropertyOp op, HandleObject receiver, HandleId id, MutableHandleValue vp)
 {
-    JS_CHECK_RECURSION(cx, return false);
-
     assertSameCompartment(cx, receiver, id, vp);
     JSBool ok = op(cx, receiver, id, vp);
     if (ok)
@@ -463,8 +459,6 @@ JS_ALWAYS_INLINE bool
 CallJSPropertyOpSetter(JSContext *cx, StrictPropertyOp op, HandleObject obj, HandleId id,
                        JSBool strict, MutableHandleValue vp)
 {
-    JS_CHECK_RECURSION(cx, return false);
-
     assertSameCompartment(cx, obj, id, vp);
     return op(cx, obj, id, strict, vp);
 }

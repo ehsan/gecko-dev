@@ -169,8 +169,8 @@ public class GLController {
             initEGL();
         }
 
-        Object window = mView.getNativeWindow();
-        EGLSurface surface = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, window, null);
+        SurfaceHolder surfaceHolder = mView.getHolder();
+        EGLSurface surface = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, surfaceHolder, null);
         if (surface == null || surface == EGL10.EGL_NO_SURFACE) {
             throw new GLControllerException("EGL window surface could not be created! " +
                                             getEGLError());

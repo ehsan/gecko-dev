@@ -52,15 +52,15 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 static PLDHashOperator
 BindingDependenciesTraverser(nsISupports* key,
-                             nsXULTemplateQueryProcessorRDF::ResultArray* array,
+                             nsCOMArray<nsXULTemplateResultRDF>* array,
                              void* userArg)
 {
     nsCycleCollectionTraversalCallback *cb = 
         static_cast<nsCycleCollectionTraversalCallback*>(userArg);
 
-    PRInt32 i, count = array->Length();
+    PRInt32 i, count = array->Count();
     for (i = 0; i < count; ++i) {
-        cb->NoteXPCOMChild(array->ElementAt(i));
+        cb->NoteXPCOMChild(array->ObjectAt(i));
     }
 
     return PL_DHASH_NEXT;
@@ -107,7 +107,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorRDF)
     if (tmp->mRuleToBindingsMap.IsInitialized()) {
         tmp->mRuleToBindingsMap.EnumerateRead(RuleToBindingTraverser, &cb);
     }
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mQueries)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mQueries)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULTemplateQueryProcessorRDF)
@@ -433,7 +433,9 @@ nsXULTemplateQueryProcessorRDF::CompileQuery(nsIXULTemplateBuilder* aBuilder,
     if (NS_FAILED(rv))
         return rv;
 
-    mQueries.AppendElement(query);
+    rv = mQueries.AppendObject(query);
+    if (NS_FAILED(rv))
+        return rv;
 
     *_retval = query;
     NS_ADDREF(*_retval);
@@ -470,7 +472,7 @@ nsXULTemplateQueryProcessorRDF::GenerateResults(nsISupports* aDatasource,
         }
         else {
             // clear the cached results
-            PRInt32 count = mQueries.Length();
+            PRInt32 count = mQueries.Count();
             for (PRInt32 r = 0; r < count; r++) {
                 mQueries[r]->ClearCachedResults();
             }
@@ -1011,11 +1013,11 @@ nsXULTemplateQueryProcessorRDF::SynchronizeAll(nsIRDFResource* aSource,
 
     // Get all the matches whose assignments are currently supported
     // by aSource and aProperty: we'll need to recompute them.
-    ResultArray* results;
+    nsCOMArray<nsXULTemplateResultRDF>* results;
     if (!mBindingDependencies.Get(aSource, &results) || !mBuilder)
         return NS_OK;
 
-    PRUint32 length = results->Length();
+    PRUint32 length = results->Count();
 
     for (PRUint32 r = 0; r < length; r++) {
         nsXULTemplateResultRDF* result = (*results)[r];
@@ -1710,32 +1712,38 @@ nsXULTemplateQueryProcessorRDF::GetBindingsForRule(nsIDOMNode* aRuleNode)
     return mRuleToBindingsMap.GetWeak(aRuleNode);
 }
 
-void
+nsresult
 nsXULTemplateQueryProcessorRDF::AddBindingDependency(nsXULTemplateResultRDF* aResult,
                                                      nsIRDFResource* aResource)
 {
-    ResultArray* arr;
+    nsCOMArray<nsXULTemplateResultRDF>* arr;
     if (!mBindingDependencies.Get(aResource, &arr)) {
-        arr = new ResultArray();
+        arr = new nsCOMArray<nsXULTemplateResultRDF>();
+        if (!arr)
+            return NS_ERROR_OUT_OF_MEMORY;
 
         mBindingDependencies.Put(aResource, arr);
     }
 
     PRInt32 index = arr->IndexOf(aResult);
     if (index == -1)
-        arr->AppendElement(aResult);
+        return arr->AppendObject(aResult);
+
+    return NS_OK;
 }
 
-void
+nsresult
 nsXULTemplateQueryProcessorRDF::RemoveBindingDependency(nsXULTemplateResultRDF* aResult,
                                                         nsIRDFResource* aResource)
 {
-    ResultArray* arr;
+    nsCOMArray<nsXULTemplateResultRDF>* arr;
     if (mBindingDependencies.Get(aResource, &arr)) {
         PRInt32 index = arr->IndexOf(aResult);
         if (index >= 0)
-            arr->RemoveElementAt(index);
+            return arr->RemoveObjectAt(index);
     }
+
+    return NS_OK;
 }
 
 

@@ -383,7 +383,8 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
                                               LayerManager *aLayerManager)
 {
 #ifdef DEBUG
-  NS_ASSERTION(!(aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) ||
+  nsISVGChildFrame *svgChildFrame = do_QueryFrame(aFrame);
+  NS_ASSERTION(!svgChildFrame ||
                (NS_SVGDisplayListPaintingEnabled() &&
                 !(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)),
                "Should not use nsSVGIntegrationUtils on this SVG frame");

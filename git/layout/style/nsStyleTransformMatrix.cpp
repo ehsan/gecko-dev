@@ -39,13 +39,12 @@ static double FlushToZero(double aVal)
     return aVal;
 }
 
-float
+static float
 ProcessTranslatePart(const nsCSSValue& aValue,
                      nsStyleContext* aContext,
                      nsPresContext* aPresContext,
                      bool& aCanStoreInRuleTree,
-                     nscoord aSize,
-                     float aAppUnitsPerMatrixUnit)
+                     nscoord aSize, float aAppUnitsPerMatrixUnit)
 {
   nscoord offset = 0;
   float percent = 0.0f;
@@ -383,19 +382,6 @@ ProcessSkewY(gfx3DMatrix& aMatrix, const nsCSSValue::Array* aData)
   ProcessSkewHelper(aMatrix, 0.0, aData->Item(1).GetAngleValueInRadians());
 }
 
-/* Function that converts a skew transform into a matrix. */
-static void
-ProcessSkew(gfx3DMatrix& aMatrix, const nsCSSValue::Array* aData)
-{
-  NS_ASSERTION(aData->Count() == 2 || aData->Count() == 3, "Bad array!");
-
-  double xSkew = aData->Item(1).GetAngleValueInRadians();
-  double ySkew = (aData->Count() == 2
-                  ? 0.0 : aData->Item(2).GetAngleValueInRadians());
-
-  ProcessSkewHelper(aMatrix, xSkew, ySkew);
-}
-
 /* Function that converts a rotate transform into a matrix. */
 static void
 ProcessRotateZ(gfx3DMatrix& aMatrix, const nsCSSValue::Array* aData)
@@ -556,9 +542,6 @@ MatrixForTransformFunction(gfx3DMatrix& aMatrix,
     break;
   case eCSSKeyword_skewy:
     ProcessSkewY(aMatrix, aData);
-    break;
-  case eCSSKeyword_skew:
-    ProcessSkew(aMatrix, aData);
     break;
   case eCSSKeyword_rotatex:
     ProcessRotateX(aMatrix, aData);

@@ -18,7 +18,7 @@
 #include "gfxPlatform.h"
 
 #ifdef XP_MACOSX
-#include "mozilla/gfx/MacIOSurface.h"
+#include "nsIOSurface.h"
 #endif
 #ifdef XP_WIN
 struct ID3D10Texture2D;
@@ -222,7 +222,7 @@ public:
  * image container. This is usually done by the layer system internally and
  * not explicitly by users. For PlanarYCbCr or Cairo images the default
  * implementation will creates images whose data lives in system memory, for
- * MacIOSurfaces the default implementation will be a simple MacIOSurface
+ * MacIOSurfaces the default implementation will be a simple nsIOSurface
  * wrapper.
  */
 
@@ -873,7 +873,7 @@ public:
 class THEBES_API MacIOSurfaceImage : public Image {
 public:
   struct Data {
-    MacIOSurface* mIOSurface;
+    nsIOSurface* mIOSurface;
   };
 
   MacIOSurfaceImage()
@@ -921,7 +921,7 @@ public:
     return mSize;
   }
 
-  MacIOSurface* GetIOSurface()
+  nsIOSurface* GetIOSurface()
   {
     return mIOSurface;
   }
@@ -932,7 +932,7 @@ public:
 
 private:
   gfxIntSize mSize;
-  RefPtr<MacIOSurface> mIOSurface;
+  nsRefPtr<nsIOSurface> mIOSurface;
   void* mPluginInstanceOwner;
   UpdateSurfaceCallback mUpdateCallback;
   DestroyCallback mDestroyCallback;

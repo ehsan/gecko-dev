@@ -516,7 +516,9 @@ nsHttpHandler::BuildUserAgent()
     LOG(("nsHttpHandler::BuildUserAgent\n"));
 
     NS_ASSERTION(!mLegacyAppName.IsEmpty() &&
-                 !mLegacyAppVersion.IsEmpty(),
+                 !mLegacyAppVersion.IsEmpty() &&
+                 !mPlatform.IsEmpty() &&
+                 !mOscpu.IsEmpty(),
                  "HTTP cannot send practical requests without this much");
 
     // preallocate to worst-case size, which should always be better
@@ -545,19 +547,18 @@ nsHttpHandler::BuildUserAgent()
     // Application comment
     mUserAgent += '(';
 #ifndef UA_SPARE_PLATFORM
-    if (!mPlatform.IsEmpty()) {
-      mUserAgent += mPlatform;
-      mUserAgent.AppendLiteral("; ");
-    }
+    mUserAgent += mPlatform;
+    mUserAgent.AppendLiteral("; ");
 #endif
+#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
     if (!mCompatDevice.IsEmpty()) {
         mUserAgent += mCompatDevice;
         mUserAgent.AppendLiteral("; ");
     }
-    else if (!mOscpu.IsEmpty()) {
-      mUserAgent += mOscpu;
-      mUserAgent.AppendLiteral("; ");
-    }
+#else
+    mUserAgent += mOscpu;
+    mUserAgent.AppendLiteral("; ");
+#endif
     mUserAgent += mMisc;
     mUserAgent += ')';
 
@@ -590,7 +591,6 @@ nsHttpHandler::BuildUserAgent()
 void
 nsHttpHandler::InitUserAgentComponents()
 {
-#ifndef MOZ_UA_OS_AGNOSTIC
     // Gather platform.
     mPlatform.AssignLiteral(
 #if defined(ANDROID)
@@ -605,9 +605,10 @@ nsHttpHandler::InitUserAgentComponents()
     "Maemo"
 #elif defined(MOZ_X11)
     "X11"
+#else
+    "?"
 #endif
     );
-#endif
 
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
@@ -621,7 +622,6 @@ nsHttpHandler::InitUserAgentComponents()
         mCompatDevice.AssignLiteral("Mobile");
 #endif
 
-#ifndef MOZ_UA_OS_AGNOSTIC
     // Gather OS/CPU.
 #if defined(XP_OS2)
     ULONG os2ver = 0;
@@ -706,7 +706,6 @@ nsHttpHandler::InitUserAgentComponents()
 
         mOscpu.Assign(buf);
     }
-#endif
 #endif
 
     mUserAgentIsDirty = true;
