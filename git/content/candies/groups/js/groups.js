@@ -1,7 +1,9 @@
 (function(){
 
-function min(list){ return list.sort()[0]; }
-function max(list){ return list.sort().pop(); }
+var numCmp = function(a,b){ return a-b; }
+
+function min(list){ return list.slice().sort(numCmp)[0]; }
+function max(list){ return list.slice().sort(numCmp).reverse()[0]; }
 
 function Group(){}
 Group.prototype = {
@@ -11,11 +13,12 @@ Group.prototype = {
   
   _getBoundingBox: function(){
     var els = this._children;
+    var el;
     var boundingBox = {
-      top:    min( [$(els[i]).position().top for(i in els)] ),
-      left:   min( [$(els[i]).position().left for(i in els)] ),
-      bottom: max( [$(els[i]).position().top for(i in els)] )  + $(els[0]).height(),
-      right:  max( [$(els[i]).position().left for(i in els)] ) + $(els[0]).width(),
+      top:    min( [$(el).position().top  for([,el] in Iterator(els))] ),
+      left:   min( [$(el).position().left for([,el] in Iterator(els))] ),
+      bottom: max( [$(el).position().top  for([,el] in Iterator(els))] )  + $(els[0]).height(),
+      right:  max( [$(el).position().left for([,el] in Iterator(els))] ) + $(els[0]).width(),
     };
     boundingBox.height = boundingBox.bottom - boundingBox.top;
     boundingBox.width  = boundingBox.right - boundingBox.left;
@@ -45,17 +48,19 @@ Group.prototype = {
     
     this._addHandlers(container);
     this._updateGroup();
-    console.log(this);
   },
   
   add: function(el){
     this._children.push( el );
     this._updateGroup();
+    
+
     var bb = this._getBoundingBox();
+    var padding = bb.top - $(this._container).position().top;    
     this._container.animate({
-      width: bb.width + 30*2,
-      height: bb.height + 40*2,
-    },250);
+      width: bb.width + padding*2,
+      height: bb.height + padding*2,
+    },100);
     
   },
   
@@ -83,6 +88,40 @@ Group.prototype = {
     });    
   },
   
+  arrange: function(){
+    var bb = this._getBoundingBox();
+    var tab;
+
+    var w = parseInt(Math.sqrt((bb.height * bb.width)/this._children.length));
+    var h = w * (2/3);
+
+    var x=0;
+    var y=0;
+    for([,tab] in Iterator(this._children)){
+      // This is for actual tabs. Need a better solution.
+      // One that doesn't require special casing to find the linked info.
+      // If I just animate the tab, the rest should happen automatically!
+      if( $("canvas", tab)[0] != null ){
+        $("canvas", tab).data('link').animate({height:h}, 250);
+      }
+      
+      //var el = $("canvas", tab);
+      //if( el ){ tab = el.data("link") }
+      
+      $(tab).animate({
+        height:h, width: w,
+        top:y+bb.top, left:x+bb.left,
+      }, 250);
+      
+      
+      
+      x += w+10;
+      if( x+w > bb.width){x = 0;y += h+10;}
+    
+    }
+    
+  },
+  
   _addHandlers: function(container){
     var self = this;
     
@@ -108,7 +147,7 @@ Group.prototype = {
       out: function(){
         $dragged.data("group").remove($dragged);
       }
-    });
+    }).dblclick(function(){self.arrange();})
     
     }
 }
@@ -155,8 +194,8 @@ window.Groups = {
         dragged.removeClass("willGroup")   
   
         dragged.animate({
-          top: target.position().top+10,
-          left: target.position().left+10,      
+          top: target.position().top+15,
+          left: target.position().left+15,      
         }, 100);
         
         setTimeout( function(){
