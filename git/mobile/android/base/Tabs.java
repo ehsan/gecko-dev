@@ -63,8 +63,6 @@ public class Tabs implements GeckoEventListener {
 
     private static final long PERSIST_TABS_AFTER_MILLISECONDS = 1000 * 5;
 
-    public static final int INVALID_TAB_ID = -1;
-
     private static AtomicInteger sTabId = new AtomicInteger(0);
     private volatile boolean mInitialTabsAdded;
 

@@ -4345,7 +4345,7 @@ SearchService.prototype = {
     try {
       terms = gTextToSubURI.UnEscapeAndConvert(
                                        mapEntry.engine.queryCharset,
-                                       encodedTerms.replace("+", " ", "g"));
+                                       encodedTerms.replace("+", " "));
     } catch (ex) {
       // Decoding errors will cause this match to be ignored.
       LOG("Parameter decoding failed. Charset: " +
