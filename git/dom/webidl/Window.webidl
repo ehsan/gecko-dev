@@ -152,11 +152,6 @@ dictionary ScrollOptions {
   ScrollBehavior behavior = "auto";
 };
 
-dictionary ScrollToOptions : ScrollOptions {
-  unrestricted double left;
-  unrestricted double top;
-};
-
 partial interface Window {
   //[Throws,NewObject] MediaQueryList matchMedia(DOMString query);
   [Throws,NewObject] MediaQueryList? matchMedia(DOMString query);
@@ -184,12 +179,9 @@ partial interface Window {
   //[Throws] readonly attribute double pageXOffset;
   //[Throws] readonly attribute double scrollY;
   //[Throws] readonly attribute double pageYOffset;
-  void scroll(unrestricted double x, unrestricted double y);
-  void scroll(optional ScrollToOptions options);
-  void scrollTo(unrestricted double x, unrestricted double y);
-  void scrollTo(optional ScrollToOptions options);
-  void scrollBy(unrestricted double x, unrestricted double y);
-  void scrollBy(optional ScrollToOptions options);
+  void scroll(unrestricted double x, unrestricted double y, optional ScrollOptions options);
+  void scrollTo(unrestricted double x, unrestricted double y, optional ScrollOptions options);
+  void scrollBy(unrestricted double x, unrestricted double y, optional ScrollOptions options);
   [Replaceable, Throws] readonly attribute long scrollX;
   [Throws] readonly attribute long pageXOffset;
   [Replaceable, Throws] readonly attribute long scrollY;

@@ -478,7 +478,6 @@ public class Tab {
         JSONObject json = new JSONObject();
         try {
             json.put("tabID", String.valueOf(getId()));
-            json.put("url", getURL());
         } catch (JSONException e) {
             Log.e(LOGTAG, "JSON error - failing to add to reading list", e);
             return;

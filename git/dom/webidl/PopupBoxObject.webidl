@@ -11,9 +11,8 @@ interface PopupBoxObject : BoxObject
    */
   void showPopup(Element? srcContent, Element popupContent,
                  long xpos, long ypos,
-                 optional DOMString popupType = "",
-                 optional DOMString anchorAlignment = "",
-                 optional DOMString popupAlignment = "");
+                 DOMString popupType, DOMString anchorAlignment,
+                 DOMString popupAlignment);
 
   /**
    *  Hide the popup if it is open. The cancel argument is used as a hint that
@@ -106,9 +105,8 @@ interface PopupBoxObject : BoxObject
    * @param triggerEvent the event that triggered this popup (mouse click for example)
    */
   void openPopup(Element? anchorElement,
-                 optional DOMString position = "",
-                 long x,
-                 long y,
+                 DOMString position,
+                 long x, long y,
                  boolean isContextMenu,
                  boolean attributesOverride,
                  Event? triggerEvent);
@@ -162,7 +160,7 @@ interface PopupBoxObject : BoxObject
    * on popups that are not open.
    */
   void moveToAnchor(Element? anchorElement,
-                    optional DOMString position = "",
+                    DOMString position,
                     long x, long y,
                     boolean attributesOverride);
 

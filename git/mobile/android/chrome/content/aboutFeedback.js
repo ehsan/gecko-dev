@@ -77,7 +77,6 @@ function init() {
 
   // Fill "Last visited site" input with most recent history entry URL.
   Services.obs.addObserver(function observer(aSubject, aTopic, aData) {
-    aData = aData.substring(0, 200);
     document.getElementById("last-url").value = aData;
     // Enable the parent div iff the URL is valid.
     if (aData.length != 0) {

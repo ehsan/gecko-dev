@@ -3,7 +3,8 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<resources xmlns:android="http://schemas.android.com/apk/res/android">
+<resources>
+
     <!-- Theme level attributes -->
     <declare-styleable name="GeckoTheme">
 
@@ -105,7 +106,7 @@
     </declare-styleable>
 
     <declare-styleable name="TabCounter">
-        <attr name="android:layout"/>
+        <attr name="layout" format="reference"/>
     </declare-styleable>
 
     <declare-styleable name="TextSelectionHandle">

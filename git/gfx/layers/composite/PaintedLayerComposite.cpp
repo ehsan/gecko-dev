@@ -85,16 +85,6 @@ PaintedLayerComposite::GetLayer()
   return this;
 }
 
-void
-PaintedLayerComposite::SetLayerManager(LayerManagerComposite* aManager)
-{
-  LayerComposite::SetLayerManager(aManager);
-  mManager = aManager;
-  if (mBuffer) {
-    mBuffer->SetCompositor(mCompositor);
-  }
-}
-
 TiledLayerComposer*
 PaintedLayerComposite::GetTiledLayerComposer()
 {

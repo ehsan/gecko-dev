@@ -137,7 +137,6 @@ const Panel = Class({
       position: Object.freeze({}),
       contextMenu: false
     }, panelContract(options));
-    model.ready = false;
     models.set(this, model);
 
     if (model.contentStyle || model.contentStyleFile) {
@@ -301,30 +300,15 @@ let ready = filter(panelEvents, ({type, target}) =>
 let start = filter(panelEvents, ({type}) => type === "document-element-inserted");
 
 // Forward panel show / hide events to panel's own event listeners.
-on(shows, "data", ({target}) => {
-  let panel = panelFor(target);
-  if (modelFor(panel).ready)
-    emit(panel, "show");
-});
+on(shows, "data", ({target}) => emit(panelFor(target), "show"));
 
-on(hides, "data", ({target}) => {
-  let panel = panelFor(target);
-  if (modelFor(panel).ready)
-    emit(panel, "hide");
-});
+on(hides, "data", ({target}) => emit(panelFor(target), "hide"));
 
 on(ready, "data", ({target}) => {
   let panel = panelFor(target);
   let window = domPanel.getContentDocument(target).defaultView;
 
   workerFor(panel).attach(window);
-
-  if (!modelFor(panel).ready) {
-    modelFor(panel).ready = true;
-
-    if (viewFor(panel).state == "open")
-      emit(panel, "show");
-  }
 });
 
 on(start, "data", ({target}) => {

@@ -49,8 +49,6 @@ public:
     Destroy();
   }
 
-  virtual void SetLayerManager(LayerManagerComposite* aManager) MOZ_OVERRIDE;
-
   virtual Layer* GetLayer() MOZ_OVERRIDE;
   virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
 

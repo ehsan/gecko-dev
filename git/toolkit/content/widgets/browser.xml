@@ -1123,12 +1123,8 @@
           }
 
           // Re-attach the docShells to the form fill controller.
-          if (!this.isRemoteBrowser) {
-            this.attachFormFill();
-          }
-          if (!aOtherBrowser.isRemoteBrowser) {
-            aOtherBrowser.attachFormFill();
-          }
+          this.attachFormFill();
+          aOtherBrowser.attachFormFill();
 
           // Null the current nsITypeAheadFind instances so that they're
           // lazily re-created on access. We need to do this because they
