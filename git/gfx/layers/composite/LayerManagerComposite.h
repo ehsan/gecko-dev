@@ -52,6 +52,7 @@ namespace layers {
 
 class CanvasLayerComposite;
 class ColorLayerComposite;
+class Composer2D;
 class CompositableHost;
 class Compositor;
 class ContainerLayerComposite;
@@ -258,6 +259,9 @@ private:
   void WorldTransformRect(nsIntRect& aRect);
 
   RefPtr<Compositor> mCompositor;
+
+  /** Our more efficient but less powerful alter ego, if one is available. */
+  nsRefPtr<Composer2D> mComposer2D;
 
   gfxMatrix mWorldMatrix;
 

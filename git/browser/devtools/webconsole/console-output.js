@@ -997,12 +997,10 @@ Messages.Extended.prototype = Heritage.extend(Messages.Simple.prototype,
     }
 
     let result = this.document.createDocumentFragment();
-    if (isPrimitive) {
-      result.textContent = VariablesView.getString(piece, {
-        noStringQuotes: !this._quoteStrings,
-      });
-    } else {
+    if (!isPrimitive || (!this._quoteStrings && typeof piece == "string")) {
       result.textContent = piece;
+    } else {
+      result.textContent = VariablesView.getString(piece);
     }
 
     return result;
@@ -1221,7 +1219,7 @@ Widgets.JSObject.prototype = Heritage.extend(Widgets.BaseWidget.prototype,
   _onClick: function()
   {
     this.output.openVariablesView({
-      label: VariablesView.getString(this.objectActor, { concise: true }),
+      label: this.element.textContent,
       objectActor: this.objectActor,
       autofocus: true,
     });
@@ -1275,10 +1273,11 @@ Widgets.LongString.prototype = Heritage.extend(Widgets.BaseWidget.prototype,
    */
   _renderString: function(str)
   {
-    this.element.textContent = VariablesView.getString(str, {
-      noStringQuotes: !this.message._quoteStrings,
-      noEllipsis: true,
-    });
+    if (this.message._quoteStrings) {
+      this.element.textContent = VariablesView.getString(str);
+    } else {
+      this.element.textContent = str;
+    }
   },
 
   /**

@@ -78,15 +78,13 @@ function testPause() {
         "Debugger's tab got selected.");
     }
     gToolbox.selectTool("webconsole").then(() => {
-      ok(gToolboxTab.hasAttribute("highlighted") &&
-         gToolboxTab.getAttribute("highlighted") == "true",
+      ok(gToolboxTab.classList.contains("highlighted"),
         "The highlighted class is present");
       ok(!gToolboxTab.hasAttribute("selected") ||
           gToolboxTab.getAttribute("selected") != "true",
         "The tab is not selected");
     }).then(() => gToolbox.selectTool("jsdebugger")).then(() => {
-      ok(gToolboxTab.hasAttribute("highlighted") &&
-         gToolboxTab.getAttribute("highlighted") == "true",
+      ok(gToolboxTab.classList.contains("highlighted"),
         "The highlighted class is present");
       ok(gToolboxTab.hasAttribute("selected") &&
          gToolboxTab.getAttribute("selected") == "true",
@@ -102,8 +100,7 @@ function testPause() {
 function testResume() {
   gDebugger.gThreadClient.addOneTimeListener("resumed", () => {
     gToolbox.selectTool("webconsole").then(() => {
-      ok(!gToolboxTab.hasAttribute("highlighted") ||
-          gToolboxTab.getAttribute("highlighted") != "true",
+      ok(!gToolboxTab.classList.contains("highlighted"),
         "The highlighted class is not present now after the resume");
       ok(!gToolboxTab.hasAttribute("selected") ||
           gToolboxTab.getAttribute("selected") != "true",

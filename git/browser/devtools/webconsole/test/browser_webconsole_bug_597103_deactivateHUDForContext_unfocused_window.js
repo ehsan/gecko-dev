@@ -80,8 +80,9 @@ function tab2Loaded(aEvent) {
   function testEnd() {
     ok(noErrors, "there were no errors");
 
-    win1.gBrowser.removeTab(tab1);
-
+    Array.forEach(win1.gBrowser.tabs, function(aTab) {
+      win1.gBrowser.removeTab(aTab);
+    });
     Array.forEach(win2.gBrowser.tabs, function(aTab) {
       win2.gBrowser.removeTab(aTab);
     });

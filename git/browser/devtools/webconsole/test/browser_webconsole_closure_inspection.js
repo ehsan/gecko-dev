@@ -54,7 +54,7 @@ function consoleOpened(hud)
   waitForMessages({
     webconsole: gWebConsole,
     messages: [{
-      text: "function _pfactory/<.getName()",
+      text: "[object Function]",
       category: CATEGORY_OUTPUT,
       objects: true,
     }],
