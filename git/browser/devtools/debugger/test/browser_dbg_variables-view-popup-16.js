@@ -10,7 +10,7 @@ const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
 
 function test() {
   Task.spawn(function() {
-    let [tab,, panel] = yield initDebugger(TAB_URL);
+    let [tab, debuggee, panel] = yield initDebugger(TAB_URL);
     let win = panel.panelWin;
     let events = win.EVENTS;
     let editor = win.DebuggerView.editor;
@@ -51,7 +51,8 @@ function test() {
       return finished;
     }
 
-    callInTab(tab, "recurse");
+    // Allow this generator function to yield first.
+    executeSoon(() => debuggee.recurse());
     yield waitForSourceAndCaretAndScopes(panel, ".html", 26);
     yield checkView(0, 26);
 

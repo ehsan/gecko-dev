@@ -254,7 +254,7 @@ IPCAccessibilityActive()
 #ifdef MOZ_B2G
   return false;
 #else
-  return XRE_GetProcessType() == GeckoProcessType_Content;
+  return XRE_GetProcessType() != GeckoProcessType_Default;
 #endif
 }
 

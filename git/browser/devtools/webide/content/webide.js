@@ -765,7 +765,6 @@ let UI = {
       document.querySelector("#cmd_play").setAttribute("disabled", "true");
       document.querySelector("#cmd_stop").setAttribute("disabled", "true");
       document.querySelector("#cmd_toggleToolbox").setAttribute("disabled", "true");
-      document.querySelector("#cmd_showDevicePrefs").setAttribute("disabled", "true");
       return;
     }
 
@@ -828,7 +827,6 @@ let UI = {
     let permissionsCmd = document.querySelector("#cmd_showPermissionsTable");
     let detailsCmd = document.querySelector("#cmd_showRuntimeDetails");
     let disconnectCmd = document.querySelector("#cmd_disconnectRuntime");
-    let devicePrefsCmd = document.querySelector("#cmd_showDevicePrefs");
 
     let box = document.querySelector("#runtime-actions");
 
@@ -839,9 +837,6 @@ let UI = {
         permissionsCmd.removeAttribute("disabled");
         screenshotCmd.removeAttribute("disabled");
       }
-      if (AppManager.preferenceFront) {
-        devicePrefsCmd.removeAttribute("disabled");
-      }
       disconnectCmd.removeAttribute("disabled");
       runtimePanelButton.setAttribute("active", "true");
     } else {
@@ -849,7 +844,6 @@ let UI = {
       permissionsCmd.setAttribute("disabled", "true");
       screenshotCmd.setAttribute("disabled", "true");
       disconnectCmd.setAttribute("disabled", "true");
-      devicePrefsCmd.setAttribute("disabled", "true");
       runtimePanelButton.removeAttribute("active");
     }
 
@@ -1185,10 +1179,6 @@ let Cmds = {
 
   showRuntimeDetails: function() {
     UI.selectDeckPanel("runtimedetails");
-  },
-
-  showDevicePrefs: function() {
-    UI.selectDeckPanel("devicepreferences");
   },
 
   showMonitor: function() {

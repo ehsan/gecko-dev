@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1426331489992000);
+const PRTime gPreloadListExpirationTime = INT64_C(1425722937532000);
 
 class nsSTSPreload
 {
@@ -88,6 +88,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "bigbrownpromotions.com.au", true },
   { "bitbucket.org", false },
   { "bitfactory.ws", true },
+  { "bitgo.com", true },
   { "bl4ckb0x.com", true },
   { "bl4ckb0x.de", true },
   { "bl4ckb0x.info", true },
@@ -117,7 +118,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "carezone.com", false },
   { "cartouche24.eu", true },
   { "cdnb.co", true },
-  { "celltek-server.de", false },
   { "certible.com", true },
   { "chainmonitor.com", true },
   { "check.torproject.org", false },
@@ -236,9 +236,8 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "forodeespanol.com", true },
   { "forum.linode.com", false },
   { "forum.quantifiedself.com", true },
-  { "fralef.me", false },
+  { "fralef.me", true },
   { "frederik-braun.com", true },
-  { "freenetproject.org", true },
   { "freeshell.de", true },
   { "fronteers.nl", true },
   { "fundingempire.com", true },
@@ -309,9 +308,8 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "id.mayfirst.org", false },
   { "ideaweb.de", true },
   { "ihrlotto.de", true },
-  { "ilikerainbows.co.uk", true },
+  { "ilikerainbows.co.uk", false },
   { "imouto.my", false },
-  { "in.xero.com", false },
   { "inbox.google.com", true },
   { "inertianetworks.com", true },
   { "inleaked.com", true },
@@ -383,7 +381,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "login.yahoo.com", false },
   { "lolicore.ch", true },
   { "lookout.com", false },
-  { "ludwig.im", true },
   { "lukonet.com", true },
   { "lumi.do", false },
   { "luneta.nearbuysystems.com", false },
@@ -440,7 +437,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "mutantmonkey.sexy", true },
   { "mwe.st", true },
   { "my.onlime.ch", false },
-  { "my.usa.gov", true },
   { "my.xero.com", false },
   { "mygadgetguardian.lookout.com", false },
   { "mykreuzfahrt.de", true },
@@ -469,6 +465,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "orbograph-hrcm.com", true },
   { "oscarvk.ch", true },
   { "osterkraenzchen.de", true },
+  { "otakurepublic.com", true },
   { "otakuworld.de", true },
   { "oversight.io", true },
   { "p.linode.com", false },
@@ -501,6 +498,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "phoenixlogan.com", true },
   { "picksin.club", true },
   { "pierre-schmitz.com", true },
+  { "pisidia.de", true },
   { "pixi.me", true },
   { "play.google.com", true },
   { "plothost.com", true },
@@ -736,7 +734,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.dropcam.com", false },
   { "www.entropia.de", false },
   { "www.eternalgoth.co.uk", true },
-  { "www.etsy.com", true },
   { "www.evernote.com", false },
   { "www.gamesdepartment.co.uk", false },
   { "www.getcloak.com", false },

@@ -50,6 +50,5 @@ partial interface WorkerGlobalScope {
   void dump(optional DOMString str);
 
   // XXXbz no spec for this yet, because the webperf WG is a bit dysfunctional
-  [Constant, Cached]
   readonly attribute Performance performance;
 };

@@ -2650,7 +2650,6 @@ static NSMutableSet *gSwizzledFrameViewClasses = nil;
   mDisabledNeedsDisplay = NO;
   mDPI = GetDPI(self);
   mTrackingArea = nil;
-  mDirtyRect = NSZeroRect;
   mBeingShown = NO;
   mDrawTitle = NO;
   mBrightTitlebarForeground = NO;
@@ -2872,15 +2871,7 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
     // it's available and don't need to check whether our superclass responds
     // to the selector.
     [super _setNeedsDisplayInRect:aRect];
-    mDirtyRect = NSUnionRect(mDirtyRect, aRect);
   }
-}
-
-- (NSRect)getAndResetNativeDirtyRect
-{
-  NSRect dirtyRect = mDirtyRect;
-  mDirtyRect = NSZeroRect;
-  return dirtyRect;
 }
 
 - (void)updateContentViewSize

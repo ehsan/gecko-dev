@@ -159,26 +159,6 @@ describe("loop.store.ActiveRoomStore", function () {
       });
   });
 
-  describe("#fetchServerData", function() {
-    it("should save the token", function() {
-      store.fetchServerData(new sharedActions.FetchServerData({
-        windowType: "room",
-        token: "fakeToken"
-      }));
-
-      expect(store.getStoreState().roomToken).eql("fakeToken");
-    });
-
-    it("should set the state to `READY`", function() {
-      store.fetchServerData(new sharedActions.FetchServerData({
-        windowType: "room",
-        token: "fakeToken"
-      }));
-
-      expect(store.getStoreState().roomState).eql(ROOM_STATES.READY);
-    });
-  });
-
   describe("#updateRoomInfo", function() {
     var fakeRoomInfo;
 
@@ -192,13 +172,13 @@ describe("loop.store.ActiveRoomStore", function () {
     });
 
     it("should set the state to READY", function() {
-      store.updateRoomInfo(new sharedActions.UpdateRoomInfo(fakeRoomInfo));
+      store.updateRoomInfo(fakeRoomInfo);
 
       expect(store._storeState.roomState).eql(ROOM_STATES.READY);
     });
 
     it("should save the room information", function() {
-      store.updateRoomInfo(new sharedActions.UpdateRoomInfo(fakeRoomInfo));
+      store.updateRoomInfo(fakeRoomInfo);
 
       var state = store.getStoreState();
       expect(state.roomName).eql(fakeRoomInfo.roomName);
@@ -267,13 +247,13 @@ describe("loop.store.ActiveRoomStore", function () {
     });
 
     it("should set the state to `JOINED`", function() {
-      store.joinedRoom(new sharedActions.JoinedRoom(fakeJoinedData));
+      store.joinedRoom(fakeJoinedData);
 
       expect(store._storeState.roomState).eql(ROOM_STATES.JOINED);
     });
 
     it("should store the session and api values", function() {
-      store.joinedRoom(new sharedActions.JoinedRoom(fakeJoinedData));
+      store.joinedRoom(fakeJoinedData);
 
       var state = store.getStoreState();
       expect(state.apiKey).eql(fakeJoinedData.apiKey);
@@ -283,7 +263,7 @@ describe("loop.store.ActiveRoomStore", function () {
 
     it("should call mozLoop.rooms.refreshMembership before the expiresTime",
       function() {
-        store.joinedRoom(new sharedActions.JoinedRoom(fakeJoinedData));
+        store.joinedRoom(fakeJoinedData);
 
         sandbox.clock.tick(fakeJoinedData.expires * 1000);
 
@@ -297,7 +277,7 @@ describe("loop.store.ActiveRoomStore", function () {
         fakeMozLoop.rooms.refreshMembership.callsArgWith(2,
           null, {expires: 40});
 
-        store.joinedRoom(new sharedActions.JoinedRoom(fakeJoinedData));
+        store.joinedRoom(fakeJoinedData);
 
         // Clock tick for the first expiry time (which
         // sets up the refreshMembership).
@@ -316,7 +296,7 @@ describe("loop.store.ActiveRoomStore", function () {
         var fakeError = new Error("fake");
         fakeMozLoop.rooms.refreshMembership.callsArgWith(2, fakeError);
 
-        store.joinedRoom(new sharedActions.JoinedRoom(fakeJoinedData));
+        store.joinedRoom(fakeJoinedData);
 
         // Clock tick for the first expiry time (which
         // sets up the refreshMembership).
@@ -358,39 +338,6 @@ describe("loop.store.ActiveRoomStore", function () {
 
     it("should set the state to ready", function() {
       store.windowUnload();
-
-      expect(store._storeState.roomState).eql(ROOM_STATES.READY);
-    });
-  });
-
-  describe("#leaveRoom", function() {
-    beforeEach(function() {
-      store.setStoreState({
-        roomState: ROOM_STATES.JOINED,
-        roomToken: "fakeToken",
-        sessionToken: "1627384950"
-      });
-    });
-
-    it("should clear any existing timeout", function() {
-      sandbox.stub(window, "clearTimeout");
-      store._timeout = {};
-
-      store.leaveRoom();
-
-      sinon.assert.calledOnce(clearTimeout);
-    });
-
-    it("should call mozLoop.rooms.leave", function() {
-      store.leaveRoom();
-
-      sinon.assert.calledOnce(fakeMozLoop.rooms.leave);
-      sinon.assert.calledWithExactly(fakeMozLoop.rooms.leave,
-        "fakeToken", "1627384950");
-    });
-
-    it("should set the state to ready", function() {
-      store.leaveRoom();
 
       expect(store._storeState.roomState).eql(ROOM_STATES.READY);
     });

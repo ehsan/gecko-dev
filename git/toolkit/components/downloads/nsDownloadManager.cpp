@@ -3326,45 +3326,23 @@ nsDownload::ExecuteDesiredAction()
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsresult rv = NS_OK;
+  nsresult retVal = NS_OK;
   switch (action) {
     case nsIMIMEInfo::saveToDisk:
       // Move the file to the proper location
-      rv = MoveTempToTarget();
-      if (NS_SUCCEEDED(rv)) {
-        rv = FixTargetPermissions();
-      }
+      retVal = MoveTempToTarget();
       break;
     case nsIMIMEInfo::useHelperApp:
     case nsIMIMEInfo::useSystemDefault:
       // For these cases we have to move the file to the target location and
       // open with the appropriate application
-      rv = OpenWithApplication();
+      retVal = OpenWithApplication();
       break;
     default:
       break;
   }
 
-  return rv;
-}
-
-nsresult
-nsDownload::FixTargetPermissions()
-{
-  nsCOMPtr<nsIFile> target;
-  nsresult rv = GetTargetFile(getter_AddRefs(target));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Set perms according to umask.
-  nsCOMPtr<nsIPropertyBag2> infoService =
-      do_GetService("@mozilla.org/system-info;1");
-  uint32_t gUserUmask = 0;
-  rv = infoService->GetPropertyAsUint32(NS_LITERAL_STRING("umask"),
-                                        &gUserUmask);
-  if (NS_SUCCEEDED(rv)) {
-    rv = target->SetPermissions(0666 & ~gUserUmask);
-  }
-  return rv;
+  return retVal;
 }
 
 nsresult
@@ -3390,7 +3368,9 @@ nsDownload::MoveTempToTarget()
   rv = target->GetParent(getter_AddRefs(dir));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mTempFile->MoveTo(dir, fileName);
-  return rv;
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
 nsresult
@@ -3404,6 +3384,12 @@ nsDownload::OpenWithApplication()
   // Move the temporary file to the target location
   rv = MoveTempToTarget();
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // We do not verify the return value here because, irrespective of success
+  // or failure of the method, the deletion of temp file has to take place, as
+  // per the corresponding preference. But we store this separately as this is
+  // what we ultimately return from this function.
+  nsresult retVal = mMIMEInfo->LaunchWithFile(target);
 
   bool deleteTempFileOnExit;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
@@ -3423,10 +3409,6 @@ nsDownload::OpenWithApplication()
   // Always schedule files to be deleted at the end of the private browsing
   // mode, regardless of the value of the pref.
   if (deleteTempFileOnExit || mPrivate) {
-
-    // Make the tmp file readonly so users won't lose changes.
-    target->SetPermissions(0400);
-
     // Use the ExternalHelperAppService to push the temporary file to the list
     // of files to be deleted on exit.
     nsCOMPtr<nsPIExternalAppLauncher> appLauncher(do_GetService
@@ -3443,7 +3425,7 @@ nsDownload::OpenWithApplication()
     }
   }
 
-  return mMIMEInfo->LaunchWithFile(target);
+  return retVal;
 }
 
 void

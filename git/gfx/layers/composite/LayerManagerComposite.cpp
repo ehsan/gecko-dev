@@ -876,7 +876,7 @@ LayerManagerComposite::ComputeRenderIntegrity()
 {
   // We only ever have incomplete rendering when progressive tiles are enabled.
   Layer* root = GetRoot();
-  if (!gfxPlatform::GetPlatform()->UseProgressivePaint() || !root) {
+  if (!gfxPrefs::UseProgressiveTilePainting() || !root) {
     return 1.f;
   }
 
