@@ -63,7 +63,6 @@
 #include "pldhash.h"
 #include "nsINetUtil.h"
 
-class nsISSLStatus;
 class nsITransportSecurityInfo;
 class nsISecurityWarningDialogs;
 class nsIChannel;
@@ -150,7 +149,7 @@ protected:
   void ObtainEventSink(nsIChannel *channel, 
                        nsCOMPtr<nsISecurityEventSink> &sink);
 
-  nsCOMPtr<nsISSLStatus> mSSLStatus;
+  nsCOMPtr<nsISupports> mSSLStatus;
   nsCOMPtr<nsISupports> mCurrentToplevelSecurityInfo;
 
   void GetBundleString(const PRUnichar* name, nsAString &outString);
