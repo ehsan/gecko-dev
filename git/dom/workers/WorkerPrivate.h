@@ -176,7 +176,7 @@ protected:
 };
 
 template <class Derived>
-class WorkerPrivateParent : public EventTarget
+class WorkerPrivateParent : public events::EventTarget
 {
 public:
   struct LocationInfo
@@ -223,7 +223,6 @@ private:
   bool mParentSuspended;
   bool mIsChromeWorker;
   bool mPrincipalIsSystem;
-  bool mMainThreadObjectsForgotten;
 
 protected:
   WorkerPrivateParent(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -283,23 +282,21 @@ public:
   bool
   Resume(JSContext* aCx);
 
-  virtual void
-  _Trace(JSTracer* aTrc) MOZ_OVERRIDE;
-
-  virtual void
-  _Finalize(JSContext* aCx) MOZ_OVERRIDE;
+  void
+  TraceInstance(JSTracer* aTrc)
+  {
+    // This should only happen on the parent thread but we can't assert that
+    // because it can also happen on the cycle collector thread when this is a
+    // top-level worker.
+    events::EventTarget::TraceInstance(aTrc);
+  }
 
   void
-  Finish(JSContext* aCx)
-  {
-    RootJSObject(aCx, false);
-  }
+  FinalizeInstance(JSContext* aCx, bool aFromJSFinalizer);
 
   bool
   Terminate(JSContext* aCx)
   {
-    AssertIsOnParentThread();
-    RootJSObject(aCx, false);
     return TerminatePrivate(aCx, false);
   }
 
@@ -335,6 +332,9 @@ public:
   void
   GarbageCollect(JSContext* aCx, bool aShrinking);
 
+  using events::EventTarget::GetEventListenerOnEventTarget;
+  using events::EventTarget::SetEventListenerOnEventTarget;
+
   void
   QueueRunnable(WorkerRunnable* aRunnable)
   {
@@ -353,17 +353,6 @@ public:
   {
     AssertIsOnParentThread();
     return mParentSuspended;
-  }
-
-  bool
-  IsAcceptingEvents()
-  {
-    AssertIsOnParentThread();
-    bool acceptingEvents;
-    mMutex.Lock();
-    acceptingEvents = mParentStatus < Terminating;
-    mMutex.Unlock();
-    return acceptingEvents;
   }
 
   Status
@@ -574,7 +563,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 public:
   ~WorkerPrivate();
 
-  static already_AddRefed<WorkerPrivate>
+  static WorkerPrivate*
   Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
          JSString* aScriptURL, bool aIsChromeWorker);
 

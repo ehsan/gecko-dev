@@ -111,20 +111,6 @@ GetCurrentScreenOrientation(ScreenOrientation* aScreenOrientation)
 }
 
 bool
-LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
-{
-  bool allowed;
-  Hal()->SendLockScreenOrientation(aOrientation, &allowed);
-  return allowed;
-}
-
-void
-UnlockScreenOrientation()
-{
-  Hal()->SendUnlockScreenOrientation();
-}
-
-bool
 GetScreenEnabled()
 {
   bool enabled = false;
@@ -332,20 +318,6 @@ public:
   NS_OVERRIDE virtual bool
   RecvGetCurrentScreenOrientation(ScreenOrientation* aScreenOrientation) {
     hal::GetCurrentScreenOrientation(aScreenOrientation);
-    return true;
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvLockScreenOrientation(const dom::ScreenOrientation& aOrientation, bool* aAllowed)
-  {
-    *aAllowed = hal::LockScreenOrientation(aOrientation);
-    return true;
-  }
-
-  NS_OVERRIDE virtual bool
-  RecvUnlockScreenOrientation()
-  {
-    hal::UnlockScreenOrientation();
     return true;
   }
 

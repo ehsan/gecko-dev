@@ -76,7 +76,6 @@ DIRS += \
 
 DIRS += \
   base \
-  bindings \
   battery \
   contacts \
   power \

@@ -103,6 +103,8 @@ struct nsDOMClassInfoData
   PRUint32 mInterfacesBitmap;
   bool mChromeOnly;
   bool mDisabled;
+  // For new style DOM bindings.
+  mozilla::dom::binding::DefineInterface mDefineDOMInterface;
 #ifdef NS_DEBUG
   PRUint32 mDebugID;
 #endif
@@ -1472,24 +1474,6 @@ public:
   }
 
   virtual ~nsEventListenerThisTranslator()
-  {
-  }
-
-  // nsISupports
-  NS_DECL_ISUPPORTS
-
-  // nsIXPCFunctionThisTranslator
-  NS_DECL_NSIXPCFUNCTIONTHISTRANSLATOR
-};
-
-class nsMutationCallbackThisTranslator : public nsIXPCFunctionThisTranslator
-{
-public:
-  nsMutationCallbackThisTranslator()
-  {
-  }
-
-  virtual ~nsMutationCallbackThisTranslator()
   {
   }
 

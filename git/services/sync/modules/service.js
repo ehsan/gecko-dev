@@ -91,13 +91,53 @@ WeaveSvc.prototype = {
   _lock: Utils.lock,
   _locked: false,
   _loggedIn: false,
-  _identity: Weave.Identity,
 
-  userBaseURL: null,
-  infoURL: null,
-  storageURL: null,
-  metaURL: null,
-  cryptoKeyURL: null,
+  get account() Svc.Prefs.get("account", this.username),
+  set account(value) {
+    if (value) {
+      value = value.toLowerCase();
+      Svc.Prefs.set("account", value);
+    } else {
+      Svc.Prefs.reset("account");
+    }
+    this.username = this._usernameFromAccount(value);
+  },
+
+  _usernameFromAccount: function _usernameFromAccount(value) {
+    // If we encounter characters not allowed by the API (as found for
+    // instance in an email address), hash the value.
+    if (value && value.match(/[^A-Z0-9._-]/i))
+      return Utils.sha1Base32(value.toLowerCase()).toLowerCase();
+    return value;
+  },
+
+  get username() {
+    return Svc.Prefs.get("username", "").toLowerCase();
+  },
+  set username(value) {
+    if (value) {
+      // Make sure all uses of this new username is lowercase
+      value = value.toLowerCase();
+      Svc.Prefs.set("username", value);
+    }
+    else
+      Svc.Prefs.reset("username");
+
+    // fixme - need to loop over all Identity objects - needs some rethinking...
+    ID.get('WeaveID').username = value;
+    ID.get('WeaveCryptoID').username = value;
+
+    // FIXME: need to also call this whenever the username pref changes
+    this._updateCachedURLs();
+  },
+
+  get password() ID.get("WeaveID").password,
+  set password(value) ID.get("WeaveID").password = value,
+
+  get passphrase() ID.get("WeaveCryptoID").keyStr,
+  set passphrase(value) ID.get("WeaveCryptoID").keyStr = value,
+
+  get syncKeyBundle() ID.get("WeaveCryptoID"),
 
   get serverURL() Svc.Prefs.get("serverURL"),
   set serverURL(value) {
@@ -178,11 +218,11 @@ WeaveSvc.prototype = {
 
   _updateCachedURLs: function _updateCachedURLs() {
     // Nothing to cache yet if we don't have the building blocks
-    if (this.clusterURL == "" || this._identity.username == "")
+    if (this.clusterURL == "" || this.username == "")
       return;
 
     let storageAPI = this.clusterURL + SYNC_API_VERSION + "/";
-    this.userBaseURL = storageAPI + this._identity.username + "/";
+    this.userBaseURL = storageAPI + this.username + "/";
     this._log.debug("Caching URLs under storage user base: " + this.userBaseURL);
 
     // Generate and cache various URLs under the storage API for this user
@@ -261,7 +301,7 @@ WeaveSvc.prototype = {
         return false;
       }
 
-      let keysChanged = this.handleFetchedKeys(this._identity.syncKeyBundle,
+      let keysChanged = this.handleFetchedKeys(this.syncKeyBundle,
                                                cryptoKeys, true);
       if (keysChanged) {
         // Did they change? If so, carry on.
@@ -350,16 +390,24 @@ WeaveSvc.prototype = {
 
     SyncScheduler.init();
 
-    if (!this.enabled) {
-      this._log.info("Firefox Sync disabled.");
-    }
+    if (!this.enabled)
+      this._log.info("Weave Sync disabled");
+
+    // Create Weave identities (for logging in, and for encryption)
+    let id = ID.get("WeaveID");
+    if (!id)
+      id = ID.set("WeaveID", new Identity(PWDMGR_PASSWORD_REALM, this.username));
+    Auth.defaultAuthenticator = new BasicAuthenticator(id);
+
+    if (!ID.get("WeaveCryptoID"))
+      ID.set("WeaveCryptoID",
+             new SyncKeyBundle(PWDMGR_PASSPHRASE_REALM, this.username));
 
     this._updateCachedURLs();
 
     let status = this._checkSetup();
-    if (status != STATUS_DISABLED && status != CLIENT_NOT_CONFIGURED) {
+    if (status != STATUS_DISABLED && status != CLIENT_NOT_CONFIGURED)
       Svc.Obs.notify("weave:engine:start-tracking");
-    }
 
     // Send an event now that Weave service is ready.  We don't do this
     // synchronously so that observers can import this module before
@@ -370,10 +418,9 @@ WeaveSvc.prototype = {
     });
   },
 
-  _checkSetup: function _checkSetup() {
-    if (!this.enabled) {
+  _checkSetup: function WeaveSvc__checkSetup() {
+    if (!this.enabled)
       return Status.service = STATUS_DISABLED;
-    }
     return Status.checkSetup();
   },
 
@@ -460,10 +507,10 @@ WeaveSvc.prototype = {
 
   // gets cluster from central LDAP server and returns it, or null on error
   _findCluster: function _findCluster() {
-    this._log.debug("Finding cluster for user " + this._identity.username);
+    this._log.debug("Finding cluster for user " + this.username);
 
     let fail;
-    let res = new Resource(this.userAPI + this._identity.username + "/node/weave");
+    let res = new Resource(this.userAPI + this.username + "/node/weave");
     try {
       let node = res.get();
       switch (node.status) {
@@ -554,8 +601,8 @@ WeaveSvc.prototype = {
     // Furthermore, we assume that our sync key is already upgraded,
     // and fail if that assumption is invalidated.
 
-    let syncKeyBundle = this._identity.syncKeyBundle;
-    if (!syncKeyBundle) {
+    let syncKey = this.syncKeyBundle;
+    if (!syncKey) {
       this._log.error("No sync key: cannot fetch symmetric keys.");
       Status.login = LOGIN_FAILED_NO_PASSPHRASE;
       Status.sync = CREDENTIALS_CHANGED;             // For want of a better option.
@@ -563,7 +610,7 @@ WeaveSvc.prototype = {
     }
 
     // Not sure this validation is necessary now.
-    if (!Utils.isPassphrase(this._identity.syncKey)) {
+    if (!Utils.isPassphrase(syncKey.keyStr)) {
       this._log.warn("Sync key input is invalid: cannot fetch symmetric keys.");
       Status.login = LOGIN_FAILED_INVALID_PASSPHRASE;
       Status.sync = CREDENTIALS_CHANGED;
@@ -600,7 +647,7 @@ WeaveSvc.prototype = {
             let cryptoResp = cryptoKeys.fetch(this.cryptoKeysURL).response;
 
             if (cryptoResp.success) {
-              let keysChanged = this.handleFetchedKeys(syncKeyBundle, cryptoKeys);
+              let keysChanged = this.handleFetchedKeys(syncKey, cryptoKeys);
               return true;
             }
             else if (cryptoResp.status == 404) {
@@ -668,7 +715,7 @@ WeaveSvc.prototype = {
 
   verifyLogin: function verifyLogin()
     this._notify("verify-login", "", function() {
-      if (!this._identity.username) {
+      if (!this.username) {
         this._log.warn("No username in verifyLogin.");
         Status.login = LOGIN_FAILED_NO_USERNAME;
         return false;
@@ -680,7 +727,7 @@ WeaveSvc.prototype = {
       // exceptions!
       // Try to fetch the passphrase first, while we still have control.
       try {
-        this._identity.syncKey;
+        this.passphrase;
       } catch (ex) {
         this._log.debug("Fetching passphrase threw " + ex +
                         "; assuming master password locked.");
@@ -708,7 +755,7 @@ WeaveSvc.prototype = {
             // We have no way of verifying the passphrase right now,
             // so wait until remoteSetup to do so.
             // Just make the most trivial checks.
-            if (!this._identity.syncKey) {
+            if (!this.passphrase) {
               this._log.warn("No passphrase in verifyLogin.");
               Status.login = LOGIN_FAILED_NO_PASSPHRASE;
               return false;
@@ -728,8 +775,26 @@ WeaveSvc.prototype = {
 
           case 401:
             this._log.warn("401: login failed.");
-            // Fall through to the 404 case.
-
+            // Login failed.  If the password contains non-ASCII characters,
+            // perhaps the server password is an old low-byte only one?
+            let id = ID.get('WeaveID');
+            if (id.password != id.passwordUTF8) {
+              let res = new Resource(this.infoURL);
+              let auth = new BrokenBasicAuthenticator(id);
+              res.authenticator = auth;
+              test = res.get();
+              if (test.status == 200) {
+                this._log.debug("Non-ASCII password detected. "
+                                + "Changing to UTF-8 version.");
+                // Let's change the password on the server to the UTF8 version.
+                let url = this.userAPI + this.username + "/password";
+                res = new Resource(url);
+                res.authenticator = auth;
+                res.post(id.passwordUTF8);
+                return this.verifyLogin();
+              }
+            }
+            // Yes, we want to fall through to the 404 case.
           case 404:
             // Check that we're verifying with the correct cluster
             if (this._setCluster())
@@ -760,7 +825,7 @@ WeaveSvc.prototype = {
     this._log.info("Generating new keys WBO...");
     let wbo = CollectionKeys.generateNewKeysWBO();
     this._log.info("Encrypting new key bundle.");
-    wbo.encrypt(this._identity.syncKeyBundle);
+    wbo.encrypt(this.syncKeyBundle);
 
     this._log.info("Uploading...");
     let uploadRes = wbo.upload(this.cryptoKeysURL);
@@ -806,7 +871,7 @@ WeaveSvc.prototype = {
       this._log.warn("Failed to download keys.");
       throw new Error("Symmetric key download failed.");
     }
-    let keysChanged = this.handleFetchedKeys(this._identity.syncKeyBundle,
+    let keysChanged = this.handleFetchedKeys(this.syncKeyBundle,
                                              cryptoKeys, true);
     if (keysChanged) {
       this._log.info("Downloaded keys differed, as expected.");
@@ -815,7 +880,7 @@ WeaveSvc.prototype = {
 
   changePassword: function WeaveSvc_changePassword(newpass)
     this._notify("changepwd", "", function() {
-      let url = this.userAPI + this._identity.username + "/password";
+      let url = this.userAPI + this.username + "/password";
       try {
         let resp = new Resource(url).post(Utils.encodeUTF8(newpass));
         if (resp.status != 200) {
@@ -830,7 +895,7 @@ WeaveSvc.prototype = {
       }
 
       // Save the new password for requests and login manager.
-      this._identity.basicPassword = newpass;
+      this.password = newpass;
       this.persistLogin();
       return true;
     })(),
@@ -843,7 +908,7 @@ WeaveSvc.prototype = {
       this.logout();
 
       /* Set this so UI is updated on next run. */
-      this._identity.syncKey = newphrase;
+      this.passphrase = newphrase;
       this.persistLogin();
 
       /* We need to re-encrypt everything, so reset. */
@@ -855,7 +920,7 @@ WeaveSvc.prototype = {
       return true;
     }))(),
 
-  startOver: function startOver() {
+  startOver: function() {
     this._log.trace("Invoking Service.startOver.");
     Svc.Obs.notify("weave:engine:stop-tracking");
     Status.resetSync();
@@ -863,7 +928,7 @@ WeaveSvc.prototype = {
     // We want let UI consumers of the following notification know as soon as
     // possible, so let's fake for the CLIENT_NOT_CONFIGURED status for now
     // by emptying the passphrase (we still need the password).
-    this._identity.syncKey = null;
+    Service.passphrase = "";
     Status.login = LOGIN_FAILED_NO_PASSPHRASE;
     this.logout();
     Svc.Obs.notify("weave:service:start-over");
@@ -894,19 +959,23 @@ WeaveSvc.prototype = {
     this._ignorePrefObserver = false;
 
     Svc.Prefs.set("lastversion", WEAVE_VERSION);
-
-    this._identity.deleteSyncCredentials();
+    // Find weave logins and remove them.
+    this.password = "";
+    Services.logins.findLogins({}, PWDMGR_HOST, "", "").map(function(login) {
+      Services.logins.removeLogin(login);
+    });
   },
 
   persistLogin: function persistLogin() {
+    // Canceled master password prompt can prevent these from succeeding.
     try {
-      this._identity.persistCredentials();
-    } catch (ex) {
-      this._log.info("Unable to persist credentials: " + ex);
+      ID.get("WeaveID").persist();
+      ID.get("WeaveCryptoID").persist();
     }
+    catch(ex) {}
   },
 
-  login: function login(username, password, passphrase)
+  login: function WeaveSvc_login(username, password, passphrase)
     this._catch(this._lock("service.js: login",
           this._notify("login", "", function() {
       this._loggedIn = false;
@@ -916,29 +985,23 @@ WeaveSvc.prototype = {
       }
 
       let initialStatus = this._checkSetup();
-      if (username) {
-        this._identity.username = username;
-      }
-      if (password) {
-        this._identity.basicPassword = password;
-      }
-      if (passphrase) {
-        this._identity.syncKey = passphrase;
-      }
+      if (username)
+        this.username = username;
+      if (password)
+        this.password = password;
+      if (passphrase)
+        this.passphrase = passphrase;
 
-      if (this._checkSetup() == CLIENT_NOT_CONFIGURED) {
-        throw "Aborting login, client not configured.";
-      }
+      if (this._checkSetup() == CLIENT_NOT_CONFIGURED)
+        throw "aborting login, client not configured";
 
       // Calling login() with parameters when the client was
       // previously not configured means setup was completed.
       if (initialStatus == CLIENT_NOT_CONFIGURED
-          && (username || password || passphrase)) {
+          && (username || password || passphrase))
         Svc.Obs.notify("weave:service:setup-complete");
-      }
 
-      this._log.info("Logging in user " + this._identity.username);
-      this._updateCachedURLs();
+      this._log.info("Logging in user " + this.username);
 
       if (!this.verifyLogin()) {
         // verifyLogin sets the failure states here.
@@ -950,7 +1013,7 @@ WeaveSvc.prototype = {
       return true;
     })))(),
 
-  logout: function logout() {
+  logout: function WeaveSvc_logout() {
     // No need to do anything if we're already logged out.
     if (!this._loggedIn)
       return;
@@ -962,9 +1025,10 @@ WeaveSvc.prototype = {
   },
 
   checkAccount: function checkAccount(account) {
-    let username = this._identity.usernameFromAccount(account);
+    let username = this._usernameFromAccount(account);
     let url = this.userAPI + username;
     let res = new Resource(url);
+    res.authenticator = new NoOpAuthenticator();
 
     let data = "";
     try {
@@ -985,7 +1049,7 @@ WeaveSvc.prototype = {
 
   createAccount: function createAccount(email, password,
                                         captchaChallenge, captchaResponse) {
-    let username = this._identity.usernameFromAccount(email);
+    let username = this._usernameFromAccount(email);
     let payload = JSON.stringify({
       "password": Utils.encodeUTF8(password),
       "email": email,
@@ -995,6 +1059,7 @@ WeaveSvc.prototype = {
 
     let url = this.userAPI + username;
     let res = new Resource(url);
+    res.authenticator = new NoOpAuthenticator();
 
     // Hint to server to allow scripted user creation or otherwise
     // ignore captcha.
@@ -1041,7 +1106,7 @@ WeaveSvc.prototype = {
       Records.del(this.metaURL);
 
       // ... fetch the current record from the server, and COPY THE FLAGS.
-      let newMeta = Records.get(this.metaURL);
+      let newMeta       = Records.get(this.metaURL);
 
       if (!Records.response.success || !newMeta) {
         this._log.debug("No meta/global record on the server. Creating one.");
@@ -1444,6 +1509,21 @@ WeaveSvc.prototype = {
   },
 
   /**
+   * Silently fixes case issues.
+   */
+  syncKeyNeedsUpgrade: function syncKeyNeedsUpgrade() {
+    let p = this.passphrase;
+
+    // Check whether it's already a key that we generated.
+    if (Utils.isPassphrase(p)) {
+      this._log.info("Sync key is up-to-date: no need to upgrade.");
+      return false;
+    }
+
+    return true;
+  },
+
+  /**
    * If we have a passphrase, rather than a 25-alphadigit sync key,
    * use the provided sync ID to bootstrap it using PBKDF2.
    *
@@ -1454,17 +1534,11 @@ WeaveSvc.prototype = {
    * we decide to bump the server storage version.
    */
   upgradeSyncKey: function upgradeSyncKey(syncID) {
-    let p = this._identity.syncKey;
-
-    if (!p) {
-      return false;
-    }
+    let p = this.passphrase;
 
     // Check whether it's already a key that we generated.
-    if (Utils.isPassphrase(p)) {
-      this._log.info("Sync key is up-to-date: no need to upgrade.");
+    if (!this.syncKeyNeedsUpgrade(p))
       return true;
-    }
 
     // Otherwise, let's upgrade it.
     // N.B., we persist the sync key without testing it first...
@@ -1478,7 +1552,7 @@ WeaveSvc.prototype = {
     }
 
     this._log.info("Upgrading sync key...");
-    this._identity.syncKey = k;
+    this.passphrase = k;
     this._log.info("Saving upgraded sync key...");
     this.persistLogin();
     this._log.info("Done saving.");

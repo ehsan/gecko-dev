@@ -120,7 +120,7 @@
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"
 #include "nsRefreshDriver.h"
-#include "nsDOMMutationObserver.h"
+
 #include "nsHyphenationManager.h"
 #include "nsEditorSpellCheck.h"
 #include "nsWindowMemoryReporter.h"
@@ -362,5 +362,4 @@ nsLayoutStatics::Shutdown()
 
   nsHyphenationManager::Shutdown();
   nsEditorSpellCheck::ShutDown();
-  nsDOMMutationObserver::Shutdown();
 }

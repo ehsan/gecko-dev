@@ -480,7 +480,6 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
   if (!mAsync) {
     nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
 
-    nsAutoSyncOperation sync(this);
     mLoopingForSyncLoad = true;
     while (mLoopingForSyncLoad) {
       if (!NS_ProcessNextEvent(thread))

@@ -460,11 +460,7 @@ gfxASurface::FormatFromContent(gfxASurface::gfxContentType type)
             return ImageFormatA8;
         case CONTENT_COLOR:
         default:
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-            return ImageFormatRGB16_565;
-#else
             return ImageFormatRGB24;
-#endif
     }
 }
 

@@ -1,23 +1,19 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-sync/keys.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/engines/clients.js");
+Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/identity.js");
 
 function run_test() {
   _("Set up test fixtures.");
-
-  Identity.username = "john@example.com";
+  ID.set('WeaveID', new Identity('Some Identity', 'foo'));
   Svc.Prefs.set("clusterURL", "http://fakebase/");
   let baseUri = "http://fakebase/1.1/foo/storage/";
   let pubUri = baseUri + "keys/pubkey";
   let privUri = baseUri + "keys/privkey";
 
-  Identity.syncKey = "abcdeabcdeabcdeabcdeabcdea";
-  let keyBundle = Identity.syncKeyBundle;
+  let keyBundle = ID.set("WeaveCryptoID",
+                         new SyncKeyBundle(null, "john@example.com", "abcdeabcdeabcdeabcdeabcdea"));
 
   try {
     _("Test that serializing client records results in uploadable ascii");

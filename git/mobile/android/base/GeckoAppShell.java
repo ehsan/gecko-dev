@@ -1774,7 +1774,7 @@ public class GeckoAppShell
                 return response;
 
         } catch (Exception e) {
-            Log.e(LOGTAG, "handleGeckoMessage throws " + e, e);
+            Log.i(LOGTAG, "handleGeckoMessage throws " + e);
         }
 
         return "";
@@ -2051,13 +2051,5 @@ public class GeckoAppShell
 
     public static void disableScreenOrientationNotifications() {
         GeckoScreenOrientationListener.getInstance().disableNotifications();
-    }
-
-    public static void lockScreenOrientation(int aOrientation) {
-        GeckoScreenOrientationListener.getInstance().lockScreenOrientation(aOrientation);
-    }
-
-    public static void unlockScreenOrientation() {
-        GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
     }
 }

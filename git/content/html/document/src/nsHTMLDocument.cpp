@@ -150,6 +150,8 @@ const PRInt32 kBackward = 1;
 
 //#define DEBUG_charset
 
+#define NS_USE_NEW_PLAIN_TEXT 1
+
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
 PRUint32       nsHTMLDocument::gWyciwygSessionCnt = 0;
@@ -558,56 +560,51 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
                                   bool aReset,
                                   nsIContentSink* aSink)
 {
-  if (!aCommand) {
-    MOZ_NOT_REACHED("Command is mandatory");
-    return NS_ERROR_INVALID_POINTER;
-  }
-  if (aSink) {
-    MOZ_NOT_REACHED("Got a sink override. Should not happen for HTML doc.");
-    return NS_ERROR_INVALID_ARG;
-  }
-  if (!mIsRegularHTML) {
-    MOZ_NOT_REACHED("Must not set HTML doc to XHTML mode before load start.");
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-  }
-
   nsCAutoString contentType;
   aChannel->GetContentType(contentType);
 
-  bool view = !strcmp(aCommand, "view") ||
-              !strcmp(aCommand, "external-resource");
-  bool viewSource = !strcmp(aCommand, "view-source");
-  bool asData = !strcmp(aCommand, kLoadAsData);
-  if(!(view || viewSource || asData)) {
-    MOZ_NOT_REACHED("Bad parser command");
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  bool html = contentType.EqualsLiteral(TEXT_HTML);
-  bool xhtml = !html && contentType.Equals("application/xhtml+xml");
-  bool plainText = !html && !xhtml && (contentType.EqualsLiteral(TEXT_PLAIN) ||
+  bool viewSource = aCommand && !nsCRT::strcmp(aCommand, "view-source");
+  bool plainText = (contentType.EqualsLiteral(TEXT_PLAIN) ||
     contentType.EqualsLiteral(TEXT_CSS) ||
     contentType.EqualsLiteral(APPLICATION_JAVASCRIPT) ||
     contentType.EqualsLiteral(APPLICATION_XJAVASCRIPT) ||
     contentType.EqualsLiteral(TEXT_ECMASCRIPT) ||
     contentType.EqualsLiteral(APPLICATION_ECMASCRIPT) ||
     contentType.EqualsLiteral(TEXT_JAVASCRIPT));
-  if (!(html || xhtml || plainText || viewSource)) {
-    MOZ_NOT_REACHED("Channel with bad content type.");
-    return NS_ERROR_INVALID_ARG;
+  bool loadAsHtml5 = nsHtml5Module::sEnabled || viewSource || plainText;
+  if (!NS_USE_NEW_PLAIN_TEXT && !viewSource) {
+    plainText = false;
   }
 
-  bool loadAsHtml5 = true;
+  NS_ASSERTION(!(plainText && aSink),
+               "Someone tries to load plain text into a custom sink.");
 
-  if (!viewSource && xhtml) {
-      // We're parsing XHTML as XML, remember that.
-      mIsRegularHTML = false;
-      mCompatMode = eCompatibility_FullStandards;
-      loadAsHtml5 = false;
+  if (aSink) {
+    loadAsHtml5 = false;
+  }
+
+  if (contentType.Equals("application/xhtml+xml") && !viewSource) {
+    // We're parsing XHTML as XML, remember that.
+
+    mIsRegularHTML = false;
+    mCompatMode = eCompatibility_FullStandards;
+    loadAsHtml5 = false;
+  }
+#ifdef DEBUG
+  else {
+    NS_ASSERTION(mIsRegularHTML,
+                 "Hey, someone forgot to reset mIsRegularHTML!!!");
+  }
+#endif
+  
+  if (loadAsHtml5 && !viewSource &&
+      (!(contentType.EqualsLiteral("text/html") || plainText) &&
+      aCommand && !nsCRT::strcmp(aCommand, "view"))) {
+    loadAsHtml5 = false;
   }
   
   // TODO: Proper about:blank treatment is bug 543435
-  if (loadAsHtml5 && view) {
+  if (loadAsHtml5 && aCommand && !nsCRT::strcmp(aCommand, "view")) {
     // mDocumentURI hasn't been set, yet, so get the URI from the channel
     nsCOMPtr<nsIURI> uri;
     aChannel->GetOriginalURI(getter_AddRefs(uri));
@@ -625,6 +622,14 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   
   CSSLoader()->SetCompatibilityMode(mCompatMode);
   
+  bool needsParser = true;
+  if (aCommand)
+  {
+    if (!nsCRT::strcmp(aCommand, "view delayedContentLoad")) {
+      needsParser = false;
+    }
+  }
+
   nsresult rv = nsDocument::StartDocumentLoad(aCommand,
                                               aChannel, aLoadGroup,
                                               aContainer,
@@ -644,22 +649,24 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   nsCOMPtr<nsICachingChannel> cachingChan = do_QueryInterface(aChannel);
 
-  if (loadAsHtml5) {
-    mParser = nsHtml5Module::NewHtml5Parser();
-    if (plainText) {
-      if (viewSource) {
-        mParser->MarkAsNotScriptCreated("view-source-plain");
+  if (needsParser) {
+    if (loadAsHtml5) {
+      mParser = nsHtml5Module::NewHtml5Parser();
+      if (plainText) {
+        if (viewSource) {
+          mParser->MarkAsNotScriptCreated("view-source-plain");
+        } else {
+          mParser->MarkAsNotScriptCreated("plain-text");
+        }
+      } else if (viewSource && !contentType.EqualsLiteral("text/html")) {
+        mParser->MarkAsNotScriptCreated("view-source-xml");
       } else {
-        mParser->MarkAsNotScriptCreated("plain-text");
+        mParser->MarkAsNotScriptCreated(aCommand);
       }
-    } else if (viewSource && !html) {
-      mParser->MarkAsNotScriptCreated("view-source-xml");
     } else {
-      mParser->MarkAsNotScriptCreated(aCommand);
+      mParser = do_CreateInstance(kCParserCID, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
-  } else {
-    mParser = do_CreateInstance(kCParserCID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   PRInt32 textType = GET_BIDI_OPTION_TEXTTYPE(GetBidiOptions());
@@ -845,37 +852,54 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   // Set the parser as the stream listener for the document loader...
-  rv = NS_OK;
-  nsCOMPtr<nsIStreamListener> listener = mParser->GetStreamListener();
-  listener.forget(aDocListener);
+  if (mParser) {
+    rv = NS_OK;
+    nsCOMPtr<nsIStreamListener> listener = mParser->GetStreamListener();
+    listener.forget(aDocListener);
 
 #ifdef DEBUG_charset
-  printf(" charset = %s source %d\n",
-        charset.get(), charsetSource);
+    printf(" charset = %s source %d\n",
+          charset.get(), charsetSource);
 #endif
-  mParser->SetDocumentCharset(parserCharset, parserCharsetSource);
-  mParser->SetCommand(aCommand);
+    mParser->SetDocumentCharset(parserCharset, parserCharsetSource);
+    mParser->SetCommand(aCommand);
 
-  if (!IsHTML()) {
-    MOZ_ASSERT(!loadAsHtml5);
-    nsCOMPtr<nsIXMLContentSink> xmlsink;
-    NS_NewXMLContentSink(getter_AddRefs(xmlsink), this, uri,
-                         docShell, aChannel);
-    mParser->SetContentSink(xmlsink);
-  } else {
-    if (loadAsHtml5) {
-      nsHtml5Module::Initialize(mParser, this, uri, docShell, aChannel);
+    // create the content sink
+    nsCOMPtr<nsIContentSink> sink;
+
+    if (aSink) {
+      NS_ASSERTION(!loadAsHtml5, "Panic: We are loading as HTML5 and someone tries to set an external sink!");
+      sink = aSink;
     } else {
-      // about:blank *only*
-      nsCOMPtr<nsIHTMLContentSink> htmlsink;
-      NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
-                            docShell, aChannel);
-      mParser->SetContentSink(htmlsink);
-    }
-  }
+      if (!IsHTML()) {
+        nsCOMPtr<nsIXMLContentSink> xmlsink;
+        rv = NS_NewXMLContentSink(getter_AddRefs(xmlsink), this, uri,
+                                  docShell, aChannel);
 
-  // parser the content of the URI
-  mParser->Parse(uri, nsnull, (void *)this);
+        sink = xmlsink;
+      } else {
+        if (loadAsHtml5) {
+          nsHtml5Module::Initialize(mParser, this, uri, docShell, aChannel);
+          sink = mParser->GetContentSink();
+        } else {
+          nsCOMPtr<nsIHTMLContentSink> htmlsink;
+
+          rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
+                                     docShell, aChannel);
+
+          sink = htmlsink;
+        }
+      }
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      NS_ASSERTION(sink,
+                   "null sink with successful result from factory method");
+    }
+
+    mParser->SetContentSink(sink);
+    // parser the content of the URI
+    mParser->Parse(uri, nsnull, (void *)this);
+  }
 
   return rv;
 }
@@ -1536,12 +1560,34 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
   mSecurityInfo = securityInfo;
 
   mParserAborted = false;
-  mParser = nsHtml5Module::NewHtml5Parser();
-  nsHtml5Module::Initialize(mParser, this, uri, shell, channel);
-  rv = NS_OK;
+  bool loadAsHtml5 = nsHtml5Module::sEnabled;
+  if (loadAsHtml5) {
+    mParser = nsHtml5Module::NewHtml5Parser();
+    rv = NS_OK;
+  } else {
+    mParser = do_CreateInstance(kCParserCID, &rv);  
+  }
 
   // This will be propagated to the parser when someone actually calls write()
   SetContentTypeInternal(contentType);
+
+  if (NS_SUCCEEDED(rv)) {
+    if (loadAsHtml5) {
+      nsHtml5Module::Initialize(mParser, this, uri, shell, channel);
+    } else {
+      nsCOMPtr<nsIHTMLContentSink> sink;
+
+      rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
+                                 channel);
+      if (NS_FAILED(rv)) {
+        // Don't use a parser without a content sink.
+        mParser = nsnull;
+        return rv;
+      }
+
+      mParser->SetContentSink(sink);
+    }
+  }
 
   // Prepare the docshell and the document viewer for the impending
   // out of band document.write()
@@ -2225,17 +2271,21 @@ nsHTMLDocument::GenerateParserKey(void)
 
   // The script loader provides us with the currently executing script element,
   // which is guaranteed to be unique per script.
-  nsIScriptElement* script = mScriptLoader->GetCurrentParserInsertedScript();
-  if (script && mParser && mParser->IsScriptCreated()) {
-    nsCOMPtr<nsIParser> creatorParser = script->GetCreatorParser();
-    if (creatorParser != mParser) {
-      // Make scripts that aren't inserted by the active parser of this document
-      // participate in the context of the script that document.open()ed
-      // this document.
-      return nsnull;
+  if (nsHtml5Module::sEnabled) {
+    nsIScriptElement* script = mScriptLoader->GetCurrentParserInsertedScript();
+    if (script && mParser && mParser->IsScriptCreated()) {
+      nsCOMPtr<nsIParser> creatorParser = script->GetCreatorParser();
+      if (creatorParser != mParser) {
+        // Make scripts that aren't inserted by the active parser of this document
+        // participate in the context of the script that document.open()ed 
+        // this document.
+        return nsnull;
+      }
     }
+    return script;
+  } else {
+    return mScriptLoader->GetCurrentScript();
   }
-  return script;
 }
 
 /* attribute DOMString designMode; */

@@ -5,8 +5,8 @@
 const fakeEventType = "foo";
 
 function testEventTarget(event) {
-  if (event.target !== self || event.currentTarget !== self) {
-    throw new Error("Event has a bad target!");
+  if (event.target !== null || event.currentTarget !== null) {
+    throw new Error("Event has a non-null target!");
   }
   postMessage(event.data);
 }

@@ -53,11 +53,9 @@
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "mozilla/dom/bindings/DOMJSClass.h"
 
 class nsIPrincipal;
-class nsIXPConnectWrappedJS;
-class nsScriptNameSpaceManager;
+struct nsDOMClassInfoData;
 
 #ifndef BAD_TLS_INDEX
 #define BAD_TLS_INDEX ((PRUint32) -1)
@@ -75,9 +73,9 @@ xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
                          JSCompartment **compartment);
 
 #define XPCONNECT_GLOBAL_FLAGS                                                \
-    JSCLASS_DOM_GLOBAL | JSCLASS_XPCONNECT_GLOBAL | JSCLASS_HAS_PRIVATE |     \
+    JSCLASS_XPCONNECT_GLOBAL | JSCLASS_HAS_PRIVATE |                          \
     JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_IMPLEMENTS_BARRIERS |            \
-    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(3)
+    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(1)
 
 void
 TraceXPCGlobal(JSTracer *trc, JSObject *obj);
@@ -256,13 +254,13 @@ inline bool instanceIsProxy(JSObject *obj)
            js::GetProxyHandler(obj)->family() == ProxyFamily();
 }
 
-typedef bool
+typedef JSObject*
 (*DefineInterface)(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);
 
 extern bool
 DefineStaticJSVals(JSContext *cx);
 void
-Register(nsScriptNameSpaceManager* aNameSpaceManager);
+Register(nsDOMClassInfoData *aData);
 extern bool
 DefineConstructor(JSContext *cx, JSObject *obj, DefineInterface aDefine,
                   nsresult *aResult);

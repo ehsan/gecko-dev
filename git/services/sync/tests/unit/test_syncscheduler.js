@@ -49,12 +49,14 @@ function sync_httpd_setup() {
 }
 
 function setUp() {
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.clusterURL = TEST_CLUSTER_URL;
 
   generateNewKeys();
   let serverKeys = CollectionKeys.asWBO("crypto", "keys");
-  serverKeys.encrypt(Identity.syncKeyBundle);
+  serverKeys.encrypt(Service.syncKeyBundle);
   return serverKeys.upload(Service.cryptoKeysURL).success;
 }
 
@@ -211,16 +213,14 @@ add_test(function test_calculateBackoff() {
   // Test no interval larger than the maximum backoff is used if
   // Status.backoffInterval is smaller.
   Status.backoffInterval = 5;
-  let backoffInterval = Utils.calculateBackoff(50, MAXIMUM_BACKOFF_INTERVAL,
-                                               Status.backoffInterval);
+  let backoffInterval = Utils.calculateBackoff(50, MAXIMUM_BACKOFF_INTERVAL);
 
   do_check_eq(backoffInterval, MAXIMUM_BACKOFF_INTERVAL);
 
   // Test Status.backoffInterval is used if it is 
   // larger than MAXIMUM_BACKOFF_INTERVAL.
   Status.backoffInterval = MAXIMUM_BACKOFF_INTERVAL + 10;
-  backoffInterval = Utils.calculateBackoff(50, MAXIMUM_BACKOFF_INTERVAL,
-                                           Status.backoffInterval);
+  backoffInterval = Utils.calculateBackoff(50, MAXIMUM_BACKOFF_INTERVAL);
   
   do_check_eq(backoffInterval, MAXIMUM_BACKOFF_INTERVAL + 10);
 
@@ -466,7 +466,9 @@ add_test(function test_autoconnect_nextSync_future() {
     cleanUpAndGo();
   });
 
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   SyncScheduler.delayedAutoConnect(0);
 });
 
@@ -478,10 +480,9 @@ add_test(function test_autoconnect_mp_locked() {
   let origLocked = Utils.mpLocked;
   Utils.mpLocked = function() true;
 
-  let origGetter = Identity.__lookupGetter__("syncKey");
-  let origSetter = Identity.__lookupSetter__("syncKey");
-  delete Identity.syncKey;
-  Identity.__defineGetter__("syncKey", function() {
+  let origPP = Service.__lookupGetter__("passphrase");
+  delete Service.passphrase;
+  Service.__defineGetter__("passphrase", function() {
     _("Faking Master Password entry cancelation.");
     throw "User canceled Master Password entry";
   });
@@ -494,9 +495,8 @@ add_test(function test_autoconnect_mp_locked() {
       do_check_eq(Status.login, MASTER_PASSWORD_LOCKED);
 
       Utils.mpLocked = origLocked;
-      delete Identity.syncKey;
-      Identity.__defineGetter__("syncKey", origGetter);
-      Identity.__defineSetter__("syncKey", origSetter);
+      delete Service.passphrase;
+      Service.__defineGetter__("passphrase", origPP);
 
       cleanUpAndGo(server);
     });
@@ -849,8 +849,10 @@ add_test(function test_sync_503_Retry_After() {
 
 add_test(function test_loginError_recoverable_reschedules() {
   _("Verify that a recoverable login error schedules a new sync.");
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
-  Service.serverURL = TEST_SERVER_URL;
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
+  Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
   Service.persistLogin();
   Status.resetSync(); // reset Status.login
@@ -891,8 +893,10 @@ add_test(function test_loginError_recoverable_reschedules() {
 
 add_test(function test_loginError_fatal_clearsTriggers() {
   _("Verify that a fatal login error clears sync triggers.");
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
-  Service.serverURL = TEST_SERVER_URL;
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
+  Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
   Service.persistLogin();
   Status.resetSync(); // reset Status.login

@@ -803,12 +803,3 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-void
-nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAString& aName,
-    mozilla::dom::binding::DefineInterface aDefineDOMInterface)
-{
-  nsGlobalNameStruct* s = LookupNameInternal(aName);
-  if (s) {
-    s->mDefineDOMInterface = aDefineDOMInterface;
-  }
-}

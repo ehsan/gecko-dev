@@ -66,9 +66,6 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "xpcpublic.h"
-#include "mozilla/dom/bindings/Utils.h"
-
-using mozilla::dom::bindings::DestroyProtoOrIfaceCache;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -132,8 +129,6 @@ nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 
     // The addref was part of JSObject construction
     NS_RELEASE(nativeThis);
-
-    DestroyProtoOrIfaceCache(obj);
 }
 
 

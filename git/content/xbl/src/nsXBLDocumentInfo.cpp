@@ -59,12 +59,9 @@
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "nsCCUncollectableMarker.h"
-#include "mozilla/dom/bindings/Utils.h"
 
 using namespace mozilla::scache;
 using namespace mozilla;
-
-using mozilla::dom::bindings::DestroyProtoOrIfaceCache;
 
 static const char kXBLCachePrefix[] = "xblcache";
 
@@ -183,8 +180,6 @@ nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
 
   // The addref was part of JSObject construction
   NS_RELEASE(nativeThis);
-
-  DestroyProtoOrIfaceCache(obj);
 }
 
 static JSBool

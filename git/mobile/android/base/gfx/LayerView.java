@@ -103,6 +103,8 @@ public class LayerView extends FlexibleGLSurfaceView {
 
         setFocusable(true);
         setFocusableInTouchMode(true);
+
+        createGLThread();
     }
 
     private void addToEventQueue(MotionEvent event) {

@@ -61,8 +61,6 @@
 
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 
-#include "mozilla/dom/bindings/Utils.h"
-
 JSBool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
                               PRUint32* aLineno)
@@ -101,6 +99,7 @@ nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
 nsIScriptGlobalObject *
 nsJSUtils::GetStaticScriptGlobal(JSContext* aContext, JSObject* aObj)
 {
+  nsISupports* supports;
   JSClass* clazz;
   JSObject* glob = aObj; // starting point for search
 
@@ -112,12 +111,8 @@ nsJSUtils::GetStaticScriptGlobal(JSContext* aContext, JSObject* aObj)
 
   clazz = JS_GetClass(glob);
 
-  // Whenever we end up with globals that are JSCLASS_IS_DOMJSCLASS
-  // and have an nsISupports DOM object, we will need to modify this
-  // check here.
-  MOZ_ASSERT(!(clazz->flags & JSCLASS_IS_DOMJSCLASS));
-  nsISupports* supports;
-  if (!(clazz->flags & JSCLASS_HAS_PRIVATE) ||
+  if (!clazz ||
+      !(clazz->flags & JSCLASS_HAS_PRIVATE) ||
       !(clazz->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS) ||
       !(supports = (nsISupports*)::JS_GetPrivate(glob))) {
     return nsnull;

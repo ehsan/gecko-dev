@@ -37,12 +37,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "mozilla/Util.h"
+
 #include "Exceptions.h"
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "jsprf.h"
-#include "mozilla/Util.h"
+
 #include "nsTraceRefcnt.h"
 
 #include "WorkerInlines.h"

@@ -48,7 +48,9 @@ function sync_httpd_setup() {
 }
 
 function setUp() {
-  setBasicCredentials("johndoe", "ilovejane", "aabcdeabcdeabcdeabcdeabcde");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "aabcdeabcdeabcdeabcdeabcde";
   Service.serverURL = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
   new FakeCryptoService();
@@ -57,7 +59,7 @@ function setUp() {
 function generateAndUploadKeys() {
   generateNewKeys();
   let serverKeys = CollectionKeys.asWBO("crypto", "keys");
-  serverKeys.encrypt(Weave.Identity.syncKeyBundle);
+  serverKeys.encrypt(Weave.Service.syncKeyBundle);
   return serverKeys.upload("http://localhost:8080/1.1/johndoe/storage/crypto/keys").success;
 }
 

@@ -53,7 +53,6 @@
 #include "nsITimer.h"
 #include "nsPIDOMWindow.h"
 
-#include "mozilla/dom/bindings/EventTargetBinding.h"
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
@@ -66,11 +65,11 @@
 #include "xpcpublic.h"
 
 #include "Events.h"
+#include "EventTarget.h"
 #include "Worker.h"
 #include "WorkerPrivate.h"
 
 using namespace mozilla;
-using namespace mozilla::dom::bindings::prototypes;
 
 USING_WORKERS_NAMESPACE
 
@@ -450,7 +449,7 @@ ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, unsigned aFlags,
       return true;
     }
 
-    JSObject* eventTarget = EventTarget_workers::GetProtoObject(aCx, aObj);
+    JSObject* eventTarget = events::InitEventTargetClass(aCx, aObj, true);
     if (!eventTarget) {
       return false;
     }

@@ -208,7 +208,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsCCUncollectableMarker.h"
 #include "mozilla/Base64.h"
 #include "mozilla/Preferences.h"
-#include "nsDOMMutationObserver.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "nsIDOMDocumentType.h"
@@ -272,7 +271,6 @@ PRUint32 nsContentUtils::sScriptBlockerCount = 0;
 #ifdef DEBUG
 PRUint32 nsContentUtils::sDOMNodeRemovedSuppressCount = 0;
 #endif
-PRUint32 nsContentUtils::sMicroTaskLevel = 0;
 nsTArray< nsCOMPtr<nsIRunnable> >* nsContentUtils::sBlockedScriptRunners = nsnull;
 PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
 nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nsnull;
@@ -1663,23 +1661,6 @@ nsContentUtils::GetContextAndScope(nsIDocument *aOldDocument,
   *aNewScope = newScope;
 
   return NS_OK;
-}
-
-//static
-void
-nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
-{
-  if (!sThreadJSContextStack) {
-    return;
-  }
-  JSContext* cx = nsnull;
-  sThreadJSContextStack->GetSafeJSContext(&cx);
-  if (!cx) {
-    return;
-  }
-  if (JSObject* global = JS_GetGlobalObject(cx)) {
-    JS_CALL_OBJECT_TRACER(aTrc, global, "safe context");
-  }
 }
 
 nsresult
@@ -4199,7 +4180,6 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
   // mutations.
   mozAutoDocUpdate updateBatch(aContent->GetCurrentDoc(),
     UPDATE_CONTENT_MODEL, true);
-  nsAutoMutationBatch mb;
 
   PRUint32 childCount = aContent->GetChildCount();
 
@@ -4224,12 +4204,10 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
     }
   }
   else {
-    mb.Init(aContent, true, false);
     for (PRUint32 i = 0; i < childCount; ++i) {
       aContent->RemoveChildAt(0, true);
     }
   }
-  mb.RemovalDone();
 
   if (aValue.IsEmpty()) {
     return NS_OK;
@@ -4242,9 +4220,7 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
 
   textContent->SetText(aValue, true);
 
-  rv = aContent->AppendChildTo(textContent, true);
-  mb.NodesAdded();
-  return rv;
+  return aContent->AppendChildTo(textContent, true);
 }
 
 static void AppendNodeTextContentsRecurse(nsINode* aNode, nsAString& aResult)
@@ -4795,14 +4771,6 @@ nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
   run->Run();
 
   return true;
-}
-
-void
-nsContentUtils::LeaveMicroTask()
-{
-  if (--sMicroTaskLevel == 0) {
-    nsDOMMutationObserver::HandleMutations();
-  }
 }
 
 /* 
@@ -6595,17 +6563,16 @@ nsContentUtils::ReleaseWrapper(nsISupports* aScriptObjectHolder,
                                nsWrapperCache* aCache)
 {
   if (aCache->PreservingWrapper()) {
-    // PreserveWrapper puts new DOM bindings in the JS holders hash, but they
-    // can also be in the DOM expando hash, so we need to try to remove them
-    // from both here.
     JSObject* obj = aCache->GetWrapperPreserveColor();
-    if (aCache->IsDOMBinding() && obj) {
+    if (aCache->IsDOMBinding()) {
       JSCompartment *compartment = js::GetObjectCompartment(obj);
       xpc::CompartmentPrivate *priv =
         static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
       priv->RemoveDOMExpandoObject(obj);
     }
-    DropJSObjects(aScriptObjectHolder);
+    else {
+      DropJSObjects(aScriptObjectHolder);
+    }
 
     aCache->SetPreservingWrapper(false);
   }
@@ -6623,47 +6590,4 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
                 "Preserved wrapper", aClosure);
     }
   }
-}
-
-nsresult
-nsContentUtils::JSArrayToAtomArray(JSContext* aCx, const JS::Value& aJSArray,
-                                   nsCOMArray<nsIAtom>& aRetVal)
-{
-  JSAutoRequest ar(aCx);
-  if (!aJSArray.isObject()) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-  
-  JSObject* obj = &aJSArray.toObject();
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(aCx, obj)) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-  
-  PRUint32 length;
-  if (!JS_IsArrayObject(aCx, obj) || !JS_GetArrayLength(aCx, obj, &length)) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  JSString* str = nsnull;
-  JS::Anchor<JSString *> deleteProtector(str);
-  for (PRUint32 i = 0; i < length; ++i) {
-    jsval v;
-    if (!JS_GetElement(aCx, obj, i, &v) ||
-        !(str = JS_ValueToString(aCx, v))) {
-      return NS_ERROR_ILLEGAL_VALUE;
-    }
-
-    nsDependentJSString depStr;
-    if (!depStr.init(aCx, str)) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    nsCOMPtr<nsIAtom> a = do_GetAtom(depStr);
-    if (!a) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    aRetVal.AppendObject(a);
-  }
-  return NS_OK;
 }

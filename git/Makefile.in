@@ -80,7 +80,6 @@ endif
 
 ifdef MOZ_MEMORY
 tier_base_dirs += memory/jemalloc
-tier_base_dirs += memory/build
 endif
 tier_base_dirs += \
   mozglue \

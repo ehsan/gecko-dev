@@ -1261,6 +1261,8 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
 
   PR_LogFlush();
 #endif
+
+  nsresult rv = NS_ERROR_FAILURE;
   
   const char* mimetype = nsnull;
 
@@ -1290,38 +1292,42 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
 
   nsRefPtr<nsNPAPIPlugin> plugin;
   GetPlugin(mimetype, getter_AddRefs(plugin));
-  if (!plugin) {
-    return NS_ERROR_FAILURE;
-  }
 
+  nsRefPtr<nsNPAPIPluginInstance> instance;
+
+  if (plugin) {
 #if defined(XP_WIN)
-  static BOOL firstJavaPlugin = FALSE;
-  BOOL restoreOrigDir = FALSE;
-  WCHAR origDir[_MAX_PATH];
-  if (pluginTag->mIsJavaPlugin && !firstJavaPlugin) {
-    DWORD dw = GetCurrentDirectoryW(_MAX_PATH, origDir);
-    NS_ASSERTION(dw <= _MAX_PATH, "Failed to obtain the current directory, which may lead to incorrect class loading");
-    nsCOMPtr<nsIFile> binDirectory;
-    nsresult rv = NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
-                                         getter_AddRefs(binDirectory));
+    static BOOL firstJavaPlugin = FALSE;
+    BOOL restoreOrigDir = FALSE;
+    WCHAR origDir[_MAX_PATH];
+    if (pluginTag->mIsJavaPlugin && !firstJavaPlugin) {
+      DWORD dw = GetCurrentDirectoryW(_MAX_PATH, origDir);
+      NS_ASSERTION(dw <= _MAX_PATH, "Failed to obtain the current directory, which may lead to incorrect class loading");
+      nsCOMPtr<nsIFile> binDirectory;
+      rv = NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
+                                  getter_AddRefs(binDirectory));
 
-    if (NS_SUCCEEDED(rv)) {
-      nsAutoString path;
-      binDirectory->GetPath(path);
-      restoreOrigDir = SetCurrentDirectoryW(path.get());
+      if (NS_SUCCEEDED(rv)) {
+        nsAutoString path;
+        binDirectory->GetPath(path);
+        restoreOrigDir = SetCurrentDirectoryW(path.get());
+      }
     }
-  }
 #endif
 
-  nsRefPtr<nsNPAPIPluginInstance> instance = new nsNPAPIPluginInstance(plugin.get());
+    rv = plugin->CreatePluginInstance(getter_AddRefs(instance));
 
 #if defined(XP_WIN)
-  if (!firstJavaPlugin && restoreOrigDir) {
-    BOOL bCheck = SetCurrentDirectoryW(origDir);
-    NS_ASSERTION(bCheck, "Error restoring directory");
-    firstJavaPlugin = TRUE;
-  }
+    if (!firstJavaPlugin && restoreOrigDir) {
+      BOOL bCheck = SetCurrentDirectoryW(origDir);
+      NS_ASSERTION(bCheck, "Error restoring directory");
+      firstJavaPlugin = TRUE;
+    }
 #endif
+  }
+
+  if (NS_FAILED(rv))
+    return rv;
 
   // it is adreffed here
   aOwner->SetInstance(instance.get());
@@ -1329,7 +1335,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
   // this should not addref the instance or owner
   // except in some cases not Java, see bug 140931
   // our COM pointer will free the peer
-  nsresult rv = instance->Initialize(aOwner, mimetype);
+  rv = instance->Initialize(aOwner, mimetype);
   if (NS_FAILED(rv)) {
     aOwner->SetInstance(nsnull);
     return rv;
