@@ -233,13 +233,11 @@ tests.push(function test_interestingColorPreferenceNotTooLenient() {
   }, 0xFF0000, "interestingColorPreferenceNotTooLenient analysis returns red");
 });
 
-let maxPixels = 144; // see ColorAnalyzer MAXIMUM_PIXELS const
-
-// make sure that images larger than maxPixels*maxPixels fail
+// make sure that images larger than 128x128 fail
 tests.push(function test_imageTooLarge() {
-  canvasTest(1+maxPixels, 1+maxPixels, function(ctx) {
+  canvasTest(129, 129, function(ctx) {
     ctx.fillStyle = "red";
-    ctx.fillRect(0, 0, 1+maxPixels, 1+maxPixels);
+    ctx.fillRect(0, 0, 129, 129);
   }, null, "imageTooLarge analysis fails");
 });
 

@@ -247,8 +247,7 @@ static const char *gPrefLangNames[] = {
 };
 
 gfxPlatform::gfxPlatform()
-  : mAzureCanvasBackendCollector(MOZ_THIS_IN_INITIALIZER_LIST(),
-                                 &gfxPlatform::GetAzureBackendInfo)
+  : mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
   , mDrawLayerBorders(false)
   , mDrawTileBorders(false)
   , mDrawBigImageBorders(false)

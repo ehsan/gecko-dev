@@ -7,6 +7,8 @@
 #ifndef nsPluginArray_h___
 #define nsPluginArray_h___
 
+#include "nsString.h"
+#include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsWeakReference.h"
 #include "nsIObserver.h"
@@ -16,6 +18,7 @@
 class nsPIDOMWindow;
 class nsPluginElement;
 class nsMimeType;
+class nsPluginTag;
 
 class nsPluginArray MOZ_FINAL : public nsIObserver,
                                 public nsSupportsWeakReference,

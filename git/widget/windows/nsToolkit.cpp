@@ -77,8 +77,8 @@ void
 nsToolkit::Startup(HMODULE hModule)
 {
     nsToolkit::mDllInstance = hModule;
-    WinUtils::Initialize();
     nsUXThemeData::Initialize();
+    WinUtils::Initialize();
 }
 
 void

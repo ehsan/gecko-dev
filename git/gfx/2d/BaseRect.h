@@ -9,6 +9,7 @@
 #include <cmath>
 #include <mozilla/Assertions.h>
 #include <algorithm>
+#include "nsMathUtils.h"
 
 namespace mozilla {
 namespace gfx {
@@ -59,10 +60,10 @@ struct BaseRect {
   // "Finite" means not inf and not NaN
   bool IsFinite() const
   {
-    return (std::isfinite(x) &&
-            std::isfinite(y) &&
-            std::isfinite(width) &&
-            std::isfinite(height));
+    return (NS_finite(x) &&
+            NS_finite(y) &&
+            NS_finite(width) &&
+            NS_finite(height));
   }
 
   // Returns true if this rectangle contains the interior of aRect. Always

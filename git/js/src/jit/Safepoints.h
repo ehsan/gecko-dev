@@ -67,8 +67,7 @@ class SafepointReader
     GeneralRegisterSet gcSpills_;
     GeneralRegisterSet valueSpills_;
     GeneralRegisterSet slotsOrElementsSpills_;
-    GeneralRegisterSet allGprSpills_;
-    FloatRegisterSet allFloatSpills_;
+    GeneralRegisterSet allSpills_;
     uint32_t nunboxSlotsRemaining_;
     uint32_t slotsOrElementsSlotsRemaining_;
 
@@ -96,11 +95,8 @@ class SafepointReader
     GeneralRegisterSet valueSpills() const {
         return valueSpills_;
     }
-    GeneralRegisterSet allGprSpills() const {
-        return allGprSpills_;
-    }
-    FloatRegisterSet allFloatSpills() const {
-        return allFloatSpills_;
+    GeneralRegisterSet allSpills() const {
+        return allSpills_;
     }
     uint32_t osiReturnPointOffset() const;
 

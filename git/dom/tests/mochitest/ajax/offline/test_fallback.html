@@ -96,7 +96,8 @@ function onFallbackLoad(fallbackIdentification)
 
 function finishTest()
 {
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 function finalize()

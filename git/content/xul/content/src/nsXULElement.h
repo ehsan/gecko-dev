@@ -231,8 +231,7 @@ public:
     nsresult Compile(const PRUnichar* aText, int32_t aTextLength,
                      nsIURI* aURI, uint32_t aLineNo,
                      nsIDocument* aDocument,
-                     nsIScriptGlobalObject* aGlobal,
-                     nsIOffThreadScriptReceiver *aOffThreadReceiver = nullptr);
+                     nsIScriptGlobalObject* aGlobal);
 
     void UnlinkJSObjects();
 

@@ -172,7 +172,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitFunctionEnvironment(MFunctionEnvironment *ins);
     bool visitForkJoinSlice(MForkJoinSlice *ins);
     bool visitGuardThreadLocalObject(MGuardThreadLocalObject *ins);
-    bool visitInterruptCheck(MInterruptCheck *ins);
     bool visitCheckInterruptPar(MCheckInterruptPar *ins);
     bool visitStoreSlot(MStoreSlot *ins);
     bool visitTypeBarrier(MTypeBarrier *ins);

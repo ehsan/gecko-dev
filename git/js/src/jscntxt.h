@@ -277,6 +277,7 @@ struct WorkerThread;
 class ExclusiveContext : public ThreadSafeContext
 {
     friend class gc::ArenaLists;
+    friend class CompartmentChecker;
     friend class AutoCompartment;
     friend class AutoLockForExclusiveAccess;
     friend struct StackBaseShape;

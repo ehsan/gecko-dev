@@ -8,11 +8,8 @@
 #define mozilla_dom_domerror_h__
 
 #include "mozilla/Attributes.h"
+#include "nsPIDOMWindow.h"
 #include "nsWrapperCache.h"
-#include "nsCOMPtr.h"
-#include "nsString.h"
-
-class nsPIDOMWindow;
 
 namespace mozilla {
 

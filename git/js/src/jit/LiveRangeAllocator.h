@@ -625,11 +625,6 @@ class LiveRangeAllocator : public RegisterAllocator
 
             LSafepoint *safepoint = ins->safepoint();
             safepoint->addLiveRegister(a->toRegister());
-
-#ifdef CHECK_OSIPOINT_REGISTERS
-            if (reg->isTemp())
-                safepoint->addTempRegister(a->toRegister());
-#endif
         }
     }
 

@@ -1790,7 +1790,7 @@ NetworkDetailsView.prototype = {
           aEditor.setText(aString);
         });
       }
-      window.emit(EVENTS.REQUEST_POST_PARAMS_DISPLAYED);
+      window.emit("NetMonitor:ResponsePostParamsAvailable");
     });
   },
 
@@ -1913,7 +1913,7 @@ NetworkDetailsView.prototype = {
           }
         });
       }
-      window.emit(EVENTS.RESPONSE_BODY_DISPLAYED);
+      window.emit("NetMonitor:ResponseBodyAvailable");
     });
   },
 

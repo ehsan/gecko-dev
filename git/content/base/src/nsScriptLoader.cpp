@@ -739,12 +739,6 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
                                          true, true, &runScript);
   }
 
-  // Inner window could have gone away after firing beforescriptexecute
-  pwin = mDocument->GetInnerWindow();
-  if (!pwin) {
-    runScript = false;
-  }
-
   nsresult rv = NS_OK;
   if (runScript) {
     if (doc) {

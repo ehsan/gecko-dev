@@ -17,7 +17,6 @@
 #define mozilla_Atomics_h
 
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/TypeTraits.h"
 
 #include <stdint.h>
@@ -846,8 +845,8 @@ class AtomicBase
     typename Intrinsics::ValueType mValue;
 
   public:
-    MOZ_CONSTEXPR AtomicBase() : mValue() {}
-    MOZ_CONSTEXPR AtomicBase(T aInit) : mValue(aInit) {}
+    AtomicBase() : mValue() {}
+    AtomicBase(T aInit) { Intrinsics::store(mValue, aInit); }
 
     operator T() const { return Intrinsics::load(mValue); }
 
@@ -890,8 +889,8 @@ class AtomicBaseIncDec : public AtomicBase<T, Order>
     typedef typename detail::AtomicBase<T, Order> Base;
 
   public:
-    MOZ_CONSTEXPR AtomicBaseIncDec() : Base() {}
-    MOZ_CONSTEXPR AtomicBaseIncDec(T aInit) : Base(aInit) {}
+    AtomicBaseIncDec() : Base() {}
+    AtomicBaseIncDec(T aInit) : Base(aInit) {}
 
     using Base::operator=;
 
@@ -944,8 +943,8 @@ class Atomic<T, Order, typename EnableIf<IsIntegral<T>::value>::Type>
     typedef typename detail::AtomicBaseIncDec<T, Order> Base;
 
   public:
-    MOZ_CONSTEXPR Atomic() : Base() {}
-    MOZ_CONSTEXPR Atomic(T aInit) : Base(aInit) {}
+    Atomic() : Base() {}
+    Atomic(T aInit) : Base(aInit) {}
 
     using Base::operator=;
 
@@ -973,8 +972,8 @@ class Atomic<T*, Order> : public detail::AtomicBaseIncDec<T*, Order>
     typedef typename detail::AtomicBaseIncDec<T*, Order> Base;
 
   public:
-    MOZ_CONSTEXPR Atomic() : Base() {}
-    MOZ_CONSTEXPR Atomic(T* aInit) : Base(aInit) {}
+    Atomic() : Base() {}
+    Atomic(T* aInit) : Base(aInit) {}
 
     using Base::operator=;
 
@@ -1001,8 +1000,8 @@ class Atomic<T, Order, typename EnableIf<IsEnum<T>::value>::Type>
     typedef typename detail::AtomicBase<T, Order> Base;
 
   public:
-    MOZ_CONSTEXPR Atomic() : Base() {}
-    MOZ_CONSTEXPR Atomic(T aInit) : Base(aInit) {}
+    Atomic() : Base() {}
+    Atomic(T aInit) : Base(aInit) {}
 
     using Base::operator=;
 

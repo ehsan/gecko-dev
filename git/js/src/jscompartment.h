@@ -310,7 +310,6 @@ struct JSCompartment
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();
     void purge();
-    void clearTables();
 
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
@@ -399,12 +398,6 @@ inline bool
 JSRuntime::isAtomsZone(JS::Zone *zone)
 {
     return zone == atomsCompartment_->zone();
-}
-
-inline bool
-JSRuntime::atomsZoneNeedsBarrier()
-{
-    return atomsCompartment_->zone()->needsBarrier();
 }
 
 // For use when changing the debug mode flag on one or more compartments.

@@ -171,12 +171,6 @@ private:
         JS_ASSERT(m_end >= m_freePtr);
         return m_end - m_freePtr;
     }
-
-    void toggleAllCodeAsAccessible(bool accessible);
-
-    bool codeContains(char* address) {
-        return address >= m_allocation.pages && address < m_freePtr;
-    }
 };
 
 enum AllocationBehavior
@@ -261,8 +255,6 @@ public:
     }
 
     void sizeOfCode(JS::CodeSizes *sizes) const;
-    void toggleAllCodeAsAccessible(bool accessible);
-    bool codeContains(char* address);
 
     void setDestroyCallback(DestroyCallback destroyCallback) {
         this->destroyCallback = destroyCallback;
