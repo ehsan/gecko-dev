@@ -31,7 +31,6 @@ EXPORTS += [
     'nsSubDocumentFrame.h',
     'ScrollbarActivity.h',
     'Selection.h',
-    'WritingModes.h',
 ]
 
 EXPORTS.mozilla += [

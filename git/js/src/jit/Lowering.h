@@ -29,13 +29,21 @@ class LIRGenerator : public LIRGeneratorSpecific
     void updateResumeState(MInstruction *ins);
     void updateResumeState(MBasicBlock *block);
 
+    // The active depth of the (perhaps nested) call argument vectors.
+    uint32_t argslots_;
     // The maximum depth, for framesizeclass determination.
     uint32_t maxargslots_;
+
+#ifdef DEBUG
+    // In debug builds, check MPrepareCall and MCall are properly
+    // nested. The argslots_ mechanism relies on this.
+    Vector<MPrepareCall *, 4, SystemAllocPolicy> prepareCallStack_;
+#endif
 
   public:
     LIRGenerator(MIRGenerator *gen, MIRGraph &graph, LIRGraph &lirGraph)
       : LIRGeneratorSpecific(gen, graph, lirGraph),
-        maxargslots_(0)
+        argslots_(0), maxargslots_(0)
     { }
 
     bool generate();
@@ -53,7 +61,14 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool precreatePhi(LBlock *block, MPhi *phi);
     bool definePhis();
 
-    bool lowerCallArguments(MCall *call);
+    // Allocate argument slots for a future function call.
+    void allocateArguments(uint32_t argc);
+    // Map an MPassArg's argument number to a slot in the frame arg vector.
+    // Slots are indexed from 1. argnum is indexed from 0.
+    uint32_t getArgumentSlot(uint32_t argnum);
+    uint32_t getArgumentSlotForCall() { return argslots_; }
+    // Free argument slots following a function call.
+    void freeArguments(uint32_t argc);
 
   public:
     bool visitInstruction(MInstruction *ins);
@@ -84,6 +99,8 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitCheckOverRecursedPar(MCheckOverRecursedPar *ins);
     bool visitDefVar(MDefVar *ins);
     bool visitDefFun(MDefFun *ins);
+    bool visitPrepareCall(MPrepareCall *ins);
+    bool visitPassArg(MPassArg *arg);
     bool visitCreateThisWithTemplate(MCreateThisWithTemplate *ins);
     bool visitCreateThisWithProto(MCreateThisWithProto *ins);
     bool visitCreateThis(MCreateThis *ins);

@@ -169,8 +169,8 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
   nsIFrame* kid = mFrames.FirstChild();
 
   // Setup reflow state for our child
-  nsSize availSize(aReflowState.AvailableWidth(), aReflowState.AvailableHeight());
-  const nsMargin& bp = aReflowState.ComputedPhysicalBorderPadding();
+  nsSize availSize(aReflowState.availableWidth, aReflowState.availableHeight);
+  const nsMargin& bp = aReflowState.mComputedBorderPadding;
   nscoord lr = bp.left + bp.right;
   nscoord tb = bp.top + bp.bottom;
   NS_ASSERTION(availSize.width != NS_UNCONSTRAINEDSIZE,
@@ -215,7 +215,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
 
     // In the floating first-letter case, we need to set this ourselves;
     // nsLineLayout::BeginSpan will set it in the other case
-    mBaseline = aMetrics.TopAscent();
+    mBaseline = aMetrics.ascent;
   }
   else {
     // Pretend we are a span and reflow the child frame
@@ -231,13 +231,13 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
   }
 
   // Place and size the child and update the output metrics
-  kid->SetRect(nsRect(bp.left, bp.top, aMetrics.Width(), aMetrics.Height()));
+  kid->SetRect(nsRect(bp.left, bp.top, aMetrics.width, aMetrics.height));
   kid->FinishAndStoreOverflow(&aMetrics);
   kid->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
 
-  aMetrics.Width() += lr;
-  aMetrics.Height() += tb;
-  aMetrics.SetTopAscent(aMetrics.TopAscent() + bp.top);
+  aMetrics.width += lr;
+  aMetrics.height += tb;
+  aMetrics.ascent += bp.top;
 
   // Ensure that the overflow rect contains the child textframe's overflow rect.
   // Note that if this is floating, the overline/underline drawable area is in

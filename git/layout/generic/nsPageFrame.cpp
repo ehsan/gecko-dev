@@ -83,8 +83,8 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
     // XXX Shouldn't we do something more friendly when invalid margins
     //     are set?
     if (maxSize.width < onePixelInTwips || maxSize.height < onePixelInTwips) {
-      aDesiredSize.Width() = 0;
-      aDesiredSize.Height() = 0;
+      aDesiredSize.width  = 0;
+      aDesiredSize.height = 0;
       NS_WARNING("Reflow aborted; no space for content");
       return NS_OK;
     }
@@ -101,7 +101,7 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
       if (marginStyle.GetUnit(side) == eStyleUnit_Auto) {
         pageContentMargin.Side(side) = mPD->mReflowMargin.Side(side);
       } else {
-        pageContentMargin.Side(side) = kidReflowState.ComputedPhysicalMargin().Side(side);
+        pageContentMargin.Side(side) = kidReflowState.mComputedMargin.Side(side);
       }
     }
 
@@ -144,19 +144,19 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
                  !frame->GetNextInFlow(), "bad child flow list");
   }
   PR_PL(("PageFrame::Reflow %p ", this));
-  PR_PL(("[%d,%d][%d,%d]\n", aDesiredSize.Width(), aDesiredSize.Height(), aReflowState.AvailableWidth(), aReflowState.AvailableHeight()));
+  PR_PL(("[%d,%d][%d,%d]\n", aDesiredSize.width, aDesiredSize.height, aReflowState.availableWidth, aReflowState.availableHeight));
 
   // Return our desired size
-  aDesiredSize.Width() = aReflowState.AvailableWidth();
-  if (aReflowState.AvailableHeight() != NS_UNCONSTRAINEDSIZE) {
-    aDesiredSize.Height() = aReflowState.AvailableHeight();
+  aDesiredSize.width = aReflowState.availableWidth;
+  if (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE) {
+    aDesiredSize.height = aReflowState.availableHeight;
   }
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   FinishAndStoreOverflow(&aDesiredSize);
 
   PR_PL(("PageFrame::Reflow %p ", this));
-  PR_PL(("[%d,%d]\n", aReflowState.AvailableWidth(), aReflowState.AvailableHeight()));
+  PR_PL(("[%d,%d]\n", aReflowState.availableWidth, aReflowState.availableHeight));
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
@@ -661,12 +661,12 @@ nsPageBreakFrame::Reflow(nsPresContext*           aPresContext,
 
   // Override reflow, since we don't want to deal with what our
   // computed values are.
-  aDesiredSize.Width() = GetIntrinsicWidth();
-  aDesiredSize.Height() = (aReflowState.AvailableHeight() == NS_UNCONSTRAINEDSIZE ?
-                         0 : aReflowState.AvailableHeight());
+  aDesiredSize.width = GetIntrinsicWidth();
+  aDesiredSize.height = (aReflowState.availableHeight == NS_UNCONSTRAINEDSIZE ?
+                         0 : aReflowState.availableHeight);
   // round the height down to the nearest pixel
-  aDesiredSize.Height() -=
-    aDesiredSize.Height() % nsPresContext::CSSPixelsToAppUnits(1);
+  aDesiredSize.height -=
+    aDesiredSize.height % nsPresContext::CSSPixelsToAppUnits(1);
 
   // Note: not using NS_FRAME_FIRST_REFLOW here, since it's not clear whether
   // DidReflow will always get called before the next Reflow() call.

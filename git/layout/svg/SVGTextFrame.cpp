@@ -5166,18 +5166,18 @@ SVGTextFrame::DoReflow()
   nsHTMLReflowState reflowState(presContext, kid,
                                 renderingContext,
                                 nsSize(width, NS_UNCONSTRAINEDSIZE));
-  nsHTMLReflowMetrics desiredSize(reflowState.GetWritingMode());
+  nsHTMLReflowMetrics desiredSize;
   nsReflowStatus status;
 
-  NS_ASSERTION(reflowState.ComputedPhysicalBorderPadding() == nsMargin(0, 0, 0, 0) &&
-               reflowState.ComputedPhysicalMargin() == nsMargin(0, 0, 0, 0),
+  NS_ASSERTION(reflowState.mComputedBorderPadding == nsMargin(0, 0, 0, 0) &&
+               reflowState.mComputedMargin == nsMargin(0, 0, 0, 0),
                "style system should ensure that :-moz-svg-text "
                "does not get styled");
 
   kid->WillReflow(presContext);
   kid->Reflow(presContext, desiredSize, reflowState, status);
   kid->DidReflow(presContext, &reflowState, nsDidReflowStatus::FINISHED);
-  kid->SetSize(nsSize(desiredSize.Width(), desiredSize.Height()));
+  kid->SetSize(nsSize(desiredSize.width, desiredSize.height));
 
   mState &= ~NS_STATE_SVG_TEXT_IN_REFLOW;
 

@@ -775,13 +775,13 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     reflowState.mLineLayout = this;
     reflowState.mFlags.mIsTopOfPage = mIsTopOfPage;
     if (reflowState.ComputedWidth() == NS_UNCONSTRAINEDSIZE)
-      reflowState.AvailableWidth() = availableSpaceOnLine;
-    pfd->mMargin = reflowState.ComputedPhysicalMargin();
-    pfd->mBorderPadding = reflowState.ComputedPhysicalBorderPadding();
+      reflowState.availableWidth = availableSpaceOnLine;
+    pfd->mMargin = reflowState.mComputedMargin;
+    pfd->mBorderPadding = reflowState.mComputedBorderPadding;
     pfd->SetFlag(PFD_RELATIVEPOS,
                  reflowState.mStyleDisplay->IsRelativelyPositionedStyle());
     if (pfd->GetFlag(PFD_RELATIVEPOS)) {
-      pfd->mOffsets = reflowState.ComputedPhysicalOffsets();
+      pfd->mOffsets = reflowState.mComputedOffsets;
     }
 
     // Apply start margins (as appropriate) to the frame computing the
@@ -812,10 +812,10 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   aFrame->WillReflow(mPresContext);
 
   // Adjust spacemanager coordinate system for the frame.
-  nsHTMLReflowMetrics metrics(mBlockReflowState->GetWritingMode());
+  nsHTMLReflowMetrics metrics;
 #ifdef DEBUG
-  metrics.Width() = nscoord(0xdeadbeef);
-  metrics.Height() = nscoord(0xdeadbeef);
+  metrics.width = nscoord(0xdeadbeef);
+  metrics.height = nscoord(0xdeadbeef);
 #endif
   nscoord tx = pfd->mBounds.x;
   nscoord ty = pfd->mBounds.y;
@@ -911,25 +911,25 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
 
   mFloatManager->Translate(-tx, -ty);
 
-  NS_ASSERTION(metrics.Width() >= 0, "bad width");
-  NS_ASSERTION(metrics.Height() >= 0,"bad height");
-  if (metrics.Width() < 0) metrics.Width() = 0;
-  if (metrics.Height() < 0) metrics.Height() = 0;
+  NS_ASSERTION(metrics.width>=0, "bad width");
+  NS_ASSERTION(metrics.height>=0,"bad height");
+  if (metrics.width<0) metrics.width=0;
+  if (metrics.height<0) metrics.height=0;
 
 #ifdef DEBUG
   // Note: break-before means ignore the reflow metrics since the
   // frame will be reflowed another time.
   if (!NS_INLINE_IS_BREAK_BEFORE(aReflowStatus)) {
-    if (CRAZY_WIDTH(metrics.Width()) || CRAZY_HEIGHT(metrics.Height())) {
+    if (CRAZY_WIDTH(metrics.width) || CRAZY_HEIGHT(metrics.height)) {
       printf("nsLineLayout: ");
       nsFrame::ListTag(stdout, aFrame);
-      printf(" metrics=%d,%d!\n", metrics.Width(), metrics.Height());
+      printf(" metrics=%d,%d!\n", metrics.width, metrics.height);
     }
-    if ((metrics.Width() == nscoord(0xdeadbeef)) ||
-        (metrics.Height() == nscoord(0xdeadbeef))) {
+    if ((metrics.width == nscoord(0xdeadbeef)) ||
+        (metrics.height == nscoord(0xdeadbeef))) {
       printf("nsLineLayout: ");
       nsFrame::ListTag(stdout, aFrame);
-      printf(" didn't set w/h %d,%d!\n", metrics.Width(), metrics.Height());
+      printf(" didn't set w/h %d,%d!\n", metrics.width, metrics.height);
     }
   }
 #endif
@@ -941,11 +941,11 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   // added in later by nsLineLayout::ReflowInlineFrames.
   pfd->mOverflowAreas = metrics.mOverflowAreas;
 
-  pfd->mBounds.width = metrics.Width();
-  pfd->mBounds.height = metrics.Height();
+  pfd->mBounds.width = metrics.width;
+  pfd->mBounds.height = metrics.height;
 
   // Size the frame, but |RelativePositionFrames| will size the view.
-  aFrame->SetSize(nsSize(metrics.Width(), metrics.Height()));
+  aFrame->SetSize(nsSize(metrics.width, metrics.height));
 
   // Tell the frame that we're done reflowing it
   aFrame->DidReflow(mPresContext,
@@ -1083,7 +1083,7 @@ nsLineLayout::ApplyStartMargin(PerFrameData* pfd,
   else {
     pfd->mBounds.x += ltr ? pfd->mMargin.left : pfd->mMargin.right;
 
-    NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aReflowState.AvailableWidth(),
+    NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aReflowState.availableWidth,
                      "have unconstrained width; this should only result from "
                      "very large sizes, not attempts at intrinsic width "
                      "calculation");
@@ -1092,7 +1092,7 @@ nsLineLayout::ApplyStartMargin(PerFrameData* pfd,
       // in the reflow state), adjust available width to account for the
       // left margin. The right margin will be accounted for when we
       // finish flowing the frame.
-      aReflowState.AvailableWidth() -= ltr ? pfd->mMargin.left : pfd->mMargin.right;
+      aReflowState.availableWidth -= ltr ? pfd->mMargin.left : pfd->mMargin.right;
     }
   }
 }
@@ -1298,10 +1298,10 @@ nsLineLayout::PlaceFrame(PerFrameData* pfd, nsHTMLReflowMetrics& aMetrics)
   }
 
   // Record ascent and update max-ascent and max-descent values
-  if (aMetrics.TopAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE)
+  if (aMetrics.ascent == nsHTMLReflowMetrics::ASK_FOR_BASELINE)
     pfd->mAscent = pfd->mFrame->GetBaseline();
   else
-    pfd->mAscent = aMetrics.TopAscent();
+    pfd->mAscent = aMetrics.ascent;
 
   bool ltr = (NS_STYLE_DIRECTION_LTR == pfd->mFrame->StyleVisibility()->mDirection);
   // Advance to next X coordinate
@@ -1335,10 +1335,10 @@ nsLineLayout::AddBulletFrame(nsIFrame* aFrame,
   pfd->mBorderPadding.SizeTo(0, 0, 0, 0);
   pfd->mFlags = 0;  // all flags default to false
   pfd->SetFlag(PFD_ISBULLET, true);
-  if (aMetrics.TopAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE)
+  if (aMetrics.ascent == nsHTMLReflowMetrics::ASK_FOR_BASELINE)
     pfd->mAscent = aFrame->GetBaseline();
   else
-    pfd->mAscent = aMetrics.TopAscent();
+    pfd->mAscent = aMetrics.ascent;
 
   // Note: y value will be updated during vertical alignment
   pfd->mBounds = aFrame->GetRect();

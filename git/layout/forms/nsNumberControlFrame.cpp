@@ -82,7 +82,7 @@ nsNumberControlFrame::Reflow(nsPresContext* aPresContext,
     nsFormControlFrame::RegUnRegAccessKey(this, true);
   }
 
-  nsHTMLReflowMetrics wrappersDesiredSize(aReflowState.GetWritingMode());
+  nsHTMLReflowMetrics wrappersDesiredSize;
   nsIFrame* outerWrapperFrame = mOuterWrapper->GetPrimaryFrame();
   if (outerWrapperFrame) { // display:none?
     NS_ASSERTION(outerWrapperFrame == mFrames.FirstChild(), "huh?");
@@ -98,14 +98,14 @@ nsNumberControlFrame::Reflow(nsPresContext* aPresContext,
     computedHeight =
       outerWrapperFrame ? outerWrapperFrame->GetSize().height : 0;
   }
-  aDesiredSize.Width() = aReflowState.ComputedWidth() +
-                         aReflowState.ComputedPhysicalBorderPadding().LeftRight();
-  aDesiredSize.Height() = computedHeight +
-                          aReflowState.ComputedPhysicalBorderPadding().TopBottom();
+  aDesiredSize.width = aReflowState.ComputedWidth() +
+                         aReflowState.mComputedBorderPadding.LeftRight();
+  aDesiredSize.height = computedHeight +
+                          aReflowState.mComputedBorderPadding.TopBottom();
 
   if (outerWrapperFrame) {
-    aDesiredSize.SetTopAscent(wrappersDesiredSize.TopAscent() +
-                            outerWrapperFrame->GetPosition().y);
+    aDesiredSize.ascent = wrappersDesiredSize.ascent +
+                            outerWrapperFrame->GetPosition().y;
   }
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
@@ -137,10 +137,10 @@ nsNumberControlFrame::
                                        nsSize(inputFrameContentBoxWidth,
                                               NS_UNCONSTRAINEDSIZE));
 
-  nscoord xoffset = aParentReflowState.ComputedPhysicalBorderPadding().left +
-                      wrapperReflowState.ComputedPhysicalMargin().left;
-  nscoord yoffset = aParentReflowState.ComputedPhysicalBorderPadding().top +
-                      wrapperReflowState.ComputedPhysicalMargin().top;
+  nscoord xoffset = aParentReflowState.mComputedBorderPadding.left +
+                      wrapperReflowState.mComputedMargin.left;
+  nscoord yoffset = aParentReflowState.mComputedBorderPadding.top +
+                      wrapperReflowState.mComputedMargin.top;
 
   nsReflowStatus childStatus;
   nsresult rv = ReflowChild(aOuterWrapperFrame, aPresContext,

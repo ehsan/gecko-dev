@@ -199,8 +199,8 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
                              nsReflowStatus&          aStatus)
 {
   nsresult rv;
-  aDesiredSize.Width() = aDesiredSize.Height() = 0;
-  aDesiredSize.SetTopAscent(0);
+  aDesiredSize.width = aDesiredSize.height = 0;
+  aDesiredSize.ascent = 0;
   aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
 
   int32_t i;
@@ -239,8 +239,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
     descent = fm->MaxDescent();
   }
   while (childFrame) {
-    nsHTMLReflowMetrics childDesiredSize(aReflowState.GetWritingMode(),
-                                         aDesiredSize.mFlags
+    nsHTMLReflowMetrics childDesiredSize(aDesiredSize.mFlags
                                          | NS_REFLOW_CALC_BOUNDING_METRICS);
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
@@ -256,11 +255,11 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
     SaveReflowAndBoundingMetricsFor(childFrame, childDesiredSize,
                                     childDesiredSize.mBoundingMetrics);
 
-    nscoord childDescent = childDesiredSize.Height() - childDesiredSize.TopAscent();
+    nscoord childDescent = childDesiredSize.height - childDesiredSize.ascent;
     if (descent < childDescent)
       descent = childDescent;
-    if (ascent < childDesiredSize.TopAscent())
-      ascent = childDesiredSize.TopAscent();
+    if (ascent < childDesiredSize.ascent)
+      ascent = childDesiredSize.ascent;
 
     childFrame = childFrame->GetNextSibling();
   }
@@ -278,7 +277,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   while (childFrame) {
     nsIMathMLFrame* mathmlChild = do_QueryFrame(childFrame);
     if (mathmlChild) {
-      nsHTMLReflowMetrics childDesiredSize(aReflowState.GetWritingMode());
+      nsHTMLReflowMetrics childDesiredSize;
       // retrieve the metrics that was stored at the previous pass
       GetReflowAndBoundingMetricsFor(childFrame, childDesiredSize,
                                      childDesiredSize.mBoundingMetrics);
@@ -289,11 +288,11 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
       SaveReflowAndBoundingMetricsFor(childFrame, childDesiredSize,
                                       childDesiredSize.mBoundingMetrics);
       
-      nscoord childDescent = childDesiredSize.Height() - childDesiredSize.TopAscent();
+      nscoord childDescent = childDesiredSize.height - childDesiredSize.ascent;
       if (descent < childDescent)
         descent = childDescent;
-      if (ascent < childDesiredSize.TopAscent())
-        ascent = childDesiredSize.TopAscent();
+      if (ascent < childDesiredSize.ascent)
+        ascent = childDesiredSize.ascent;
     }
     childFrame = childFrame->GetNextSibling();
   }
@@ -362,7 +361,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
     childFrame = firstChild;
   }
   while (childFrame) {
-    nsHTMLReflowMetrics childSize(aReflowState.GetWritingMode());
+    nsHTMLReflowMetrics childSize;
     GetReflowAndBoundingMetricsFor(childFrame, childSize, bm);
     if (firstTime) {
       firstTime = false;
@@ -372,8 +371,8 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
       aDesiredSize.mBoundingMetrics += bm;
 
     FinishReflowChild(childFrame, aPresContext, nullptr, childSize, 
-                      dx, ascent - childSize.TopAscent(), 0);
-    dx += childSize.Width();
+                      dx, ascent - childSize.ascent, 0);
+    dx += childSize.width;
 
     if (i < mSeparatorsCount) {
       PlaceChar(&mSeparatorsChar[isRTL ? mSeparatorsCount - 1 - i : i],
@@ -397,12 +396,12 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
       aDesiredSize.mBoundingMetrics += bm;
   }
 
-  aDesiredSize.Width() = aDesiredSize.mBoundingMetrics.width;
-  aDesiredSize.Height() = ascent + descent;
-  aDesiredSize.SetTopAscent(ascent);
+  aDesiredSize.width = aDesiredSize.mBoundingMetrics.width;
+  aDesiredSize.height = ascent + descent;
+  aDesiredSize.ascent = ascent;
 
   SetBoundingMetrics(aDesiredSize.mBoundingMetrics);
-  SetReference(nsPoint(0, aDesiredSize.TopAscent()));
+  SetReference(nsPoint(0, aDesiredSize.ascent));
 
   // see if we should fix the spacing
   FixInterFrameSpacing(aDesiredSize);
@@ -608,7 +607,7 @@ nsMathMLmfencedFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingCon
                       NS_MATHML_OPERATOR_FORM_POSTFIX, font->mScriptLevel, em);
   }
 
-  aDesiredSize.Width() = width;
+  aDesiredSize.width = width;
   aDesiredSize.mBoundingMetrics.width = width;
   aDesiredSize.mBoundingMetrics.leftBearing = 0;
   aDesiredSize.mBoundingMetrics.rightBearing = width;

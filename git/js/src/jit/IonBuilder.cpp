@@ -1300,6 +1300,10 @@ IonBuilder::traverseBytecode()
 
 #ifdef DEBUG
         for (size_t i = 0; i < popped.length(); i++) {
+            // Call instructions can discard PassArg instructions. Ignore them.
+            if (popped[i]->isPassArg() && !popped[i]->hasUses())
+                continue;
+
             switch (op) {
               case JSOP_POP:
               case JSOP_POPN:
@@ -1511,6 +1515,9 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_REST:
         return jsop_rest();
+
+      case JSOP_NOTEARG:
+        return jsop_notearg();
 
       case JSOP_GETARG:
       case JSOP_CALLARG:
@@ -3810,6 +3817,19 @@ IonBuilder::jsop_neg()
     return true;
 }
 
+bool
+IonBuilder::jsop_notearg()
+{
+    // JSOP_NOTEARG notes that the value in current->pop() has just
+    // been pushed onto the stack for use in calling a function.
+    MDefinition *def = current->pop();
+    MPassArg *arg = MPassArg::New(alloc(), def);
+
+    current->add(arg);
+    current->push(arg);
+    return true;
+}
+
 class AutoAccumulateReturns
 {
     MIRGraph &graph_;
@@ -3833,7 +3853,9 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     JS_ASSERT(target->isInterpreted());
     JS_ASSERT(IsIonInlinablePC(pc));
 
-    callInfo.setFoldedUnchecked();
+    // Remove any MPassArgs.
+    if (callInfo.isWrapped())
+        callInfo.unwrapArgs();
 
     // Ensure sufficient space in the slots: needed for inlining from FUNAPPLY.
     uint32_t depth = current->stackDepth() + callInfo.numFormals();
@@ -4142,6 +4164,10 @@ IonBuilder::getInlineableGetPropertyCache(CallInfo &callInfo)
     if (thisDef->type() != MIRType_Object)
         return nullptr;
 
+    // Unwrap thisDef for pointer comparison purposes.
+    if (thisDef->isPassArg())
+        thisDef = thisDef->toPassArg()->getArgument();
+
     MDefinition *funcDef = callInfo.fun();
     if (funcDef->type() != MIRType_Object)
         return nullptr;
@@ -4262,6 +4288,7 @@ IonBuilder::inlineGenericFallback(JSFunction *target, CallInfo &callInfo, MBasic
     if (!fallbackInfo.init(callInfo))
         return false;
     fallbackInfo.popFormals(fallbackBlock);
+    fallbackInfo.wrapArgs(alloc(), fallbackBlock);
 
     // Generate an MCall, which uses stateful |current|.
     setCurrentAndSpecializePhis(fallbackBlock);
@@ -4380,7 +4407,10 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
     JS_ASSERT_IF(maybeCache, targets.length() >= 1);
 
     MBasicBlock *dispatchBlock = current;
-    callInfo.setFoldedUnchecked();
+
+    // Unwrap the arguments.
+    JS_ASSERT(callInfo.isWrapped());
+    callInfo.unwrapArgs();
     callInfo.pushFormals(dispatchBlock);
 
     // Patch any InlinePropertyTable to only contain functions that are inlineable.
@@ -4479,6 +4509,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
             return false;
         inlineInfo.popFormals(inlineBlock);
         inlineInfo.setFun(funcDef);
+        inlineInfo.wrapArgs(alloc(), inlineBlock);
 
         if (maybeCache) {
             JS_ASSERT(callInfo.thisArg() == maybeCache->object());
@@ -4793,10 +4824,10 @@ bool
 IonBuilder::jsop_funcall(uint32_t argc)
 {
     // Stack for JSOP_FUNCALL:
-    // 1:      arg0
+    // 1:      MPassArg(arg0)
     // ...
-    // argc:   argN
-    // argc+1: JSFunction*, the 'f' in |f.call()|, in |this| position.
+    // argc:   MPassArg(argN)
+    // argc+1: MPassArg(JSFunction *), the 'f' in |f.call()|, in |this| position.
     // argc+2: The native 'call' function.
 
     int calleeDepth = -((int)argc + 2);
@@ -4817,6 +4848,14 @@ IonBuilder::jsop_funcall(uint32_t argc)
     types::TemporaryTypeSet *funTypes = current->peek(funcDepth)->resultTypeSet();
     JSFunction *target = getSingleCallTarget(funTypes);
 
+    // Unwrap the (JSFunction *) parameter.
+    MPassArg *passFunc = current->peek(funcDepth)->toPassArg();
+    current->rewriteAtDepth(funcDepth, passFunc->getArgument());
+
+    // Remove the MPassArg(JSFunction *).
+    passFunc->replaceAllUsesWith(passFunc->getArgument());
+    passFunc->block()->discard(passFunc);
+
     // Shimmy the slots down to remove the native 'call' function.
     current->shimmySlots(funcDepth - 1);
 
@@ -4825,7 +4864,11 @@ IonBuilder::jsop_funcall(uint32_t argc)
     // If no |this| argument was provided, explicitly pass Undefined.
     // Pushing is safe here, since one stack slot has been removed.
     if (zeroArguments) {
-        pushConstant(UndefinedValue());
+        MConstant *undef = MConstant::New(alloc(), UndefinedValue());
+        current->add(undef);
+        MPassArg *pass = MPassArg::New(alloc(), undef);
+        current->add(pass);
+        current->push(pass);
     } else {
         // |this| becomes implicit in the call.
         argc -= 1;
@@ -4903,9 +4946,9 @@ bool
 IonBuilder::jsop_funapplyarguments(uint32_t argc)
 {
     // Stack for JSOP_FUNAPPLY:
-    // 1:      Vp
-    // 2:      This
-    // argc+1: JSFunction*, the 'f' in |f.call()|, in |this| position.
+    // 1:      MPassArg(Vp)
+    // 2:      MPassArg(This)
+    // argc+1: MPassArg(JSFunction *), the 'f' in |f.call()|, in |this| position.
     // argc+2: The native 'apply' function.
 
     int funcDepth = -((int)argc + 1);
@@ -4917,17 +4960,24 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
     // When this script isn't inlined, use MApplyArgs,
     // to copy the arguments from the stack and call the function
     if (inliningDepth_ == 0 && info().executionMode() != DefinitePropertiesAnalysis) {
-        // The array argument corresponds to the arguments object. As the JIT
-        // is implicitly reading the arguments object in the next instruction,
-        // we need to prevent the deletion of the arguments object from resume
-        // points, so that Baseline will behave correctly after a bailout.
-        MDefinition *vp = current->pop();
-        vp->setFoldedUnchecked();
 
-        MDefinition *argThis = current->pop();
+        // Vp
+        MPassArg *passVp = current->pop()->toPassArg();
+        passVp->getArgument()->setFoldedUnchecked();
+        passVp->replaceAllUsesWith(passVp->getArgument());
+        passVp->block()->discard(passVp);
+
+        // This
+        MPassArg *passThis = current->pop()->toPassArg();
+        MDefinition *argThis = passThis->getArgument();
+        passThis->replaceAllUsesWith(argThis);
+        passThis->block()->discard(passThis);
 
         // Unwrap the (JSFunction *) parameter.
-        MDefinition *argFunc = current->pop();
+        MPassArg *passFunc = current->pop()->toPassArg();
+        MDefinition *argFunc = passFunc->getArgument();
+        passFunc->replaceAllUsesWith(argFunc);
+        passFunc->block()->discard(passFunc);
 
         // Pop apply function.
         current->pop();
@@ -4954,8 +5004,10 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
     CallInfo callInfo(alloc(), false);
 
     // Vp
-    MDefinition *vp = current->pop();
-    vp->setFoldedUnchecked();
+    MPassArg *passVp = current->pop()->toPassArg();
+    passVp->getArgument()->setFoldedUnchecked();
+    passVp->replaceAllUsesWith(passVp->getArgument());
+    passVp->block()->discard(passVp);
 
     // Arguments
     MDefinitionVector args(alloc());
@@ -4966,11 +5018,18 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
     callInfo.setArgs(&args);
 
     // This
-    MDefinition *argThis = current->pop();
+    MPassArg *passThis = current->pop()->toPassArg();
+    MDefinition *argThis = passThis->getArgument();
+    passThis->replaceAllUsesWith(argThis);
+    passThis->block()->discard(passThis);
     callInfo.setThis(argThis);
 
-    // Pop function parameter.
-    MDefinition *argFunc = current->pop();
+    // Unwrap the (JSFunction *) parameter.
+    MPassArg *passFunc = current->pop()->toPassArg();
+    MDefinition *argFunc = passFunc->getArgument();
+    passFunc->replaceAllUsesWith(argFunc);
+    passFunc->block()->discard(passFunc);
+
     callInfo.setFun(argFunc);
 
     // Pop apply function.
@@ -4988,6 +5047,7 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
             return inlineScriptedCall(callInfo, target);
     }
 
+    callInfo.wrapArgs(alloc(), current);
     return makeCall(target, callInfo, false);
 }
 
@@ -5160,6 +5220,8 @@ IonBuilder::testNeedsArgumentCheck(JSFunction *target, CallInfo &callInfo)
 MCall *
 IonBuilder::makeCallHelper(JSFunction *target, CallInfo &callInfo, bool cloneAtCallsite)
 {
+    JS_ASSERT(callInfo.isWrapped());
+
     // This function may be called with mutated stack.
     // Querying TI for popped types is invalid.
 
@@ -5179,14 +5241,27 @@ IonBuilder::makeCallHelper(JSFunction *target, CallInfo &callInfo, bool cloneAtC
     // This permits skipping the argumentsRectifier.
     for (int i = targetArgs; i > (int)callInfo.argc(); i--) {
         JS_ASSERT_IF(target, !target->isNative());
-        MConstant *undef = constant(UndefinedValue());
-        call->addArg(i, undef);
+        MConstant *undef = MConstant::New(alloc(), UndefinedValue());
+        current->add(undef);
+        MPassArg *pass = MPassArg::New(alloc(), undef);
+        current->add(pass);
+        call->addArg(i, pass);
     }
 
     // Add explicit arguments.
     // Skip addArg(0) because it is reserved for this
-    for (int32_t i = callInfo.argc() - 1; i >= 0; i--)
-        call->addArg(i + 1, callInfo.getArg(i));
+    for (int32_t i = callInfo.argc() - 1; i >= 0; i--) {
+        JS_ASSERT(callInfo.getArg(i)->isPassArg());
+        call->addArg(i + 1, callInfo.getArg(i)->toPassArg());
+    }
+
+    // Place an MPrepareCall before the first passed argument, before we
+    // potentially perform rearrangement.
+    JS_ASSERT(callInfo.thisArg()->isPassArg());
+    MPassArg *thisArg = callInfo.thisArg()->toPassArg();
+    MPrepareCall *start = MPrepareCall::New(alloc());
+    thisArg->block()->insertBefore(thisArg, start);
+    call->initPrepareCall(start);
 
     // Inline the constructor on the caller-side.
     if (callInfo.constructing()) {
@@ -5196,12 +5271,18 @@ IonBuilder::makeCallHelper(JSFunction *target, CallInfo &callInfo, bool cloneAtC
             return nullptr;
         }
 
-        callInfo.thisArg()->setFoldedUnchecked();
-        callInfo.setThis(create);
+        // Unwrap the MPassArg before discarding: it may have been captured by an MResumePoint.
+        thisArg->replaceAllUsesWith(thisArg->getArgument());
+        thisArg->block()->discard(thisArg);
+
+        MPassArg *newThis = MPassArg::New(alloc(), create);
+        current->add(newThis);
+
+        thisArg = newThis;
+        callInfo.setThis(newThis);
     }
 
     // Pass |this| and function.
-    MDefinition *thisArg = callInfo.thisArg();
     call->addArg(0, thisArg);
 
     // Add a callsite clone IC for multiple targets which all should be
@@ -5307,7 +5388,7 @@ IonBuilder::jsop_eval(uint32_t argc)
         CallInfo callInfo(alloc(), /* constructing = */ false);
         if (!callInfo.init(current, argc))
             return false;
-        callInfo.setFoldedUnchecked();
+        callInfo.unwrapArgs();
 
         callInfo.fun()->setFoldedUnchecked();
 
@@ -5340,8 +5421,11 @@ IonBuilder::jsop_eval(uint32_t argc)
                 MInstruction *dynamicName = MGetDynamicName::New(alloc(), scopeChain, name);
                 current->add(dynamicName);
 
+                MInstruction *thisv = MPassArg::New(alloc(), thisValue);
+                current->add(thisv);
+
                 current->push(dynamicName);
-                current->push(thisValue);
+                current->push(thisv);
 
                 CallInfo evalCallInfo(alloc(), /* constructing = */ false);
                 if (!evalCallInfo.init(current, /* argc = */ 0))
@@ -8479,7 +8563,9 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, PropertyName *name,
     // Spoof stack to expected state for call.
     pushConstant(ObjectValue(*commonGetter));
 
-    current->push(obj);
+    MPassArg *wrapper = MPassArg::New(alloc(), obj);
+    current->add(wrapper);
+    current->push(wrapper);
 
     CallInfo callInfo(alloc(), false);
     if (!callInfo.init(current, 0))
@@ -8772,8 +8858,13 @@ IonBuilder::setPropTryCommonSetter(bool *emitted, MDefinition *obj,
 
     pushConstant(ObjectValue(*commonSetter));
 
-    current->push(obj);
-    current->push(value);
+    MPassArg *wrapper = MPassArg::New(alloc(), obj);
+    current->push(wrapper);
+    current->add(wrapper);
+
+    MPassArg *arg = MPassArg::New(alloc(), value);
+    current->push(arg);
+    current->add(arg);
 
     // Call the setter. Note that we have to push the original value, not
     // the setter's return value.

@@ -72,7 +72,7 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
       // The background covers the content area and padding area, so check
       // for children sticking outside the child frame's padding edge
       nscoord xmost = aDesiredSize.ScrollableOverflow().XMost();
-      if (xmost > aDesiredSize.Width()) {
+      if (xmost > aDesiredSize.width) {
         mPD->mPageContentXMost =
           xmost +
           kidReflowState.mStyleBorder->GetComputedBorderWidth(NS_SIDE_RIGHT) +
@@ -93,9 +93,9 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
   NS_ASSERTION(NS_FRAME_IS_COMPLETE(fixedStatus), "fixed frames can be truncated, but not incomplete");
 
   // Return our desired size
-  aDesiredSize.Width() = aReflowState.ComputedWidth();
+  aDesiredSize.width = aReflowState.ComputedWidth();
   if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
-    aDesiredSize.Height() = aReflowState.ComputedHeight();
+    aDesiredSize.height = aReflowState.ComputedHeight();
   }
 
   FinishAndStoreOverflow(&aDesiredSize);

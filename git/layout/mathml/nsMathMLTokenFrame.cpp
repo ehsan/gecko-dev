@@ -140,16 +140,15 @@ nsMathMLTokenFrame::Reflow(nsPresContext*          aPresContext,
   nsresult rv = NS_OK;
 
   // initializations needed for empty markup like <mtag></mtag>
-  aDesiredSize.Width() = aDesiredSize.Height() = 0;
-  aDesiredSize.SetTopAscent(0);
+  aDesiredSize.width = aDesiredSize.height = 0;
+  aDesiredSize.ascent = 0;
   aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
 
   nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
   nsIFrame* childFrame = GetFirstPrincipalChild();
   while (childFrame) {
     // ask our children to compute their bounding metrics
-    nsHTMLReflowMetrics childDesiredSize(aReflowState.GetWritingMode(),
-                                         aDesiredSize.mFlags
+    nsHTMLReflowMetrics childDesiredSize(aDesiredSize.mFlags
                                          | NS_REFLOW_CALC_BOUNDING_METRICS);
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
@@ -188,7 +187,7 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
   mBoundingMetrics = nsBoundingMetrics();
   for (nsIFrame* childFrame = GetFirstPrincipalChild(); childFrame;
        childFrame = childFrame->GetNextSibling()) {
-    nsHTMLReflowMetrics childSize(aDesiredSize.GetWritingMode());
+    nsHTMLReflowMetrics childSize;
     GetReflowAndBoundingMetricsFor(childFrame, childSize,
                                    childSize.mBoundingMetrics, nullptr);
     // compute and cache the bounding metrics
@@ -201,27 +200,27 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
   nscoord descent = fm->MaxDescent();
 
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
-  aDesiredSize.Width() = mBoundingMetrics.width;
-  aDesiredSize.SetTopAscent(std::max(mBoundingMetrics.ascent, ascent));
-  aDesiredSize.Height() = aDesiredSize.TopAscent() +
+  aDesiredSize.width = mBoundingMetrics.width;
+  aDesiredSize.ascent = std::max(mBoundingMetrics.ascent, ascent);
+  aDesiredSize.height = aDesiredSize.ascent +
                         std::max(mBoundingMetrics.descent, descent);
 
   if (aPlaceOrigin) {
     nscoord dy, dx = 0;
     for (nsIFrame* childFrame = GetFirstPrincipalChild(); childFrame;
          childFrame = childFrame->GetNextSibling()) {
-      nsHTMLReflowMetrics childSize(aDesiredSize.GetWritingMode());
+      nsHTMLReflowMetrics childSize;
       GetReflowAndBoundingMetricsFor(childFrame, childSize,
                                      childSize.mBoundingMetrics);
 
       // place and size the child; (dx,0) makes the caret happy - bug 188146
-      dy = childSize.Height() == 0 ? 0 : aDesiredSize.TopAscent() - childSize.TopAscent();
+      dy = childSize.height == 0 ? 0 : aDesiredSize.ascent - childSize.ascent;
       FinishReflowChild(childFrame, PresContext(), nullptr, childSize, dx, dy, 0);
-      dx += childSize.Width();
+      dx += childSize.width;
     }
   }
 
-  SetReference(nsPoint(0, aDesiredSize.TopAscent()));
+  SetReference(nsPoint(0, aDesiredSize.ascent));
 
   return NS_OK;
 }

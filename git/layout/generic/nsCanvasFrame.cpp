@@ -492,17 +492,17 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
   // don't need to be reflowed. The normal child is always comes before
   // the fixed-pos placeholders, because we insert it at the start
   // of the child list, above.
-  nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode());
+  nsHTMLReflowMetrics kidDesiredSize;
   if (mFrames.IsEmpty()) {
     // We have no child frame, so return an empty size
-    aDesiredSize.Width() = aDesiredSize.Height() = 0;
+    aDesiredSize.width = aDesiredSize.height = 0;
   } else {
     nsIFrame* kidFrame = mFrames.FirstChild();
     bool kidDirty = (kidFrame->GetStateBits() & NS_FRAME_IS_DIRTY) != 0;
 
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, kidFrame,
-                                     nsSize(aReflowState.AvailableWidth(),
-                                            aReflowState.AvailableHeight()));
+                                     nsSize(aReflowState.availableWidth,
+                                            aReflowState.availableHeight));
 
     if (aReflowState.mFlags.mVResize &&
         (kidFrame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT)) {
@@ -511,8 +511,8 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       kidReflowState.mFlags.mVResize = true;
     }
 
-    nsPoint kidPt(kidReflowState.ComputedPhysicalMargin().left,
-                  kidReflowState.ComputedPhysicalMargin().top);
+    nsPoint kidPt(kidReflowState.mComputedMargin.left,
+                  kidReflowState.mComputedMargin.top);
 
     kidReflowState.ApplyRelativePositioning(&kidPt);
 
@@ -560,12 +560,12 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     // Return our desired size. Normally it's what we're told, but
     // sometimes we can be given an unconstrained height (when a window
     // is sizing-to-content), and we should compute our desired height.
-    aDesiredSize.Width() = aReflowState.ComputedWidth();
+    aDesiredSize.width = aReflowState.ComputedWidth();
     if (aReflowState.ComputedHeight() == NS_UNCONSTRAINEDSIZE) {
-      aDesiredSize.Height() = kidFrame->GetRect().height +
-        kidReflowState.ComputedPhysicalMargin().TopBottom();
+      aDesiredSize.height = kidFrame->GetRect().height +
+        kidReflowState.mComputedMargin.TopBottom();
     } else {
-      aDesiredSize.Height() = aReflowState.ComputedHeight();
+      aDesiredSize.height = aReflowState.ComputedHeight();
     }
 
     aDesiredSize.SetOverflowAreasToDesiredBounds();

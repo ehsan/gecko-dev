@@ -318,9 +318,9 @@ nsTableRowFrame::DidResize()
   nsTableIterator iter(*this);
   nsIFrame* childFrame = iter.First();
   
-  nsHTMLReflowMetrics desiredSize(GetWritingMode()); // ???
-  desiredSize.Width() = mRect.width;
-  desiredSize.Height() = mRect.height;
+  nsHTMLReflowMetrics desiredSize;
+  desiredSize.width = mRect.width;
+  desiredSize.height = mRect.height;
   desiredSize.SetOverflowAreasToDesiredBounds();
 
   while (childFrame) {
@@ -499,7 +499,7 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
     if (cellFrame) {
       nsSize desSize = cellFrame->GetDesiredSize();
-      if ((NS_UNCONSTRAINEDSIZE == aReflowState.AvailableHeight()) && !GetPrevInFlow()) {
+      if ((NS_UNCONSTRAINEDSIZE == aReflowState.availableHeight) && !GetPrevInFlow()) {
         CalculateCellActualHeight(cellFrame, desSize.height);
       }
       // height may have changed, adjust descent to absorb any excess difference
@@ -814,7 +814,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
                                             kidFrame, nsSize(0,0),
                                             nsHTMLReflowState::CALLER_WILL_INIT);
       InitChildReflowState(*aPresContext, nsSize(0,0), false, kidReflowState);
-      nsHTMLReflowMetrics desiredSize(aReflowState.GetWritingMode());
+      nsHTMLReflowMetrics desiredSize;
       nsReflowStatus  status;
       ReflowChild(kidFrame, aPresContext, desiredSize, kidReflowState, 0, 0, 0, status);
       kidFrame->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
@@ -830,7 +830,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       if (!aReflowState.mFlags.mSpecialHeightReflow)
         doReflowChild = false;
     }
-    else if ((NS_UNCONSTRAINEDSIZE != aReflowState.AvailableHeight())) {
+    else if ((NS_UNCONSTRAINEDSIZE != aReflowState.availableHeight)) {
       // We don't reflow a rowspan >1 cell here with a constrained height. 
       // That happens in nsTableRowGroupFrame::SplitSpanningCells.
       if (aTableFrame.GetEffectiveRowSpan(*cellFrame) > 1) {
@@ -869,7 +869,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       nscoord availCellWidth =
         CalcAvailWidth(aTableFrame, *cellFrame, cellSpacingX);
 
-      nsHTMLReflowMetrics desiredSize(aReflowState.GetWritingMode());
+      nsHTMLReflowMetrics desiredSize;
 
       // If the avail width is not the same as last time we reflowed the cell or
       // the cell wants to be bigger than what was available last time or
@@ -887,7 +887,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
           HasPctHeight()) {
         // Reflow the cell to fit the available width, height
         // XXX The old IR_ChildIsDirty code used availCellWidth here.
-        nsSize  kidAvailSize(availCellWidth, aReflowState.AvailableHeight());
+        nsSize  kidAvailSize(availCellWidth, aReflowState.availableHeight);
 
         // Reflow the child
         nsTableCellReflowState kidReflowState(aPresContext, aReflowState, 
@@ -911,8 +911,8 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
           kidFrame->InvalidateFrameSubtree();
         }
         
-        desiredSize.Width() = cellDesiredSize.width;
-        desiredSize.Height() = cellDesiredSize.height;
+        desiredSize.width = cellDesiredSize.width;
+        desiredSize.height = cellDesiredSize.height;
         desiredSize.mOverflowAreas = cellFrame->GetOverflowAreas();
 
         // if we are in a floated table, our position is not yet established, so we cannot reposition our views
@@ -925,23 +925,23 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         }
       }
       
-      if (NS_UNCONSTRAINEDSIZE == aReflowState.AvailableHeight()) {
+      if (NS_UNCONSTRAINEDSIZE == aReflowState.availableHeight) {
         if (!GetPrevInFlow()) {
           // Calculate the cell's actual height given its pass2 height. This
           // function takes into account the specified height (in the style)
-          CalculateCellActualHeight(cellFrame, desiredSize.Height());
+          CalculateCellActualHeight(cellFrame, desiredSize.height);
         }
         // height may have changed, adjust descent to absorb any excess difference
         nscoord ascent;
         if (!kidFrame->GetFirstPrincipalChild()->GetFirstPrincipalChild())
-          ascent = desiredSize.Height();
+          ascent = desiredSize.height;
         else
           ascent = ((nsTableCellFrame *)kidFrame)->GetCellBaseline();
-        nscoord descent = desiredSize.Height() - ascent;
-        UpdateHeight(desiredSize.Height(), ascent, descent, &aTableFrame, cellFrame);
+        nscoord descent = desiredSize.height - ascent;
+        UpdateHeight(desiredSize.height, ascent, descent, &aTableFrame, cellFrame);
       }
       else {
-        cellMaxHeight = std::max(cellMaxHeight, desiredSize.Height());
+        cellMaxHeight = std::max(cellMaxHeight, desiredSize.height);
         int32_t rowSpan = aTableFrame.GetEffectiveRowSpan((nsTableCellFrame&)*kidFrame);
         if (1 == rowSpan) {
           SetContentHeight(cellMaxHeight);
@@ -949,14 +949,14 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       }
 
       // Place the child
-      desiredSize.Width() = availCellWidth;
+      desiredSize.width = availCellWidth;
 
       FinishReflowChild(kidFrame, aPresContext, nullptr, desiredSize, x, 0, 0);
 
       nsTableFrame::InvalidateTableFrame(kidFrame, kidRect, kidVisualOverflow,
                                          firstReflow);
       
-      x += desiredSize.Width();  
+      x += desiredSize.width;  
     }
     else {
       if (kidRect.x != x) {
@@ -980,25 +980,25 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
   }
 
   // just set our width to what was available. The table will calculate the width and not use our value.
-  aDesiredSize.Width() = aReflowState.AvailableWidth();
+  aDesiredSize.width = aReflowState.availableWidth;
 
   if (aReflowState.mFlags.mSpecialHeightReflow) {
-    aDesiredSize.Height() = mRect.height;
+    aDesiredSize.height = mRect.height;
   }
-  else if (NS_UNCONSTRAINEDSIZE == aReflowState.AvailableHeight()) {
-    aDesiredSize.Height() = CalcHeight(aReflowState);
+  else if (NS_UNCONSTRAINEDSIZE == aReflowState.availableHeight) {
+    aDesiredSize.height = CalcHeight(aReflowState);
     if (GetPrevInFlow()) {
       nscoord height = CalcHeightFromUnpaginatedHeight(aPresContext, *this);
-      aDesiredSize.Height() = std::max(aDesiredSize.Height(), height);
+      aDesiredSize.height = std::max(aDesiredSize.height, height);
     }
     else {
       if (isPaginated && HasStyleHeight()) {
         // set the unpaginated height so next in flows can try to honor it
         SetHasUnpaginatedHeight(true);
-        SetUnpaginatedHeight(aPresContext, aDesiredSize.Height());
+        SetUnpaginatedHeight(aPresContext, aDesiredSize.height);
       }
       if (isPaginated && HasUnpaginatedHeight()) {
-        aDesiredSize.Height() = std::max(aDesiredSize.Height(), GetUnpaginatedHeight(aPresContext));
+        aDesiredSize.height = std::max(aDesiredSize.height, GetUnpaginatedHeight(aPresContext));
       }
     }
   }
@@ -1006,11 +1006,11 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
     // Compute the height we should have from style (subtracting the
     // height from our prev-in-flows from the style height)
     nscoord styleHeight = CalcHeightFromUnpaginatedHeight(aPresContext, *this);
-    if (styleHeight > aReflowState.AvailableHeight()) {
-      styleHeight = aReflowState.AvailableHeight();
+    if (styleHeight > aReflowState.availableHeight) {
+      styleHeight = aReflowState.availableHeight;
       NS_FRAME_SET_INCOMPLETE(aStatus);
     }
-    aDesiredSize.Height() = std::max(cellMaxHeight, styleHeight);
+    aDesiredSize.height = std::max(cellMaxHeight, styleHeight);
   }
   aDesiredSize.UnionOverflowAreasWithDesiredBounds();
   FinishAndStoreOverflow(&aDesiredSize);
@@ -1052,12 +1052,12 @@ nsTableRowFrame::Reflow(nsPresContext*          aPresContext,
   }
 
   // just set our width to what was available. The table will calculate the width and not use our value.
-  aDesiredSize.Width() = aReflowState.AvailableWidth();
+  aDesiredSize.width = aReflowState.availableWidth;
 
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
-      nsSize(aDesiredSize.Width(), aDesiredSize.Height()) != mRect.Size()) {
+      nsSize(aDesiredSize.width, aDesiredSize.height) != mRect.Size()) {
     InvalidateFrame();
   }
 
@@ -1091,15 +1091,15 @@ nsTableRowFrame::ReflowCellFrame(nsPresContext*          aPresContext,
   InitChildReflowState(*aPresContext, availSize, borderCollapse, cellReflowState);
   cellReflowState.mFlags.mIsTopOfPage = aIsTopOfPage;
 
-  nsHTMLReflowMetrics desiredSize(aReflowState.GetWritingMode());
+  nsHTMLReflowMetrics desiredSize;
 
   ReflowChild(aCellFrame, aPresContext, desiredSize, cellReflowState,
               0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
   bool fullyComplete = NS_FRAME_IS_COMPLETE(aStatus) && !NS_FRAME_IS_TRUNCATED(aStatus);
   if (fullyComplete) {
-    desiredSize.Height() = aAvailableHeight;
+    desiredSize.height = aAvailableHeight;
   }
-  aCellFrame->SetSize(nsSize(cellRect.width, desiredSize.Height()));
+  aCellFrame->SetSize(nsSize(cellRect.width, desiredSize.height));
 
   // Note: VerticallyAlignChild can affect the overflow rect.
   // XXX What happens if this cell has 'vertical-align: baseline' ?
@@ -1115,7 +1115,7 @@ nsTableRowFrame::ReflowCellFrame(nsPresContext*          aPresContext,
   
   aCellFrame->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
 
-  return desiredSize.Height();
+  return desiredSize.height;
 }
 
 nscoord

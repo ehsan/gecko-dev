@@ -118,10 +118,10 @@ NS_IMETHODIMP nsProgressFrame::Reflow(nsPresContext*           aPresContext,
 
   ReflowBarFrame(barFrame, aPresContext, aReflowState, aStatus);
 
-  aDesiredSize.Width() = aReflowState.ComputedWidth() +
-                       aReflowState.ComputedPhysicalBorderPadding().LeftRight();
-  aDesiredSize.Height() = aReflowState.ComputedHeight() +
-                        aReflowState.ComputedPhysicalBorderPadding().TopBottom();
+  aDesiredSize.width = aReflowState.ComputedWidth() +
+                       aReflowState.mComputedBorderPadding.LeftRight();
+  aDesiredSize.height = aReflowState.ComputedHeight() +
+                        aReflowState.mComputedBorderPadding.TopBottom();
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   ConsiderChildOverflow(aDesiredSize.mOverflowAreas, barFrame);
@@ -146,8 +146,8 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
                                        NS_UNCONSTRAINEDSIZE));
   nscoord size = vertical ? aReflowState.ComputedHeight()
                           : aReflowState.ComputedWidth();
-  nscoord xoffset = aReflowState.ComputedPhysicalBorderPadding().left;
-  nscoord yoffset = aReflowState.ComputedPhysicalBorderPadding().top;
+  nscoord xoffset = aReflowState.mComputedBorderPadding.left;
+  nscoord yoffset = aReflowState.mComputedBorderPadding.top;
 
   double position = static_cast<HTMLProgressElement*>(mContent)->Position();
 
@@ -173,13 +173,13 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
       // We want the bar to begin at the bottom.
       yoffset += aReflowState.ComputedHeight() - size;
 
-      size -= reflowState.ComputedPhysicalMargin().TopBottom() +
-              reflowState.ComputedPhysicalBorderPadding().TopBottom();
+      size -= reflowState.mComputedMargin.TopBottom() +
+              reflowState.mComputedBorderPadding.TopBottom();
       size = std::max(size, 0);
       reflowState.SetComputedHeight(size);
     } else {
-      size -= reflowState.ComputedPhysicalMargin().LeftRight() +
-              reflowState.ComputedPhysicalBorderPadding().LeftRight();
+      size -= reflowState.mComputedMargin.LeftRight() +
+              reflowState.mComputedBorderPadding.LeftRight();
       size = std::max(size, 0);
       reflowState.SetComputedWidth(size);
     }
@@ -190,10 +190,10 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
     yoffset += aReflowState.ComputedHeight() - reflowState.ComputedHeight();
   }
 
-  xoffset += reflowState.ComputedPhysicalMargin().left;
-  yoffset += reflowState.ComputedPhysicalMargin().top;
+  xoffset += reflowState.mComputedMargin.left;
+  yoffset += reflowState.mComputedMargin.top;
 
-  nsHTMLReflowMetrics barDesiredSize(aReflowState.GetWritingMode());
+  nsHTMLReflowMetrics barDesiredSize;
   ReflowChild(aBarFrame, aPresContext, barDesiredSize, reflowState, xoffset,
               yoffset, 0, aStatus);
   FinishReflowChild(aBarFrame, aPresContext, &reflowState, barDesiredSize,

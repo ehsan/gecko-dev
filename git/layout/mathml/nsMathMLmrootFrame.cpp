@@ -152,8 +152,8 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
   nsReflowStatus childStatus;
 
-  aDesiredSize.Width() = aDesiredSize.Height() = 0;
-  aDesiredSize.SetTopAscent(0);
+  aDesiredSize.width = aDesiredSize.height = 0;
+  aDesiredSize.ascent = 0;
 
   nsBoundingMetrics bmSqr, bmBase, bmIndex;
   nsRenderingContext& renderingContext = *aReflowState.rendContext;
@@ -164,13 +164,12 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   int32_t count = 0;
   nsIFrame* baseFrame = nullptr;
   nsIFrame* indexFrame = nullptr;
-  nsHTMLReflowMetrics baseSize(aReflowState.GetWritingMode());
-  nsHTMLReflowMetrics indexSize(aReflowState.GetWritingMode());
+  nsHTMLReflowMetrics baseSize;
+  nsHTMLReflowMetrics indexSize;
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
     // ask our children to compute their bounding metrics 
-    nsHTMLReflowMetrics childDesiredSize(aReflowState.GetWritingMode(),
-                                         aDesiredSize.mFlags
+    nsHTMLReflowMetrics childDesiredSize(aDesiredSize.mFlags
                                          | NS_REFLOW_CALC_BOUNDING_METRICS);
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
@@ -282,11 +281,11 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   mBoundingMetrics.rightBearing = bmSqr.width + 
     std::max(bmBase.width, bmBase.rightBearing); // take also care of the rule
 
-  aDesiredSize.SetTopAscent(mBoundingMetrics.ascent + leading);
-  aDesiredSize.Height() = aDesiredSize.TopAscent() +
-    std::max(baseSize.Height() - baseSize.TopAscent(),
+  aDesiredSize.ascent = mBoundingMetrics.ascent + leading;
+  aDesiredSize.height = aDesiredSize.ascent +
+    std::max(baseSize.height - baseSize.ascent,
            mBoundingMetrics.descent + ruleThickness);
-  aDesiredSize.Width() = mBoundingMetrics.width;
+  aDesiredSize.width = mBoundingMetrics.width;
 
   /////////////
   // Re-adjust the desired size to include the index.
@@ -303,9 +302,9 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
     indexClearance = 
       indexRaisedAscent - mBoundingMetrics.ascent; // excess gap introduced by a tall index 
     mBoundingMetrics.ascent = indexRaisedAscent;
-    nscoord descent = aDesiredSize.Height() - aDesiredSize.TopAscent();
-    aDesiredSize.SetTopAscent(mBoundingMetrics.ascent + leading);
-    aDesiredSize.Height() = aDesiredSize.TopAscent() + descent;
+    nscoord descent = aDesiredSize.height - aDesiredSize.ascent;
+    aDesiredSize.ascent = mBoundingMetrics.ascent + leading;
+    aDesiredSize.height = aDesiredSize.ascent + descent;
   }
 
   nscoord dxIndex, dxSqr;
@@ -317,34 +316,34 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   mBoundingMetrics.rightBearing = dxSqr + bmSqr.width +
     std::max(bmBase.width, bmBase.rightBearing);
 
-  aDesiredSize.Width() = mBoundingMetrics.width;
+  aDesiredSize.width = mBoundingMetrics.width;
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   GatherAndStoreOverflow(&aDesiredSize);
 
   // place the index
   nscoord dx = dxIndex;
-  nscoord dy = aDesiredSize.TopAscent() - (indexRaisedAscent + indexSize.TopAscent() - bmIndex.ascent);
+  nscoord dy = aDesiredSize.ascent - (indexRaisedAscent + indexSize.ascent - bmIndex.ascent);
   FinishReflowChild(indexFrame, aPresContext, nullptr, indexSize,
-                    MirrorIfRTL(aDesiredSize.Width(), indexSize.Width(), dx),
+                    MirrorIfRTL(aDesiredSize.width, indexSize.width, dx),
                     dy, 0);
 
   // place the radical symbol and the radical bar
   dx = dxSqr;
   dy = indexClearance + leading; // leave a leading at the top
-  mSqrChar.SetRect(nsRect(MirrorIfRTL(aDesiredSize.Width(), bmSqr.width, dx),
+  mSqrChar.SetRect(nsRect(MirrorIfRTL(aDesiredSize.width, bmSqr.width, dx),
                           dy, bmSqr.width, bmSqr.ascent + bmSqr.descent));
   dx += bmSqr.width;
-  mBarRect.SetRect(MirrorIfRTL(aDesiredSize.Width(), bmBase.width, dx),
+  mBarRect.SetRect(MirrorIfRTL(aDesiredSize.width, bmBase.width, dx),
                    dy, bmBase.width, ruleThickness);
 
   // place the base
-  dy = aDesiredSize.TopAscent() - baseSize.TopAscent();
+  dy = aDesiredSize.ascent - baseSize.ascent;
   FinishReflowChild(baseFrame, aPresContext, nullptr, baseSize,
-                    MirrorIfRTL(aDesiredSize.Width(), baseSize.Width(), dx),
+                    MirrorIfRTL(aDesiredSize.width, baseSize.width, dx),
                     dy, 0);
 
   mReference.x = 0;
-  mReference.y = aDesiredSize.TopAscent();
+  mReference.y = aDesiredSize.ascent;
 
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
@@ -377,7 +376,7 @@ nsMathMLmrootFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingConte
 
   nscoord width = dxSqr + sqrWidth + baseWidth;
 
-  aDesiredSize.Width() = width;
+  aDesiredSize.width = width;
   aDesiredSize.mBoundingMetrics.width = width;
   aDesiredSize.mBoundingMetrics.leftBearing = 0;
   aDesiredSize.mBoundingMetrics.rightBearing = width;

@@ -214,18 +214,18 @@ static nsSize ComputeInsideBorderSize(ScrollReflowState* aState,
   nscoord contentWidth = aState->mReflowState.ComputedWidth();
   if (contentWidth == NS_UNCONSTRAINEDSIZE) {
     contentWidth = aDesiredInsideBorderSize.width -
-      aState->mReflowState.ComputedPhysicalPadding().LeftRight();
+      aState->mReflowState.mComputedPadding.LeftRight();
   }
   nscoord contentHeight = aState->mReflowState.ComputedHeight();
   if (contentHeight == NS_UNCONSTRAINEDSIZE) {
     contentHeight = aDesiredInsideBorderSize.height -
-      aState->mReflowState.ComputedPhysicalPadding().TopBottom();
+      aState->mReflowState.mComputedPadding.TopBottom();
   }
 
   contentWidth  = aState->mReflowState.ApplyMinMaxWidth(contentWidth);
   contentHeight = aState->mReflowState.ApplyMinMaxHeight(contentHeight);
-  return nsSize(contentWidth + aState->mReflowState.ComputedPhysicalPadding().LeftRight(),
-                contentHeight + aState->mReflowState.ComputedPhysicalPadding().TopBottom());
+  return nsSize(contentWidth + aState->mReflowState.mComputedPadding.LeftRight(),
+                contentHeight + aState->mReflowState.mComputedPadding.TopBottom());
 }
 
 static void
@@ -329,9 +329,9 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
   // XXXldb Can we depend more on ComputeSize here?
   nsSize desiredInsideBorderSize;
   desiredInsideBorderSize.width = vScrollbarDesiredWidth +
-    std::max(aKidMetrics->Width(), hScrollbarMinWidth);
+    std::max(aKidMetrics->width, hScrollbarMinWidth);
   desiredInsideBorderSize.height = hScrollbarDesiredHeight +
-    std::max(aKidMetrics->Height(), vScrollbarMinHeight);
+    std::max(aKidMetrics->height, vScrollbarMinHeight);
   aState->mInsideBorderSize =
     ComputeInsideBorderSize(aState, desiredInsideBorderSize);
   nsSize scrollPortSize = nsSize(std::max(0, aState->mInsideBorderSize.width - vScrollbarDesiredWidth),
@@ -388,8 +388,8 @@ nsHTMLScrollFrame::ScrolledContentDependsOnHeight(ScrollReflowState* aState)
   // based on the presence of a horizontal scrollbar.
   return (mHelper.mScrolledFrame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT) ||
     aState->mReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE ||
-    aState->mReflowState.ComputedMinHeight() > 0 ||
-    aState->mReflowState.ComputedMaxHeight() != NS_UNCONSTRAINEDSIZE;
+    aState->mReflowState.mComputedMinHeight > 0 ||
+    aState->mReflowState.mComputedMaxHeight != NS_UNCONSTRAINEDSIZE;
 }
 
 nsresult
@@ -401,13 +401,13 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
 {
   // these could be NS_UNCONSTRAINEDSIZE ... std::min arithmetic should
   // be OK
-  nscoord paddingLR = aState->mReflowState.ComputedPhysicalPadding().LeftRight();
+  nscoord paddingLR = aState->mReflowState.mComputedPadding.LeftRight();
 
   nscoord availWidth = aState->mReflowState.ComputedWidth() + paddingLR;
 
   nscoord computedHeight = aState->mReflowState.ComputedHeight();
-  nscoord computedMinHeight = aState->mReflowState.ComputedMinHeight();
-  nscoord computedMaxHeight = aState->mReflowState.ComputedMaxHeight();
+  nscoord computedMinHeight = aState->mReflowState.mComputedMinHeight;
+  nscoord computedMaxHeight = aState->mReflowState.mComputedMaxHeight;
   if (!ShouldPropagateComputedHeightToScrolledContent()) {
     computedHeight = NS_UNCONSTRAINEDSIZE;
     computedMinHeight = 0;
@@ -439,12 +439,12 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
                                    nsSize(availWidth, NS_UNCONSTRAINEDSIZE),
                                    -1, -1, nsHTMLReflowState::CALLER_WILL_INIT);
   kidReflowState.Init(presContext, -1, -1, nullptr,
-                      &aState->mReflowState.ComputedPhysicalPadding());
+                      &aState->mReflowState.mComputedPadding);
   kidReflowState.mFlags.mAssumingHScrollbar = aAssumeHScroll;
   kidReflowState.mFlags.mAssumingVScrollbar = aAssumeVScroll;
   kidReflowState.SetComputedHeight(computedHeight);
-  kidReflowState.ComputedMinHeight() = computedMinHeight;
-  kidReflowState.ComputedMaxHeight() = computedMaxHeight;
+  kidReflowState.mComputedMinHeight = computedMinHeight;
+  kidReflowState.mComputedMaxHeight = computedMaxHeight;
 
   // Temporarily set mHasHorizontalScrollbar/mHasVerticalScrollbar to
   // reflect our assumptions while we reflow the child.
@@ -552,7 +552,7 @@ nsresult
 nsHTMLScrollFrame::ReflowContents(ScrollReflowState* aState,
                                   const nsHTMLReflowMetrics& aDesiredSize)
 {
-  nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.GetWritingMode(), aDesiredSize.mFlags);
+  nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);
   nsresult rv = ReflowScrolledFrame(aState, GuessHScrollbarNeeded(*aState),
       GuessVScrollbarNeeded(*aState), &kidDesiredSize, true);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -581,7 +581,7 @@ nsHTMLScrollFrame::ReflowContents(ScrollReflowState* aState,
       aState->mStyles.mHorizontal != NS_STYLE_OVERFLOW_SCROLL) {
     nsSize insideBorderSize =
       ComputeInsideBorderSize(aState,
-                              nsSize(kidDesiredSize.Width(), kidDesiredSize.Height()));
+                              nsSize(kidDesiredSize.width, kidDesiredSize.height));
     nsRect scrolledRect =
       mHelper.GetScrolledRectInternal(kidDesiredSize.ScrollableOverflow(),
                                      insideBorderSize);
@@ -789,8 +789,8 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
     mHelper.mScrolledFrame->GetScrollableOverflowRectRelativeToParent();
   nsPoint oldScrollPosition = mHelper.GetScrollPosition();
 
-  state.mComputedBorder = aReflowState.ComputedPhysicalBorderPadding() -
-    aReflowState.ComputedPhysicalPadding();
+  state.mComputedBorder = aReflowState.mComputedBorderPadding -
+    aReflowState.mComputedPadding;
 
   nsresult rv = ReflowContents(&state, aDesiredSize);
   if (NS_FAILED(rv))
@@ -835,9 +835,9 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
 
-  aDesiredSize.Width() = state.mInsideBorderSize.width +
+  aDesiredSize.width = state.mInsideBorderSize.width +
     state.mComputedBorder.LeftRight();
-  aDesiredSize.Height() = state.mInsideBorderSize.height +
+  aDesiredSize.height = state.mInsideBorderSize.height +
     state.mComputedBorder.TopBottom();
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();

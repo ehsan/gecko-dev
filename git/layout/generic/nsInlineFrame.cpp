@@ -494,16 +494,16 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // Don't offset by our start borderpadding if we have a prev continuation or
   // if we're in a part of an {ib} split other than the first one.
   if (!GetPrevContinuation() && !FrameIsNonFirstInIBSplit()) {
-    leftEdge = ltr ? aReflowState.ComputedPhysicalBorderPadding().left
-                   : aReflowState.ComputedPhysicalBorderPadding().right;
+    leftEdge = ltr ? aReflowState.mComputedBorderPadding.left
+                   : aReflowState.mComputedBorderPadding.right;
   }
-  nscoord availableWidth = aReflowState.AvailableWidth();
+  nscoord availableWidth = aReflowState.availableWidth;
   NS_ASSERTION(availableWidth != NS_UNCONSTRAINEDSIZE,
                "should no longer use available widths");
   // Subtract off left and right border+padding from availableWidth
   availableWidth -= leftEdge;
-  availableWidth -= ltr ? aReflowState.ComputedPhysicalBorderPadding().right
-                        : aReflowState.ComputedPhysicalBorderPadding().left;
+  availableWidth -= ltr ? aReflowState.mComputedBorderPadding.right
+                        : aReflowState.mComputedBorderPadding.left;
   lineLayout->BeginSpan(this, &aReflowState, leftEdge,
                         leftEdge + availableWidth, &mBaseline);
 
@@ -648,7 +648,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // line-height calculations. However, continuations of an inline
   // that are empty we force to empty so that things like collapsed
   // whitespace in an inline element don't affect the line-height.
-  aMetrics.Width() = lineLayout->EndSpan(this);
+  aMetrics.width = lineLayout->EndSpan(this);
 
   // Compute final width.
 
@@ -656,8 +656,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // continuation or if we're in a part of an {ib} split other than the first
   // one.
   if (!GetPrevContinuation() && !FrameIsNonFirstInIBSplit()) {
-    aMetrics.Width() += ltr ? aReflowState.ComputedPhysicalBorderPadding().left
-                          : aReflowState.ComputedPhysicalBorderPadding().right;
+    aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
+                          : aReflowState.mComputedBorderPadding.right;
   }
 
   /*
@@ -670,8 +670,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   if (NS_FRAME_IS_COMPLETE(aStatus) &&
       !LastInFlow()->GetNextContinuation() &&
       !FrameIsNonLastInIBSplit()) {
-    aMetrics.Width() += ltr ? aReflowState.ComputedPhysicalBorderPadding().right
-                          : aReflowState.ComputedPhysicalBorderPadding().left;
+    aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.right
+                          : aReflowState.mComputedBorderPadding.left;
   }
 
   nsRefPtr<nsFontMetrics> fm;
@@ -690,15 +690,15 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
     // The height of our box is the sum of our font size plus the top
     // and bottom border and padding. The height of children do not
     // affect our height.
-    aMetrics.SetTopAscent(fm->MaxAscent());
-    aMetrics.Height() = fm->MaxHeight();
+    aMetrics.ascent = fm->MaxAscent();
+    aMetrics.height = fm->MaxHeight();
   } else {
     NS_WARNING("Cannot get font metrics - defaulting sizes to 0");
-    aMetrics.SetTopAscent(aMetrics.Height() = 0);
+    aMetrics.ascent = aMetrics.height = 0;
   }
-  aMetrics.SetTopAscent(aMetrics.TopAscent() + aReflowState.ComputedPhysicalBorderPadding().top);
-  aMetrics.Height() += aReflowState.ComputedPhysicalBorderPadding().top +
-    aReflowState.ComputedPhysicalBorderPadding().bottom;
+  aMetrics.ascent += aReflowState.mComputedBorderPadding.top;
+  aMetrics.height += aReflowState.mComputedBorderPadding.top +
+    aReflowState.mComputedBorderPadding.bottom;
 
   // For now our overflow area is zero. The real value will be
   // computed in |nsLineLayout::RelativePositionFrames|.
@@ -707,7 +707,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
 #ifdef NOISY_FINAL_SIZE
   ListTag(stdout);
   printf(": metrics=%d,%d ascent=%d\n",
-         aMetrics.Width(), aMetrics.Height(), aMetrics.TopAscent());
+         aMetrics.width, aMetrics.height, aMetrics.ascent);
 #endif
 
   return rv;

@@ -592,8 +592,8 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
 
   rv = nsTableOuterFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
                                  aStatus);
-  NS_ASSERTION(aDesiredSize.Height() >= 0, "illegal height for mtable");
-  NS_ASSERTION(aDesiredSize.Width() >= 0, "illegal width for mtable");
+  NS_ASSERTION(aDesiredSize.height >= 0, "illegal height for mtable");
+  NS_ASSERTION(aDesiredSize.width >= 0, "illegal width for mtable");
 
   // see if the user has set the align attribute on the <mtable>
   // XXX should we also check <mstyle> ?
@@ -609,7 +609,7 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
   // it is wrapped in a single big fictional row at dy = 0, this way of
   // doing so allows us to have a single code path for all cases).
   nscoord dy = 0;
-  nscoord height = aDesiredSize.Height();
+  nscoord height = aDesiredSize.height;
   nsIFrame* rowFrame = nullptr;
   if (rowIndex) {
     rowFrame = GetRowFrameAt(aPresContext, rowIndex);
@@ -625,25 +625,25 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
   }
   switch (tableAlign) {
     case eAlign_top:
-      aDesiredSize.SetTopAscent(dy);
+      aDesiredSize.ascent = dy;
       break;
     case eAlign_bottom:
-      aDesiredSize.SetTopAscent(dy + height);
+      aDesiredSize.ascent = dy + height;
       break;
     case eAlign_center:
-      aDesiredSize.SetTopAscent(dy + height / 2);
+      aDesiredSize.ascent = dy + height/2;
       break;
     case eAlign_baseline:
       if (rowFrame) {
         // anchor the table on the baseline of the row of reference
         nscoord rowAscent = ((nsTableRowFrame*)rowFrame)->GetMaxCellAscent();
         if (rowAscent) { // the row has at least one cell with 'vertical-align: baseline'
-          aDesiredSize.SetTopAscent(dy + rowAscent);
+          aDesiredSize.ascent = dy + rowAscent;
           break;
         }
       }
       // in other situations, fallback to center
-      aDesiredSize.SetTopAscent(dy + height / 2);
+      aDesiredSize.ascent = dy + height/2;
       break;
     case eAlign_axis:
     default: {
@@ -661,25 +661,25 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
         // XXX need to fetch the axis of the row; would need rowalign=axis to work better
         nscoord rowAscent = ((nsTableRowFrame*)rowFrame)->GetMaxCellAscent();
         if (rowAscent) { // the row has at least one cell with 'vertical-align: baseline'
-          aDesiredSize.SetTopAscent(dy + rowAscent);
+          aDesiredSize.ascent = dy + rowAscent;
           break;
         }
       }
       // in other situations, fallback to using half of the height
-      aDesiredSize.SetTopAscent(dy + height / 2 + axisHeight);
+      aDesiredSize.ascent = dy + height/2 + axisHeight;
     }
   }
 
   mReference.x = 0;
-  mReference.y = aDesiredSize.TopAscent();
+  mReference.y = aDesiredSize.ascent;
 
   // just make-up a bounding metrics
   mBoundingMetrics = nsBoundingMetrics();
-  mBoundingMetrics.ascent = aDesiredSize.TopAscent();
-  mBoundingMetrics.descent = aDesiredSize.Height() - aDesiredSize.TopAscent();
-  mBoundingMetrics.width = aDesiredSize.Width();
+  mBoundingMetrics.ascent = aDesiredSize.ascent;
+  mBoundingMetrics.descent = aDesiredSize.height - aDesiredSize.ascent;
+  mBoundingMetrics.width = aDesiredSize.width;
   mBoundingMetrics.leftBearing = 0;
-  mBoundingMetrics.rightBearing = aDesiredSize.Width();
+  mBoundingMetrics.rightBearing = aDesiredSize.width;
 
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

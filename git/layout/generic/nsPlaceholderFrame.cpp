@@ -132,8 +132,8 @@ nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
 
   DO_GLOBAL_REFLOW_COUNT("nsPlaceholderFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  aDesiredSize.Width() = 0;
-  aDesiredSize.Height() = 0;
+  aDesiredSize.width = 0;
+  aDesiredSize.height = 0;
 
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

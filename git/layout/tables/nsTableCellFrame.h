@@ -256,8 +256,8 @@ inline nsSize nsTableCellFrame::GetDesiredSize()
 
 inline void nsTableCellFrame::SetDesiredSize(const nsHTMLReflowMetrics & aDesiredSize)
 {
-  mDesiredSize.width = aDesiredSize.Width();
-  mDesiredSize.height = aDesiredSize.Height();
+  mDesiredSize.width = aDesiredSize.width;
+  mDesiredSize.height = aDesiredSize.height;
 }
 
 inline bool nsTableCellFrame::GetContentEmpty()

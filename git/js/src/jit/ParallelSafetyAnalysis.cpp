@@ -135,6 +135,8 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     UNSAFE_OP(GetArgumentsObjectArg)
     UNSAFE_OP(SetArgumentsObjectArg)
     UNSAFE_OP(ComputeThis)
+    SAFE_OP(PrepareCall)
+    SAFE_OP(PassArg)
     CUSTOM_OP(Call)
     UNSAFE_OP(ApplyArgs)
     UNSAFE_OP(Bail)

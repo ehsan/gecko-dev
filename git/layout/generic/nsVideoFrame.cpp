@@ -247,20 +247,20 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
                   ("enter nsVideoFrame::Reflow: availSize=%d,%d",
-                  aReflowState.AvailableWidth(), aReflowState.AvailableHeight()));
+                  aReflowState.availableWidth, aReflowState.availableHeight));
 
   NS_PRECONDITION(mState & NS_FRAME_IN_REFLOW, "frame is not in reflow");
 
   aStatus = NS_FRAME_COMPLETE;
 
-  aMetrics.Width() = aReflowState.ComputedWidth();
-  aMetrics.Height() = aReflowState.ComputedHeight();
+  aMetrics.width = aReflowState.ComputedWidth();
+  aMetrics.height = aReflowState.ComputedHeight();
 
   // stash this away so we can compute our inner area later
-  mBorderPadding   = aReflowState.ComputedPhysicalBorderPadding();
+  mBorderPadding   = aReflowState.mComputedBorderPadding;
 
-  aMetrics.Width() += mBorderPadding.left + mBorderPadding.right;
-  aMetrics.Height() += mBorderPadding.top + mBorderPadding.bottom;
+  aMetrics.width += mBorderPadding.left + mBorderPadding.right;
+  aMetrics.height += mBorderPadding.top + mBorderPadding.bottom;
 
   // Reflow the child frames. We may have up to two, an image frame
   // which is the poster, and a box frame, which is the video controls.
@@ -270,15 +270,15 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
     if (child->GetContent() == mPosterImage) {
       // Reflow the poster frame.
       nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
-      nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode());
-      nsSize availableSize = nsSize(aReflowState.AvailableWidth(),
-                                    aReflowState.AvailableHeight());
+      nsHTMLReflowMetrics kidDesiredSize;
+      nsSize availableSize = nsSize(aReflowState.availableWidth,
+                                    aReflowState.availableHeight);
       nsHTMLReflowState kidReflowState(aPresContext,
                                        aReflowState,
                                        imageFrame,
                                        availableSize,
-                                       aMetrics.Width(),
-                                       aMetrics.Height());
+                                       aMetrics.width,
+                                       aMetrics.height);
 
       uint32_t posterHeight, posterWidth;
       nsSize scaledPosterSize(0, 0);
@@ -323,18 +323,18 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
       }
     } else if (child->GetContent() == mCaptionDiv) {
       // Reflow to caption div
-      nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode());
-      nsSize availableSize = nsSize(aReflowState.AvailableWidth(),
-                                    aReflowState.AvailableHeight());
+      nsHTMLReflowMetrics kidDesiredSize;
+      nsSize availableSize = nsSize(aReflowState.availableWidth,
+                                    aReflowState.availableHeight);
       nsHTMLReflowState kidReflowState(aPresContext,
                                        aReflowState,
                                        child,
                                        availableSize,
-                                       aMetrics.Width(),
-                                       aMetrics.Height());
+                                       aMetrics.width,
+                                       aMetrics.height);
       nsSize size(aReflowState.ComputedWidth(), aReflowState.ComputedHeight());
-      size.width -= kidReflowState.ComputedPhysicalBorderPadding().LeftRight();
-      size.height -= kidReflowState.ComputedPhysicalBorderPadding().TopBottom();
+      size.width -= kidReflowState.mComputedBorderPadding.LeftRight();
+      size.height -= kidReflowState.mComputedBorderPadding.TopBottom();
 
       kidReflowState.SetComputedWidth(std::max(size.width, 0));
       kidReflowState.SetComputedHeight(std::max(size.height, 0));
@@ -352,7 +352,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
 
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
                   ("exit nsVideoFrame::Reflow: size=%d,%d",
-                  aMetrics.Width(), aMetrics.Height()));
+                  aMetrics.width, aMetrics.height));
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
 
   return NS_OK;

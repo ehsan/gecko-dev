@@ -10,7 +10,6 @@
 
 #include "nsRect.h"
 #include "nsBoundingMetrics.h"
-#include "WritingModes.h"
 
 //----------------------------------------------------------------------
 
@@ -194,71 +193,11 @@ struct nsCollapsingMargin {
  *
  * @see #Reflow()
  */
-class nsHTMLReflowMetrics {
-public:
-  // XXXldb Should |aFlags| generally be passed from parent to child?
-  // Some places do it, and some don't.  |aFlags| should perhaps go away
-  // entirely.
-  // XXX width/height/ascent are OUT parameters and so they shouldn't
-  // have to be initialized, but there are some bad frame classes that
-  // aren't properly setting them when returning from Reflow()...
-  nsHTMLReflowMetrics(mozilla::WritingMode aWritingMode, uint32_t aFlags = 0)
-    : mISize(0)
-    , mBSize(0)
-    , mBlockStartAscent(ASK_FOR_BASELINE)
-    , mFlags(aFlags)
-    , mWritingMode(aWritingMode)
-  {}
+struct nsHTMLReflowMetrics {
+  nscoord width, height;    // [OUT] desired width and height (border-box)
+  nscoord ascent;           // [OUT] baseline (from top), or ASK_FOR_BASELINE
 
-  nscoord ISize() const { return mISize; }
-  nscoord BSize() const { return mBSize; }
-
-  nscoord& ISize() { return mISize; }
-  nscoord& BSize() { return mBSize; }
-
-  nscoord Width() const { return mWritingMode.IsVertical() ? mBSize : mISize; }
-  nscoord Height() const { return mWritingMode.IsVertical() ? mISize : mBSize; }
-
-  nscoord TopAscent() const
-  {
-    return mWritingMode.IsVertical() ? 0 : mBlockStartAscent;
-  }
-  nscoord LeftAscent() const
-  {
-    return mWritingMode.IsVertical() && mWritingMode.IsVerticalLR() ?
-           mBlockStartAscent : 0;
-  }
-  nscoord RightAscent() const
-  {
-    return mWritingMode.IsVertical() && !mWritingMode.IsVerticalLR() ?
-           mBlockStartAscent : 0;
-  }
-
-  nscoord& Width() { return mWritingMode.IsVertical() ? mBSize : mISize; }
-  nscoord& Height() { return mWritingMode.IsVertical() ? mISize : mBSize; }
-
-  void SetBlockStartAscent(mozilla::WritingMode aWritingMode, nscoord aAscent)
-  {
-    NS_ASSERTION(aWritingMode == mWritingMode, "writing mode mismatch");
-    mBlockStartAscent = aAscent;
-  }
-  void SetTopAscent(nscoord aAscent)
-  {
-    NS_ASSERTION(!mWritingMode.IsVertical(), "writing mode mismatch");
-    mBlockStartAscent = aAscent;
-  }
-  void SetLeftAscent(nscoord aAscent)
-  {
-    NS_ASSERTION(mWritingMode.IsVertical() && mWritingMode.IsVerticalLR(),
-                 "writing mode mismatch");
-    mBlockStartAscent = aAscent;
-  }
-  void SetRightAscent(nscoord aAscent)
-  {
-    NS_ASSERTION(mWritingMode.IsVertical() && !mWritingMode.IsVerticalLR(),
-                 "writing mode mismatch");
-    mBlockStartAscent = aAscent;
-  }
+  uint32_t mFlags;
 
   enum { ASK_FOR_BASELINE = nscoord_MAX };
 
@@ -299,17 +238,15 @@ public:
   // Union all of mOverflowAreas with (0, 0, width, height).
   void UnionOverflowAreasWithDesiredBounds();
 
-  mozilla::WritingMode GetWritingMode() const { return mWritingMode; }
-
-private:
-  nscoord mISize, mBSize; // [OUT] desired width and height (border-box)
-  nscoord mBlockStartAscent; // [OUT] baseline (in Block direction), or ASK_FOR_BASELINE
-
-public:
-  uint32_t mFlags;
-
-private:
-  mozilla::WritingMode mWritingMode;
+  // XXXldb Should |aFlags| generally be passed from parent to child?
+  // Some places do it, and some don't.  |aFlags| should perhaps go away
+  // entirely.
+  // XXX width/height/ascent are OUT parameters and so they shouldn't
+  // have to be initialized, but there are some bad frame classes that
+  // aren't properly setting them when returning from Reflow()...
+  nsHTMLReflowMetrics(uint32_t aFlags = 0)
+    : width(0), height(0), ascent(ASK_FOR_BASELINE), mFlags(aFlags)
+  {}
 };
 
 #endif /* nsHTMLReflowMetrics_h___ */
