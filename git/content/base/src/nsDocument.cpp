@@ -2201,7 +2201,7 @@ nsDocument::GetElementsByClassNameHelper(nsINode* aRootNode,
 
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
     classes->AppendObjects(*(attrValue.GetAtomArrayValue()));
-  } else if (!attrValue.IsEmptyString()) {
+  } else if (attrValue.Type() == nsAttrValue::eAtom) {
     classes->AppendObject(attrValue.GetAtomValue());
   }
   
@@ -6187,7 +6187,7 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(aName, aPrefix, aNamespaceID);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   return NS_NewElement(aResult, elementType, nodeInfo, PR_FALSE);
 }
