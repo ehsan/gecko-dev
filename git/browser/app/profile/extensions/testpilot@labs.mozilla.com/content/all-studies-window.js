@@ -371,18 +371,7 @@ var TestPilotXulWindow = {
           }
         } else {
           if (task.status == TaskConstants.STATUS_MISSED) {
-            // Icon for missed studies
-            let hbox = document.createElement("hbox");
-            newRow.setAttribute("class", "tp-opted-out");
-            statusVbox.appendChild(this.makeSpacer());
-            statusVbox.appendChild(hbox);
-            this.addLabel(
-              statusVbox,
-              this._stringBundle.getString("testpilot.studiesWindow.missedStudy"));
-            statusVbox.appendChild(this.makeSpacer());
-            hbox.appendChild(this.makeSpacer());
-            this.addImg(hbox, "study-missed");
-            hbox.appendChild(this.makeSpacer());
+            // TODO use Sean's icon for missed studies
           } else {
             this.addThanksMessage(statusVbox);
             numFinishedStudies ++;
