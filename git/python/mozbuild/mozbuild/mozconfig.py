@@ -26,12 +26,6 @@ supported. Please move it to %s/.mozconfig or set an explicit path
 via the $MOZCONFIG environment variable.
 '''.strip()
 
-MOZCONFIG_BAD_EXIT_CODE = '''
-Evaluation of your mozconfig exited with an error. This could be triggered
-by a command inside your mozconfig failing. Please change your mozconfig
-to not error and/or to catch errors in executed commands.
-'''.strip()
-
 
 class MozconfigFindException(Exception):
     """Raised when a mozconfig location is not defined properly."""
@@ -43,9 +37,8 @@ class MozconfigLoadException(Exception):
     This typically indicates a malformed or misbehaving mozconfig file.
     """
 
-    def __init__(self, path, message, output=None):
+    def __init__(self, path, message):
         self.path = path
-        self.output = output
         Exception.__init__(self, message)
 
 
@@ -177,25 +170,10 @@ class MozconfigLoader(ProcessExecutionMixin):
 
         env = dict(os.environ)
 
-        args = self._normalize_command([self._loader_script,
-            self.topsrcdir.replace(os.sep, '/'), path], True)
+        args = self._normalize_command([self._loader_script, path], True)
 
-        try:
-            # We need to capture stderr because that's where the shell sends
-            # errors if execution fails.
-            output = subprocess.check_output(args, stderr=subprocess.STDOUT,
-                cwd=self.topsrcdir, env=env)
-        except subprocess.CalledProcessError as e:
-            lines = e.output.splitlines()
-
-            # Output before actual execution shouldn't be relevant.
-            try:
-                index = lines.index('------END_BEFORE_SOURCE')
-                lines = lines[index + 1:]
-            except ValueError:
-                pass
-
-            raise MozconfigLoadException(path, MOZCONFIG_BAD_EXIT_CODE, lines)
+        output = subprocess.check_output(args, stderr=subprocess.PIPE,
+            cwd=self.topsrcdir, env=env)
 
         parsed = self._parse_loader_output(output)
 
@@ -266,7 +244,7 @@ class MozconfigLoader(ProcessExecutionMixin):
         current_type = None
         in_variable = None
 
-        for line in output.splitlines():
+        for line in output.split('\n'):
             if not len(line):
                 continue
 
@@ -320,6 +298,7 @@ class MozconfigLoader(ProcessExecutionMixin):
 
                 name = in_variable
                 value = None
+
                 if in_variable:
                     # Reached the end of a multi-line variable.
                     if line.endswith("'") and not line.endswith("\\'"):
@@ -333,25 +312,24 @@ class MozconfigLoader(ProcessExecutionMixin):
                     equal_pos = line.find('=')
 
                     if equal_pos < 1:
-                        # TODO log warning?
+                        # TODO log warning
                         continue
 
                     name = line[0:equal_pos]
-                    value = line[equal_pos + 1:]
+                    has_quote = line[equal_pos + 1] == "'"
 
-                    if len(value):
-                        has_quote = value[0] == "'"
+                    if has_quote:
+                        value = line[equal_pos + 2:]
+                    else:
+                        value = line[equal_pos + 1:]
 
-                        if has_quote:
-                            value = value[1:]
-
-                        # Lines with a quote not ending in a quote are multi-line.
-                        if has_quote and not value.endswith("'"):
-                            in_variable = name
-                            current.append(value)
-                            continue
-                        else:
-                            value = value[:-1] if has_quote else value
+                    # Lines with a quote not ending in a quote are multi-line.
+                    if has_quote and not value.endswith("'"):
+                        in_variable = name
+                        current.append(value)
+                        continue
+                    else:
+                        value = value[:-1] if has_quote else value
 
                 assert name is not None
 

@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import print_function, unicode_literals
+from __future__ import unicode_literals
 
 import logging
 import os
@@ -13,14 +13,8 @@ import which
 from mach.mixin.logging import LoggingMixin
 from mach.mixin.process import ProcessExecutionMixin
 
-from mozfile.mozfile import rmtree
-
 from .config import BuildConfig
-from .mozconfig import (
-    MozconfigFindException,
-    MozconfigLoadException,
-    MozconfigLoader,
-)
+from .mozconfig import MozconfigLoader
 
 
 class MozbuildObject(ProcessExecutionMixin):
@@ -84,13 +78,6 @@ class MozbuildObject(ProcessExecutionMixin):
     def statedir(self):
         return os.path.join(self.topobjdir, '.mozbuild')
 
-    def remove_objdir(self):
-        """Remove the entire object directory."""
-
-        # We use mozfile because it is faster than shutil.rmtree().
-        # mozfile doesn't like unicode arguments (bug 818783).
-        rmtree(self.topobjdir.encode('utf-8'))
-
     @property
     def _config_guess(self):
         if self._config_guess_output is None:
@@ -135,8 +122,7 @@ class MozbuildObject(ProcessExecutionMixin):
     def _run_make(self, directory=None, filename=None, target=None, log=True,
             srcdir=False, allow_parallel=True, line_handler=None,
             append_env=None, explicit_env=None, ignore_errors=False,
-            ensure_exit_code=0, silent=True, print_directory=True,
-            pass_thru=False):
+            ensure_exit_code=0, silent=True, print_directory=True):
         """Invoke make.
 
         directory -- Relative directory to look for Makefile in.
@@ -193,7 +179,6 @@ class MozbuildObject(ProcessExecutionMixin):
             'log_level': logging.INFO,
             'require_unix_environment': True,
             'ensure_exit_code': ensure_exit_code,
-            'pass_thru': pass_thru,
 
             # Make manages its children, so mozprocess doesn't need to bother.
             # Having mozprocess manage children can also have side-effects when
@@ -257,27 +242,3 @@ class MachCommandBase(MozbuildObject):
     def __init__(self, context):
         MozbuildObject.__init__(self, context.topdir, context.settings,
             context.log_manager)
-
-        # Incur mozconfig processing so we have unified error handling for
-        # errors. Otherwise, the exceptions could bubble back to mach's error
-        # handler.
-        try:
-            self.mozconfig
-
-        except MozconfigFindException as e:
-            print(e.message)
-            sys.exit(1)
-
-        except MozconfigLoadException as e:
-            print('Error loading mozconfig: ' + e.path)
-            print('')
-            print(e.message)
-            if e.output:
-                print('')
-                print('mozconfig output:')
-                print('')
-                for line in e.output:
-                    print(line)
-
-            sys.exit(1)
-
