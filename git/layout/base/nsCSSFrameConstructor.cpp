@@ -8134,15 +8134,14 @@ nsCSSFrameConstructor::CreateContinuingTableFrame(nsIPresShell*     aPresShell,
       headerFooterFrame = static_cast<nsTableRowGroupFrame*>
                                      (NS_NewTableRowGroupFrame(aPresShell, headerFooterStyleContext));
 
-      nsIContent* headerFooter = rowGroupFrame->GetContent();
-      headerFooterFrame->Init(headerFooter, newFrame, nullptr);
-
       nsFrameConstructorSaveState absoluteSaveState;
       MakeTablePartAbsoluteContainingBlockIfNeeded(state,
                                                    headerFooterStyleContext->StyleDisplay(),
                                                    absoluteSaveState,
                                                    headerFooterFrame);
 
+      nsIContent* headerFooter = rowGroupFrame->GetContent();
+      headerFooterFrame->Init(headerFooter, newFrame, nullptr);
       ProcessChildren(state, headerFooter, rowGroupFrame->StyleContext(),
                       headerFooterFrame, true, childItems, false,
                       nullptr);

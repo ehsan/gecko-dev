@@ -32,4 +32,3 @@ fxc CompositorD3D11.fx -EYCbCrShaderMask -Tps_4_0_level_9_3 -nologo -Fh$tempfile
 cat $tempfile >> CompositorD3D11Shaders.h
 fxc CompositorD3D11.fx -EComponentAlphaShaderMask -Tps_4_0_level_9_3 -nologo -Fh$tempfile -VnComponentAlphaShaderMask
 cat $tempfile >> CompositorD3D11Shaders.h
-rm $tempfile

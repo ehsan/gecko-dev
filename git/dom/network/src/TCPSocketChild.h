@@ -45,8 +45,6 @@ public:
   TCPSocketChild();
   ~TCPSocketChild();
 
-  void Init(const nsString& aHost, const uint16_t& aPort);
-
   virtual bool RecvCallback(const nsString& aType,
                             const CallbackData& aData,
                             const nsString& aReadyState) MOZ_OVERRIDE;
@@ -55,8 +53,6 @@ public:
                                         const uint32_t& aTrackingNumber) MOZ_OVERRIDE;
 private:
   JSObject* mWindowObj;
-  nsString mHost;
-  uint16_t mPort;
 };
 
 } // namespace dom

@@ -113,9 +113,6 @@ OSError.prototype.toString = function toString() {
     + this.operation + (this.path? " on file " + this.path : "") +
     " (" + buf.readString() + ")";
 };
-OSError.prototype.toMsg = function toMsg() {
-  return OSError.toMsg(this);
-};
 
 /**
  * |true| if the error was raised because a file or directory
@@ -181,10 +178,6 @@ Object.defineProperty(OSError.prototype, "becauseInvalidArgument", {
  */
 OSError.toMsg = function toMsg(error) {
   return {
-    exn: "OS.File.Error",
-    fileName: error.moduleName,
-    lineNumber: error.lineNumber,
-    stack: error.moduleStack,
     operation: error.operation,
     winLastError: error.winLastError,
     path: error.path
@@ -195,11 +188,7 @@ OSError.toMsg = function toMsg(error) {
  * Deserialize a message back to an instance of OSError
  */
 OSError.fromMsg = function fromMsg(msg) {
-  let error = new OSError(msg.operation, msg.winLastError, msg.path);
-  error.stack = msg.stack;
-  error.fileName = msg.fileName;
-  error.lineNumber = msg.lineNumber;
-  return error;
+  return new OSError(msg.operation, msg.winLastError, msg.path);
 };
 exports.Error = OSError;
 

@@ -20,7 +20,7 @@
 #include "mozilla/FileUtils.h"
 #include "mozilla/FileLocation.h"
 
-#ifdef HAVE_SEH_EXCEPTIONS
+#if defined(XP_WIN) && defined(_MSC_VER)
 #define MOZ_WIN_MEM_TRY_BEGIN __try {
 #define MOZ_WIN_MEM_TRY_CATCH(cmd) }                                \
   __except(GetExceptionCode()==EXCEPTION_IN_PAGE_ERROR ?            \

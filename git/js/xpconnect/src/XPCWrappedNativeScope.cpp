@@ -193,8 +193,7 @@ CompartmentPerAddon()
     static bool pref = false;
 
     if (!initialized) {
-        pref = Preferences::GetBool("dom.compartment_per_addon", false) ||
-               Preferences::GetBool("browser.tabs.remote.autostart", false);
+        pref = Preferences::GetBool("dom.compartment_per_addon", false);
         initialized = true;
     }
 

@@ -397,12 +397,8 @@ NeckoParent::DeallocPRtspChannelParent(PRtspChannelParent* actor)
 }
 
 PTCPSocketParent*
-NeckoParent::AllocPTCPSocketParent(const nsString& /* host */,
-                                   const uint16_t& /* port */)
+NeckoParent::AllocPTCPSocketParent()
 {
-  // We actually don't need host/port to construct a TCPSocketParent since
-  // TCPSocketParent will maintain an internal nsIDOMTCPSocket instance which
-  // can be delegated to get the host/port. 
   TCPSocketParent* p = new TCPSocketParent();
   p->AddIPDLReference();
   return p;

@@ -5321,12 +5321,6 @@ JS_GetStringLength(JSString *str)
     return str->length();
 }
 
-JS_PUBLIC_API(bool)
-JS_StringHasLatin1Chars(JSString *str)
-{
-    return str->hasLatin1Chars();
-}
-
 JS_PUBLIC_API(const jschar *)
 JS_GetStringCharsZ(JSContext *cx, JSString *str)
 {
@@ -5363,36 +5357,6 @@ JS_GetStringCharsAndLength(JSContext *cx, JSString *str, size_t *plength)
         return nullptr;
     *plength = linear->length();
     return linear->chars();
-}
-
-JS_PUBLIC_API(const JS::Latin1Char *)
-JS_GetLatin1StringCharsAndLength(JSContext *cx, const JS::AutoCheckCannotGC &nogc, JSString *str,
-                                 size_t *plength)
-{
-    JS_ASSERT(plength);
-    AssertHeapIsIdleOrStringIsFlat(cx, str);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, str);
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-    *plength = linear->length();
-    return linear->latin1Chars(nogc);
-}
-
-JS_PUBLIC_API(const jschar *)
-JS_GetTwoByteStringCharsAndLength(JSContext *cx, const JS::AutoCheckCannotGC &nogc, JSString *str,
-                                  size_t *plength)
-{
-    JS_ASSERT(plength);
-    AssertHeapIsIdleOrStringIsFlat(cx, str);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, str);
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-    *plength = linear->length();
-    return linear->twoByteChars(nogc);
 }
 
 JS_PUBLIC_API(const jschar *)
@@ -5580,7 +5544,8 @@ JS_GetStringEncodingLength(JSContext *cx, JSString *str)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    if (!str->ensureLinear(cx))
+    const jschar *chars = str->getChars(cx);
+    if (!chars)
         return size_t(-1);
     return str->length();
 }
@@ -5597,21 +5562,10 @@ JS_EncodeStringToBuffer(JSContext *cx, JSString *str, char *buffer, size_t lengt
      * error.
      */
     size_t writtenLength = length;
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-         return size_t(-1);
-
-    bool res;
-    if (linear->hasLatin1Chars()) {
-        JS::AutoCheckCannotGC nogc;
-        res = DeflateStringToBuffer(nullptr, linear->latin1Chars(nogc), linear->length(), buffer,
-                                    &writtenLength);
-    } else {
-        JS::AutoCheckCannotGC nogc;
-        res = DeflateStringToBuffer(nullptr, linear->twoByteChars(nogc), linear->length(), buffer,
-                                    &writtenLength);
-    }
-    if (res) {
+    const jschar *chars = str->getChars(nullptr);
+    if (!chars)
+        return size_t(-1);
+    if (DeflateStringToBuffer(nullptr, chars, str->length(), buffer, &writtenLength)) {
         JS_ASSERT(writtenLength <= length);
         return writtenLength;
     }
@@ -5670,12 +5624,12 @@ JS_Stringify(JSContext *cx, MutableHandleValue vp, HandleObject replacer,
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, replacer, space);
     StringBuffer sb(cx);
-    if (!sb.ensureTwoByteChars())
-        return false;
     if (!js_Stringify(cx, vp, replacer, space, sb))
         return false;
-    if (sb.empty() && !sb.append(cx->names().null))
-        return false;
+    if (sb.empty()) {
+        HandlePropertyName null = cx->names().null;
+        return callback(null->chars(), null->length(), data);
+    }
     return callback(sb.rawTwoByteBegin(), sb.length(), data);
 }
 

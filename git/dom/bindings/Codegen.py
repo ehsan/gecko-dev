@@ -4435,10 +4435,10 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
 
             if isinstance(defaultValue, IDLNullValue):
                 assert(type.nullable())
-                defaultCode = "%s.SetIsVoid(true)" % varName
+                defaultCode = "%s.SetNull()" % varName
             else:
                 defaultCode = handleDefaultStringValue(defaultValue,
-                                                       "%s.Rebind" % varName)
+                                                       "%s.SetData" % varName)
             return handleDefault(conversionCode, defaultCode + ";\n")
 
         if isMember:
@@ -8508,7 +8508,7 @@ class CGUnionConversionStruct(CGThing):
                                     [Argument("const nsDependentString::char_type*", "aData"),
                                      Argument("nsDependentString::size_type", "aLength")],
                                     inline=True, bodyInHeader=True,
-                                    body="RawSetAs%s().Rebind(aData, aLength);\n" % t.name))
+                                    body="RawSetAs%s().SetData(aData, aLength);\n" % t.name))
 
             if vars["holderType"] is not None:
                 holderType = CGTemplatedType("Maybe",
@@ -9375,9 +9375,7 @@ class CGProxyNamedOperation(CGProxySpecialOperation):
             unwrapString = fill(
                 """
                 if (MOZ_LIKELY(JSID_IS_ATOM(${idName}))) {
-                  JS::AutoCheckCannotGC nogc;
-                  JSAtom* atom = JSID_TO_ATOM(${idName});
-                  ${argName}.Rebind(js::GetTwoByteAtomChars(nogc, atom), js::GetAtomLength(atom));
+                  ${argName}.SetData(js::GetAtomChars(JSID_TO_ATOM(${idName})), js::GetAtomLength(JSID_TO_ATOM(${idName})));
                 } else {
                   nameVal = js::IdToValue(${idName});
                   $*{unwrapString}
@@ -13799,27 +13797,7 @@ class CGEventMethod(CGNativeMember):
                                cgClass.descriptor.interface).identifier.name == "Event":
                         continue
                     name = CGDictionary.makeMemberName(m.identifier.name)
-                    if m.type.isSequence():
-                        # For sequences we may not be able to do a simple
-                        # assignment because the underlying types may not match.
-                        # For example, the argument can be a
-                        # Sequence<OwningNonNull<SomeInterface>> while our
-                        # member is an nsTArray<nsRefPtr<SomeInterface>>.  So
-                        # use AppendElements, which is actually a template on
-                        # the incoming type on nsTArray and does the right thing
-                        # for this case.
-                        target = name;
-                        source = "%s.%s" % (self.args[1].name, name)
-                        sequenceCopy = "e->%s.AppendElements(%s);\n"
-                        if m.type.nullable():
-                            sequenceCopy = CGIfWrapper(
-                                CGGeneric(sequenceCopy),
-                                "!%s.IsNull()" % source).define()
-                            target += ".SetValue()"
-                            source += ".Value()"
-                        members += sequenceCopy % (target, source)
-                    else:
-                        members += "e->%s = %s.%s;\n" % (name, self.args[1].name, name)
+                    members += "e->%s = %s.%s;\n" % (name, self.args[1].name, name)
                     if m.type.isAny() or m.type.isObject() or m.type.isSpiderMonkeyInterface():
                         holdJS = "mozilla::HoldJSObjects(e.get());\n"
             iface = iface.parent

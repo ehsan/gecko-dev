@@ -971,9 +971,13 @@ nsCSPContext::AsyncReportViolation(nsISupports* aBlockedContentSource,
  * In order to determine the URI of the parent document (one causing the load
  * of this protected document), this function obtains the docShellTreeItem,
  * then walks up the hierarchy until it finds a privileged (chrome) tree item.
- * Getting the a tree item's URI looks like this in pseudocode:
+ * Getting the parent's URI looks like this in pseudocode:
  *
- * nsIDocShellTreeItem->GetDocument()->GetDocumentURI();
+ * nsIDocShell->QI(nsIInterfaceRequestor)
+ *            ->GI(nsIDocShellTreeItem)
+ *            ->QI(nsIInterfaceRequestor)
+ *            ->GI(nsIWebNavigation)
+ *            ->GetCurrentURI();
  *
  * aDocShell is the docShell for the protected document.
  */
@@ -995,18 +999,21 @@ nsCSPContext::PermitsAncestry(nsIDocShell* aDocShell, bool* outPermitsAncestry)
   nsCOMPtr<nsIInterfaceRequestor> ir(do_QueryInterface(aDocShell));
   nsCOMPtr<nsIDocShellTreeItem> treeItem(do_GetInterface(ir));
   nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
+  nsCOMPtr<nsIWebNavigation> webNav;
   nsCOMPtr<nsIURI> currentURI;
   nsCOMPtr<nsIURI> uriClone;
 
   // iterate through each docShell parent item
   while (NS_SUCCEEDED(treeItem->GetParent(getter_AddRefs(parentTreeItem))) &&
          parentTreeItem != nullptr) {
+    ir     = do_QueryInterface(parentTreeItem);
+    NS_ASSERTION(ir, "Could not QI docShellTreeItem to nsIInterfaceRequestor");
 
-    nsIDocument* doc = parentTreeItem->GetDocument();
-    NS_ASSERTION(doc, "Could not get nsIDocument from nsIDocShellTreeItem in nsCSPContext::PermitsAncestry");
-    NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+    webNav = do_GetInterface(ir);
+    NS_ENSURE_TRUE(webNav, NS_ERROR_FAILURE);
 
-    currentURI = doc->GetDocumentURI();
+    rv = webNav->GetCurrentURI(getter_AddRefs(currentURI));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (currentURI) {
       // stop when reaching chrome
@@ -1018,11 +1025,8 @@ nsCSPContext::PermitsAncestry(nsIDocShell* aDocShell, bool* outPermitsAncestry)
       // delete the userpass from the URI.
       rv = currentURI->CloneIgnoringRef(getter_AddRefs(uriClone));
       NS_ENSURE_SUCCESS(rv, rv);
-
-      // We don't care if this succeeds, just want to delete a userpass if
-      // there was one.
-      uriClone->SetUserPass(EmptyCString());
-
+      rv = uriClone->SetUserPass(EmptyCString());
+      NS_ENSURE_SUCCESS(rv, rv);
 #ifdef PR_LOGGING
       {
       nsAutoCString spec;
