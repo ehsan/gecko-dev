@@ -25,7 +25,6 @@
 
 using namespace js;
 
-using mozilla::ArrayLength;
 using mozilla::DebugOnly;
 using mozilla::Maybe;
 using mozilla::PodCopy;
@@ -428,11 +427,15 @@ RegExpObject::toString(JSContext *cx) const
 /* RegExpShared */
 
 RegExpShared::RegExpShared(JSAtom *source, RegExpFlag flags)
-  : source(source), flags(flags), parenCount(0), canStringMatch(false), marked_(false)
+  : source(source), flags(flags), parenCount(0), canStringMatch(false), marked_(false),
+    byteCodeLatin1(nullptr), byteCodeTwoByte(nullptr)
 {}
 
 RegExpShared::~RegExpShared()
 {
+    js_free(byteCodeLatin1);
+    js_free(byteCodeTwoByte);
+
     for (size_t i = 0; i < tables.length(); i++)
         js_delete(tables[i]);
 }
@@ -446,22 +449,22 @@ RegExpShared::trace(JSTracer *trc)
     if (source)
         MarkString(trc, &source, "RegExpShared source");
 
-    for (size_t i = 0; i < ArrayLength(compilationArray); i++) {
-        RegExpCompilation &compilation = compilationArray[i];
-        if (compilation.jitCode)
-            MarkJitCode(trc, &compilation.jitCode, "RegExpShared code");
-    }
+    if (jitCodeLatin1)
+        MarkJitCode(trc, &jitCodeLatin1, "RegExpShared code Latin1");
+
+    if (jitCodeTwoByte)
+        MarkJitCode(trc, &jitCodeTwoByte, "RegExpShared code TwoByte");
 }
 
 bool
-RegExpShared::compile(JSContext *cx, HandleLinearString input, CompilationMode mode)
+RegExpShared::compile(JSContext *cx, HandleLinearString input)
 {
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
     AutoTraceLog logCompile(logger, TraceLogger::IrregexpCompile);
 
     if (!sticky()) {
         RootedAtom pattern(cx, source);
-        return compile(cx, pattern, input, mode);
+        return compile(cx, pattern, input);
     }
 
     /*
@@ -484,12 +487,11 @@ RegExpShared::compile(JSContext *cx, HandleLinearString input, CompilationMode m
     if (!fakeySource)
         return false;
 
-    return compile(cx, fakeySource, input, mode);
+    return compile(cx, fakeySource, input);
 }
 
 bool
-RegExpShared::compile(JSContext *cx, HandleAtom pattern, HandleLinearString input,
-                      CompilationMode mode)
+RegExpShared::compile(JSContext *cx, HandleAtom pattern, HandleLinearString input)
 {
     if (!ignoreCase() && !StringHasRegExpMetaChars(pattern)) {
         canStringMatch = true;
@@ -504,56 +506,55 @@ RegExpShared::compile(JSContext *cx, HandleAtom pattern, HandleLinearString inpu
 
     /* Parse the pattern. */
     irregexp::RegExpCompileData data;
-    if (!irregexp::ParsePattern(dummyTokenStream, cx->tempLifoAlloc(), pattern,
-                                multiline(), mode == MatchOnly, &data))
-    {
+    if (!irregexp::ParsePattern(dummyTokenStream, cx->tempLifoAlloc(), pattern, multiline(), &data))
         return false;
-    }
 
     this->parenCount = data.capture_count;
 
     irregexp::RegExpCode code = irregexp::CompilePattern(cx, this, &data, input,
                                                          false /* global() */,
                                                          ignoreCase(),
-                                                         input->hasLatin1Chars(),
-                                                         mode == MatchOnly);
+                                                         input->hasLatin1Chars());
     if (code.empty())
         return false;
 
     JS_ASSERT(!code.jitCode || !code.byteCode);
+    if (input->hasLatin1Chars())
+        jitCodeLatin1 = code.jitCode;
+    else
+        jitCodeTwoByte = code.jitCode;
 
-    RegExpCompilation &compilation = this->compilation(mode, input->hasLatin1Chars());
-    compilation.jitCode = code.jitCode;
-    compilation.byteCode = code.byteCode;
+    if (input->hasLatin1Chars())
+        byteCodeLatin1 = code.byteCode;
+    else
+        byteCodeTwoByte = code.byteCode;
 
     return true;
 }
 
 bool
-RegExpShared::compileIfNecessary(JSContext *cx, HandleLinearString input, CompilationMode mode)
+RegExpShared::compileIfNecessary(JSContext *cx, HandleLinearString input)
 {
-    if (isCompiled(mode, input->hasLatin1Chars()) || canStringMatch)
+    if (isCompiled(input->hasLatin1Chars()) || canStringMatch)
         return true;
-    return compile(cx, input, mode);
+    return compile(cx, input);
 }
 
 RegExpRunStatus
-RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
-                      MatchPairs *matches)
+RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex,
+                      MatchPairs &matches)
 {
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
 
-    CompilationMode mode = matches ? Normal : MatchOnly;
-
     /* Compile the code at point-of-use. */
-    if (!compileIfNecessary(cx, input, mode))
+    if (!compileIfNecessary(cx, input))
         return RegExpRunStatus_Error;
 
     /*
      * Ensure sufficient memory for output vector.
      * No need to initialize it. The RegExp engine fills them in on a match.
      */
-    if (matches && !matches->allocOrExpandArray(pairCount()))
+    if (!matches.allocOrExpandArray(pairCount()))
         return RegExpRunStatus_Error;
 
     /*
@@ -563,6 +564,7 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
     size_t charsOffset = 0;
     size_t length = input->length();
     size_t origLength = length;
+    size_t start = *lastIndex;
     size_t displacement = 0;
 
     if (sticky()) {
@@ -581,16 +583,15 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
         if (res == -1)
             return RegExpRunStatus_Success_NotFound;
 
-        if (matches) {
-            (*matches)[0].start = res;
-            (*matches)[0].limit = res + source->length();
+        matches[0].start = res;
+        matches[0].limit = res + source->length();
 
-            matches->checkAgainst(origLength);
-        }
+        matches.checkAgainst(origLength);
+        *lastIndex = matches[0].limit;
         return RegExpRunStatus_Success;
     }
 
-    if (uint8_t *byteCode = compilation(mode, input->hasLatin1Chars()).byteCode) {
+    if (uint8_t *byteCode = maybeByteCode(input->hasLatin1Chars())) {
         AutoTraceLog logInterpreter(logger, TraceLogger::IrregexpExecute);
 
         AutoStableStringChars inputChars(cx);
@@ -600,15 +601,16 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
         RegExpRunStatus result;
         if (inputChars.isLatin1()) {
             const Latin1Char *chars = inputChars.latin1Range().start().get() + charsOffset;
-            result = irregexp::InterpretCode(cx, byteCode, chars, start, length, matches);
+            result = irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
         } else {
             const char16_t *chars = inputChars.twoByteRange().start().get() + charsOffset;
-            result = irregexp::InterpretCode(cx, byteCode, chars, start, length, matches);
+            result = irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
         }
 
-        if (result == RegExpRunStatus_Success && matches) {
-            matches->displace(displacement);
-            matches->checkAgainst(origLength);
+        if (result == RegExpRunStatus_Success) {
+            matches.displace(displacement);
+            matches.checkAgainst(origLength);
+            *lastIndex = matches[0].limit;
         }
         return result;
     }
@@ -618,13 +620,12 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
         {
             AutoTraceLog logJIT(logger, TraceLogger::IrregexpExecute);
             AutoCheckCannotGC nogc;
-            jit::JitCode *code = compilation(mode, input->hasLatin1Chars()).jitCode;
             if (input->hasLatin1Chars()) {
                 const Latin1Char *chars = input->latin1Chars(nogc) + charsOffset;
-                result = irregexp::ExecuteCode(cx, code, chars, start, length, matches);
+                result = irregexp::ExecuteCode(cx, jitCodeLatin1, chars, start, length, &matches);
             } else {
                 const char16_t *chars = input->twoByteChars(nogc) + charsOffset;
-                result = irregexp::ExecuteCode(cx, code, chars, start, length, matches);
+                result = irregexp::ExecuteCode(cx, jitCodeTwoByte, chars, start, length, &matches);
             }
         }
 
@@ -655,10 +656,9 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
         break;
     }
 
-    if (matches) {
-        matches->displace(displacement);
-        matches->checkAgainst(origLength);
-    }
+    matches.displace(displacement);
+    matches.checkAgainst(origLength);
+    *lastIndex = matches[0].limit;
     return RegExpRunStatus_Success;
 }
 
@@ -667,11 +667,11 @@ RegExpShared::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = mallocSizeOf(this);
 
-    for (size_t i = 0; i < ArrayLength(compilationArray); i++) {
-        const RegExpCompilation &compilation = compilationArray[i];
-        if (compilation.byteCode)
-            n += mallocSizeOf(compilation.byteCode);
-    }
+    if (byteCodeLatin1)
+        n += mallocSizeOf(byteCodeLatin1);
+
+    if (byteCodeTwoByte)
+        n += mallocSizeOf(byteCodeTwoByte);
 
     n += tables.sizeOfExcludingThis(mallocSizeOf);
     for (size_t i = 0; i < tables.length(); i++)
@@ -770,11 +770,10 @@ RegExpCompartment::sweep(JSRuntime *rt)
         // the RegExpShared if it was accidentally marked earlier but wasn't
         // marked by the current trace.
         bool keep = shared->marked() && !IsStringAboutToBeFinalized(shared->source.unsafeGet());
-        for (size_t i = 0; i < ArrayLength(shared->compilationArray); i++) {
-            RegExpShared::RegExpCompilation &compilation = shared->compilationArray[i];
-            if (keep && compilation.jitCode)
-                keep = !IsJitCodeAboutToBeFinalized(compilation.jitCode.unsafeGet());
-        }
+        if (keep && shared->jitCodeLatin1)
+            keep = !IsJitCodeAboutToBeFinalized(shared->jitCodeLatin1.unsafeGet());
+        if (keep && shared->jitCodeTwoByte)
+            keep = !IsJitCodeAboutToBeFinalized(shared->jitCodeTwoByte.unsafeGet());
         if (keep) {
             shared->clearMarked();
         } else {

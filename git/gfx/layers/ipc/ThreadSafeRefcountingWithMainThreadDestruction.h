@@ -6,7 +6,8 @@
 #define THREADSAFEREFCOUNTINGWITHMAINTHREADDESTRUCTION_H_
 
 #include "MainThreadUtils.h"
-#include "nsThreadUtils.h"
+#include "base/message_loop.h"
+#include "base/task.h"
 
 namespace mozilla {
 namespace layers {
@@ -37,18 +38,6 @@ struct HelperForMainThreadDestruction
   }
 };
 
-template<typename T>
-struct DeleteOnMainThreadTask: public nsRunnable
-{
-  T* mToDelete;
-  DeleteOnMainThreadTask(T* aToDelete) : mToDelete(aToDelete) {}
-  NS_IMETHOD Run() {
-    MOZ_ASSERT(NS_IsMainThread());
-    mToDelete->DeleteToBeCalledOnMainThread();
-    return NS_OK;
-  }
-};
-
 } // namespace layers
 } // namespace mozilla
 
@@ -61,20 +50,24 @@ public:                                                                       \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                       \
     return (nsrefcnt) count;                                                  \
   }                                                                           \
-  void DeleteToBeCalledOnMainThread() {                                       \
+  static void DestroyToBeCalledOnMainThread(_class* ptr) {                    \
     MOZ_ASSERT(NS_IsMainThread());                                            \
-    NS_LOG_RELEASE(this, 0, #_class);                                         \
-    delete this;                                                              \
+    NS_LOG_RELEASE(ptr, 0, #_class);                                          \
+    delete ptr;                                                               \
   }                                                                           \
   NS_METHOD_(MozExternalRefCountType) Release(void) {                         \
     MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                          \
     nsrefcnt count = --mRefCnt;                                               \
     if (count == 0) {                                                         \
       if (NS_IsMainThread()) {                                                \
-        DeleteToBeCalledOnMainThread();                                       \
+        NS_LOG_RELEASE(this, 0, #_class);                                     \
+        delete this;                                                          \
       } else {                                                                \
-        NS_DispatchToMainThread(                                              \
-          new mozilla::layers::DeleteOnMainThreadTask<_class>(this));         \
+        /* no NS_LOG_RELEASE here, will be in the runnable */                 \
+        MessageLoop *l = ::mozilla::layers::GetMainLoop();                    \
+        l->PostTask(FROM_HERE,                                                \
+                    NewRunnableFunction(&DestroyToBeCalledOnMainThread,       \
+                                        this));                               \
       }                                                                       \
     } else {                                                                  \
       NS_LOG_RELEASE(this, count, #_class);                                   \

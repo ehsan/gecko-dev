@@ -25,6 +25,8 @@ public class TabStripView extends TwoWayView {
     private static final String LOGTAG = "GeckoTabStrip";
 
     private final TabStripAdapter adapter;
+    private final TabsListener tabsListener;
+
     private final Drawable divider;
 
     private boolean isPrivate;
@@ -45,6 +47,8 @@ public class TabStripView extends TwoWayView {
         final int itemMargin =
                 resources.getDimensionPixelSize(R.dimen.new_tablet_tab_strip_item_margin);
         setItemMargin(itemMargin);
+
+        tabsListener = new TabsListener();
 
         adapter = new TabStripAdapter(context);
         setAdapter(adapter);
@@ -79,7 +83,7 @@ public class TabStripView extends TwoWayView {
         return checkedIndex;
     }
 
-    void refreshTabs() {
+    private void refreshTabs() {
         // Store a different copy of the tabs, so that we don't have
         // to worry about accidentally updating it on the wrong thread.
         final List<Tab> tabs = new ArrayList<Tab>();
@@ -94,29 +98,25 @@ public class TabStripView extends TwoWayView {
         updateSelectedPosition();
     }
 
-    void clearTabs() {
-        adapter.clear();
-    }
-
-    void removeTab(Tab tab) {
+    private void removeTab(Tab tab) {
         adapter.removeTab(tab);
         updateSelectedPosition();
     }
 
-    void selectTab(Tab tab) {
-        if (tab.isPrivate() != isPrivate) {
-            isPrivate = tab.isPrivate();
-            refreshTabs();
-        } else {
-            updateSelectedPosition();
-        }
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+
+        Tabs.registerOnTabsChangedListener(tabsListener);
+        refreshTabs();
     }
 
-    void updateTab(Tab tab) {
-        final TabStripItemView item = (TabStripItemView) getViewForTab(tab);
-        if (item != null) {
-            item.updateFromTab(tab);
-        }
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+
+        Tabs.unregisterOnTabsChangedListener(tabsListener);
+        adapter.clear();
     }
 
     @Override
@@ -167,6 +167,42 @@ public class TabStripView extends TwoWayView {
 
             divider.setBounds(left, top, right, bottom);
             divider.draw(canvas);
+        }
+    }
+
+    private class TabsListener implements Tabs.OnTabsChangedListener {
+        @Override
+        public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
+            switch (msg) {
+                case RESTORED:
+                case ADDED:
+                    // Refresh the list to make sure the new tab is
+                    // added in the right position.
+                    refreshTabs();
+                    break;
+
+                case CLOSED:
+                    removeTab(tab);
+                    break;
+
+                case SELECTED:
+                    // Update the selected position, then fall through...
+                    if (tab.isPrivate() != isPrivate) {
+                        isPrivate = tab.isPrivate();
+                        refreshTabs();
+                    } else {
+                        updateSelectedPosition();
+                    }
+                case UNSELECTED:
+                    // We just need to update the style for the unselected tab...
+                case TITLE:
+                case RECORDING_CHANGE:
+                    final TabStripItemView item = (TabStripItemView) getViewForTab(tab);
+                    if (item != null) {
+                        item.updateFromTab(tab);
+                    }
+                    break;
+            }
         }
     }
 }

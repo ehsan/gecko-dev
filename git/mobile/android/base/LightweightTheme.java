@@ -170,7 +170,7 @@ public class LightweightTheme implements GeckoEventListener {
         // The bitmap image might be smaller than the device's width.
         // If it's smaller, fill the extra space on the left with the dominant color.
         if (bitmapWidth >= maxWidth) {
-            mBitmap = Bitmap.createBitmap(bitmap, bitmapWidth - maxWidth, 0, maxWidth, bitmapHeight);
+            mBitmap = bitmap;
         } else {
             Paint paint = new Paint();
             paint.setAntiAlias(true);

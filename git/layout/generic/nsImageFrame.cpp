@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* rendering object for replaced elements with image data */
+/* rendering object for replaced elements with bitmap image data */
 
 #include "nsImageFrame.h"
 
@@ -731,7 +731,7 @@ nsImageFrame::FrameChanged(imgIRequest *aRequest,
 }
 
 void
-nsImageFrame::EnsureIntrinsicSizeAndRatio()
+nsImageFrame::EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext)
 {
   // If mIntrinsicSize.width and height are 0, then we need to update from the
   // image container.
@@ -771,7 +771,8 @@ nsImageFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                           const LogicalSize& aPadding,
                           uint32_t aFlags)
 {
-  EnsureIntrinsicSizeAndRatio();
+  nsPresContext *presContext = PresContext();
+  EnsureIntrinsicSizeAndRatio(presContext);
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
   NS_ASSERTION(imageLoader, "No content node??");
@@ -848,7 +849,8 @@ nsImageFrame::GetMinISize(nsRenderingContext *aRenderingContext)
   // min-height, and max-height properties.
   DebugOnly<nscoord> result;
   DISPLAY_MIN_WIDTH(this, result);
-  EnsureIntrinsicSizeAndRatio();
+  nsPresContext *presContext = PresContext();
+  EnsureIntrinsicSizeAndRatio(presContext);
   return mIntrinsicSize.width.GetUnit() == eStyleUnit_Coord ?
     mIntrinsicSize.width.GetCoordValue() : 0;
 }
@@ -860,7 +862,8 @@ nsImageFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
   // min-height, and max-height properties.
   DebugOnly<nscoord> result;
   DISPLAY_PREF_WIDTH(this, result);
-  EnsureIntrinsicSizeAndRatio();
+  nsPresContext *presContext = PresContext();
+  EnsureIntrinsicSizeAndRatio(presContext);
   // convert from normal twips to scaled twips (printing...)
   return mIntrinsicSize.width.GetUnit() == eStyleUnit_Coord ?
     mIntrinsicSize.width.GetCoordValue() : 0;

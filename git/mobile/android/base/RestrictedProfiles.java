@@ -44,7 +44,7 @@ public class RestrictedProfiles {
         }
     }
 
-    private static String geckoActionToRestriction(int action) {
+    private static String geckoActionToRestrction(int action) {
         for (Restriction rest : Restriction.values()) {
             if (rest.id == action) {
                 return rest.name;
@@ -54,7 +54,7 @@ public class RestrictedProfiles {
         throw new IllegalArgumentException("Unknown action " + action);
     }
 
-    private static Bundle getRestrictions() {
+    private static Bundle getRestrctions() {
         final UserManager mgr = (UserManager) GeckoAppShell.getContext().getSystemService(Context.USER_SERVICE);
         return mgr.getUserRestrictions();
     }
@@ -70,7 +70,7 @@ public class RestrictedProfiles {
             return false;
         }
 
-        return !getRestrictions().isEmpty();
+        return !getRestrctions().isEmpty();
     }
 
     public static boolean isAllowed(Restriction action) {
@@ -89,9 +89,8 @@ public class RestrictedProfiles {
         }
 
         try {
-            // NOTE: Restrictions hold the opposite intention, so we need to flip it
-            final String restriction = geckoActionToRestriction(action);
-            return !getRestrictions().getBoolean(restriction, false);
+            final String restriction = geckoActionToRestrction(action);
+            return !getRestrctions().getBoolean(restriction, false);
         } catch(IllegalArgumentException ex) {
             Log.i(LOGTAG, "Invalid action", ex);
         }
@@ -118,7 +117,7 @@ public class RestrictedProfiles {
         }
 
         final JSONObject json = new JSONObject();
-        final Bundle restrictions = getRestrictions();
+        final Bundle restrictions = getRestrctions();
         final Set<String> keys = restrictions.keySet();
 
         for (String key : keys) {

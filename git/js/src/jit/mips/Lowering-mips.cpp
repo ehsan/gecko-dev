@@ -542,9 +542,3 @@ LIRGeneratorMIPS::visitSimdSplatX4(MSimdSplatX4 *ins)
 {
     MOZ_CRASH("NYI");
 }
-
-bool
-LIRGeneratorMIPS::visitSimdValueX4(MSimdValueX4 *ins)
-{
-    MOZ_CRASH("NYI");
-}

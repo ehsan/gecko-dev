@@ -12,7 +12,7 @@
 var old_serialize = serialize;
 var captured = [];
 
-if (os.getenv("JS_RECORD_RESULTS") !== undefined) {
+if ("JS_RECORD_RESULTS" in environment) {
   serialize = function(o) {
     var data;
     try {
@@ -116,7 +116,7 @@ function test() {
 test();
 reportCompare(0, 0, 'ok');
 
-if (os.getenv("JS_RECORD_RESULTS") !== undefined) {
+if ("JS_RECORD_RESULTS" in environment) {
   print("var captured = [];");
   for (var i in captured) {
     var s = "captured[" + i + "] = ";

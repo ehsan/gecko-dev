@@ -871,38 +871,38 @@ JSObject *
 WrapperOwner::fromRemoteObjectVariant(JSContext *cx, RemoteObject objVar)
 {
     ObjectId objId = objVar.id();
+
     RootedObject obj(cx, findCPOWById(objId));
-    if (!obj) {
-        // If we didn't find an existing CPOW, we need to create one.
-        if (objId > MAX_CPOW_IDS) {
-            JS_ReportError(cx, "unusable CPOW id");
+    if (obj) {
+        if (!JS_WrapObject(cx, &obj))
             return nullptr;
-        }
-
-        // All CPOWs live in the privileged junk scope.
-        RootedObject junkScope(cx, xpc::PrivilegedJunkScope());
-        JSAutoCompartment ac(cx, junkScope);
-        RootedValue v(cx, UndefinedValue());
-        obj = NewProxyObject(cx,
-                             &CPOWProxyHandler::singleton,
-                             v,
-                             nullptr,
-                             junkScope);
-        if (!obj)
-            return nullptr;
-
-        if (!cpows_.add(objId, obj))
-            return nullptr;
-
-        // Incref once we know the decref will be called.
-        incref();
-
-        SetProxyExtra(obj, 0, PrivateValue(this));
-        SetProxyExtra(obj, 1, DoubleValue(BitwiseCast<double>(objId)));
+        return obj;
     }
 
-    if (!JS_WrapObject(cx, &obj))
+    if (objId > MAX_CPOW_IDS) {
+        JS_ReportError(cx, "unusable CPOW id");
         return nullptr;
+    }
+
+    RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+
+    RootedValue v(cx, UndefinedValue());
+    obj = NewProxyObject(cx,
+                         &CPOWProxyHandler::singleton,
+                         v,
+                         nullptr,
+                         global);
+    if (!obj)
+        return nullptr;
+
+    if (!cpows_.add(objId, obj))
+        return nullptr;
+
+    // Incref once we know the decref will be called.
+    incref();
+
+    SetProxyExtra(obj, 0, PrivateValue(this));
+    SetProxyExtra(obj, 1, DoubleValue(BitwiseCast<double>(objId)));
     return obj;
 }
 

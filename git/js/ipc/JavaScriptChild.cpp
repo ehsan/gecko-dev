@@ -67,9 +67,7 @@ JavaScriptChild::finalize()
 }
 
 JSObject *
-JavaScriptChild::scopeForTargetObjects()
+JavaScriptChild::defaultScope()
 {
-    // CPOWs from the parent need to point into the child's privileged junk
-    // scope so that they can benefit from XrayWrappers in the child.
     return xpc::PrivilegedJunkScope();
 }

@@ -67,7 +67,6 @@ MouseCursorMonitorWin::~MouseCursorMonitorWin() {
 void MouseCursorMonitorWin::Init(Callback* callback, Mode mode) {
   assert(!callback_);
   assert(callback);
-  assert(IsGUIThread(false));
 
   callback_ = callback;
   mode_ = mode;
@@ -76,7 +75,6 @@ void MouseCursorMonitorWin::Init(Callback* callback, Mode mode) {
 }
 
 void MouseCursorMonitorWin::Capture() {
-  assert(IsGUIThread(false));
   assert(callback_);
 
   CURSORINFO cursor_info;
@@ -126,7 +124,6 @@ void MouseCursorMonitorWin::Capture() {
 }
 
 DesktopRect MouseCursorMonitorWin::GetScreenRect() {
-  assert(IsGUIThread(false));
   assert(screen_ != kInvalidScreenId);
   if (screen_ == kFullDesktopScreenId) {
     return DesktopRect::MakeXYWH(

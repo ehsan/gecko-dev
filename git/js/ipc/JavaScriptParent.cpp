@@ -64,12 +64,8 @@ JavaScriptParent::trace(JSTracer *trc)
 }
 
 JSObject *
-JavaScriptParent::scopeForTargetObjects()
+JavaScriptParent::defaultScope()
 {
-    // CPWOWs from the child need to point into the parent's unprivileged junk
-    // scope so that a compromised child cannot compromise the parent. In
-    // practice, this means that a child process can only (a) hold parent
-    // objects alive and (b) invoke them if they are callable.
     return xpc::UnprivilegedJunkScope();
 }
 

@@ -15,7 +15,6 @@
 # include "nsExceptionHandler.h"
 #endif
 #include "nsString.h"
-#include "nsXULAppAPI.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "nsError.h"
@@ -414,17 +413,12 @@ NS_DebugBreak(uint32_t aSeverity, const char* aStr, const char* aExpr,
 
     case NS_DEBUG_ABORT: {
 #if defined(MOZ_CRASHREPORTER)
-      // Updating crash annotations in the child causes us to do IPC. This can
-      // really cause trouble if we're asserting from within IPC code. So we
-      // have to do without the annotations in that case.
-      if (XRE_GetProcessType() == GeckoProcessType_Default) {
-        nsCString note("xpcom_runtime_abort(");
-        note += buf.buffer;
-        note += ")";
-        CrashReporter::AppendAppNotesToCrashReport(note);
-        CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AbortMessage"),
-                                           nsDependentCString(buf.buffer));
-      }
+      nsCString note("xpcom_runtime_abort(");
+      note += buf.buffer;
+      note += ")";
+      CrashReporter::AppendAppNotesToCrashReport(note);
+      CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AbortMessage"),
+                                         nsDependentCString(buf.buffer));
 #endif  // MOZ_CRASHREPORTER
 
 #if defined(DEBUG) && defined(_WIN32)

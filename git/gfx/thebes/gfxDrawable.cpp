@@ -27,48 +27,12 @@ gfxSurfaceDrawable::gfxSurfaceDrawable(SourceSurface* aSurface,
 }
 
 bool
-gfxSurfaceDrawable::DrawWithSamplingRect(gfxContext* aContext,
-                                         const gfxRect& aFillRect,
-                                         const gfxRect& aSamplingRect,
-                                         bool aRepeat,
-                                         const GraphicsFilter& aFilter,
-                                         gfxFloat aOpacity)
-{
-  // When drawing with CLAMP we can expand the sampling rect to the nearest pixel
-  // without changing the result.
-  gfxRect samplingRect = aSamplingRect;
-  samplingRect.RoundOut();
-  IntRect intRect(samplingRect.x, samplingRect.y, samplingRect.width, samplingRect.height);
-
-  IntSize size = mSourceSurface->GetSize();
-  if (!IntRect(0, 0, size.width, size.height).Contains(intRect)) {
-    return false;
-  }
-
-  DrawInternal(aContext, aFillRect, intRect, false, aFilter, aOpacity, gfxMatrix());
-  return true;
-}
-
-bool
 gfxSurfaceDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
                          bool aRepeat,
                          const GraphicsFilter& aFilter,
                          gfxFloat aOpacity,
                          const gfxMatrix& aTransform)
-{
-  DrawInternal(aContext, aFillRect, IntRect(), aRepeat, aFilter, aOpacity, aTransform);
-  return true;
-}
-
-void
-gfxSurfaceDrawable::DrawInternal(gfxContext* aContext,
-                                 const gfxRect& aFillRect,
-                                 const IntRect& aSamplingRect,
-                                 bool aRepeat,
-                                 const GraphicsFilter& aFilter,
-                                 gfxFloat aOpacity,
-                                 const gfxMatrix& aTransform)
 {
     ExtendMode extend = ExtendMode::CLAMP;
 
@@ -80,7 +44,7 @@ gfxSurfaceDrawable::DrawInternal(gfxContext* aContext,
     patternTransform.Invert();
 
     SurfacePattern pattern(mSourceSurface, extend,
-                           patternTransform, ToFilter(aFilter), aSamplingRect);
+                           patternTransform, ToFilter(aFilter));
 
     Rect fillRect = ToRect(aFillRect);
     DrawTarget* dt = aContext->GetDrawTarget();
@@ -100,6 +64,7 @@ gfxSurfaceDrawable::DrawInternal(gfxContext* aContext,
                 AntialiasMode::SUBPIXEL;
         dt->FillRect(fillRect, pattern, DrawOptions(aOpacity, op, aaMode));
     }
+    return true;
 }
 
 gfxCallbackDrawable::gfxCallbackDrawable(gfxDrawingCallback* aCallback,

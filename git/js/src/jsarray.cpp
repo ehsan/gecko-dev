@@ -3292,7 +3292,7 @@ js::NewDenseUnallocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *pr
     return NewArray<0>(cx, length, proto, newKind);
 }
 
-ArrayObject *
+ArrayObject * JS_FASTCALL
 js::NewDenseArray(ExclusiveContext *cx, uint32_t length, HandleTypeObject type,
                   AllocatingBehaviour allocating)
 {
