@@ -124,6 +124,7 @@ enum JSGCTraceKind {
 /* Struct forward declarations. */
 struct JSClass;
 struct JSCompartment;
+struct JSConstDoubleSpec;
 struct JSCrossCompartmentCall;
 struct JSErrorReport;
 struct JSExceptionState;
@@ -146,10 +147,6 @@ class JSFlatString;
 
 typedef struct PRCallOnceType   JSCallOnceType;
 typedef bool                    (*JSInitCallback)(void);
-
-template<typename T> struct JSConstScalarSpec;
-typedef JSConstScalarSpec<double> JSConstDoubleSpec;
-typedef JSConstScalarSpec<int32_t> JSConstIntegerSpec;
 
 /*
  * Generic trace operation that calls JS_CallTracer on each traceable thing

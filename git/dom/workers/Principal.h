@@ -13,9 +13,6 @@ BEGIN_WORKERS_NAMESPACE
 JSPrincipals*
 GetWorkerPrincipal();
 
-void
-DestroyWorkerPrincipals(JSPrincipals* aPrincipals);
-
 END_WORKERS_NAMESPACE
 
 #endif /* mozilla_dom_workers_principal_h__ */

@@ -6,9 +6,6 @@
 // Main header first:
 #include "nsFilterInstance.h"
 
-// MFBT headers next:
-#include "mozilla/UniquePtr.h"
-
 // Keep others in (case-insensitive) order:
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
@@ -27,33 +24,6 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
 
-FilterDescription
-nsFilterInstance::GetFilterDescription(nsIContent* aFilteredElement,
-                                       const nsTArray<nsStyleFilter>& aFilterChain,
-                                       const UserSpaceMetrics& aMetrics,
-                                       const gfxRect& aBBox,
-                                       nsTArray<mozilla::RefPtr<SourceSurface>>& aOutAdditionalImages)
-{
-  gfxMatrix unused; // aPaintTransform arg not used since we're not painting
-  nsFilterInstance instance(nullptr, aFilteredElement, aMetrics,
-                            aFilterChain, nullptr, unused,
-                            nullptr, nullptr, nullptr, &aBBox);
-  if (!instance.IsInitialized()) {
-    return FilterDescription();
-  }
-  return instance.ExtractDescriptionAndAdditionalImages(aOutAdditionalImages);
-}
-
-static UniquePtr<UserSpaceMetrics>
-UserSpaceMetricsForFrame(nsIFrame* aFrame)
-{
-  if (aFrame->GetContent()->IsSVG()) {
-    nsSVGElement* element = static_cast<nsSVGElement*>(aFrame->GetContent());
-    return MakeUnique<SVGElementMetrics>(element);
-  }
-  return MakeUnique<NonSVGFrameUserSpaceMetrics>(aFrame);
-}
-
 nsresult
 nsFilterInstance::PaintFilteredFrame(nsIFrame *aFilteredFrame,
                                      nsRenderingContext *aContext,
@@ -61,10 +31,7 @@ nsFilterInstance::PaintFilteredFrame(nsIFrame *aFilteredFrame,
                                      nsSVGFilterPaintCallback *aPaintCallback,
                                      const nsRegion *aDirtyArea)
 {
-  auto& filterChain = aFilteredFrame->StyleSVGReset()->mFilters;
-  UniquePtr<UserSpaceMetrics> metrics = UserSpaceMetricsForFrame(aFilteredFrame);
-  nsFilterInstance instance(aFilteredFrame, aFilteredFrame->GetContent(), *metrics,
-                            filterChain, aPaintCallback, aTransform,
+  nsFilterInstance instance(aFilteredFrame, aPaintCallback, aTransform,
                             aDirtyArea, nullptr, nullptr, nullptr);
   if (!instance.IsInitialized()) {
     return NS_OK;
@@ -81,10 +48,7 @@ nsFilterInstance::GetPostFilterDirtyArea(nsIFrame *aFilteredFrame,
   }
 
   gfxMatrix unused; // aPaintTransform arg not used since we're not painting
-  auto& filterChain = aFilteredFrame->StyleSVGReset()->mFilters;
-  UniquePtr<UserSpaceMetrics> metrics = UserSpaceMetricsForFrame(aFilteredFrame);
-  nsFilterInstance instance(aFilteredFrame, aFilteredFrame->GetContent(), *metrics,
-                            filterChain, nullptr, unused, nullptr,
+  nsFilterInstance instance(aFilteredFrame, nullptr, unused, nullptr,
                             &aPreFilterDirtyRegion);
   if (!instance.IsInitialized()) {
     return nsRegion();
@@ -101,10 +65,7 @@ nsFilterInstance::GetPreFilterNeededArea(nsIFrame *aFilteredFrame,
                                          const nsRegion& aPostFilterDirtyRegion)
 {
   gfxMatrix unused; // aPaintTransform arg not used since we're not painting
-  auto& filterChain = aFilteredFrame->StyleSVGReset()->mFilters;
-  UniquePtr<UserSpaceMetrics> metrics = UserSpaceMetricsForFrame(aFilteredFrame);
-  nsFilterInstance instance(aFilteredFrame, aFilteredFrame->GetContent(), *metrics,
-                            filterChain, nullptr, unused,
+  nsFilterInstance instance(aFilteredFrame, nullptr, unused,
                             &aPostFilterDirtyRegion);
   if (!instance.IsInitialized()) {
     return nsRect();
@@ -132,10 +93,7 @@ nsFilterInstance::GetPostFilterBounds(nsIFrame *aFilteredFrame,
   }
 
   gfxMatrix unused; // aPaintTransform arg not used since we're not painting
-  auto& filterChain = aFilteredFrame->StyleSVGReset()->mFilters;
-  UniquePtr<UserSpaceMetrics> metrics = UserSpaceMetricsForFrame(aFilteredFrame);
-  nsFilterInstance instance(aFilteredFrame, aFilteredFrame->GetContent(), *metrics,
-                            filterChain, nullptr, unused, nullptr,
+  nsFilterInstance instance(aFilteredFrame, nullptr, unused, nullptr,
                             preFilterRegionPtr, aPreFilterBounds,
                             aOverrideBBox);
   if (!instance.IsInitialized()) {
@@ -146,9 +104,6 @@ nsFilterInstance::GetPostFilterBounds(nsIFrame *aFilteredFrame,
 }
 
 nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
-                                   nsIContent* aTargetContent,
-                                   const UserSpaceMetrics& aMetrics,
-                                   const nsTArray<nsStyleFilter>& aFilterChain,
                                    nsSVGFilterPaintCallback *aPaintCallback,
                                    const gfxMatrix& aPaintTransform,
                                    const nsRegion *aPostFilterDirtyRegion,
@@ -156,18 +111,13 @@ nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
                                    const nsRect *aPreFilterVisualOverflowRectOverride,
                                    const gfxRect *aOverrideBBox)
   : mTargetFrame(aTargetFrame)
-  , mTargetContent(aTargetContent)
-  , mMetrics(aMetrics)
   , mPaintCallback(aPaintCallback)
   , mPaintTransform(aPaintTransform)
   , mInitialized(false)
 {
-  if (aOverrideBBox) {
-    mTargetBBox = *aOverrideBBox;
-  } else {
-    MOZ_ASSERT(mTargetFrame, "Need to supply a frame when there's no aOverrideBBox");
-    mTargetBBox = nsSVGUtils::GetBBox(mTargetFrame);
-  }
+
+  mTargetBBox = aOverrideBBox ?
+    *aOverrideBBox : nsSVGUtils::GetBBox(mTargetFrame);
 
   // Compute user space to filter space transforms.
   nsresult rv = ComputeUserSpaceToFilterSpaceScale();
@@ -201,7 +151,7 @@ nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
   mFrameSpaceInCSSPxToFilterSpaceTransform.Invert();
 
   // Build the filter graph.
-  rv = BuildPrimitives(aFilterChain);
+  rv = BuildPrimitives();
   if (NS_FAILED(rv)) {
     return;
   }
@@ -214,16 +164,13 @@ nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
   // Convert the passed in rects from frame space to filter space:
   mPostFilterDirtyRegion = FrameSpaceToFilterSpace(aPostFilterDirtyRegion);
   mPreFilterDirtyRegion = FrameSpaceToFilterSpace(aPreFilterDirtyRegion);
-
-  nsIntRect targetBounds;
   if (aPreFilterVisualOverflowRectOverride) {
-    targetBounds =
+    mTargetBounds =
       FrameSpaceToFilterSpace(aPreFilterVisualOverflowRectOverride);
-  } else if (mTargetFrame) {
+  } else {
     nsRect preFilterVOR = mTargetFrame->GetPreEffectsVisualOverflowRect();
-    targetBounds = FrameSpaceToFilterSpace(&preFilterVOR);
+    mTargetBounds = FrameSpaceToFilterSpace(&preFilterVOR);
   }
-  mTargetBounds.UnionRect(mTargetBBoxInFilterSpace, targetBounds);
 
   mInitialized = true;
 }
@@ -231,13 +178,10 @@ nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
 nsresult
 nsFilterInstance::ComputeUserSpaceToFilterSpaceScale()
 {
-  gfxMatrix canvasTransform;
-  if (mTargetFrame) {
-    canvasTransform = nsSVGUtils::GetCanvasTM(mTargetFrame);
-    if (canvasTransform.IsSingular()) {
-      // Nothing should be rendered.
-      return NS_ERROR_FAILURE;
-    }
+  gfxMatrix canvasTransform = nsSVGUtils::GetCanvasTM(mTargetFrame);
+  if (canvasTransform.IsSingular()) {
+    // Nothing should be rendered.
+    return NS_ERROR_FAILURE;
   }
 
   mUserSpaceToFilterSpaceScale = canvasTransform.ScaleFactors(true);
@@ -271,13 +215,14 @@ nsFilterInstance::FilterSpaceToUserSpace(const gfxRect& aFilterSpaceRect) const
 }
 
 nsresult
-nsFilterInstance::BuildPrimitives(const nsTArray<nsStyleFilter>& aFilterChain)
+nsFilterInstance::BuildPrimitives()
 {
   NS_ASSERTION(!mPrimitiveDescriptions.Length(),
                "expected to start building primitives from scratch");
 
-  for (uint32_t i = 0; i < aFilterChain.Length(); i++) {
-    nsresult rv = BuildPrimitivesForFilter(aFilterChain[i]);
+  const nsTArray<nsStyleFilter>& filters = mTargetFrame->StyleSVGReset()->mFilters;
+  for (uint32_t i = 0; i < filters.Length(); i++) {
+    nsresult rv = BuildPrimitivesForFilter(filters[i]);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -297,8 +242,7 @@ nsFilterInstance::BuildPrimitivesForFilter(const nsStyleFilter& aFilter)
 
   if (aFilter.GetType() == NS_STYLE_FILTER_URL) {
     // Build primitives for an SVG filter.
-    nsSVGFilterInstance svgFilterInstance(aFilter, mTargetContent,
-                                          mMetrics, mTargetBBox,
+    nsSVGFilterInstance svgFilterInstance(aFilter, mTargetFrame, mTargetBBox,
                                           mUserSpaceToFilterSpaceScale,
                                           mFilterSpaceToUserSpaceScale);
     if (!svgFilterInstance.IsInitialized()) {
@@ -309,13 +253,7 @@ nsFilterInstance::BuildPrimitivesForFilter(const nsStyleFilter& aFilter)
   }
 
   // Build primitives for a CSS filter.
-
-  // If we don't have a frame, use opaque black for shadows with unspecified
-  // shadow colors.
-  nscolor shadowFallbackColor =
-    mTargetFrame ? mTargetFrame->StyleColor()->mColor : NS_RGB(0,0,0);
-
-  nsCSSFilterInstance cssFilterInstance(aFilter, shadowFallbackColor,
+  nsCSSFilterInstance cssFilterInstance(aFilter, mTargetFrame,
                                         mTargetBBoxInFilterSpace,
                                         mFrameSpaceInCSSPxToFilterSpaceTransform);
   return cssFilterInstance.BuildPrimitives(mPrimitiveDescriptions);
@@ -335,7 +273,10 @@ nsFilterInstance::ComputeNeededBoxes()
     mFilterDescription, mPostFilterDirtyRegion,
     sourceGraphicNeededRegion, fillPaintNeededRegion, strokePaintNeededRegion);
 
-  sourceGraphicNeededRegion.And(sourceGraphicNeededRegion, mTargetBounds);
+  nsIntRect sourceBounds;
+  sourceBounds.UnionRect(mTargetBBoxInFilterSpace, mTargetBounds);
+
+  sourceGraphicNeededRegion.And(sourceGraphicNeededRegion, sourceBounds);
 
   mSourceGraphic.mNeededBounds = sourceGraphicNeededRegion.GetBounds();
   mFillPaint.mNeededBounds = fillPaintNeededRegion.GetBounds();
@@ -346,7 +287,6 @@ nsresult
 nsFilterInstance::BuildSourcePaint(SourceInfo *aSource,
                                    DrawTarget* aTargetDT)
 {
-  MOZ_ASSERT(mTargetFrame);
   nsIntRect neededRect = aSource->mNeededBounds;
 
   RefPtr<DrawTarget> offscreenDT =
@@ -404,8 +344,6 @@ nsFilterInstance::BuildSourcePaints(DrawTarget* aTargetDT)
 nsresult
 nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
 {
-  MOZ_ASSERT(mTargetFrame);
-
   nsIntRect neededRect = mSourceGraphic.mNeededBounds;
   if (neededRect.IsEmpty()) {
     return NS_OK;
@@ -457,8 +395,6 @@ nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
 nsresult
 nsFilterInstance::Render(gfxContext* aContext)
 {
-  MOZ_ASSERT(mTargetFrame, "Need a frame for rendering");
-
   nsIntRect filterRect = mPostFilterDirtyRegion.GetBounds().Intersect(OutputFilterSpaceBounds());
   gfxMatrix ctm = GetFilterSpaceToDeviceSpaceTransform();
 
@@ -507,8 +443,11 @@ nsFilterInstance::ComputePostFilterDirtyRegion()
 nsRect
 nsFilterInstance::ComputePostFilterExtents()
 {
+  nsIntRect sourceBounds;
+  sourceBounds.UnionRect(mTargetBBoxInFilterSpace, mTargetBounds);
+
   nsIntRegion postFilterExtents =
-    FilterSupport::ComputePostFilterExtents(mFilterDescription, mTargetBounds);
+    FilterSupport::ComputePostFilterExtents(mFilterDescription, sourceBounds);
   return FilterSpaceToFrameSpace(postFilterExtents.GetBounds());
 }
 
@@ -598,8 +537,5 @@ nsFilterInstance::FilterSpaceToFrameSpace(const nsIntRegion& aRegion) const
 gfxMatrix
 nsFilterInstance::GetUserSpaceToFrameSpaceInCSSPxTransform() const
 {
-  if (!mTargetFrame) {
-    return gfxMatrix();
-  }
   return gfxMatrix::Translation(-nsSVGUtils::FrameSpaceInCSSPxToUserSpaceOffset(mTargetFrame));
 }

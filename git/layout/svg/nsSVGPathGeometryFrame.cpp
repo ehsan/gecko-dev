@@ -620,10 +620,10 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
   switch (StyleSVG()->mShapeRendering) {
   case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
   case NS_STYLE_SHAPE_RENDERING_CRISPEDGES:
-    gfx->SetAntialiasMode(AntialiasMode::NONE);
+    gfx->SetAntialiasMode(gfxContext::MODE_ALIASED);
     break;
   default:
-    gfx->SetAntialiasMode(AntialiasMode::SUBPIXEL);
+    gfx->SetAntialiasMode(gfxContext::MODE_COVERAGE);
     break;
   }
 

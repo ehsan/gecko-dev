@@ -9,7 +9,6 @@ var is_remote;
 (function start() {
     [is_remote] = sendSyncMessage("cpows:is_remote");
     parent_test();
-    error_reporting_test();
     dom_test();
     xray_test();
     compartment_test();
@@ -88,10 +87,6 @@ function parent_test()
       sendSyncMessage("cpows:done", {});
   });
   sendSyncMessage("cpows:parent_test", {}, {func: f});
-}
-
-function error_reporting_test() {
-  sendSyncMessage("cpows:error_reporting_test", {}, {});
 }
 
 function dom_test()

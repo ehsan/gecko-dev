@@ -24,8 +24,6 @@ struct JSPrincipals {
     uint32_t    debugToken;
 #endif
 
-    JSPrincipals() : refcount(0) {}
-
     void setDebugToken(uint32_t token) {
 # ifdef JS_DEBUG
         debugToken = token;
