@@ -30,5 +30,5 @@ class MintBootstrapper(BaseBootstrapper):
             'uuid',
             'yasm')
 
-    def upgrade_mercurial(self, current):
+    def upgrade_mercurial(self):
         self.apt_install('mercurial')
