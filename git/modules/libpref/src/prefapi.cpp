@@ -69,6 +69,10 @@
 #include "nsPrintfCString.h"
 #include "prlink.h"
 
+#ifdef MOZ_PROFILESHARING
+#include "nsSharedPrefHandler.h"
+#endif
+
 #ifdef XP_OS2
 #define INCL_DOS
 #include <os2.h>
@@ -116,6 +120,7 @@ static PLArenaPool  gPrefNameArena;
 PRBool              gDirty = PR_FALSE;
 
 static struct CallbackNode* gCallbacks = NULL;
+static PRBool       gCallbacksEnabled = PR_TRUE;
 static PRBool       gIsAnyPrefLocked = PR_FALSE;
 // These are only used during the call to pref_DoCallback
 static PRBool       gCallbacksInProgress = PR_FALSE;
@@ -338,6 +343,14 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
     else
         // do not save default prefs that haven't changed
         return PL_DHASH_NEXT;
+
+#if MOZ_PROFILESHARING
+  if ((argData->saveTypes == SAVE_SHARED &&
+      !gSharedPrefHandler->IsPrefShared(pref->key)) ||
+      (argData->saveTypes == SAVE_NONSHARED &&
+      gSharedPrefHandler->IsPrefShared(pref->key)))
+    return PL_DHASH_NEXT;
+#endif
 
     // strings are in quotes!
     if (pref->flags & PREF_STRING) {
@@ -566,7 +579,8 @@ PREF_ClearUserPref(const char *pref_name)
             PL_DHashTableOperate(&gHashTable, pref_name, PL_DHASH_REMOVE);
         }
 
-        pref_DoCallback(pref_name);
+        if (gCallbacksEnabled)
+            pref_DoCallback(pref_name);
         gDirty = PR_TRUE;
         rv = NS_OK;
     }
@@ -593,7 +607,8 @@ pref_ClearUserPref(PLDHashTable *table, PLDHashEntryHdr *he, PRUint32,
             nextOp = PL_DHASH_REMOVE;
         }
 
-        pref_DoCallback(pref->key);
+        if (gCallbacksEnabled)
+            pref_DoCallback(pref->key);
     }
     return nextOp;
 }
@@ -624,7 +639,8 @@ nsresult PREF_LockPref(const char *key, PRBool lockit)
         {
             pref->flags |= PREF_LOCKED;
             gIsAnyPrefLocked = PR_TRUE;
-            pref_DoCallback(key);
+            if (gCallbacksEnabled)
+                pref_DoCallback(key);
         }
     }
     else
@@ -632,7 +648,8 @@ nsresult PREF_LockPref(const char *key, PRBool lockit)
         if (PREF_IS_LOCKED(pref))
         {
             pref->flags &= ~PREF_LOCKED;
-            pref_DoCallback(key);
+            if (gCallbacksEnabled)
+                pref_DoCallback(key);
         }
     }
     return NS_OK;
@@ -758,9 +775,15 @@ nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRBool s
     if (valueChanged) {
         gDirty = PR_TRUE;
 
-        nsresult rv2 = pref_DoCallback(key);
-        if (NS_FAILED(rv2))
-            rv = rv2;
+        if (gCallbacksEnabled) {
+            nsresult rv2 = pref_DoCallback(key);
+            if (NS_FAILED(rv2))
+                rv = rv2;
+        }
+#ifdef MOZ_PROFILESHARING
+        if (gSharedPrefHandler)
+            gSharedPrefHandler->OnPrefChanged(set_default, pref, value);
+#endif
     }
     return rv;
 }

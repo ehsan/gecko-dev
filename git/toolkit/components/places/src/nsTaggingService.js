@@ -39,9 +39,8 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
-const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const NH_CONTRACTID = "@mozilla.org/browser/nav-history-service;1";
 const BMS_CONTRACTID = "@mozilla.org/browser/nav-bookmarks-service;1";
@@ -56,14 +55,15 @@ var gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
  * The Places Tagging Service
  */
 function TaggingService() {
-  this._bms = Cc[BMS_CONTRACTID].getService(Ci.nsINavBookmarksService);
-  this._bms.addObserver(this, false);
-
-  this._obss = Cc[OBSS_CONTRACTID].getService(Ci.nsIObserverService);
-  this._obss.addObserver(this, "xpcom-shutdown", false);
 }
 
 TaggingService.prototype = {
+  get _bms() {
+    if (!this.__bms)
+      this.__bms = Cc[BMS_CONTRACTID].getService(Ci.nsINavBookmarksService);
+    return this.__bms;
+  },
+
   get _history() {
     if (!this.__history)
       this.__history = Cc[NH_CONTRACTID].getService(Ci.nsINavHistoryService);
@@ -76,6 +76,22 @@ TaggingService.prototype = {
     return this.__annos;
   },
 
+  get _tagsResult() {
+    if (!this.__tagsResult) {
+      var options = this._history.getNewQueryOptions();
+      var query = this._history.getNewQuery();
+      query.setFolders([this._bms.tagsFolder], 1);
+      this.__tagsResult = this._history.executeQuery(query, options);
+      this.__tagsResult.root.containerOpen = true;
+      this.__tagsResult.viewer = this;
+
+      // we need to null out the result on shutdown
+      var observerSvc = Cc[OBSS_CONTRACTID].getService(Ci.nsIObserverService);
+      observerSvc.addObserver(this, "xpcom-shutdown", false);
+    }
+    return this.__tagsResult;
+  },
+
   // Feed XPCOMUtils
   classDescription: "Places Tagging Service",
   contractID: "@mozilla.org/browser/tagging-service;1",
@@ -83,30 +99,29 @@ TaggingService.prototype = {
 
   // nsISupports
   QueryInterface: XPCOMUtils.generateQI([Ci.nsITaggingService,
-                                         Ci.nsINavBookmarkObserver,
                                          Ci.nsIObserver]),
 
   /**
-   * If there's no tag with the given name or id, null is returned;
+   * If there's no tag with the given name, null is returned;
    */
-  _getTagResult: function TS__getTagResult(aTagNameOrId) {
+  _getTagNode: function TS__getTagIndex(aTagNameOrId) {
     if (!aTagNameOrId)
       throw Cr.NS_ERROR_INVALID_ARG;
 
-    var tagId = null;
+    var nameLower = null;
     if (typeof(aTagNameOrId) == "string")
-      tagId = this._getItemIdForTag(aTagNameOrId);
-    else
-      tagId = aTagNameOrId;
+      nameLower = aTagNameOrId.toLowerCase();
 
-    if (tagId == -1)
-      return null;
+    var root = this._tagsResult.root;
+    var cc = root.childCount;
+    for (var i=0; i < cc; i++) {
+      var child = root.getChild(i);
+      if ((nameLower && child.title.toLowerCase() == nameLower) ||
+          child.itemId === aTagNameOrId)
+        return child;
+    }
 
-    var options = this._history.getNewQueryOptions();
-    var query = this._history.getNewQuery();
-    query.setFolders([tagId], 1);
-    var result = this._history.executeQuery(query, options);
-    return result;
+    return null;
   },
 
   /**
@@ -126,36 +141,23 @@ TaggingService.prototype = {
    *
    * @param [in] aURI
    *        url to check for
-   * @param [in] aTagName
-   *        the tag to check for
-   * @returns the item id if the URI is tagged with the given tag, -1
+   * @param [in] aTagId
+   *        id of the folder representing the tag to check
+   * @param [out] aItemId
+   *        the id of the item found under the tag container
+   * @returns true if the given uri is tagged with the given tag, false
    *          otherwise.
    */
-  _getItemIdForTaggedURI: function TS__getItemIdForTaggedURI(aURI, aTagName) {
-    var tagId = this._getItemIdForTag(aTagName);
-    if (tagId == -1)
-      return -1;
+  _isURITaggedInternal: function TS__uriTagged(aURI, aTagId, aItemId) {
     var bookmarkIds = this._bms.getBookmarkIdsForURI(aURI, {});
     for (var i=0; i < bookmarkIds.length; i++) {
       var parent = this._bms.getFolderIdForItem(bookmarkIds[i]);
-      if (parent == tagId)
-        return bookmarkIds[i];
+      if (parent == aTagId) {
+        aItemId.value = bookmarkIds[i];
+        return true;
+      }
     }
-    return -1;
-  },
-
-  /**
-   * Returns the folder id for a tag, or -1 if not found.
-   * @param [in] aTag
-   *        string tag to search for
-   * @returns integer id for the bookmark folder for the tag
-   */
-  _getItemIdForTag: function TS_getItemIdForTag(aTagName) {
-    for (var i in this._tagFolders) {
-      if (aTagName.toLowerCase() == this._tagFolders[i].toLowerCase())
-        return parseInt(i);
-    }
-    return -1;
+    return false;
   },
 
   // nsITaggingService
@@ -164,33 +166,24 @@ TaggingService.prototype = {
       throw Cr.NS_ERROR_INVALID_ARG;
 
     for (var i=0; i < aTags.length; i++) {
-      var tag = aTags[i];
-      var tagId = null;
-      if (typeof(tag) == "number") {
-        // is it a tag folder id?
-        if (this._tagFolders[tag]) {
-          tagId = tag;
-          tag = this._tagFolders[tagId];
-        }
-        else
+      var tagNode = this._getTagNode(aTags[i]);
+      if (!tagNode) {
+        if (typeof(aTags[i]) == "number")
           throw Cr.NS_ERROR_INVALID_ARG;
+
+        var tagId = this._createTag(aTags[i]);
+        this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
       }
       else {
-        tagId = this._getItemIdForTag(tag);
-        if (tagId == -1)
-          tagId = this._createTag(tag);
-      }
+        var tagId = tagNode.itemId;
+        if (!this._isURITaggedInternal(aURI, tagNode.itemId, {}))
+          this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
 
-      var itemId = this._getItemIdForTaggedURI(aURI, tag);
-      if (itemId == -1)
-        this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
-
-      // Rename the tag container so the Places view would match the
-      // most-recent user-typed values.
-      var currentTagTitle = this._bms.getItemTitle(tagId);
-      if (currentTagTitle != tag) {
-        this._bms.setItemTitle(tagId, tag);
-        this._tagFolders[tagId] = tag;
+        // _getTagNode ignores case sensitivity
+        // rename the tag container so the places view would match the
+        // user-typed values
+        if (typeof(aTags[i]) == "string" && tagNode.title != aTags[i])
+          this._bms.setItemTitle(tagNode.itemId, aTags[i]);
       }
     }
   },
@@ -202,16 +195,16 @@ TaggingService.prototype = {
    *        the item-id of the tag element under the tags root
    */
   _removeTagIfEmpty: function TS__removeTagIfEmpty(aTagId) {
-    var result = this._getTagResult(aTagId);
-    if (!result)
-      return;
-    var node = result.root;
-    node.QueryInterface(Ci.nsINavHistoryContainerResultNode);
-    node.containerOpen = true;
+    var node = this._getTagNode(aTagId).QueryInterface(Ci.nsINavHistoryContainerResultNode);
+    var wasOpen = node.containerOpen;
+    if (!wasOpen)
+      node.containerOpen = true;
     var cc = node.childCount;
-    node.containerOpen = false;
-    if (cc == 0)
+    if (wasOpen)
+      node.containerOpen = false;
+    if (cc == 0) {
       this._bms.removeFolder(node.itemId);
+    }
   },
 
   // nsITaggingService
@@ -226,27 +219,16 @@ TaggingService.prototype = {
     }
 
     for (var i=0; i < aTags.length; i++) {
-      var tag = aTags[i];
-      var tagId = null;
-      if (typeof(tag) == "number") {
-        // is it a tag folder id?
-        if (this._tagFolders[tag]) {
-          tagId = tag;
-          tag = this._tagFolders[tagId];
-        }
-        else
-          throw Cr.NS_ERROR_INVALID_ARG;
-      }
-      else
-        tagId = this._getItemIdForTag(tag);
-
-      if (tagId != -1) {
-        var itemId = this._getItemIdForTaggedURI(aURI, tag);
-        if (itemId != -1) {
-          this._bms.removeItem(itemId);
-          this._removeTagIfEmpty(tagId);
+      var tagNode = this._getTagNode(aTags[i]);
+      if (tagNode) {
+        var itemId = { };
+        if (this._isURITaggedInternal(aURI, tagNode.itemId, itemId)) {
+          this._bms.removeItem(itemId.value);
+          this._removeTagIfEmpty(tagNode.itemId);
         }
       }
+      else if (typeof(aTags[i]) == "number")
+        throw Cr.NS_ERROR_INVALID_ARG;
     }
   },
 
@@ -256,9 +238,8 @@ TaggingService.prototype = {
       throw Cr.NS_ERROR_INVALID_ARG;
 
     var uris = [];
-    var tagResult = this._getTagResult(aTag);
-    if (tagResult) {
-      var tagNode = tagResult.root;
+    var tagNode = this._getTagNode(aTag);
+    if (tagNode) {
       tagNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
       tagNode.containerOpen = true;
       var cc = tagNode.childCount;
@@ -282,10 +263,15 @@ TaggingService.prototype = {
 
     var tags = [];
     var bookmarkIds = this._bms.getBookmarkIdsForURI(aURI, {});
+    var root = this._tagsResult.root;
+    var cc = root.childCount;
     for (var i=0; i < bookmarkIds.length; i++) {
-      var folderId = this._bms.getFolderIdForItem(bookmarkIds[i]);
-      if (this._tagFolders[folderId])
-        tags.push(this._tagFolders[folderId]);
+      var parent = this._bms.getFolderIdForItem(bookmarkIds[i]);
+      for (var j=0; j < cc; j++) {
+        var child = root.getChild(j);
+        if (child.itemId == parent)
+          tags.push(child.title);
+      }
     }
 
     // sort the tag list
@@ -294,75 +280,48 @@ TaggingService.prototype = {
     return tags;
   },
 
-  __tagFolders: null, 
-  get _tagFolders() {
-    if (!this.__tagFolders) {
-      this.__tagFolders = [];
-      var options = this._history.getNewQueryOptions();
-      options.resultType = Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY;
-      options.expandQueries = 0;
-      var query = this._history.getNewQuery();
-      var tagsResult = this._history.executeQuery(query, options);
-      var root = tagsResult.root;
-      root.containerOpen = true;
-      var cc = root.childCount;
-      for (var i=0; i < cc; i++) {
-        var child = root.getChild(i);
-        this.__tagFolders[child.itemId] = child.title;
-      }
-      root.containerOpen = false;
-    }
-
-    return this.__tagFolders;
-  },
-
   // nsITaggingService
+  _allTags: null,
   get allTags() {
-    var allTags = [];
-    for (var i in this._tagFolders)
-      allTags.push(this._tagFolders[i]);
-    // sort the tag list
-    allTags.sort();
-    return allTags;
+    if (!this._allTags) {
+      this._allTags = [];
+      var root = this._tagsResult.root;
+      var cc = root.childCount;
+      for (var j=0; j < cc; j++) {
+        var child = root.getChild(j);
+        this._allTags.push(child.title);
+      }
+
+      // sort the tag list
+      this.allTags.sort();
+    }
+    return this._allTags;
   },
 
   // nsIObserver
   observe: function TS_observe(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown") {
-      this._bms.removeObserver(this);
-      this._obss.removeObserver(this, "xpcom-shutdown");
+      this.__tagsResult.root.containerOpen = false;
+      this.__tagsResult.viewer = null;
+      this.__tagsResult = null;
+      var observerSvc = Cc[OBSS_CONTRACTID].getService(Ci.nsIObserverService);
+      observerSvc.removeObserver(this, "xpcom-shutdown");
     }
   },
 
-  // boolean to indicate if we're in a batch
-  _inBatch: false,
-
-  // nsINavBookmarkObserver
-  onBeginUpdateBatch: function() {
-    this._inBatch = true;
-  },
-  onEndUpdateBatch: function() {
-    this._inBatch = false;
-  },
-  onItemAdded: function(aItemId, aFolderId, aIndex) {
-    if (aFolderId == this._bms.tagsFolder &&
-        this._bms.getItemType(aItemId) == this._bms.TYPE_FOLDER)
-      this._tagFolders[aItemId] = this._bms.getItemTitle(aItemId);
-  },
-  onItemRemoved: function(aItemId, aFolderId, aIndex){
-    if (aFolderId == this._bms.tagsFolder && this._tagFolders[aItemId])
-      delete this._tagFolders[aItemId];
-  },
-  onItemChanged: function(aItemId, aProperty, aIsAnnotationProperty, aValue){
-    if (this._tagFolders[aItemId])
-      this._tagFolders[aItemId] = this._bms.getItemTitle(aItemId);
-  },
-  onItemVisited: function(aItemId, aVisitID, time){},
-  onItemMoved: function(aItemId, aOldParent, aOldIndex, aNewParent, aNewIndex){
-    if (this._tagFolders[aItemId] && this._bms.tagFolder == aOldParent &&
-        this._bms.tagFolder != aNewParent)
-      delete this._tagFolders[aItemId];
-  }
+  // nsINavHistoryResultViewer
+  // Used to invalidate the cached tag list
+  itemInserted: function() this._allTags = null,
+  itemRemoved: function() this._allTags = null,
+  itemMoved: function() {},
+  itemChanged: function() {},
+  itemReplaced: function() {},
+  containerOpened: function() {},
+  containerClosed: function() {},
+  invalidateContainer: function() this._allTags = null,
+  invalidateAll: function() this._allTags = null,
+  sortingChanged: function() {},
+  result: null
 };
 
 // Implements nsIAutoCompleteResult

@@ -90,7 +90,6 @@ mozStorageConnection::mozStorageConnection(mozIStorageService* aService) :
 mozStorageConnection::~mozStorageConnection()
 {
     (void)Close();
-    nsAutoLock::DestroyLock(mAsyncExecutionMutex);
     nsAutoLock::DestroyLock(mTransactionMutex);
     nsAutoLock::DestroyLock(mFunctionsMutex);
     nsAutoLock::DestroyLock(mProgressHandlerMutex);
@@ -112,7 +111,6 @@ NS_IMETHODIMP
 mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
 {
     NS_ASSERTION (!mDBConn, "Initialize called on already opened database!");
-    NS_ENSURE_TRUE(mAsyncExecutionMutex, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_TRUE(mTransactionMutex, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_TRUE(mFunctionsMutex, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_TRUE(mProgressHandlerMutex, NS_ERROR_OUT_OF_MEMORY);
@@ -240,17 +238,6 @@ mozStorageConnection::Close()
         }
     }
 
-#ifdef DEBUG
-    // Notify about any non-finalized statements.
-    sqlite3_stmt *stmt = NULL;
-    while (stmt = sqlite3_next_stmt(mDBConn, stmt)) {
-        char *msg = PR_smprintf("SQL statement '%s' was not finalized",
-                                sqlite3_sql(stmt));
-        NS_WARNING(msg);
-        PR_smprintf_free(msg);
-    }
-#endif
-
     {
         nsAutoLock mutex(mProgressHandlerMutex);
         if (mProgressHandler)
@@ -259,7 +246,7 @@ mozStorageConnection::Close()
 
     int srv = sqlite3_close(mDBConn);
     if (srv != SQLITE_OK)
-        NS_WARNING("sqlite3_close failed. There are probably outstanding statements that are listed above!");
+        NS_WARNING("sqlite3_close failed. There are probably outstanding statements!");
 
     mDBConn = NULL;
     return ConvertResultCode(srv);

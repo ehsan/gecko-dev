@@ -802,7 +802,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
       // parent is not this because we are executing pullup code)
       if (aTracker) aTracker->Finish(aKidFrame);
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow);
     }
   }
   return result;
@@ -1106,8 +1106,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
  */
 void
 nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
-                                        nsIFrame*      aNextInFlow,
-                                        PRBool         aDeletingEmptyFrames)
+                                        nsIFrame*      aNextInFlow)
 {
 #ifdef DEBUG
   nsIFrame* prevInFlow = aNextInFlow->GetPrevInFlow();
@@ -1127,11 +1126,14 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     for (PRInt32 i = frames.Count() - 1; i >= 0; --i) {
       nsIFrame* delFrame = static_cast<nsIFrame*>(frames.ElementAt(i));
       static_cast<nsContainerFrame*>(delFrame->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, delFrame, aDeletingEmptyFrames);
+        ->DeleteNextInFlowChild(aPresContext, delFrame);
     }
   }
 
   aNextInFlow->Invalidate(aNextInFlow->GetOverflowRect());
+
+  // Disconnect the next-in-flow from the flow list
+  nsSplittableFrame::BreakFromPrevFlow(aNextInFlow);
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG
@@ -1140,8 +1142,7 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
 
-  // Delete the next-in-flow frame and its descendants. This will also
-  // remove it from its next-in-flow/prev-in-flow chain.
+  // Delete the next-in-flow frame and its descendants.
   aNextInFlow->Destroy();
 
   NS_POSTCONDITION(!prevInFlow->GetNextInFlow(), "non null next-in-flow");

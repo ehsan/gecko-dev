@@ -145,7 +145,12 @@ NS_IMETHODIMP
 nsSVGDisplayContainerFrame::RemoveFrame(nsIAtom* aListName,
                                         nsIFrame* aOldFrame)
 {
-  nsSVGUtils::InvalidateCoveredRegion(aOldFrame);
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+    nsSVGOuterSVGFrame* outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+    NS_ASSERTION(outerSVGFrame, "no outer svg frame");
+    if (outerSVGFrame)
+      outerSVGFrame->InvalidateCoveredRegion(aOldFrame);
+  }
 
   nsresult rv = nsSVGContainerFrame::RemoveFrame(aListName, aOldFrame);
 

@@ -236,30 +236,8 @@ nsGeolocationRequest::Cancel()
 NS_IMETHODIMP
 nsGeolocationRequest::Allow()
 {
-  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
-
-  // check to see if we can use a cached value
-  PRUint32 maximumAge;
-  if (mOptions && NS_SUCCEEDED(mOptions->GetMaximumAge(&maximumAge)) && maximumAge != 0) {
-    nsCOMPtr<nsIDOMGeoPosition> lastPosition = geoService->GetCachedPosition();
-    DOMTimeStamp cachedPositionTime;
-    lastPosition->GetTimestamp(&cachedPositionTime);
-    
-    if ( PR_Now() - maximumAge >= cachedPositionTime )
-    {
-      // okay, we can return a cached position
-      mAllowed = PR_TRUE;
-
-      // send the cached location
-      SendLocation(lastPosition);
-      
-      // remove ourselves from the locators callback lists.
-      mLocator->RemoveRequest(this);
-    }
-
-  }
-
   // Kick off the geo device, if it isn't already running
+  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
   nsresult rv = geoService->StartDevice();
   
   if (NS_FAILED(rv)) {
@@ -273,7 +251,6 @@ nsGeolocationRequest::Allow()
       mTimeoutTimer = do_CreateInstance("@mozilla.org/timer;1");
       mTimeoutTimer->InitWithCallback(this, timeout, nsITimer::TYPE_ONE_SHOT);
   }
-
 
   mAllowed = PR_TRUE;
   return NS_OK;
@@ -400,19 +377,6 @@ nsGeolocationService::Update(nsIDOMGeoPosition *aSomewhere)
   for (PRUint32 i = 0; i< mGeolocators.Length(); i++)
     mGeolocators[i]->Update(aSomewhere);
   return NS_OK;
-}
-
-
-void
-nsGeolocationService::SetCachedPosition(nsIDOMGeoPosition* aPosition)
-{
-  mLastPosition = aPosition;
-}
-
-nsIDOMGeoPosition*
-nsGeolocationService::GetCachedPosition()
-{
-  return mLastPosition;
 }
 
 PRBool
@@ -599,14 +563,6 @@ nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere)
     return;
 
   mUpdateInProgress = PR_TRUE;
-
-  if (!aSomewhere)
-  {
-    nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
-    geoService->SetCachedPosition(aSomewhere);
-  }
-
-
   if (!OwnerStillExists())
   {
     Shutdown();
@@ -623,6 +579,15 @@ nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere)
     mWatchingCallbacks[i]->SendLocation(aSomewhere);
 
   mUpdateInProgress = PR_FALSE;
+}
+
+NS_IMETHODIMP
+nsGeolocation::GetLastPosition(nsIDOMGeoPosition * *aLastPosition)
+{
+  // we are advocating that this method be removed.
+  NS_ENSURE_ARG_POINTER(aLastPosition);
+  *aLastPosition = nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -40,7 +40,6 @@ include moz-only/reftest.list
 == dynamic-text-03.svg dynamic-text-03-ref.svg
 == dynamic-textPath-01.svg dynamic-textPath-01-ref.svg
 == dynamic-use-01.svg pass.svg
-== dynamic-use-02.svg pass.svg
 == use-01-extref.svg pass.svg
 == use-02-extref.svg use-02-extref-ref.svg
 == fallback-color-01a.svg pass.svg
@@ -54,7 +53,6 @@ include moz-only/reftest.list
 == filter-foreignObject-01.svg pass.svg
 == filter-translated-01.svg filter-translated-01-ref.svg
 == foreignObject-01.svg pass.svg
-== foreignObject-02.svg foreignObject-02-ref.svg
 == foreignObject-ancestor-style-change-01.svg foreignObject-ancestor-style-change-01-ref.svg
 == foreignObject-change-transform-01.svg pass.svg
 == foreignObject-display-01.svg pass.svg

@@ -379,10 +379,7 @@ nsWaveStateMachine::Seek(float aTime)
 {
   nsAutoMonitor monitor(mMonitor);
   mNextState = mState;
-  mTimeOffset = NS_MIN(aTime, BytesToTime(mWaveLength));
-  if (mTimeOffset < 0.0) {
-    mTimeOffset = 0.0;
-  }
+  mTimeOffset = aTime;
   ChangeState(STATE_SEEKING);
 }
 
@@ -573,7 +570,6 @@ nsWaveStateMachine::Run()
         }
 
         PRInt64 position = RoundDownToSample(TimeToBytes(mTimeOffset)) + mWavePCMOffset;
-        NS_ABORT_IF_FALSE(position >= 0 && position <= mWaveLength + mWavePCMOffset, "Invalid seek position");
 
         monitor.Exit();
         nsresult rv = mStream->Seek(nsISeekableStream::NS_SEEK_SET, position);
@@ -610,7 +606,7 @@ nsWaveStateMachine::Run()
         monitor.Exit();
         mAudioStream->Drain();
         monitor.Enter();
-        mTimeOffset += mAudioStream->GetTime();
+        mTimeOffset = mAudioStream->GetTime();
       }
 
       // Dispose the audio stream early (before SHUTDOWN) so that
@@ -639,7 +635,7 @@ nsWaveStateMachine::Run()
 
     case STATE_SHUTDOWN:
       if (mAudioStream) {
-        mTimeOffset += mAudioStream->GetTime();
+        mTimeOffset = mAudioStream->GetTime();
       }
       CloseAudioStream();
       return NS_OK;
@@ -955,7 +951,7 @@ nsWaveDecoder::GetCurrentTime()
 nsresult
 nsWaveDecoder::Seek(float aTime)
 {
-  if (mPlaybackStateMachine) {
+  if (mPlaybackStateMachine && aTime >= 0.0) {
     mPlaybackStateMachine->Seek(aTime);
     return NS_OK;
   }
@@ -1021,12 +1017,6 @@ nsWaveDecoder::Play()
 void
 nsWaveDecoder::Stop()
 {
-  if (mStopping) {
-    return;
-  }
-
-  mStopping = PR_TRUE;
-
   StopProgress();
 
   if (mPlaybackStateMachine) {
@@ -1053,8 +1043,6 @@ nsWaveDecoder::Stop()
 nsresult
 nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStreamListener)
 {
-  mStopping = PR_FALSE;
-
   if (aStreamListener) {
     *aStreamListener = nsnull;
   }
@@ -1094,10 +1082,6 @@ nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStr
 void
 nsWaveDecoder::MetadataLoaded()
 {
-  if (mShuttingDown) {
-    return;
-  }
-
   if (mElement) {
     mElement->MetadataLoaded();
     mElement->FirstFrameLoaded();
@@ -1107,10 +1091,6 @@ nsWaveDecoder::MetadataLoaded()
 void
 nsWaveDecoder::PlaybackEnded()
 {
-  if (mShuttingDown) {
-    return;
-  }
-
   Stop();
   if (mElement) {
     mElement->PlaybackEnded();
@@ -1120,9 +1100,6 @@ nsWaveDecoder::PlaybackEnded()
 void
 nsWaveDecoder::ResourceLoaded()
 {
-  if (mShuttingDown) {
-    return;
-  }
   if (mElement) {
     mElement->ResourceLoaded();
   }
@@ -1135,9 +1112,6 @@ nsWaveDecoder::ResourceLoaded()
 void
 nsWaveDecoder::NetworkError()
 {
-  if (mShuttingDown) {
-    return;
-  }
   if (mElement) {
     mElement->NetworkError();
   }
@@ -1207,8 +1181,6 @@ private:
 void
 nsWaveDecoder::Shutdown()
 {
-  mShuttingDown = PR_TRUE;
-
   nsMediaDecoder::Shutdown();
 
   nsCOMPtr<nsIRunnable> event = new nsWaveDecoderShutdown(this);
@@ -1227,10 +1199,6 @@ nsWaveDecoder::Observe(nsISupports* aSubject, const char* aTopic, const PRUnicha
 void
 nsWaveDecoder::BufferingStarted()
 {
-  if (mShuttingDown) {
-    return;
-  }
-
   if (mElement) {
     mElement->ChangeReadyState(nsIDOMHTMLMediaElement::DATA_UNAVAILABLE);
   }
@@ -1239,10 +1207,6 @@ nsWaveDecoder::BufferingStarted()
 void
 nsWaveDecoder::BufferingStopped()
 {
-  if (mShuttingDown) {
-    return;
-  }
-
   if (mElement) {
     mElement->ChangeReadyState(nsIDOMHTMLMediaElement::CAN_SHOW_CURRENT_FRAME);
   }
@@ -1251,10 +1215,6 @@ nsWaveDecoder::BufferingStopped()
 void
 nsWaveDecoder::SeekingStarted()
 {
-  if (mShuttingDown) {
-    return;
-  }
-
   if (mElement) {
     mElement->SeekStarted();
   }
@@ -1263,10 +1223,6 @@ nsWaveDecoder::SeekingStarted()
 void
 nsWaveDecoder::SeekingStopped()
 {
-  if (mShuttingDown) {
-    return;
-  }
-
   if (mElement) {
     mElement->SeekCompleted();
   }
@@ -1305,9 +1261,6 @@ nsWaveDecoder::UnregisterShutdownObserver()
 void
 nsWaveDecoder::MediaErrorDecode()
 {
-  if (mShuttingDown) {
-    return;
-  }
 #if 0
   if (mElement) {
     mElement->MediaErrorDecode();

@@ -585,8 +585,6 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
     switch(mEditor->mNewlineHandling)
     {
     case nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
-      // Strip trailing newlines first so we don't wind up with trailing spaces
-      tString.Trim(CRLF, PR_FALSE, PR_TRUE);
       tString.ReplaceChar(CRLF, ' ');
       break;
     case nsIPlaintextEditor::eNewlinesStrip:
@@ -888,9 +886,6 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
 
   if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
   {
-    res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
-    NS_ENSURE_SUCCESS(res, res);
-
     // manage the password buffer
     PRUint32 start, end;
     mEditor->GetTextSelectionOffsets(aSelection, start, end);
@@ -921,22 +916,25 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
     res = aSelection->GetIsCollapsed(&bCollapsed);
     if (NS_FAILED(res)) return res;
   
-    if (!bCollapsed) return NS_OK;
+    if (bCollapsed)
+    {
+      // Test for distance between caret and text that will be deleted
+      res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);
+      if (NS_FAILED(res)) return res;
+      if (*aCancel) return NS_OK;
 
-    // Test for distance between caret and text that will be deleted
-    res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);
-    if (NS_FAILED(res)) return res;
-    if (*aCancel) return NS_OK;
+      res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
+      NS_ENSURE_SUCCESS(res, res);
 
-    res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
-    NS_ENSURE_SUCCESS(res, res);
+      res = mEditor->DeleteSelectionImpl(aCollapsedAction);
+      NS_ENSURE_SUCCESS(res, res);
+
+      *aHandled = PR_TRUE;
+      return NS_OK;
+    }
   }
 
-  res = mEditor->DeleteSelectionImpl(aCollapsedAction);
-  NS_ENSURE_SUCCESS(res, res);
-
-  *aHandled = PR_TRUE;
-  return NS_OK;
+  return res;
 }
 
 nsresult

@@ -216,6 +216,7 @@ function startupEM()
                   .getService(Components.interfaces.nsIExtensionManager);
   
   gEM.QueryInterface(Components.interfaces.nsIObserver);
+  gEM.observe(null, "app-startup", null);
   gEM.observe(null, "profile-after-change", "startup");
 
   // First run is a new profile which nsAppRunner would consider as an update

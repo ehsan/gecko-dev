@@ -42,11 +42,15 @@
 #pragma pack(1)
 #endif
 
+#ifndef GENERATINGCFM
+#define GENERATINGCFM 0
+#endif
+
 #include "npapi.h"
 #include "npruntime.h"
 
-typedef void         (*NPP_InitializeProcPtr)();
-typedef void         (*NPP_ShutdownProcPtr)();
+typedef void         (*NPP_InitializeProcPtr)(void);
+typedef void         (*NPP_ShutdownProcPtr)(void);
 typedef NPError      (*NPP_NewProcPtr)(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* argn[], char* argv[], NPSavedData* saved);
 typedef NPError      (*NPP_DestroyProcPtr)(NPP instance, NPSavedData** save);
 typedef NPError      (*NPP_SetWindowProcPtr)(NPP instance, NPWindow* window);
@@ -77,7 +81,7 @@ typedef void*        (*NPN_MemAllocProcPtr)(uint32_t size);
 typedef void         (*NPN_MemFreeProcPtr)(void* ptr);
 typedef uint32_t     (*NPN_MemFlushProcPtr)(uint32_t size);
 typedef void         (*NPN_ReloadPluginsProcPtr)(NPBool reloadPages);
-typedef void*        (*NPN_GetJavaEnvProcPtr)();
+typedef void*        (*NPN_GetJavaEnvProcPtr)(void);
 typedef void*        (*NPN_GetJavaPeerProcPtr)(NPP instance);
 typedef void         (*NPN_InvalidateRectProcPtr)(NPP instance, NPRect *rect);
 typedef void         (*NPN_InvalidateRegionProcPtr)(NPP instance, NPRegion region);
@@ -177,6 +181,8 @@ typedef struct _NPNetscapeFuncs {
 } NPNetscapeFuncs;
 
 #ifdef XP_MACOSX
+/* Don't use this, it is going away. */
+typedef NPError (* NPP_MainEntryProcPtr)(NPNetscapeFuncs*, NPPluginFuncs*, NPP_ShutdownProcPtr*);
 /*
  * Mac OS X version(s) of NP_GetMIMEDescription(const char *)
  * These can be called to retreive MIME information from the plugin dynamically
@@ -257,15 +263,10 @@ char*          NP_GetMIMEDescription();
 #ifdef __cplusplus
 extern "C" {
 #endif
-NP_EXPORT(char*)   NP_GetPluginVersion();
-NP_EXPORT(char*)   NP_GetMIMEDescription();
-#ifdef XP_MACOSX
-NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs);
-NP_EXPORT(NPError) NP_GetEntryPoints(NPPluginFuncs* pFuncs);
-#else
-NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs);
-#endif
-NP_EXPORT(NPError) NP_Shutdown();
+NP_EXPORT(char*)   NP_GetPluginVersion(void);
+NP_EXPORT(char*)   NP_GetMIMEDescription(void);
+NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs*, NPPluginFuncs*);
+NP_EXPORT(NPError) NP_Shutdown(void);
 NP_EXPORT(NPError) NP_GetValue(void *future, NPPVariable aVariable, void *aValue);
 #ifdef __cplusplus
 }

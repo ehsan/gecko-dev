@@ -43,7 +43,6 @@
 #include <algorithm>
 
 #include <functional>
-#include <list>
 #include <vector>
 #include <string.h>
 
@@ -76,8 +75,6 @@ struct LineInfo {
   int source_id;
 };
 
-typedef std::list<struct LineInfo> LineInfoList;
-
 // Information of a function.
 struct FuncInfo {
   // Name of the function.
@@ -96,10 +93,8 @@ struct FuncInfo {
   // Is there any lines included from other files?
   bool has_sol;
   // Line information array.
-  LineInfoList line_info;
+  std::vector<struct LineInfo> line_info;
 };
-
-typedef std::list<struct FuncInfo> FuncInfoList;
 
 // Information of a source file.
 struct SourceFileInfo {
@@ -112,15 +107,13 @@ struct SourceFileInfo {
   // Id of the source file.
   int source_id;
   // Functions information.
-  FuncInfoList func_info;
+  std::vector<struct FuncInfo> func_info;
 };
-
-typedef std::list<struct SourceFileInfo> SourceFileInfoList;
 
 // Information of a symbol table.
 // This is the root of all types of symbol.
 struct SymbolInfo {
-  SourceFileInfoList source_file_info;
+  std::vector<struct SourceFileInfo> source_file_info;
 
   // The next source id for newly found source file.
   int next_source_id;
@@ -277,6 +270,7 @@ static int LoadFuncSymbols(struct nlist *list,
   struct nlist *cur_list = list;
   assert(cur_list->n_type == N_SO);
   ++cur_list;
+
   source_file_info->func_info.clear();
   while (cur_list < list_end) {
     // Go until the function symbol.
@@ -289,15 +283,11 @@ static int LoadFuncSymbols(struct nlist *list,
     }
     if (cur_list->n_type == N_FUN) {
       struct FuncInfo func_info;
+      memset(&func_info, 0, sizeof(func_info));
       func_info.name =
         reinterpret_cast<char *>(cur_list->n_un.n_strx +
                                  stabstr_section->sh_offset);
       func_info.addr = cur_list->n_value;
-      func_info.rva_to_base = 0;
-      func_info.size = 0;
-      func_info.stack_param_size = 0;
-      func_info.has_sol = 0;
-
       // Stack parameter size.
       cur_list += LoadStackParamSize(cur_list, list_end, &func_info);
       // Line info.
@@ -305,7 +295,6 @@ static int LoadFuncSymbols(struct nlist *list,
                                list_end,
                                *source_file_info,
                                &func_info);
-
       // Functions in this module should have address bigger than the module
       // startring address.
       // There maybe a lot of duplicated entry for a function in the symbol,
@@ -328,15 +317,12 @@ static bool CompareAddress(T1 *a, T2 *b) {
 // Sort the array into increasing ordered array based on the virtual address.
 // Return vector of pointers to the elements in the incoming array. So caller
 // should make sure the returned vector lives longer than the incoming vector.
-template<class Container>
-static std::vector<typename Container::value_type *> SortByAddress(
-    Container *container) {
-  typedef typename Container::iterator It;
-  typedef typename Container::value_type T;
+template<class T>
+static std::vector<T *> SortByAddress(std::vector<T> *array) {
   std::vector<T *> sorted_array_ptr;
-  sorted_array_ptr.reserve(container->size());
-  for (It it = container->begin(); it != container->end(); it++)
-    sorted_array_ptr.push_back(&(*it));
+  sorted_array_ptr.reserve(array->size());
+  for (size_t i = 0; i < array->size(); ++i)
+    sorted_array_ptr.push_back(&(array->at(i)));
   std::sort(sorted_array_ptr.begin(),
             sorted_array_ptr.end(),
             std::ptr_fun(CompareAddress<T, T>));
@@ -380,11 +366,10 @@ static ElfW(Addr) NextAddress(
 }
 
 static int FindFileByNameIdx(uint32_t name_index,
-                             SourceFileInfoList &files) {
-  for (SourceFileInfoList::iterator it = files.begin();
-       it != files.end(); it++) {
-    if (it->name_index == name_index)
-      return it->source_id;
+                             const std::vector<SourceFileInfo> &files) {
+  for (size_t i = 0; i < files.size(); ++i) {
+    if (files[i].name_index == name_index)
+      return files[i].source_id;
   }
 
   return -1;
@@ -394,21 +379,16 @@ static int FindFileByNameIdx(uint32_t name_index,
 // Also fix the source id for the line info.
 static void AddIncludedFiles(struct SymbolInfo *symbols,
                              const ElfW(Shdr) *stabstr_section) {
-  for (SourceFileInfoList::iterator source_file_it =
-	 symbols->source_file_info.begin();
-       source_file_it != symbols->source_file_info.end();
-       ++source_file_it) {
-    struct SourceFileInfo &source_file = *source_file_it;
+  size_t source_file_size = symbols->source_file_info.size();
 
-    for (FuncInfoList::iterator func_info_it = source_file.func_info.begin(); 
-	 func_info_it != source_file.func_info.end();
-	 ++func_info_it) {
-      struct FuncInfo &func_info = *func_info_it;
+  for (size_t i = 0; i < source_file_size; ++i) {
+    struct SourceFileInfo &source_file = symbols->source_file_info[i];
 
-      for (LineInfoList::iterator line_info_it = func_info.line_info.begin(); 
-	   line_info_it != func_info.line_info.end(); ++line_info_it) {
-        struct LineInfo &line_info = *line_info_it;
+    for (size_t j = 0; j < source_file.func_info.size(); ++j) {
+      struct FuncInfo &func_info = source_file.func_info[j];
 
+      for (size_t k = 0; k < func_info.line_info.size(); ++k) {
+        struct LineInfo &line_info = func_info.line_info[k];
         assert(line_info.source_name_index > 0);
         assert(source_file.name_index > 0);
 
@@ -496,15 +476,12 @@ static bool ComputeSizeAndRVA(ElfW(Addr) loading_addr,
         func_info.size = kDefaultSize;
       }
       // Compute line size.
-      for (LineInfoList::iterator line_info_it = func_info.line_info.begin(); 
-	   line_info_it != func_info.line_info.end(); line_info_it++) {
-        struct LineInfo &line_info = *line_info_it;
-	LineInfoList::iterator next_line_info_it = line_info_it;
-	next_line_info_it++;
+      for (size_t k = 0; k < func_info.line_info.size(); ++k) {
+        struct LineInfo &line_info = func_info.line_info[k];
         line_info.size = 0;
-        if (next_line_info_it != func_info.line_info.end()) {
+        if (k + 1 < func_info.line_info.size()) {
           line_info.size =
-            next_line_info_it->rva_to_func - line_info.rva_to_func;
+            func_info.line_info[k + 1].rva_to_func - line_info.rva_to_func;
         } else {
           // The last line in the function.
           // If we can find a function or source file symbol immediately
@@ -628,12 +605,11 @@ static bool WriteModuleInfo(int fd,
 }
 
 static bool WriteSourceFileInfo(int fd, const struct SymbolInfo &symbols) {
-  for (SourceFileInfoList::const_iterator it =
-	 symbols.source_file_info.begin();
-       it != symbols.source_file_info.end(); it++) {
-    if (it->source_id != -1) {
-      const char *name = it->name;
-      if (!WriteFormat(fd, "FILE %d %s\n", it->source_id, name))
+  for (size_t i = 0; i < symbols.source_file_info.size(); ++i) {
+    if (symbols.source_file_info[i].source_id != -1) {
+      const char *name = symbols.source_file_info[i].name;
+      if (!WriteFormat(fd, "FILE %d %s\n",
+                       symbols.source_file_info[i].source_id, name))
         return false;
     }
   }
@@ -657,9 +633,8 @@ static bool WriteOneFunction(int fd,
                   func_info.size,
                   func_info.stack_param_size,
                   func_name.c_str())) {
-    for (LineInfoList::const_iterator it = func_info.line_info.begin();
-	 it != func_info.line_info.end(); it++) {
-      const struct LineInfo &line_info = *it;
+    for (size_t i = 0; i < func_info.line_info.size(); ++i) {
+      const struct LineInfo &line_info = func_info.line_info[i];
       if (!WriteFormat(fd, "%lx %lx %d %d\n",
                        line_info.rva_to_base,
                        line_info.size,
@@ -673,13 +648,10 @@ static bool WriteOneFunction(int fd,
 }
 
 static bool WriteFunctionInfo(int fd, const struct SymbolInfo &symbols) {
-  for (SourceFileInfoList::const_iterator it =
-	 symbols.source_file_info.begin();
-       it != symbols.source_file_info.end(); it++) {
-    const struct SourceFileInfo &file_info = *it;
-    for (FuncInfoList::const_iterator fiIt = file_info.func_info.begin(); 
-	 fiIt != file_info.func_info.end(); fiIt++) {
-      const struct FuncInfo &func_info = *fiIt;
+  for (size_t i = 0; i < symbols.source_file_info.size(); ++i) {
+    const struct SourceFileInfo &file_info = symbols.source_file_info[i];
+    for (size_t j = 0; j < file_info.func_info.size(); ++j) {
+      const struct FuncInfo &func_info = file_info.func_info[j];
       if (!WriteOneFunction(fd, func_info))
         return false;
     }

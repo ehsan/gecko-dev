@@ -1242,10 +1242,7 @@ nsFrameConstructorState::nsFrameConstructorState(nsIPresShell*          aPresShe
     mFloatedItems(aFloatContainingBlock),
     mFirstLetterStyle(PR_FALSE),
     mFirstLineStyle(PR_FALSE),
-    // See PushAbsoluteContaningBlock below
-    mFixedPosIsAbsPos(aAbsoluteContainingBlock &&
-                      aAbsoluteContainingBlock->GetStyleDisplay()->
-                        HasTransform()),
+    mFixedPosIsAbsPos(PR_FALSE),
     mFrameState(aHistoryState),
     mPseudoFrames(),
     mAdditionalStateBits(0)
@@ -1269,10 +1266,7 @@ nsFrameConstructorState::nsFrameConstructorState(nsIPresShell* aPresShell,
     mFloatedItems(aFloatContainingBlock),
     mFirstLetterStyle(PR_FALSE),
     mFirstLineStyle(PR_FALSE),
-    // See PushAbsoluteContaningBlock below
-    mFixedPosIsAbsPos(aAbsoluteContainingBlock &&
-                      aAbsoluteContainingBlock->GetStyleDisplay()->
-                        HasTransform()),
+    mFixedPosIsAbsPos(PR_FALSE),
     mPseudoFrames(),
     mAdditionalStateBits(0)
 {
@@ -1788,11 +1782,7 @@ GetChildListNameFor(nsIFrame*       aChildFrame)
     if (NS_STYLE_POSITION_ABSOLUTE == disp->mPosition) {
       listName = nsGkAtoms::absoluteList;
     } else if (NS_STYLE_POSITION_FIXED == disp->mPosition) {
-      if (nsLayoutUtils::IsReallyFixedPos(aChildFrame)) {
-        listName = nsGkAtoms::fixedList;
-      } else {
-        listName = nsGkAtoms::absoluteList;
-      }
+      listName = nsGkAtoms::fixedList;
 #ifdef MOZ_XUL
     } else if (NS_STYLE_DISPLAY_POPUP == disp->mDisplay) {
       // Out-of-flows that are DISPLAY_POPUP must be kids of the root popup set
@@ -1859,8 +1849,6 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mIsDestroyingFrameTree(PR_FALSE)
   , mRebuildAllStyleData(PR_FALSE)
   , mHasRootAbsPosContainingBlock(PR_FALSE)
-  , mHoverGeneration(0)
-  , mRebuildAllExtraHint(nsChangeHint(0))
 {
   if (!gGotXBLFormPrefs) {
     gGotXBLFormPrefs = PR_TRUE;
@@ -7691,27 +7679,20 @@ nsCSSFrameConstructor::ReconstructDocElementHierarchyInternal()
             return rv;
           }
         }
-      }
-    }
-    
-    if (rootContent && NS_SUCCEEDED(rv)) {
-      mInitialContainingBlock = nsnull;
-      mRootElementStyleFrame = nsnull;
+        
+        mInitialContainingBlock = nsnull;
+        mRootElementStyleFrame = nsnull;
 
-      // We don't reuse the old frame constructor state because,
-      // for example, its mPopupItems may be stale
-      nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
-                                    nsnull, nsnull, mTempFrameTreeState);
+        // Create the new document element hierarchy
+        nsIFrame* newChild;
+        rv = ConstructDocElementFrame(state, rootContent,
+                                      mDocElementContainingBlock, &newChild);
 
-      // Create the new document element hierarchy
-      nsIFrame* newChild;
-      rv = ConstructDocElementFrame(state, rootContent,
-                                    mDocElementContainingBlock, &newChild);
-
-      // newChild could be null even if |rv| is success, thanks to XBL.
-      if (NS_SUCCEEDED(rv) && newChild) {
-        rv = state.mFrameManager->InsertFrames(mDocElementContainingBlock,
-                                               nsnull, nsnull, newChild);
+        // newChild could be null even if |rv| is success, thanks to XBL.
+        if (NS_SUCCEEDED(rv) && newChild) {
+          rv = state.mFrameManager->InsertFrames(mDocElementContainingBlock,
+                                                 nsnull, nsnull, newChild);
+        }
       }
     }
   }
@@ -9142,33 +9123,6 @@ nsCSSFrameConstructor::ReinsertContent(nsIContent* aContainer,
   return res;
 }
 
-static void
-DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
-                       nsVoidArray&    aDestroyQueue,
-                       nsIFrame*       aRemovedFrame,
-                       nsIFrame*       aFrame);
-
-static void
-DoDeletingOverflowContainers(nsFrameManager* aFrameManager,
-                             nsVoidArray&    aDestroyQueue,
-                             nsIFrame*       aRemovedFrame,
-                             nsIFrame*       aFrame)
-{
-  // The invariant that "continuing frames should be found as part of the
-  // walk over the top-most frame's continuing frames" does not hold for
-  // out-of-flow overflow containers, so we need to walk them too.
-  // Note that DoDeletingFrameSubtree() skips the child lists where
-  // overflow containers live so we won't process them twice.
-  const PRBool orphanSubtree = aRemovedFrame == aFrame;
-  for (nsIFrame* next = aFrame->GetNextContinuation();
-       next && (next->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER);
-       next = next->GetNextContinuation()) {
-    DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
-                           orphanSubtree ? next : aRemovedFrame,
-                           next);
-  }
-}
-
 /**
  * Called when a frame subtree is about to be deleted. Two important
  * things happen:
@@ -9192,17 +9146,12 @@ DoDeletingOverflowContainers(nsFrameManager* aFrameManager,
  *            the same as aRemovedFrame, but as we recurse down the tree
  *            this changes
  */
-static void
+static nsresult
 DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
                        nsVoidArray&    aDestroyQueue,
                        nsIFrame*       aRemovedFrame,
                        nsIFrame*       aFrame)
 {
-#undef RECURSE
-#define RECURSE(top, child)                                                  \
-  DoDeletingFrameSubtree(aFrameManager, aDestroyQueue, (top), (child));      \
-  DoDeletingOverflowContainers(aFrameManager, aDestroyQueue, (top), (child));
-
   // Remove the mapping from the content object to its frame.
   nsIContent* content = aFrame->GetContent();
   if (content) {
@@ -9217,10 +9166,10 @@ DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
     // Walk aFrame's normal flow child frames looking for placeholder frames.
     nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
     for (; childFrame; childFrame = childFrame->GetNextSibling()) {
-      NS_ASSERTION(!(childFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW),
-                   "out-of-flow on wrong child list");
       if (NS_LIKELY(nsGkAtoms::placeholderFrame != childFrame->GetType())) {
-        RECURSE(aRemovedFrame, childFrame);
+        DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
+                               aRemovedFrame, childFrame);
+
       } else {
         nsIFrame* outOfFlowFrame =
           nsPlaceholderFrame::GetRealFrameForPlaceholder(childFrame);
@@ -9240,25 +9189,26 @@ DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
                        "out-of-flow is already in the destroy queue");
           aDestroyQueue.AppendElement(outOfFlowFrame);
           // Recurse into the out-of-flow, it is now the aRemovedFrame.
-          RECURSE(outOfFlowFrame, outOfFlowFrame);
+          DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
+                                 outOfFlowFrame, outOfFlowFrame);
         }
         else {
           // Also recurse into the out-of-flow when it's a descendant of aRemovedFrame
           // since we don't walk those lists, see |childListName| increment below.
-          RECURSE(aRemovedFrame, outOfFlowFrame);
+          DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
+                                 aRemovedFrame, outOfFlowFrame);
         }
       }
     }
 
     // Move to next child list but skip lists with frames we should have
-    // a placeholder for or that contains only next-in-flow overflow containers
-    // (which we walk explicitly above).
+    // a placeholder for.
     do {
       childListName = aFrame->GetAdditionalChildListName(childListIndex++);
-    } while (IsOutOfFlowList(childListName) ||
-             childListName == nsGkAtoms::overflowContainersList ||
-             childListName == nsGkAtoms::excessOverflowContainersList);
+    } while (IsOutOfFlowList(childListName));
   } while (childListName);
+
+  return NS_OK;
 }
 
 /**
@@ -9292,10 +9242,6 @@ DeletingFrameSubtree(nsFrameManager* aFrameManager,
     // recursing over a subtree, because those continuing frames should be
     // found as part of the walk over the top-most frame's continuing frames.
     // Walking them again will make this an N^2/2 algorithm.
-    // The above is true for normal child next-in-flows but not overflow
-    // containers which we do walk because they *can* escape the subtree
-    // we're deleting.  We skip [excess]overflowContainersList where
-    // they live to avoid processing them more than once.
     aFrame = aFrame->GetNextContinuation();
   } while (aFrame);
 
@@ -9378,9 +9324,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
   nsIFrame* childFrame =
     mPresShell->FrameManager()->GetPrimaryFrameFor(aChild, aIndexInContainer);
 
-  if (!childFrame || childFrame->GetContent() != aChild) {
-    // XXXbz the GetContent() != aChild check is needed due to bug 135040.
-    // Remove it once that's fixed.
+  if (! childFrame) {
     frameManager->ClearUndisplayedContentIn(aChild, aContainer);
   }
 
@@ -9465,9 +9409,7 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
 
       // Recover childFrame and parentFrame
       childFrame = mPresShell->GetPrimaryFrameFor(aChild);
-      if (!childFrame || childFrame->GetContent() != aChild) {
-        // XXXbz the GetContent() != aChild check is needed due to bug 135040.
-        // Remove it once that's fixed.
+      if (!childFrame) {
         frameManager->ClearUndisplayedContentIn(aChild, aContainer);
         return NS_OK;
       }
@@ -9888,14 +9830,6 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     nsIContent* content;
     nsChangeHint hint;
     aChangeList.ChangeAt(index, frame, content, hint);
-    if (frame && frame->GetContent() != content) {
-      // XXXbz this is due to image maps messing with the primary frame map.
-      // See bug 135040.  Remove this block once that's fixed.
-      frame = nsnull;
-      if (!(hint & nsChangeHint_ReconstructFrame)) {
-        continue;
-      }
-    }
 
     // skip any frame that has been destroyed due to a ripple effect
     if (frame) {
@@ -9968,11 +9902,6 @@ nsCSSFrameConstructor::RestyleElement(nsIContent     *aContent,
 {
   NS_ASSERTION(aPrimaryFrame == mPresShell->GetPrimaryFrameFor(aContent),
                "frame/content mismatch");
-  if (aPrimaryFrame && aPrimaryFrame->GetContent() != aContent) {
-    // XXXbz this is due to image maps messing with the primary frame mapping.
-    // See bug 135040.  We can remove this block once that's fixed.
-    aPrimaryFrame = nsnull;
-  }
   NS_ASSERTION(!aPrimaryFrame || aPrimaryFrame->GetContent() == aContent,
                "frame/content mismatch");
 
@@ -10060,10 +9989,6 @@ nsCSSFrameConstructor::DoContentStateChanged(nsIContent* aContent,
     nsReStyleHint rshint = 
       styleSet->HasStateDependentStyle(presContext, aContent, aStateMask);
       
-    if ((aStateMask & NS_EVENT_STATE_HOVER) && rshint != 0) {
-      ++mHoverGeneration;
-    }
-
     PostRestyleEvent(aContent, rshint, hint);
   }
 }
@@ -11156,13 +11081,6 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent)
     }
   }
 
-  if (frame) {
-    nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(frame);
-    if (nonGeneratedAncestor->GetContent() != aContent) {
-      return RecreateFramesForContent(nonGeneratedAncestor->GetContent());
-    }
-  }
-
   nsresult rv = NS_OK;
 
   if (frame && MaybeRecreateContainerForIBSplitterFrame(frame, &rv)) {
@@ -11902,6 +11820,9 @@ nsCSSFrameConstructor::CreateLetterFrame(nsFrameConstructorState& aState,
         // content for a non-text frame (because we want its primary frame to
         // be a text frame).  So use its parent for the first-letter.
         nsIContent* letterContent = aTextContent->GetParent();
+        NS_ASSERTION(!letterContent->IsRootOfNativeAnonymousSubtree(),
+                     "Reframes of this letter frame will mess with the root "
+                     "of a native anonymous content subtree!");
         letterFrame->Init(letterContent, aParentFrame, nsnull);
 
         InitAndRestoreFrame(aState, aTextContent, letterFrame, nsnull,
@@ -12111,15 +12032,14 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
 
   // Destroy the old text frame's continuations (the old text frame
   // will be destroyed when its letter frame is destroyed).
-  nsIFrame* nextTextFrame = textFrame->GetNextContinuation();
-  while (nextTextFrame) {
+  nsIFrame* nextTextFrame = textFrame->GetNextInFlow();
+  if (nextTextFrame) {
     nsIFrame* nextTextParent = nextTextFrame->GetParent();
     if (nextTextParent) {
-      nsSplittableFrame::RemoveFromFlow(nextTextFrame);
+      nsSplittableFrame::BreakFromPrevFlow(nextTextFrame);
       ::DeletingFrameSubtree(aFrameManager, nextTextFrame);
       aFrameManager->RemoveFrame(nextTextParent, nsnull, nextTextFrame);
     }
-    nextTextFrame = textFrame->GetNextContinuation();
   }
 
   // First find out where (in the content) the placeholder frames
@@ -13346,8 +13266,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
                "Use ReconstructDocElementHierarchy instead.");
 
   mRebuildAllStyleData = PR_FALSE;
-  NS_UpdateHint(aExtraHint, mRebuildAllExtraHint);
-  mRebuildAllExtraHint = nsChangeHint(0);
 
   if (!mPresShell || !mPresShell->GetRootFrame())
     return;
@@ -13386,47 +13304,49 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
 void
 nsCSSFrameConstructor::ProcessPendingRestyles()
 {
+  PRUint32 count = mPendingRestyles.Count();
+  if (!count) {
+    // Nothing to do
+    return;
+  }
+  
   NS_PRECONDITION(mDocument, "No document?  Pshaw!\n");
 
-  PRUint32 count = mPendingRestyles.Count();
-
-  if (count) {
-    // Use the stack if we can, otherwise fall back on heap-allocation.
-    nsAutoTArray<RestyleEnumerateData, RESTYLE_ARRAY_STACKSIZE> restyleArr;
-    RestyleEnumerateData* restylesToProcess = restyleArr.AppendElements(count);
+  // Use the stack if we can, otherwise fall back on heap-allocation.
+  nsAutoTArray<RestyleEnumerateData, RESTYLE_ARRAY_STACKSIZE> restyleArr;
+  RestyleEnumerateData* restylesToProcess = restyleArr.AppendElements(count);
   
-    if (!restylesToProcess) {
-      return;
-    }
+  if (!restylesToProcess) {
+    return;
+  }
 
-    RestyleEnumerateData* lastRestyle = restylesToProcess;
-    mPendingRestyles.Enumerate(CollectRestyles, &lastRestyle);
+  RestyleEnumerateData* lastRestyle = restylesToProcess;
+  mPendingRestyles.Enumerate(CollectRestyles, &lastRestyle);
 
-    NS_ASSERTION(lastRestyle - restylesToProcess == PRInt32(count),
-                 "Enumeration screwed up somehow");
+  NS_ASSERTION(lastRestyle - restylesToProcess == PRInt32(count),
+               "Enumeration screwed up somehow");
 
-    // Clear the hashtable so we don't end up trying to process a restyle we're
-    // already processing, sending us into an infinite loop.
-    mPendingRestyles.Clear();
+  // Clear the hashtable so we don't end up trying to process a restyle we're
+  // already processing, sending us into an infinite loop.
+  mPendingRestyles.Clear();
 
-    // Make sure to not rebuild quote or counter lists while we're
-    // processing restyles
-    BeginUpdate();
+  // Make sure to not rebuild quote or counter lists while we're
+  // processing restyles
+  BeginUpdate();
 
-    for (RestyleEnumerateData* currentRestyle = restylesToProcess;
-         currentRestyle != lastRestyle;
-         ++currentRestyle) {
-      ProcessOneRestyle(currentRestyle->mContent,
-                        currentRestyle->mRestyleHint,
-                        currentRestyle->mChangeHint);
-    }
+  for (RestyleEnumerateData* currentRestyle = restylesToProcess;
+       currentRestyle != lastRestyle;
+       ++currentRestyle) {
+    ProcessOneRestyle(currentRestyle->mContent,
+                      currentRestyle->mRestyleHint,
+                      currentRestyle->mChangeHint);
+  }
 
-    EndUpdate();
+  EndUpdate();
 
 #ifdef DEBUG
-    mPresShell->VerifyStyleTree();
+  mPresShell->VerifyStyleTree();
 #endif
-  }
 
   if (mRebuildAllStyleData) {
     // We probably wasted a lot of work up above, but this seems safest
@@ -13463,13 +13383,7 @@ nsCSSFrameConstructor::PostRestyleEvent(nsIContent* aContent,
   NS_UpdateHint(existingData.mChangeHint, aMinChangeHint);
 
   mPendingRestyles.Put(aContent, existingData);
-
-  PostRestyleEventInternal();
-}
     
-void
-nsCSSFrameConstructor::PostRestyleEventInternal()
-{
   if (!mRestyleEvent.IsPending()) {
     nsRefPtr<RestyleEvent> ev = new RestyleEvent(this);
     if (NS_FAILED(NS_DispatchToCurrentThread(ev))) {
@@ -13482,16 +13396,11 @@ nsCSSFrameConstructor::PostRestyleEventInternal()
 }
 
 void
-nsCSSFrameConstructor::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
+nsCSSFrameConstructor::PostRebuildAllStyleDataEvent()
 {
-  NS_ASSERTION(!(aExtraHint & nsChangeHint_ReconstructFrame),
-               "Should not reconstruct the root of the frame tree.  "
-               "Use ReconstructDocElementHierarchy instead.");
-
   mRebuildAllStyleData = PR_TRUE;
-  NS_UpdateHint(mRebuildAllExtraHint, aExtraHint);
   // Get a restyle event posted if necessary
-  PostRestyleEventInternal();
+  mPresShell->ReconstructStyleDataInternal();
 }
 
 NS_IMETHODIMP nsCSSFrameConstructor::RestyleEvent::Run()

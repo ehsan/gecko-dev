@@ -990,9 +990,8 @@ PlacesController.prototype = {
     if (URIs.length > REMOVE_PAGES_MAX_SINGLEREMOVES) {
       // do removal in chunks to avoid passing a too big array to removePages
       for (var i = 0; i < URIs.length; i += REMOVE_PAGES_CHUNKLEN) {
-        var URIslice = URIs.slice(i, i + REMOVE_PAGES_CHUNKLEN);
-        // set DoBatchNotify (third param) only on the last chunk, so we update
-        // the treeView when we are done.
+        var URIslice = URIs.slice(i, Math.max(i + REMOVE_PAGES_CHUNKLEN, URIs.length));
+        // set DoBatchNotify only on the last chunk
         bhist.removePages(URIslice, URIslice.length,
                           (i + REMOVE_PAGES_CHUNKLEN) >= URIs.length);
       }

@@ -99,29 +99,16 @@ function onLoadViewSource()
 {
   viewSource(window.arguments[0]);
   document.commandDispatcher.focusedWindow = content;
-      
-  if (isHistoryEnabled()) {
-    // Attach the progress listener.
-    getBrowser().addProgressListener(gViewSourceProgressListener, 
-        Components.interfaces.nsIWebProgress.NOTIFY_ALL);
-  } else {
-    // Disable the BACK and FORWARD commands and hide the related menu items.
-    var viewSourceNavigation = document.getElementById("viewSourceNavigation");
-    viewSourceNavigation.setAttribute("disabled", "true");
-    viewSourceNavigation.setAttribute("hidden", "true");
-  }
+  
+  // Attach the progress listener.
+  getBrowser().addProgressListener(gViewSourceProgressListener, 
+      Components.interfaces.nsIWebProgress.NOTIFY_ALL);
 }
 
 function onUnloadViewSource() 
 {
   // Detach the progress listener.
-  if (isHistoryEnabled()) {
-    getBrowser().removeProgressListener(gViewSourceProgressListener);
-  }
-}
-
-function isHistoryEnabled() {
-  return !getBrowser().hasAttribute("disablehistory");
+  getBrowser().removeProgressListener(gViewSourceProgressListener);
 }
 
 function getBrowser()

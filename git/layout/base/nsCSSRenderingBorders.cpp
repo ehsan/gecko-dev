@@ -268,10 +268,6 @@ nsCSSBorderRenderer::AreBorderSideFinalStylesSame(PRUint8 aSides)
       continue;
     }
 
-    if (((1 << i) & aSides) == 0) {
-      continue;
-    }
-
     if (mBorderStyles[firstStyle] != mBorderStyles[i] ||
         mBorderColors[firstStyle] != mBorderColors[i] ||
         !nsBorderColors::Equal(mCompositeColors[firstStyle],

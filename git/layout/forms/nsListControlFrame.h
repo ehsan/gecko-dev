@@ -373,8 +373,9 @@ protected:
   PRInt32  GetIndexFromContent(nsIContent *aContent);
   PRBool   IsLeftButton(nsIDOMEvent* aMouseEvent);
 
-  // guess at a row height based on our own style.
-  nscoord  CalcFallbackRowHeight();
+  // aNumOptions is the number of options we have; if we have none,
+  // we'll just guess at a row height based on our own style.
+  nscoord  CalcFallbackRowHeight(PRInt32 aNumOptions);
 
   // CalcIntrinsicHeight computes our intrinsic height (taking the "size"
   // attribute into account).  This should only be called in non-dropdown mode.

@@ -442,8 +442,7 @@ function openReleaseNotes(event)
   
   openUILink(relnotesURL, event, false, true);
 }
-
-#ifdef MOZ_UPDATER
+  
 /**
  * Opens the update manager and checks for updates to the application.
  */
@@ -464,7 +463,6 @@ function checkForUpdates()
   else
     prompter.checkForUpdates();
 }
-#endif
 
 function buildHelpMenu()
 {
@@ -473,7 +471,6 @@ function buildHelpMenu()
   if (typeof safebrowsing != "undefined")
     safebrowsing.setReportPhishingMenu();
 
-#ifdef MOZ_UPDATER
   var updates = 
       Components.classes["@mozilla.org/updates/update-service;1"].
       getService(Components.interfaces.nsIApplicationUpdateService);
@@ -522,10 +519,6 @@ function buildHelpMenu()
     checkForUpdates.setAttribute("loading", "true");
   else
     checkForUpdates.removeAttribute("loading");
-#else
-  // Needed by safebrowsing for inserting its menuitem so just hide it
-  document.getElementById("updateSeparator").hidden = true;
-#endif
 }
 
 function isElementVisible(aElement)

@@ -116,7 +116,7 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   PRBool fontUpdate;
 
   // whether an error occurred or not, notify the user font set of the completion
-  fontUpdate = mLoaderContext->mUserFontSet->OnLoadComplete(mFontEntry, aLoader,
+  fontUpdate = mLoaderContext->mUserFontSet->OnLoadComplete(mFontEntry, 
                                                             aString, aStringLen,
                                                             aStatus);
 
@@ -125,10 +125,12 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
     nsFontFaceLoaderContext *loaderCtx 
                        = static_cast<nsFontFaceLoaderContext*> (mLoaderContext);
 
-    // Update layout for the presence of the new font.  Since this is
-    // asynchronous, reflows will coalesce.
-    loaderCtx->mPresContext->UserFontSetUpdated();
-    LOG(("fontdownloader (%p) reflow\n", this));
+    nsIPresShell *ps = loaderCtx->mPresContext->PresShell();
+    if (ps) {
+      // reflow async so that reflows coalesce
+      ps->StyleChangeReflow();
+      LOG(("fontdownloader (%p) reflow\n", this));
+    }
   }
 
   return aStatus;
@@ -136,7 +138,8 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
 
 nsresult
 nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad, 
-                                const gfxFontFaceSrc *aFontFaceSrc,
+                                nsIURI *aFontURI,
+                                nsIURI *aReferrerURI,
                                 gfxUserFontSet::LoaderContext *aContext)
 {
   nsresult rv;
@@ -149,41 +152,27 @@ nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad,
   if (!ps)
     return NS_ERROR_FAILURE;
     
-  NS_ASSERTION(aFontFaceSrc && !aFontFaceSrc->mIsLocal, 
-               "bad font face url passed to fontloader");
-  NS_ASSERTION(aFontFaceSrc->mURI, "null font uri");
-  if (!aFontFaceSrc->mURI)
+  NS_ASSERTION(aFontURI, "null font uri");
+  if (!aFontURI)
     return NS_ERROR_FAILURE;
 
-  // use document principal, original principal if flag set
-  // this enables user stylesheets to load font files via
-  // @font-face rules
+  // xxx - need to detect system principal here
   nsCOMPtr<nsIPrincipal> principal = ps->GetDocument()->NodePrincipal();
 
-  NS_ASSERTION(aFontFaceSrc->mOriginPrincipal, 
-               "null origin principal in @font-face rule");
-  if (aFontFaceSrc->mUseOriginPrincipal) {
-    principal = do_QueryInterface(aFontFaceSrc->mOriginPrincipal);
-  }
-  
-  rv = CheckLoadAllowed(principal, aFontFaceSrc->mURI, ps->GetDocument());
+  rv = CheckLoadAllowed(principal, aFontURI, ps->GetDocument());
   if (NS_FAILED(rv)) {
-#ifdef PR_LOGGING
-    if (LOG_ENABLED()) {
-      nsCAutoString fontURI, referrerURI;
-      aFontFaceSrc->mURI->GetSpec(fontURI);
-      if (aFontFaceSrc->mReferrer)
-        aFontFaceSrc->mReferrer->GetSpec(referrerURI);
-      LOG(("fontdownloader download blocked - font uri: (%s) "
-           "referrer uri: (%s) err: %8.8x\n", 
-          fontURI.get(), referrerURI.get(), rv));
-    }
-#endif    
+    nsCAutoString fontURI, referrerURI;
+    aFontURI->GetSpec(fontURI);
+    if (aReferrerURI)
+      aReferrerURI->GetSpec(referrerURI);
+    LOG(("fontdownloader download blocked - font uri: (%s) "
+         "referrer uri: (%s) err: %8.8x\n", 
+        fontURI.get(), referrerURI.get(), rv));
     return rv;
   }
     
   nsRefPtr<nsFontFaceLoader> fontLoader = new nsFontFaceLoader(aFontToLoad, 
-                                                               aFontFaceSrc->mURI, 
+                                                               aFontURI, 
                                                                aContext);
   if (!fontLoader)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -191,9 +180,9 @@ nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad,
 #ifdef PR_LOGGING
   if (LOG_ENABLED()) {
     nsCAutoString fontURI, referrerURI;
-    aFontFaceSrc->mURI->GetSpec(fontURI);
-    if (aFontFaceSrc->mReferrer)
-      aFontFaceSrc->mReferrer->GetSpec(referrerURI);
+    aFontURI->GetSpec(fontURI);
+    if (aReferrerURI)
+      aReferrerURI->GetSpec(referrerURI);
     LOG(("fontdownloader (%p) download start - font uri: (%s) "
          "referrer uri: (%s)\n", 
          fontLoader.get(), fontURI.get(), referrerURI.get()));
@@ -205,7 +194,7 @@ nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad,
 
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
-                     aFontFaceSrc->mURI,
+                     aFontURI,
                      nsnull,
                      loadGroup,
                      nsnull,
@@ -215,16 +204,13 @@ nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad,
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
   if (httpChannel)
-    httpChannel->SetReferrer(aFontFaceSrc->mReferrer);
+    httpChannel->SetReferrer(aReferrerURI);
   rv = NS_NewStreamLoader(getter_AddRefs(streamLoader), fontLoader);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  PRBool inherits = PR_FALSE;
-  rv = NS_URIChainHasFlags(aFontFaceSrc->mURI,
-                           nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
-                           &inherits);
-  if (NS_SUCCEEDED(rv) && inherits) {
-    // allow data, javascript, etc URI's
+  // unless data url, open with cross-site listener
+  PRBool isData = PR_FALSE;
+  if (NS_SUCCEEDED(aFontURI->SchemeIs("data", &isData)) && isData) {
     rv = channel->AsyncOpen(streamLoader, nsnull);
   } else {
     nsCOMPtr<nsIStreamListener> listener =

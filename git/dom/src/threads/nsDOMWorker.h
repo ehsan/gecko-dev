@@ -42,8 +42,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMWorkers.h"
 #include "nsIJSNativeInitializer.h"
-#include "nsIPrincipal.h"
-#include "nsIURI.h"
 #include "nsIXPCScriptable.h"
 
 #include "jsapi.h"
@@ -77,7 +75,6 @@ class nsDOMWorker : public nsIWorker,
   friend class nsDOMWorkerScriptLoader;
   friend class nsDOMWorkerTimeout;
   friend class nsDOMWorkerXHR;
-  friend class nsReportErrorRunnable;
 
   friend JSBool DOMWorkerOperationCallback(JSContext* aCx);
   friend void DOMWorkerErrorReporter(JSContext* aCx,
@@ -148,14 +145,12 @@ private:
   ~nsDOMWorker();
 
   nsresult PostMessageInternal(const nsAString& aMessage,
-                               PRBool aIsJSON,
-                               PRBool aIsPrimitive,
                                PRBool aToInner);
 
   PRBool CompileGlobalObject(JSContext* aCx);
 
   PRUint32 NextTimeoutId() {
-    return ++mNextTimeoutId;
+    return mNextTimeoutId++;
   }
 
   nsresult AddFeature(nsDOMWorkerFeature* aFeature,
@@ -166,22 +161,6 @@ private:
   void SuspendFeatures();
   void ResumeFeatures();
   void CancelFeatures();
-
-  nsIPrincipal* GetPrincipal() {
-    return mPrincipal;
-  }
-
-  void SetPrincipal(nsIPrincipal* aPrincipal) {
-    mPrincipal = aPrincipal;
-  }
-
-  nsIURI* GetURI() {
-    return mURI;
-  }
-
-  void SetURI(nsIURI* aURI) {
-    mURI = aURI;
-  }
 
 private:
 
@@ -211,13 +190,9 @@ private:
 
   nsIXPConnectWrappedNative* mWrappedNative;
 
-  nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsCOMPtr<nsIURI> mURI;
-
   PRPackedBool mCanceled;
   PRPackedBool mSuspended;
   PRPackedBool mCompileAttempted;
-  PRPackedBool mTerminated;
 };
 
 /**

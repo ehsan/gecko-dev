@@ -4867,11 +4867,13 @@ nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
 #endif
 
       // create a tag describing this plugin.
-      nsPluginInfo info;
-      memset(&info, 0, sizeof(info));
+      nsPluginInfo info = { sizeof(info) };
       nsresult res = pluginFile.GetPluginInfo(info);
-      // if we don't have mime type don't proceed, this is not a plugin
-      if (NS_FAILED(res) || !info.fMimeTypeArray) {
+      if (NS_FAILED(res))
+        continue;
+
+      // if we don't have mime type -- don't proceed, this is not a plugin
+      if (!info.fMimeTypeArray) {
         pluginFile.FreePluginInfo(info);
         continue;
       }
@@ -6632,8 +6634,7 @@ nsPluginHostImpl::ScanForRealInComponentsFolder(nsIComponentManager * aCompManag
 
   // try to get the mime info and descriptions out of the plugin
   nsPluginFile pluginFile(localfile);
-  nsPluginInfo info;
-  memset(&info, 0, sizeof(info));
+  nsPluginInfo info = { sizeof(info) };
   if (NS_FAILED(pluginFile.GetPluginInfo(info)))
     return rv;
 

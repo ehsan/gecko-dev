@@ -433,8 +433,7 @@ BrowserGlue.prototype = {
     var currentVersion = this._prefs.getIntPref("browser.rights.version");
     this._prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
 
-    var box = notifyBox.appendNotification(notifyText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
-    box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
+    notifyBox.appendNotification(notifyText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
   },
 
   // returns the (cached) Sanitizer constructor
@@ -515,26 +514,15 @@ BrowserGlue.prototype = {
     if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
       // get latest JSON backup
       Cu.import("resource://gre/modules/utils.js");
-      var bookmarksBackupFile = PlacesUtils.getMostRecentBackup();
-      if (bookmarksBackupFile && bookmarksBackupFile.leafName.match("\.json$")) {
+      var bookmarksFile = PlacesUtils.getMostRecentBackup();
+      if (bookmarksFile && bookmarksFile.leafName.match("\.json$")) {
         // restore from JSON backup
-        PlacesUtils.restoreBookmarksFromJSONFile(bookmarksBackupFile);
+        PlacesUtils.restoreBookmarksFromJSONFile(bookmarksFile);
         importBookmarks = false;
       }
       else {
-        // We have created a new database but we don't have any backup available
+        // No backup was available we will try to import from bookmarks.html
         importBookmarks = true;
-        var dirService = Cc["@mozilla.org/file/directory_service;1"].
-                         getService(Ci.nsIProperties);
-        var bookmarksHTMLFile = dirService.get("BMarks", Ci.nsILocalFile);
-        if (bookmarksHTMLFile.exists()) {
-          // If bookmarks.html is available in current profile import it...
-          importBookmarksHTML = true;
-        }
-        else {
-          // ...otherwise we will restore defaults
-          restoreDefaultBookmarks = true;
-        }
       }
     }
 
@@ -558,8 +546,8 @@ BrowserGlue.prototype = {
       var bookmarksFile = null;
       if (restoreDefaultBookmarks) {
         // User wants to restore bookmarks.html file from default profile folder
-        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
-        bookmarksFile.append("bookmarks.html");
+        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile)
+                                      .append("bookmarks.html");
       }
       else
         bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);

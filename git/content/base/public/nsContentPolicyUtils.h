@@ -47,6 +47,9 @@
 #ifndef __nsContentPolicyUtils_h__
 #define __nsContentPolicyUtils_h__
 
+// for PR_LOGGING
+#include "prlog.h"
+
 #include "nsIContentPolicy.h"
 #include "nsIServiceManager.h"
 #include "nsIContent.h"
@@ -286,10 +289,6 @@ NS_CP_GetDocShellFromContext(nsISupports *aContext)
         }
 
         if (doc) {
-            if (doc->GetDisplayDocument()) {
-                doc = doc->GetDisplayDocument();
-            }
-            
             window = doc->GetWindow();
         }
     }

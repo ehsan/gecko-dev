@@ -156,9 +156,6 @@
 // A multiline text field
 #define NS_THEME_TEXTFIELD_MULTILINE                       97
 
-// A searchfield
-#define NS_THEME_SEARCHFIELD                               98
-
 // A dropdown list.
 #define NS_THEME_DROPDOWN                                  101
 

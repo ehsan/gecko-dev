@@ -130,14 +130,12 @@
   clip-path: inherit;
   filter: inherit;
   mask: inherit;
-  -moz-box-ordinal-group: inherit !important;
 }
 
 *|*::-moz-xul-anonymous-block {
   display: block ! important;
   position: static ! important;
   float: none ! important;
-  -moz-box-ordinal-group: inherit !important;
 }
 
 *|*::-moz-scrolled-content, *|*::-moz-scrolled-canvas,
@@ -203,7 +201,6 @@
   z-index: inherit;
   clip: inherit;
   opacity: inherit;
-  -moz-box-ordinal-group: inherit !important;
 }
 
 /* Printing */

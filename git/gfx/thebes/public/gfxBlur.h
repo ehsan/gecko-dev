@@ -66,13 +66,9 @@ public:
      * @param aRect The coordinates of the surface to create in device units.
      *
      * @param aBlurRadius The blur radius in pixels
-     *
-     * @param aDirtyRect A pointer to a dirty rect, measured in device units, if available.
-     *  This will be used for optimizing the blur operation. It is safe to pass NULL here.
      */
     gfxContext* Init(const gfxRect& aRect,
-                     const gfxIntSize& aBlurRadius,
-                     const gfxRect* aDirtyRect);
+                     const gfxIntSize& aBlurRadius);
 
     /**
      * Returns the context that should be drawn to supply the alpha mask to be
@@ -120,13 +116,6 @@ protected:
      * The temporary alpha surface.
      */
     nsRefPtr<gfxImageSurface> mImageSurface;
-
-    /**
-     * A copy of the dirty rect passed to Init(). This will only be valid if
-     * mHasDirtyRect is TRUE.
-     */
-    gfxRect mDirtyRect;
-    PRBool mHasDirtyRect;
 };
 
 #endif /* GFX_BLUR_H */

@@ -137,10 +137,26 @@ public:
 protected:
   // The cached visited state
   nsLinkState mLinkState;
+
+  void PrefetchDNS();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
+
+void
+nsHTMLAnchorElement::PrefetchDNS()
+{
+  nsCOMPtr<nsIURI> hrefURI;
+  GetHrefURI(getter_AddRefs(hrefURI));
+
+  if (hrefURI) {
+    nsRefPtr<nsHTMLDNSPrefetch> prefetch = 
+      new nsHTMLDNSPrefetch(hrefURI, GetOwnerDoc());
+    if (prefetch) 
+      prefetch->PrefetchLow();
+  }
+}
 
 nsHTMLAnchorElement::nsHTMLAnchorElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
@@ -213,14 +229,7 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     RegUnRegAccessKey(PR_TRUE);
   }
 
-  // Prefetch links
-  if (aDocument && nsHTMLDNSPrefetch::IsAllowed(GetOwnerDoc())) {
-    nsCOMPtr<nsIURI> hrefURI;
-    
-    GetHrefURI(getter_AddRefs(hrefURI));
-    if (hrefURI) 
-      nsHTMLDNSPrefetch::PrefetchLow(hrefURI);
-  }
+  PrefetchDNS();
   return rv;
 }
 

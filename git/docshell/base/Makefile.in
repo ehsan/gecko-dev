@@ -116,8 +116,7 @@ XPIDLSRCS	= \
 		nsIWebPageDescriptor.idl	\
 		nsIURIClassifier.idl		\
 		nsIChannelClassifier.idl	\
-		nsIDownloadHistory.idl          \
-		nsILoadContext.idl              \
+		nsIDownloadHistory.idl \
 		$(NULL)
 
 EXPORTS		= nsDocShellLoadTypes.h

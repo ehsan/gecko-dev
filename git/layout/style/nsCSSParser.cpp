@@ -2147,29 +2147,20 @@ void
 CSSParserImpl::SkipUntil(PRUnichar aStopSymbol)
 {
   nsCSSToken* tk = &mToken;
-  nsAutoTArray<PRUnichar, 16> stack;
-  stack.AppendElement(aStopSymbol);
   for (;;) {
     if (!GetToken(PR_TRUE)) {
       break;
     }
     if (eCSSToken_Symbol == tk->mType) {
       PRUnichar symbol = tk->mSymbol;
-      PRUint32 stackTopIndex = stack.Length() - 1;
-      if (symbol == stack.ElementAt(stackTopIndex)) {
-        stack.RemoveElementAt(stackTopIndex);
-        if (stackTopIndex == 0) {
-          break;
-        }
+      if (symbol == aStopSymbol) {
+        break;
       } else if ('{' == symbol) {
-        // In this case and the two below, just handle out-of-memory by
-        // parsing incorrectly.  It's highly unlikely we're dealing with
-        // a legitimate style sheet anyway.
-        stack.AppendElement('}');
+        SkipUntil('}');
       } else if ('[' == symbol) {
-        stack.AppendElement(']');
+        SkipUntil(']');
       } else if ('(' == symbol) {
-        stack.AppendElement(')');
+        SkipUntil(')');
       }
     }
   }

@@ -906,7 +906,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     {
         nsISupports *principal = nsnull;
         mScopes.Get(obj, &principal);
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "scope principal");
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "scope prinicpal");
         cb.NoteXPCOMChild(principal);
     }
 #endif
@@ -1159,17 +1159,15 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         JS_SetPrototype(aJSContext, protoJSObject, scope->GetPrototypeJSObject());
     }
 
-    if(!(aFlags & nsIXPConnect::OMIT_COMPONENTS_OBJECT)) {
-        SaveFrame sf(ccx);
-        if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, globalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
+    SaveFrame sf(ccx);
+    if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        if(!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
+    if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        if(!XPC_SJOW_AttachNewConstructorObject(ccx, globalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
-    }
+    if (!XPC_SJOW_AttachNewConstructorObject(ccx, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
     NS_ADDREF(*_retval = holder);
 

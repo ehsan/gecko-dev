@@ -34,8 +34,7 @@ let TRACE_PERF = 0;
 // Log analysis results in a special format
 let LOG_RESULTS = false;
 
-const WARN_ON_SET_NULL = false;
-const WARN_ON_SET_FAILURE = false;
+let WARN_ON_SET_NULL = false;
 
 // Filter functions to process per CLI
 let func_filter;
@@ -618,11 +617,9 @@ OutparamCheck.prototype.checkSubstateFailure = function(ss) {
     let val = ss.get(v);
     if (val == av.WRITTEN) {
       this.logResult('fail', 'written', 'error');
-      if (WARN_ON_SET_FAILURE) {
-        this.warn([this.findReturnStmt(ss), "outparam '" + expr_display(v) + "' written on NS_FAILED(return value)"],
-                  [v, "outparam declared here"],
-                  [ss.getBlame(v), "written here"]);
-      }
+      this.warn([this.findReturnStmt(ss), "outparam '" + expr_display(v) + "' written on NS_FAILED(return value)"],
+                [v, "outparam declared here"],
+                [ss.getBlame(v), "written here"]);
     } else if (val == av.WROTE_NULL) {
       this.logResult('fail', 'wrote_null', 'warning');
       if (WARN_ON_SET_NULL) {

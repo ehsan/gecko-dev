@@ -1122,6 +1122,11 @@
       ]]></handler>
 
       <handler event="dragleave"><![CDATA[
+        // Only handle dragleaves for the toolbar itself (and not for its child
+        // nodes)
+        if (event.target != this)
+          return;
+
         PlacesControllerDragHelper.currentDropTarget = null;
         PlacesControllerDragHelper.currentDataTransfer = null;
 
@@ -1132,12 +1137,10 @@
           this._ibTimer.cancel();
         this._ibTimer = this._setTimer(10);
 
-        // If we hovered over a folder, close it now
+        // Close any folder being hovered over
         if (this._overFolder.node)
             this._overFolder.closeTimer = this._setTimer(this._overFolder.hoverTime);
-      ]]></handler>
 
-      <handler event="dragend"><![CDATA[
         this._draggedNode = null;
       ]]></handler>
 

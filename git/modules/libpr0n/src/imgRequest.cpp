@@ -219,7 +219,7 @@ nsresult imgRequest::NotifyProxyListener(imgRequestProxy *proxy)
 
     // get the current frame or only frame
     mImage->GetCurrentFrame(getter_AddRefs(frame));
-    NS_ENSURE_TRUE(frame, NS_ERROR_OUT_OF_MEMORY);
+    NS_ASSERTION(frame, "GetCurrentFrame gave back a null frame!");
 
     // OnStartFrame
     proxy->OnStartFrame(frame);

@@ -342,7 +342,6 @@ WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv, int needEle
 {
   PRUnichar *cl;
   BOOL ok;
-#ifndef WINCE
   if (needElevation > 0) {
     cl = MakeCommandLine(argc - 1, argv + 1);
     if (!cl)
@@ -356,7 +355,7 @@ WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv, int needEle
     free(cl);
     return ok;
   }
-#endif
+
   cl = MakeCommandLine(argc, argv);
   if (!cl)
     return FALSE;

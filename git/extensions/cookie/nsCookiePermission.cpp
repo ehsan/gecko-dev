@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:ts=2:sw=2:et: */
+// vim:ts=2:sw=2:et:
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -50,15 +49,15 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIWebNavigation.h"
+#include "nsINode.h"
 #include "nsIChannel.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
 #include "nsIPrincipal.h"
 #include "nsString.h"
 #include "nsCRT.h"
-#include "nsILoadContext.h"
-#include "nsIScriptObjectPrincipal.h"
 
 /****************************************************************
  ************************ nsCookiePermission ********************
@@ -92,7 +91,6 @@ static const char kPermissionType[] = "cookie";
 
 #ifdef MOZ_MAIL_NEWS
 // returns PR_TRUE if URI appears to be the URI of a mailnews protocol
-// XXXbz this should be a protocol flag, not a scheme list, dammit!
 static PRBool
 IsFromMailNews(nsIURI *aURI)
 {
@@ -210,21 +208,35 @@ nsCookiePermission::CanAccess(nsIURI         *aURI,
   // disable cookies in mailnews if user's prefs say so
   if (mCookiesDisabledForMailNews) {
     //
-    // try to examine the "app type" of the window owning this request.  if it
-    // or some ancestor is of type APP_TYPE_MAIL, then assume this URI is being
-    // loaded from within mailnews.
-    PRBool isMail = PR_FALSE;
+    // try to examine the "app type" of the docshell owning this request.  if
+    // we find a docshell in the heirarchy of type APP_TYPE_MAIL, then assume
+    // this URI is being loaded from within mailnews.
+    //
+    // XXX this is a pretty ugly hack at the moment since cookies really
+    // shouldn't have to talk to the docshell directly.  ultimately, we want
+    // to talk to some more generic interface, which the docshell would also
+    // implement.  but, the basic mechanism here of leveraging the channel's
+    // (or loadgroup's) notification callbacks attribute seems ideal as it
+    // avoids the problem of having to modify all places in the code which
+    // kick off network requests.
+    //
+    PRUint32 appType = nsIDocShell::APP_TYPE_UNKNOWN;
     if (aChannel) {
-      nsCOMPtr<nsILoadContext> ctx;
-      NS_QueryNotificationCallbacks(aChannel, ctx);
-      if (ctx) {
-        PRBool temp;
-        isMail =
-          NS_FAILED(ctx->IsAppOfType(nsIDocShell::APP_TYPE_MAIL, &temp)) ||
-          temp;
+      nsCOMPtr<nsIDocShellTreeItem> item, parent;
+      NS_QueryNotificationCallbacks(aChannel, parent);
+      if (parent) {
+        do {
+            item = parent;
+            nsCOMPtr<nsIDocShell> docshell = do_QueryInterface(item);
+            if (docshell)
+              docshell->GetAppType(&appType);
+        } while (appType != nsIDocShell::APP_TYPE_MAIL &&
+                 NS_SUCCEEDED(item->GetParent(getter_AddRefs(parent))) &&
+                 parent);
       }
     }
-    if (isMail || IsFromMailNews(aURI)) {
+    if ((appType == nsIDocShell::APP_TYPE_MAIL) ||
+        IsFromMailNews(aURI)) {
       *aResult = ACCESS_DENY;
       return NS_OK;
     }
@@ -338,13 +350,8 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
 
       // try to get a nsIDOMWindow from the channel...
       nsCOMPtr<nsIDOMWindow> parent;
-      if (aChannel) {
-        nsCOMPtr<nsILoadContext> ctx;
-        NS_QueryNotificationCallbacks(aChannel, ctx);
-        if (ctx) {
-          ctx->GetAssociatedWindow(getter_AddRefs(parent));
-        }
-      }
+      if (aChannel)
+        NS_QueryNotificationCallbacks(aChannel, parent);
 
       // get some useful information to present to the user:
       // whether a previous cookie already exists, and how many cookies this host
@@ -419,27 +426,35 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
                                       nsIURI     **aURI)
 {
   /* to find the originating URI, we use the loadgroup of the channel to obtain
-   * the window owning the load, and from there, we find the top same-type
-   * window and its URI. there are several possible cases:
+   * the docshell owning the load, and from there, we find the root content
+   * docshell and its URI. there are several possible cases:
    *
    * 1) no channel. this will occur for plugins using the nsICookieStorage
    *    interface, since they have none to provide. other consumers should
    *    have a channel.
    *
-   * 2) a channel, but no window. this can occur when the consumer kicking
+   * 2) a channel, but no docshell. this can occur when the consumer kicking
    *    off the load doesn't provide one to the channel, and should be limited
-   *    to loads of certain types of resources.
+   *    to loads of certain types of resources (e.g. favicons).
    *
-   * 3) a window equal to the top window of same type, with the channel its
-   *    document channel. this covers the case of a freshly kicked-off load
-   *    (e.g. the user typing something in the location bar, or clicking on a
-   *    bookmark), where the window's URI hasn't yet been set, and will be
-   *    bogus. we return the channel URI in this case.
+   * 3) a non-content docshell. this occurs for loads kicked off from chrome,
+   *    where no content docshell exists (favicons can also fall into this
+   *    category).
    *
-   * 4) Anything else. this covers most cases for an ordinary page load from
-   *    the location bar, and will catch nested frames within a page, image
-   *    loads, etc. we return the URI of the root window's document's principal
+   * 4) a content docshell equal to the root content docshell, with channel
+   *    loadflags LOAD_DOCUMENT_URI. this covers the case of a freshly kicked-
+   *    off load (e.g. the user typing something in the location bar, or
+   *    clicking on a bookmark), where the currentURI hasn't yet been set,
+   *    and will be bogus. we return the channel URI in this case. note that
+   *    we could also allow non-content docshells here, but that goes against
+   *    the philosophy of having an audit trail back to a URI the user typed
+   *    or clicked on.
+   *
+   * 5) a root content docshell. this covers most cases for an ordinary page
+   *    load from the location bar, and will catch nested frames within
+   *    a page, image loads, etc. we return the URI of the docshell's principal
    *    in this case.
+   *
    */
 
   *aURI = nsnull;
@@ -448,29 +463,27 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
   if (!aChannel)
     return NS_ERROR_NULL_POINTER;
 
-  // find the associated window and its top window
-  nsCOMPtr<nsILoadContext> ctx;
-  NS_QueryNotificationCallbacks(aChannel, ctx);
-  nsCOMPtr<nsIDOMWindow> topWin, ourWin;
-  if (ctx) {
-    ctx->GetTopWindow(getter_AddRefs(topWin));
-    ctx->GetAssociatedWindow(getter_AddRefs(ourWin));
-  }
+  // find the docshell and its root
+  nsCOMPtr<nsIDocShellTreeItem> docshell, root;
+  NS_QueryNotificationCallbacks(aChannel, docshell);
+  if (docshell)
+    docshell->GetSameTypeRootTreeItem(getter_AddRefs(root));
 
-  // case 2)
-  if (!topWin)
+  PRInt32 type;
+  if (root)
+    root->GetItemType(&type);
+
+  // cases 2) and 3)
+  if (!root || type != nsIDocShellTreeItem::typeContent)
     return NS_ERROR_INVALID_ARG;
 
-  // case 3)
-  if (ourWin == topWin) {
-    // Check whether this is the document channel for this window (representing
-    // a load of a new page).  This is a bit of a nasty hack, but we will
-    // hopefully flag these channels better later.
+  // case 4)
+  if (docshell == root) {
     nsLoadFlags flags;
     aChannel->GetLoadFlags(&flags);
 
     if (flags & nsIChannel::LOAD_DOCUMENT_URI) {
-      // get the channel URI - the window's will be bogus
+      // get the channel URI - the docshell's will be bogus
       aChannel->GetURI(aURI);
       if (!*aURI)
         return NS_ERROR_NULL_POINTER;
@@ -479,14 +492,15 @@ nsCookiePermission::GetOriginatingURI(nsIChannel  *aChannel,
     }
   }
 
-  // case 4) - get the originating URI from the top window's principal
-  nsCOMPtr<nsIScriptObjectPrincipal> scriptObjPrin = do_QueryInterface(topWin);
-  NS_ENSURE_TRUE(scriptObjPrin, NS_ERROR_UNEXPECTED);
-
-  nsIPrincipal* prin = scriptObjPrin->GetPrincipal();
-  NS_ENSURE_TRUE(prin, NS_ERROR_UNEXPECTED);
-  
-  prin->GetURI(aURI);
+  // case 5) - get the originating URI from the docshell's principal
+  nsCOMPtr<nsIWebNavigation> webnav = do_QueryInterface(root);
+  if (webnav) {
+    nsCOMPtr<nsIDOMDocument> doc;
+    webnav->GetDocument(getter_AddRefs(doc));
+    nsCOMPtr<nsINode> node = do_QueryInterface(doc);
+    if (node)
+      node->NodePrincipal()->GetURI(aURI);
+  }
 
   if (!*aURI)
     return NS_ERROR_NULL_POINTER;

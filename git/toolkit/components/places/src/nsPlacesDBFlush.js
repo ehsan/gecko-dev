@@ -46,7 +46,6 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
-const Cu = Components.utils;
 
 const kQuitApplication = "quit-application";
 const kSyncFinished = "places-sync-finished";
@@ -60,8 +59,8 @@ const kDefaultSyncInterval = 120;
 function nsPlacesDBFlush()
 {
   this._prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefService).
-                getBranch("places.");
+              getService(Ci.nsIPrefService).
+              getBranch("places.");
 
   // Get our sync interval
   try {
@@ -188,8 +187,8 @@ nsPlacesDBFlush.prototype = {
 
   handleError: function DBFlush_handleError(aError)
   {
-    Cu.reportError("Async statement execution returned with '" +
-                   aError.result + "', '" + aError.message + "'");
+    Components.utils.reportError("Async statement execution returned with '" +
+                                 aError.result + "', '" + aError.message + "'");
   },
 
   handleCompletion: function DBFlush_handleCompletion(aReason)
