@@ -130,7 +130,7 @@ class AutoStopVerifyingBarriers
       : runtime(rt)
     {
         restartPreVerifier = !isShutdown && rt->gcVerifyPreData;
-        restartPostVerifier = !isShutdown && rt->gcVerifyPostData && JS::IsGenerationalGCEnabled(rt);
+        restartPostVerifier = !isShutdown && rt->gcVerifyPostData && rt->gcGenerationalEnabled;
         if (rt->gcVerifyPreData)
             EndVerifyPreBarriers(rt);
         if (rt->gcVerifyPostData)

@@ -158,12 +158,14 @@ public:
      * If this isn't implemented by a subclass, it will just perform
      * a dummy BeginUpdate/EndUpdate pair.
      */
-    virtual void Resize(const gfx::IntSize& aSize) {
+    virtual void Resize(const nsIntSize& aSize) {
         mSize = aSize;
         nsIntRegion r(nsIntRect(0, 0, aSize.width, aSize.height));
         BeginUpdate(r);
         EndUpdate();
     }
+    // Moz2D equivalent...
+    void Resize(const gfx::IntSize& aSize);
 
     /**
      * Mark this texture as having valid contents. Call this after modifying
@@ -238,7 +240,7 @@ protected:
 
     virtual gfx::IntRect GetSrcTileRect();
 
-    gfx::IntSize mSize;
+    nsIntSize mSize;
     GLenum mWrapMode;
     ContentType mContentType;
     ImageFormat mImageFormat;
@@ -300,7 +302,7 @@ public:
 
     virtual bool InUpdate() const { return !!mUpdateSurface; }
 
-    virtual void Resize(const gfx::IntSize& aSize);
+    virtual void Resize(const nsIntSize& aSize);
 
 protected:
     GLuint mTexture;
@@ -323,7 +325,7 @@ class TiledTextureImage
 {
 public:
     TiledTextureImage(GLContext* aGL,
-                      gfx::IntSize aSize,
+                      nsIntSize aSize,
                       TextureImage::ContentType,
                       TextureImage::Flags aFlags = TextureImage::NoFlags,
                       TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
@@ -332,7 +334,7 @@ public:
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
     virtual void GetUpdateRegion(nsIntRegion& aForRegion);
     virtual void EndUpdate();
-    virtual void Resize(const gfx::IntSize& aSize);
+    virtual void Resize(const nsIntSize& aSize);
     virtual uint32_t GetTileCount();
     virtual void BeginTileIteration();
     virtual bool NextTile();
@@ -354,7 +356,7 @@ protected:
     void* mIterationCallbackData;
     nsTArray< nsRefPtr<TextureImage> > mImages;
     bool mInUpdate;
-    gfx::IntSize mSize;
+    nsIntSize mSize;
     unsigned int mTileSize;
     unsigned int mRows, mColumns;
     GLContext* mGL;
@@ -373,11 +375,18 @@ protected:
  */
 already_AddRefed<TextureImage>
 CreateBasicTextureImage(GLContext* aGL,
-                        const gfx::IntSize& aSize,
+                        const nsIntSize& aSize,
                         TextureImage::ContentType aContentType,
                         GLenum aWrapMode,
                         TextureImage::Flags aFlags,
                         TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
+
+already_AddRefed<TextureImage>
+CreateBasicTextureImage(GLContext* aGL,
+                        const gfx::IntSize& aSize,
+                        TextureImage::ContentType aContentType,
+                        GLenum aWrapMode,
+                        TextureImage::Flags aFlags);
 
 /**
   * Return a valid, allocated TextureImage of |aSize| with
@@ -397,7 +406,7 @@ CreateBasicTextureImage(GLContext* aGL,
   */
 already_AddRefed<TextureImage>
 CreateTextureImage(GLContext* gl,
-                   const gfx::IntSize& aSize,
+                   const nsIntSize& aSize,
                    TextureImage::ContentType aContentType,
                    GLenum aWrapMode,
                    TextureImage::Flags aFlags = TextureImage::NoFlags,

@@ -11,8 +11,6 @@
 #include "ImageContainer.h"
 #include "yuv_convert.h"
 
-using namespace mozilla::gfx;
-
 namespace mozilla {
 namespace layers {
 
@@ -62,11 +60,11 @@ public:
 
   already_AddRefed<gfxASurface> GetAsSurface();
 
-  IntSize GetSize() { return mSize; }
+  gfxIntSize GetSize() { return mSize; }
 
   TextureD3D10BackendData *GetD3D10TextureBackendData(ID3D10Device *aDevice);
 
-  IntSize mSize;
+  gfxIntSize mSize;
   RemoteImageData::Format mFormat;
   HANDLE mHandle;
 };

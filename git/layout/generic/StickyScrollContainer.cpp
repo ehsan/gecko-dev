@@ -93,9 +93,7 @@ StickyScrollContainer::NotifyReparentedFrameAcrossScrollFrameBoundary(nsIFrame* 
     StickyScrollContainer* newSSC = GetStickyScrollContainerForFrame(f);
     if (newSSC != oldSSC) {
       oldSSC->RemoveFrame(f);
-      if (newSSC) {
-        newSSC->AddFrame(f);
-      }
+      newSSC->AddFrame(f);
     }
   }
 }

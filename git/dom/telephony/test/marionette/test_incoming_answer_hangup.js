@@ -91,7 +91,6 @@ function hangUp() {
 }
 
 function cleanUp() {
-  telephony.onincoming = null;
   finish();
 }
 

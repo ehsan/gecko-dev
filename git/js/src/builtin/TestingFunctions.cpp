@@ -25,7 +25,6 @@
 #include "vm/ProxyObject.h"
 
 #include "jscntxtinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 using namespace JS;
@@ -989,45 +988,22 @@ js::testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
+static const char *ObjectMetadataPropertyName = "__objectMetadataFunction__";
+
 static bool
 ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
 {
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
-    if (!obj)
+    RootedValue fun(cx);
+    if (!JS_GetProperty(cx, cx->global(), ObjectMetadataPropertyName, &fun))
         return false;
 
-    RootedObject stack(cx, NewDenseEmptyArray(cx));
-    if (!stack)
+    RootedValue rval(cx);
+    if (!Invoke(cx, UndefinedValue(), fun, 0, nullptr, &rval))
         return false;
 
-    static int createdIndex = 0;
-    createdIndex++;
+    if (rval.isObject())
+        *pmetadata = &rval.toObject();
 
-    if (!JS_DefineProperty(cx, obj, "index", Int32Value(createdIndex),
-                           JS_PropertyStub, JS_StrictPropertyStub, 0))
-    {
-        return false;
-    }
-
-    if (!JS_DefineProperty(cx, obj, "stack", ObjectValue(*stack),
-                           JS_PropertyStub, JS_StrictPropertyStub, 0))
-    {
-        return false;
-    }
-
-    int stackIndex = 0;
-    for (NonBuiltinScriptFrameIter iter(cx); !iter.done(); ++iter) {
-        if (iter.isFunctionFrame()) {
-            if (!JS_DefinePropertyById(cx, stack, INT_TO_JSID(stackIndex), ObjectValue(*iter.callee()),
-                                       JS_PropertyStub, JS_StrictPropertyStub, 0))
-            {
-                return false;
-            }
-            stackIndex++;
-        }
-    }
-
-    *pmetadata = obj;
     return true;
 }
 
@@ -1036,10 +1012,19 @@ SetObjectMetadataCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    bool enabled = argc ? ToBoolean(args[0]) : false;
-    SetObjectMetadataCallback(cx, enabled ? ShellObjectMetadataCallback : nullptr);
-
     args.rval().setUndefined();
+
+    if (argc == 0 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+        if (!JS_DeleteProperty(cx, cx->global(), ObjectMetadataPropertyName))
+            return false;
+        js::SetObjectMetadataCallback(cx, nullptr);
+        return true;
+    }
+
+    if (!JS_DefineProperty(cx, cx->global(), ObjectMetadataPropertyName, args[0], nullptr, nullptr, 0))
+        return false;
+
+    js::SetObjectMetadataCallback(cx, ShellObjectMetadataCallback);
     return true;
 }
 

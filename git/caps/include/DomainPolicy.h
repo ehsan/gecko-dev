@@ -13,6 +13,11 @@
 
 namespace mozilla {
 
+// The name "DomainPolicy" conflicts with some of the old-style policy machinery
+// in nsScriptSecurityManager.cpp, which needs to #include this file. So we
+// temporarily use a sub-namespace until that machinery goes away in bug 913734.
+namespace hotness {
+
 class DomainPolicy : public nsIDomainPolicy
 {
 public:
@@ -41,6 +46,7 @@ protected:
     nsTHashtable<nsURIHashKey> mHashTable;
 };
 
+} /* namespace hotness */
 } /* namespace mozilla */
 
 #endif /* DomainPolicy_h__ */

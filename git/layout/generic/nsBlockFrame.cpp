@@ -5706,13 +5706,6 @@ nsBlockFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
   }
 }
 
-const nsStyleText*
-nsBlockFrame::StyleTextForLineLayout()
-{
-  // Return the pointer to an unmodified style text
-  return StyleText();
-}
-
 ////////////////////////////////////////////////////////////////////////
 // Float support
 

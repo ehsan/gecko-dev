@@ -113,8 +113,8 @@ HRESULT SHCreateShellItemArrayFromShellItemDynamic(IShellItem *psi, REFIID riid,
   return hr;
 }
 
-HRESULT
-WinLaunchDeferredMetroFirefox()
+BOOL
+WinLaunchDeferredMetroFirefox(bool aInMetro)
 {
   // Create an instance of the Firefox Metro DEH which is used to launch the browser
   const CLSID CLSID_FirefoxMetroDEH = {0x5100FEC1,0x212B, 0x4BF5 ,{0x9B,0xF8, 0x3E,0x65, 0x0F,0xD7,0x94,0xA3}};
@@ -126,46 +126,51 @@ WinLaunchDeferredMetroFirefox()
                                 IID_IExecuteCommand,
                                 getter_AddRefs(executeCommand));
   if (FAILED(hr))
-    return hr;
+    return FALSE;
 
   // Get the currently running exe path
   WCHAR exePath[MAX_PATH + 1] = { L'\0' };
   if (!::GetModuleFileNameW(0, exePath, MAX_PATH))
-    return hr;
+    return FALSE;
 
   // Convert the path to a long path since GetModuleFileNameW returns the path
   // that was used to launch Firefox which is not necessarily a long path.
   if (!::GetLongPathNameW(exePath, exePath, MAX_PATH))
-    return hr;
+    return FALSE;
 
   // Create an IShellItem for the current browser path
   nsRefPtr<IShellItem> shellItem;
   hr = WinUtils::SHCreateItemFromParsingName(exePath, nullptr, IID_IShellItem,
                                              getter_AddRefs(shellItem));
   if (FAILED(hr))
-    return hr;
+    return FALSE;
 
   // Convert to an IShellItemArray which is used for the path to launch
   nsRefPtr<IShellItemArray> shellItemArray;
   hr = SHCreateShellItemArrayFromShellItemDynamic(shellItem, IID_IShellItemArray, getter_AddRefs(shellItemArray));
   if (FAILED(hr))
-    return hr;
+    return FALSE;
 
   // Set the path to launch and parameters needed
   nsRefPtr<IObjectWithSelection> selection;
   hr = executeCommand->QueryInterface(IID_IObjectWithSelection, getter_AddRefs(selection));
   if (FAILED(hr))
-    return hr;
+    return FALSE;
   hr = selection->SetSelection(shellItemArray);
   if (FAILED(hr))
-    return hr;
+    return FALSE;
 
-  hr = executeCommand->SetParameters(L"--metro-restart");
+  if (aInMetro) {
+    hr = executeCommand->SetParameters(L"--metro-restart");
+  } else {
+    hr = executeCommand->SetParameters(L"--desktop-restart");
+  }
   if (FAILED(hr))
-    return hr;
+    return FALSE;
 
   // Run the default browser through the DEH
-  return executeCommand->Execute();
+  hr = executeCommand->Execute();
+  return SUCCEEDED(hr);
 }
 
 // Called by appstartup->run in xre, which is initiated by a call to
@@ -195,24 +200,22 @@ MetroAppShell::Run(void)
       mozilla::widget::StopAudioSession();
 
       nsCOMPtr<nsIAppStartup> appStartup (do_GetService(NS_APPSTARTUP_CONTRACTID));
-      bool restartingInMetro = false, restartingInDesktop = false;
-
-      if (!appStartup || NS_FAILED(appStartup->GetRestarting(&restartingInDesktop))) {
-        WinUtils::Log("appStartup->GetRestarting() unsuccessful");
-      }
+      bool restartingInMetro = false, restarting = false;
 
       if (appStartup && NS_SUCCEEDED(appStartup->GetRestartingTouchEnvironment(&restartingInMetro)) &&
           restartingInMetro) {
-        restartingInDesktop = false;
+        WinLaunchDeferredMetroFirefox(true);
       }
 
-      // This calls XRE_metroShutdown() in xre. Shuts down gecko, including
-      // releasing the profile, and destroys MessagePump.
+      if (!appStartup || NS_FAILED(appStartup->GetRestarting(&restarting))) {
+        WinUtils::Log("appStartup->GetRestarting() unsuccessful");
+      }
+
+      // This calls XRE_metroShutdown() in xre. This will also destroy
+      // MessagePump.
       sMetroApp->ShutdownXPCOM();
 
-      // Handle update restart or browser switch requests
-      if (restartingInDesktop) {
-        WinUtils::Log("Relaunching desktop browser");
+      if (restarting) {
         SHELLEXECUTEINFOW sinfo;
         memset(&sinfo, 0, sizeof(SHELLEXECUTEINFOW));
         sinfo.cbSize       = sizeof(SHELLEXECUTEINFOW);
@@ -225,9 +228,6 @@ MetroAppShell::Run(void)
         sinfo.lpParameters = L"--desktop-restart";
         sinfo.nShow        = SW_SHOWNORMAL;
         ShellExecuteEx(&sinfo);
-      } else if (restartingInMetro) {
-        HRESULT hresult = WinLaunchDeferredMetroFirefox();
-        WinUtils::Log("Relaunching metro browser (hr=%X)", hresult);
       }
 
       // This will free the real main thread in CoreApplication::Run()

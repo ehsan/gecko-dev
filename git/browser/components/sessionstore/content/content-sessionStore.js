@@ -392,12 +392,7 @@ let MessageQueue = {
 
     let sync = options && options.sync;
     let startID = (options && options.id) || this._id;
-
-    // We use sendRpcMessage in the sync case because we may have been called
-    // through a CPOW. RPC messages are the only synchronous messages that the
-    // child is allowed to send to the parent while it is handling a CPOW
-    // request.
-    let sendMessage = sync ? sendRpcMessage : sendAsyncMessage;
+    let sendMessage = sync ? sendSyncMessage : sendAsyncMessage;
 
     let data = {};
     for (let [key, id] of this._lastUpdated) {

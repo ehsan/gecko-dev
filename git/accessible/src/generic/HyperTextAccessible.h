@@ -17,9 +17,6 @@ namespace mozilla {
 namespace a11y {
 
 struct DOMPoint {
-  DOMPoint() : node(nullptr), idx(0) { }
-  DOMPoint(nsINode* aNode, int32_t aIdx) : node(aNode), idx(aIdx) { }
-
   nsINode* node;
   int32_t idx;
 };
@@ -131,24 +128,15 @@ public:
                                         bool aIsEndOffset = false) const;
 
   /**
-   * Convert start and end hypertext offsets into DOM range.
+   * Turn a start and end hypertext offsets into DOM range.
    *
-   * @param  aStartOffset  [in] the given start hypertext offset
-   * @param  aEndOffset    [in] the given end hypertext offset
-   * @param  aRange        [in, out] the range whose bounds to set
-   * @return true   if conversion was successful
+   * @param  aStartHTOffset  [in] the given start hypertext offset
+   * @param  aEndHTOffset    [in] the given end hypertext offset
+   * @param  aRange      [out] the range whose bounds to set
    */
-  bool OffsetsToDOMRange(int32_t aStartOffset, int32_t aEndOffset,
-                         nsRange* aRange);
-
-  /**
-   * Convert the given offset into DOM point.
-   *
-   * If offset is at text leaf then DOM point is (text node, offsetInTextNode),
-   * if before embedded object then (parent node, indexInParent), if after then
-   * (parent node, indexInParent + 1).
-   */
-  DOMPoint OffsetToDOMPoint(int32_t aOffset);
+  nsresult HypertextOffsetsToDOMRange(int32_t aStartHTOffset,
+                                      int32_t aEndHTOffset,
+                                      nsRange* aRange);
 
   /**
    * Return true if the used ARIA role (if any) allows the hypertext accessible

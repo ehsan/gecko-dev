@@ -12,6 +12,7 @@
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxContext.h"                 // for gfxContext
 #include "gfxPattern.h"                 // for gfxPattern, etc
+#include "gfxPoint.h"                   // for gfxIntSize
 #include "gfxUtils.h"                   // for gfxUtils
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"             // for gfxXlibSurface
@@ -24,7 +25,6 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "mozilla/gfx/Point.h"          // for IntSize
 
 using namespace mozilla::gfx;
 
@@ -69,7 +69,7 @@ protected:
                           float aOpacity,
                           Layer* aMaskLayer);
 
-  gfx::IntSize mSize;
+  gfxIntSize mSize;
 };
 
 void
@@ -94,7 +94,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   nsRefPtr<gfxASurface> surface;
   AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
   Image *image = autoLock.GetImage();
-  gfx::IntSize size = mSize = autoLock.GetSize();
+  gfxIntSize size = mSize = autoLock.GetSize();
 
   if (!surface || surface->CairoStatus()) {
     return nullptr;
@@ -166,7 +166,7 @@ BasicImageLayer::GetAsSurface(gfxASurface** aSurface,
     return false;
   }
 
-  gfx::IntSize dontCare;
+  gfxIntSize dontCare;
   nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&dontCare);
   *aSurface = surface.forget().get();
   return true;

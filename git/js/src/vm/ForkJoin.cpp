@@ -191,7 +191,7 @@ namespace js {
 // of operation.
 enum ForkJoinMode {
     // WARNING: If you change this enum, you MUST update
-    // ForkJoinMode() in Utilities.js
+    // ForkJoinMode() in ParallelArray.js
 
     // The "normal" behavior: attempt parallel, fallback to
     // sequential.  If compilation is ongoing in a helper thread, then
@@ -867,19 +867,8 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
                 }
             }
         }
-
-        if (allScriptsPresent) {
-            // For testing modes, we want to make sure that all off thread
-            // compilation tasks are finished, so we don't race with
-            // off-main-thread-compilation setting an interrupt flag while we
-            // are in the middle of a test, causing unexpected bailouts.
-            if (mode_ != ForkJoinModeNormal) {
-                StopAllOffThreadCompilations(cx_->compartment());
-                if (!js_HandleExecutionInterrupt(cx_))
-                    return fatalError(status);
-            }
+        if (allScriptsPresent)
             break;
-        }
     }
 
     Spew(SpewCompile, "Compilation complete (final worklist length %d)",

@@ -18,8 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-# Are you updating CLOBBER because you think it's needed for your WebIDL
-# changes to stick? As of bug 928195, this shouldn't be necessary! Please
-# don't change CLOBBER for WebIDL changes any more.
-
-Bug 932982 apparently requires a clobber or else we get B2G mochitest-2 failures.
+Bug 887836 - webidl changes require a Windows clobber.

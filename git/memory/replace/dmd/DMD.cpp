@@ -15,9 +15,6 @@
 #include <string.h>
 
 #ifdef XP_WIN
-#if defined(MOZ_OPTIMIZE) && !defined(MOZ_PROFILING)
-#error "Optimized, DMD-enabled builds on Windows must be built with --enable-profiling"
-#endif
 #include <windows.h>
 #include <process.h>
 #else
@@ -603,17 +600,18 @@ class LocationService
 
   struct Entry
   {
-    const void* mPc;
+    static const void* const kUnused;
+
+    const void* mPc;        // if mPc==kUnused, the entry is unused
     char*       mFunction;  // owned by the Entry;  may be null
     const char* mLibrary;   // owned by mLibraryStrings;  never null
                             //   in a non-empty entry is in use
     ptrdiff_t   mLOffset;
     char*       mFileName;  // owned by the Entry; may be null
-    uint32_t    mLineNo:31;
-    uint32_t    mInUse:1;   // is the entry used?
+    unsigned long mLineNo;
 
     Entry()
-      : mPc(0), mFunction(nullptr), mLibrary(nullptr), mLOffset(0), mFileName(nullptr), mLineNo(0), mInUse(0)
+      : mPc(kUnused), mFunction(nullptr), mLibrary(nullptr), mLOffset(0), mFileName(nullptr), mLineNo(0)
     {}
 
     ~Entry()
@@ -641,8 +639,6 @@ class LocationService
       mLibrary = aLibrary;
       mLOffset = aLOffset;
       mLineNo = aLineNo;
-
-      mInUse = 1;
     }
 
     size_t SizeOfExcludingThis() {
@@ -679,7 +675,8 @@ public:
     MOZ_ASSERT(index < kNumEntries);
     Entry& entry = mEntries[index];
 
-    if (!entry.mInUse || entry.mPc != aPc) {
+    MOZ_ASSERT(aPc != Entry::kUnused);
+    if (entry.mPc != aPc) {
       mNumCacheMisses++;
 
       // NS_DescribeCodeAddress can (on Linux) acquire a lock inside
@@ -756,7 +753,7 @@ public:
   {
     size_t n = 0;
     for (size_t i = 0; i < kNumEntries; i++) {
-      if (mEntries[i].mInUse) {
+      if (mEntries[i].mPc != Entry::kUnused) {
         n++;
       }
     }
@@ -766,6 +763,10 @@ public:
   size_t NumCacheHits()   const { return mNumCacheHits; }
   size_t NumCacheMisses() const { return mNumCacheMisses; }
 };
+
+// We can't use 0 because that sometimes shows up as a PC in stack traces.
+const void* const LocationService::Entry::kUnused =
+  reinterpret_cast<const void* const>(intptr_t(-1));
 
 //---------------------------------------------------------------------------
 // Stack traces

@@ -21,8 +21,6 @@
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 /* static */ inline bool
 JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,
                                js::HandleId id, unsigned *attrsp)
@@ -408,39 +406,6 @@ JSObject::getProto(JSContext *cx, js::HandleObject obj, js::MutableHandleObject 
         protop.set(obj->js::ObjectImpl::getProto());
         return true;
     }
-}
-
-/* static */ inline bool
-JSObject::setProto(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto, bool *succeeded)
-{
-    /* Proxies live in their own little world. */
-    if (obj->getTaggedProto().isLazy()) {
-        JS_ASSERT(obj->is<js::ProxyObject>());
-        return js::Proxy::setPrototypeOf(cx, obj, proto, succeeded);
-    }
-
-    /* ES6 9.1.2 step 5 forbids changing [[Prototype]] if not [[Extensible]]. */
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (!extensible) {
-        *succeeded = false;
-        return true;
-    }
-
-    /* ES6 9.1.2 step 6 forbids generating cyclical prototype chains. */
-    js::RootedObject obj2(cx);
-    for (obj2 = proto; obj2; ) {
-        if (obj2 == obj) {
-            *succeeded = false;
-            return true;
-        }
-
-        if (!JSObject::getProto(cx, obj2, &obj2))
-            return false;
-    }
-
-    return SetClassAndProto(cx, obj, obj->getClass(), proto, succeeded);
 }
 
 inline bool JSObject::isVarObj()
@@ -1047,21 +1012,15 @@ static JS_ALWAYS_INLINE bool
 NewObjectMetadata(ExclusiveContext *cxArg, JSObject **pmetadata)
 {
     // The metadata callback is invoked before each created object, except when
-    // analysis/compilation is active, to avoid recursion.
+    // analysis/compilation/parsing is active as the callback may reenter JS.
     JS_ASSERT(!*pmetadata);
     if (JSContext *cx = cxArg->maybeJSContext()) {
         if (JS_UNLIKELY((size_t)cx->compartment()->hasObjectMetadataCallback()) &&
-            !cx->compartment()->activeAnalysis)
+            !cx->compartment()->activeAnalysis &&
+            !cx->runtime()->mainThread.activeCompilations)
         {
-            JS::DisableGenerationalGC(cx->runtime());
-
-            // Use AutoEnterAnalysis to prohibit both any GC activity under the
-            // callback, and any reentering of JS via Invoke() etc.
-            types::AutoEnterAnalysis enter(cx);
-
-            bool status = cx->compartment()->callObjectMetadataCallback(cx, pmetadata);
-            JS::EnableGenerationalGC(cx->runtime());
-            return status;
+            gc::AutoSuppressGC suppress(cx);
+            return cx->compartment()->callObjectMetadataCallback(cx, pmetadata);
         }
     }
     return true;

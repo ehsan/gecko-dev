@@ -587,10 +587,8 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             }
         }
 
-        // Make sure to add HAS_RVAL to flags here because setFlags() below
-        // will clobber it.
+        // Second slot holds the return value.
         returnValue = iter.read();
-        flags |= BaselineFrame::HAS_RVAL;
 
         // If script maybe has an arguments object, the third slot will hold it.
         if (script->argumentsHasVarBinding()) {
@@ -605,12 +603,17 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     IonSpew(IonSpew_BaselineBailouts, "      ReturnValue=%016llx", *((uint64_t *) &returnValue));
     blFrame->setReturnValue(returnValue);
 
-    // Do not need to initialize scratchValue field in BaselineFrame.
+    // Do not need to initialize scratchValue or returnValue fields in BaselineFrame.
+
     blFrame->setFlags(flags);
 
     // initArgsObjUnchecked modifies the frame's flags, so call it after setFlags.
     if (argsObj)
         blFrame->initArgsObjUnchecked(*argsObj);
+
+    // Ion doesn't compile code with try/catch, so the block object will always be
+    // null.
+    blFrame->setBlockChainNull();
 
     if (fun) {
         // The unpacked thisv and arguments should overwrite the pushed args present
@@ -624,7 +627,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
         JS_ASSERT(iter.slots() >= CountArgSlots(script, fun));
         IonSpew(IonSpew_BaselineBailouts, "      frame slots %u, nargs %u, nfixed %u",
-                iter.slots(), fun->nargs(), script->nfixed());
+                iter.slots(), fun->nargs, script->nfixed());
 
         if (!callerPC) {
             // This is the first frame. Store the formals in a Vector until we
@@ -633,11 +636,11 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             // locals may still reference the original argument slot
             // (MParameter/LArgument) and expect the original Value.
             JS_ASSERT(startFrameFormals.empty());
-            if (!startFrameFormals.resize(fun->nargs()))
+            if (!startFrameFormals.resize(fun->nargs))
                 return false;
         }
 
-        for (uint32_t i = 0; i < fun->nargs(); i++) {
+        for (uint32_t i = 0; i < fun->nargs; i++) {
             Value arg = iter.read();
             IonSpew(IonSpew_BaselineBailouts, "      arg %d = %016llx",
                         (int) i, *((uint64_t *) &arg));
@@ -662,6 +665,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     bool resumeAfter = excInfo ? false : iter.resumeAfter();
 
     JSOp op = JSOp(*pc);
+    JS_ASSERT_IF(excInfo, op == JSOP_ENTERBLOCK);
 
     // Fixup inlined JSOP_FUNCALL, JSOP_FUNAPPLY, and accessors on the caller side.
     // On the caller side this must represent like the function wasn't inlined.
@@ -1108,7 +1112,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
     // If actualArgc >= fun->nargs, then we are done.  Otherwise, we need to push on
     // a reconstructed rectifier frame.
-    if (actualArgc >= calleeFun->nargs())
+    if (actualArgc >= calleeFun->nargs)
         return true;
 
     // Push a reconstructed rectifier frame.
@@ -1147,7 +1151,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 #endif
 
     // Push undefined for missing arguments.
-    for (unsigned i = 0; i < (calleeFun->nargs() - actualArgc); i++) {
+    for (unsigned i = 0; i < (calleeFun->nargs - actualArgc); i++) {
         if (!builder.writeValue(UndefinedValue(), "FillerVal"))
             return false;
     }

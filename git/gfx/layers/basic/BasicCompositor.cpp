@@ -13,7 +13,6 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Helpers.h"
 #include "gfxUtils.h"
-#include "YCbCrUtils.h"
 #include <algorithm>
 #include "ImageContainer.h"
 #define PIXMAN_DONT_DEFINE_STDINT
@@ -176,20 +175,24 @@ public:
     PlanarYCbCrData data;
     DeserializerToPlanarYCbCrImageData(deserializer, data);
 
-    gfx::SurfaceFormat format = FORMAT_B8G8R8X8;
-    gfx::IntSize size;
-    gfx::GetYCbCrToRGBDestFormatAndSize(data, format, size);
+    gfxImageFormat format = gfxImageFormatRGB24;
+    gfxIntSize size;
+    gfxUtils::GetYCbCrToRGBDestFormatAndSize(data, format, size);
     if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
         size.height > PlanarYCbCrImage::MAX_DIMENSION) {
       NS_ERROR("Illegal image dest width or height");
       return false;
     }
 
-    mSize = size;
-    mFormat = format;
+    mSize = ToIntSize(size);
+    mFormat = (format == gfxImageFormatRGB24)
+              ? FORMAT_B8G8R8X8
+              : FORMAT_B8G8R8A8;
 
     RefPtr<DataSourceSurface> surface = Factory::CreateDataSourceSurface(mSize, mFormat);
-    gfx::ConvertYCbCrToRGB(data, format, size, surface->GetData(), surface->Stride());
+    gfxUtils::ConvertYCbCrToRGB(data, format, size,
+                                surface->GetData(),
+                                surface->Stride());
 
     mSurface = surface;
     return true;

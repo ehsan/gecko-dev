@@ -211,9 +211,9 @@ SVGFEImageElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
 
   nsRefPtr<gfxASurface> currentFrame;
   if (imageContainer) {
-    currentFrame =
-      imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
-                               imgIContainer::FLAG_SYNC_DECODE);
+    imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                             imgIContainer::FLAG_SYNC_DECODE,
+                             getter_AddRefs(currentFrame));
   }
 
   if (!currentFrame) {

@@ -46,8 +46,6 @@ var cols = 4;
 if (getBuildConfiguration().parallelJS) {
   var expected = computeSequentially();
   assertParallelExecSucceeds(
-    function (m) Array.buildPar(rows * cols, function (xy) {
-      return computeSetByRow((xy/cols)|0,(xy%cols))
-    }, m),
+    function (m) new ParallelArray([rows, cols], computeSetByRow, m).flatten(),
     function (r) assertStructuralEq(expected, r));
 }

@@ -359,7 +359,7 @@ TokenServerClient.prototype = {
       return;
     }
 
-    for (let k of ["id", "key", "api_endpoint", "uid", "duration"]) {
+    for (let k of ["id", "key", "api_endpoint", "uid"]) {
       if (!(k in result)) {
         let error = new TokenServerClientServerError("Expected key not " +
                                                      " present in result: " +
@@ -377,7 +377,6 @@ TokenServerClient.prototype = {
       key:      result.key,
       endpoint: result.api_endpoint,
       uid:      result.uid,
-      duration: result.duration,
     });
   }
 };

@@ -812,7 +812,7 @@ bool AutoLockShmemClient::Update(Image* aImage,
     return false;
   }
 
-  gfx::IntSize size = aImage->GetSize();
+  gfxIntSize size = aImage->GetSize();
 
   gfxContentType contentType = aSurface->GetContentType();
   bool isOpaque = (aContentFlags & Layer::CONTENT_OPAQUE);
@@ -820,7 +820,7 @@ bool AutoLockShmemClient::Update(Image* aImage,
       isOpaque) {
     contentType = GFX_CONTENT_COLOR;
   }
-  mDeprecatedTextureClient->EnsureAllocated(size, contentType);
+  mDeprecatedTextureClient->EnsureAllocated(gfx::IntSize(size.width, size.height), contentType);
 
   OpenMode mode = mDeprecatedTextureClient->GetAccessMode() == DeprecatedTextureClient::ACCESS_READ_WRITE
                   ? OPEN_READ_WRITE

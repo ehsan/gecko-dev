@@ -789,11 +789,8 @@ nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
   if (!context) {
     return NS_ERROR_FAILURE;
   }
-
-  JSContext* unpushedCx = context->GetNativeContext();
-  JSAutoRequest ar(unpushedCx);
-  JS::Rooted<JSObject*> global(unpushedCx, unrootedGlobal);
-  AutoPushJSContext cx(unpushedCx);
+  AutoPushJSContext cx(context->GetNativeContext());
+  JS::Rooted<JSObject*> global(cx, unrootedGlobal);
 
   JS::CompileOptions options(cx);
   FillCompileOptionsForRequest(aRequest, global, &options);
@@ -1005,11 +1002,8 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   if (!context) {
     return NS_ERROR_FAILURE;
   }
-
-  JSContext* unpushedCx = context->GetNativeContext();
-  JSAutoRequest ar(unpushedCx);
-  JS::Rooted<JSObject*> global(unpushedCx, unrootedGlobal);
-  AutoPushJSContext cx(unpushedCx);
+  AutoPushJSContext cx(context->GetNativeContext());
+  JS::Rooted<JSObject*> global(cx, unrootedGlobal);
 
   bool oldProcessingScriptTag = context->GetProcessingScriptTag();
   context->SetProcessingScriptTag(true);
