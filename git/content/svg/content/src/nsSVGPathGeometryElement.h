@@ -26,6 +26,8 @@ struct nsSVGMark {
     x(aX), y(aY), angle(aAngle), type(aType) {}
 };
 
+class gfxContext;
+
 typedef mozilla::dom::SVGGraphicsElement nsSVGPathGeometryElementBase;
 
 class nsSVGPathGeometryElement : public nsSVGPathGeometryElementBase
@@ -54,6 +56,7 @@ public:
 
   virtual bool IsMarkable();
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
+  virtual void ConstructPath(gfxContext *aCtx) = 0;
 
   /**
    * Returns a Path that can be used to paint, hit-test or calculate bounds for

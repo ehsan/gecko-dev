@@ -21,7 +21,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
 #include "vm/Shape-inl.h"
 
 using namespace js;
@@ -53,7 +52,7 @@ RegExpObjectBuilder::getOrCreate()
 
     // Note: RegExp objects are always allocated in the tenured heap. This is
     // not strictly required, but simplifies embedding them in jitcode.
-    NativeObject *obj = NewNativeBuiltinClassInstance(cx, &RegExpObject::class_, TenuredObject);
+    JSObject *obj = NewBuiltinClassInstance(cx, &RegExpObject::class_, TenuredObject);
     if (!obj)
         return false;
     obj->initPrivate(nullptr);
@@ -72,7 +71,7 @@ RegExpObjectBuilder::getOrCreateClone(HandleTypeObject type)
 
     // Note: RegExp objects are always allocated in the tenured heap. This is
     // not strictly required, but simplifies embedding them in jitcode.
-    NativeObject *clone = NewNativeObjectWithType(cx->asJSContext(), type, parent, TenuredObject);
+    JSObject *clone = NewObjectWithType(cx->asJSContext(), type, parent, TenuredObject);
     if (!clone)
         return false;
     clone->initPrivate(nullptr);
@@ -255,7 +254,7 @@ RegExpObject::trace(JSTracer *trc, JSObject *obj)
         IS_GC_MARKING_TRACER(trc) &&
         !obj->asTenured().zone()->isPreservingCode())
     {
-        obj->as<NativeObject>().setPrivate(nullptr);
+        obj->setPrivate(nullptr);
     } else {
         shared->trace(trc);
     }
@@ -336,7 +335,7 @@ RegExpObject::createShared(JSContext *cx, RegExpGuard *g)
 Shape *
 RegExpObject::assignInitialShape(ExclusiveContext *cx, Handle<RegExpObject*> self)
 {
-    MOZ_ASSERT(self->empty());
+    MOZ_ASSERT(self->nativeEmpty());
 
     JS_STATIC_ASSERT(LAST_INDEX_SLOT == 0);
     JS_STATIC_ASSERT(SOURCE_SLOT == LAST_INDEX_SLOT + 1);
@@ -370,24 +369,24 @@ RegExpObject::init(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags)
     if (!EmptyShape::ensureInitialCustomShape<RegExpObject>(cx, self))
         return false;
 
-    MOZ_ASSERT(self->lookup(cx, NameToId(cx->names().lastIndex))->slot() ==
+    MOZ_ASSERT(self->nativeLookup(cx, NameToId(cx->names().lastIndex))->slot() ==
                LAST_INDEX_SLOT);
-    MOZ_ASSERT(self->lookup(cx, NameToId(cx->names().source))->slot() ==
+    MOZ_ASSERT(self->nativeLookup(cx, NameToId(cx->names().source))->slot() ==
                SOURCE_SLOT);
-    MOZ_ASSERT(self->lookup(cx, NameToId(cx->names().global))->slot() ==
+    MOZ_ASSERT(self->nativeLookup(cx, NameToId(cx->names().global))->slot() ==
                GLOBAL_FLAG_SLOT);
-    MOZ_ASSERT(self->lookup(cx, NameToId(cx->names().ignoreCase))->slot() ==
+    MOZ_ASSERT(self->nativeLookup(cx, NameToId(cx->names().ignoreCase))->slot() ==
                IGNORE_CASE_FLAG_SLOT);
-    MOZ_ASSERT(self->lookup(cx, NameToId(cx->names().multiline))->slot() ==
+    MOZ_ASSERT(self->nativeLookup(cx, NameToId(cx->names().multiline))->slot() ==
                MULTILINE_FLAG_SLOT);
-    MOZ_ASSERT(self->lookup(cx, NameToId(cx->names().sticky))->slot() ==
+    MOZ_ASSERT(self->nativeLookup(cx, NameToId(cx->names().sticky))->slot() ==
                STICKY_FLAG_SLOT);
 
     /*
      * If this is a re-initialization with an existing RegExpShared, 'flags'
      * may not match getShared()->flags, so forget the RegExpShared.
      */
-    self->NativeObject::setPrivate(nullptr);
+    self->JSObject::setPrivate(nullptr);
 
     self->zeroLastIndex();
     self->setSource(source);
@@ -705,7 +704,7 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
     MOZ_ASSERT(!matchResultTemplateObject_);
 
     /* Create template array object */
-    RootedArrayObject templateObject(cx, NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject));
+    RootedObject templateObject(cx, NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject));
     if (!templateObject)
         return matchResultTemplateObject_; // = nullptr
 
@@ -933,7 +932,7 @@ js::ParseRegExpFlags(JSContext *cx, JSString *flagStr, RegExpFlag *flagsOut)
 
 template<XDRMode mode>
 bool
-js::XDRScriptRegExpObject(XDRState<mode> *xdr, MutableHandle<RegExpObject*> objp)
+js::XDRScriptRegExpObject(XDRState<mode> *xdr, HeapPtrObject *objp)
 {
     /* NB: Keep this in sync with CloneScriptRegExpObject. */
 
@@ -942,7 +941,7 @@ js::XDRScriptRegExpObject(XDRState<mode> *xdr, MutableHandle<RegExpObject*> objp
 
     if (mode == XDR_ENCODE) {
         MOZ_ASSERT(objp);
-        RegExpObject &reobj = *objp;
+        RegExpObject &reobj = (*objp)->as<RegExpObject>();
         source = reobj.getSource();
         flagsword = reobj.getFlags();
     }
@@ -955,16 +954,16 @@ js::XDRScriptRegExpObject(XDRState<mode> *xdr, MutableHandle<RegExpObject*> objp
         if (!reobj)
             return false;
 
-        objp.set(reobj);
+        objp->init(reobj);
     }
     return true;
 }
 
 template bool
-js::XDRScriptRegExpObject(XDRState<XDR_ENCODE> *xdr, MutableHandle<RegExpObject*> objp);
+js::XDRScriptRegExpObject(XDRState<XDR_ENCODE> *xdr, HeapPtrObject *objp);
 
 template bool
-js::XDRScriptRegExpObject(XDRState<XDR_DECODE> *xdr, MutableHandle<RegExpObject*> objp);
+js::XDRScriptRegExpObject(XDRState<XDR_DECODE> *xdr, HeapPtrObject *objp);
 
 JSObject *
 js::CloneScriptRegExpObject(JSContext *cx, RegExpObject &reobj)

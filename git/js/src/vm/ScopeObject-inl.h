@@ -28,7 +28,7 @@ ScopeObject::setAliasedVar(JSContext *cx, ScopeCoordinate sc, PropertyName *name
 
         // Keep track of properties which have ever been overwritten.
         if (!getSlot(sc.slot()).isUndefined()) {
-            Shape *shape = lookup(cx, name);
+            Shape *shape = nativeLookup(cx, name);
             shape->setOverwritten();
         }
     }

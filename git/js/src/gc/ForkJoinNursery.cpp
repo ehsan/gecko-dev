@@ -538,9 +538,9 @@ ForkJoinNursery::allocateObject(size_t baseSize, size_t numDynamic, bool& tooLar
         tooLarge = false;
         return nullptr;
     }
-    obj->fakeNativeSetInitialSlots(numDynamic
-                                   ? reinterpret_cast<HeapSlot *>(size_t(obj) + baseSize)
-                                   : nullptr);
+    obj->setInitialSlots(numDynamic
+                         ? reinterpret_cast<HeapSlot *>(size_t(obj) + baseSize)
+                         : nullptr);
     return obj;
 }
 
@@ -668,13 +668,12 @@ ForkJoinNursery::traceObject(ForkJoinNurseryCollectionTracer *trc, JSObject *obj
 
     if (!obj->isNative())
         return;
-    NativeObject *nobj = &obj->as<NativeObject>();
 
-    if (!nobj->hasEmptyElements())
-        markSlots(nobj->getDenseElements(), nobj->getDenseInitializedLength());
+    if (!obj->hasEmptyElements())
+        markSlots(obj->getDenseElements(), obj->getDenseInitializedLength());
 
     HeapSlot *fixedStart, *fixedEnd, *dynStart, *dynEnd;
-    nobj->getSlotRange(0, nobj->slotSpan(), &fixedStart, &fixedEnd, &dynStart, &dynEnd);
+    obj->getSlotRange(0, obj->slotSpan(), &fixedStart, &fixedEnd, &dynStart, &dynEnd);
     markSlots(fixedStart, fixedEnd);
     markSlots(dynStart, dynEnd);
 }
@@ -715,21 +714,20 @@ AllocKind
 ForkJoinNursery::getObjectAllocKind(JSObject *obj)
 {
     if (obj->is<ArrayObject>()) {
-        ArrayObject *aobj = &obj->as<ArrayObject>();
-        MOZ_ASSERT(aobj->numFixedSlots() == 0);
+        MOZ_ASSERT(obj->numFixedSlots() == 0);
 
         // Use minimal size object if we are just going to copy the pointer.
-        if (!isInsideFromspace((void *)aobj->getElementsHeader()))
+        if (!isInsideFromspace((void *)obj->getElementsHeader()))
             return FINALIZE_OBJECT0_BACKGROUND;
 
-        size_t nelements = aobj->getDenseCapacity();
+        size_t nelements = obj->getDenseCapacity();
         return GetBackgroundAllocKind(GetGCArrayKind(nelements));
     }
 
     if (obj->is<JSFunction>())
         return obj->as<JSFunction>().getAllocKind();
 
-    AllocKind kind = GetGCObjectFixedSlotsKind(obj->fakeNativeNumFixedSlots());
+    AllocKind kind = GetGCObjectFixedSlotsKind(obj->numFixedSlots());
     MOZ_ASSERT(!IsBackgroundFinalized(kind));
     MOZ_ASSERT(CanBeFinalizedInBackground(kind, obj->getClass()));
     return GetBackgroundAllocKind(kind);
@@ -810,7 +808,7 @@ ForkJoinNursery::copyObjectToTospace(JSObject *dst, JSObject *src, AllocKind dst
     // We deal with this by copying elements manually, possibly re-inlining
     // them if there is adequate room inline in dst.
     if (src->is<ArrayObject>())
-        srcSize = movedSize = sizeof(NativeObject);
+        srcSize = movedSize = sizeof(ObjectImpl);
 
     js_memcpy(dst, src, srcSize);
     movedSize += copySlotsToTospace(dst, src, dstKind);
@@ -829,38 +827,38 @@ size_t
 ForkJoinNursery::copySlotsToTospace(JSObject *dst, JSObject *src, AllocKind dstKind)
 {
     // Fixed slots have already been copied over.
-    if (!src->fakeNativeHasDynamicSlots())
+    if (!src->hasDynamicSlots())
         return 0;
 
-    if (!isInsideFromspace(src->fakeNativeSlots())) {
-        hugeSlots[hugeSlotsFrom].remove(src->fakeNativeSlots());
+    if (!isInsideFromspace(src->slots)) {
+        hugeSlots[hugeSlotsFrom].remove(src->slots);
         if (!isEvacuating_)
-            hugeSlots[hugeSlotsNew].put(src->fakeNativeSlots());
+            hugeSlots[hugeSlotsNew].put(src->slots);
         return 0;
     }
 
-    size_t count = src->fakeNativeNumDynamicSlots();
-    dst->fakeNativeSlots() = allocateInTospace<HeapSlot>(count);
-    if (!dst->fakeNativeSlots())
+    size_t count = src->numDynamicSlots();
+    dst->slots = allocateInTospace<HeapSlot>(count);
+    if (!dst->slots)
         CrashAtUnhandlableOOM("Failed to allocate slots while moving object.");
-    js_memcpy(dst->fakeNativeSlots(), src->fakeNativeSlots(), count * sizeof(HeapSlot));
-    setSlotsForwardingPointer(src->fakeNativeSlots(), dst->fakeNativeSlots(), count);
+    js_memcpy(dst->slots, src->slots, count * sizeof(HeapSlot));
+    setSlotsForwardingPointer(src->slots, dst->slots, count);
     return count * sizeof(HeapSlot);
 }
 
 size_t
 ForkJoinNursery::copyElementsToTospace(JSObject *dst, JSObject *src, AllocKind dstKind)
 {
-    if (src->fakeNativeHasEmptyElements() || src->fakeNativeDenseElementsAreCopyOnWrite())
+    if (src->hasEmptyElements() || src->denseElementsAreCopyOnWrite())
         return 0;
 
-    ObjectElements *srcHeader = src->fakeNativeGetElementsHeader();
+    ObjectElements *srcHeader = src->getElementsHeader();
     ObjectElements *dstHeader;
 
     // TODO Bug 874151: Prefer to put element data inline if we have space.
     // (Note, not a correctness issue.)
     if (!isInsideFromspace(srcHeader)) {
-        MOZ_ASSERT(src->fakeNativeElements() == dst->fakeNativeElements());
+        MOZ_ASSERT(src->elements == dst->elements);
         hugeSlots[hugeSlotsFrom].remove(reinterpret_cast<HeapSlot*>(srcHeader));
         if (!isEvacuating_)
             hugeSlots[hugeSlotsNew].put(reinterpret_cast<HeapSlot*>(srcHeader));
@@ -871,8 +869,8 @@ ForkJoinNursery::copyElementsToTospace(JSObject *dst, JSObject *src, AllocKind d
 
     // Unlike other objects, Arrays can have fixed elements.
     if (src->is<ArrayObject>() && nslots <= GetGCKindSlots(dstKind)) {
-        dst->as<ArrayObject>().setFixedElements();
-        dstHeader = dst->as<ArrayObject>().getElementsHeader();
+        dst->setFixedElements();
+        dstHeader = dst->getElementsHeader();
         js_memcpy(dstHeader, srcHeader, nslots * sizeof(HeapSlot));
         setElementsForwardingPointer(srcHeader, dstHeader, nslots);
         return nslots * sizeof(HeapSlot);
@@ -884,7 +882,7 @@ ForkJoinNursery::copyElementsToTospace(JSObject *dst, JSObject *src, AllocKind d
         CrashAtUnhandlableOOM("Failed to allocate elements while moving object.");
     js_memcpy(dstHeader, srcHeader, nslots * sizeof(HeapSlot));
     setElementsForwardingPointer(srcHeader, dstHeader, nslots);
-    dst->fakeNativeElements() = dstHeader->elements();
+    dst->elements = dstHeader->elements();
     return nslots * sizeof(HeapSlot);
 }
 

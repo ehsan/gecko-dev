@@ -870,7 +870,8 @@ const COMPOSITION_ATTR_SELECTEDCONVERTEDTEXT = 0x05;
  *
  * @param aEvent               The composition event information.  This must
  *                             have |type| member.  The value must be
- *                             "compositionstart" or "compositionend".
+ *                             "compositionstart", "compositionend" or
+ *                             "compositionupdate".
  *                             And also this may have |data| and |locale| which
  *                             would be used for the value of each property of
  *                             the composition event.  Note that the data would

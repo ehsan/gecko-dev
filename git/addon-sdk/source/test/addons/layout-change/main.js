@@ -138,6 +138,9 @@ exports["test compatibility"] = function(assert) {
   assert.equal(require("querystring"),
                require("sdk/querystring"), "sdk/querystring -> querystring");
 
+  assert.equal(loader.require("addon-page"),
+               loader.require("sdk/addon-page"), "sdk/addon-page -> addon-page");
+
   assert.equal(require("tabs/utils"),
                require("sdk/tabs/utils"), "sdk/tabs/utils -> tabs/utils");
 

@@ -44,7 +44,6 @@
 #include "jsobjinlines.h"
 
 #include "vm/ArrayBufferObject-inl.h"
-#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -118,7 +117,7 @@ HasPureCoercion(JSContext *cx, HandleValue v)
     jsid toString = NameToId(cx->names().toString);
     if (v.toObject().is<JSFunction>() &&
         HasObjectValueOf(&v.toObject(), cx) &&
-        ClassMethodIsNative(cx, &v.toObject().as<JSFunction>(), &JSFunction::class_, toString, fun_toString))
+        ClassMethodIsNative(cx, &v.toObject(), &JSFunction::class_, toString, fun_toString))
     {
         return true;
     }
@@ -898,7 +897,7 @@ CreateExportObject(JSContext *cx, Handle<AsmJSModuleObject*> moduleObj)
     }
 
     gc::AllocKind allocKind = gc::GetGCObjectKind(module.numExportedFunctions());
-    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_, allocKind));
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, allocKind));
     if (!obj)
         return nullptr;
 

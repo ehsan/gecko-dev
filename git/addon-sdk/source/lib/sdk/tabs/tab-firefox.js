@@ -22,7 +22,9 @@ const { getURL } = require('../url/utils');
 const { viewFor } = require('../view/core');
 const { observer } = require('./observer');
 
-require('../../framescript/FrameScriptManager.jsm').enableTabEvents();
+// cfx doesn't know require() now handles JSM modules
+const FRAMESCRIPT_MANAGER = '../../framescript/FrameScriptManager.jsm';
+require(FRAMESCRIPT_MANAGER).enableTabEvents();
 
 // Array of the inner instances of all the wrapped tabs.
 const TABS = [];
@@ -60,7 +62,7 @@ const TabTrait = Trait.compose(EventEmitter, {
     this.on(EVENTS.close.name, this.destroy.bind(this));
 
     this._onContentEvent = this._onContentEvent.bind(this);
-    this._window.messageManager.addMessageListener('sdk/tab/event', this._onContentEvent);
+    this._browser.messageManager.addMessageListener('sdk/tab/event', this._onContentEvent);
 
     // bug 1024632 - first tab inNewWindow gets events from the synthetic 
     // about:blank document. ignore them unless that is the actual target url.
@@ -84,7 +86,11 @@ const TabTrait = Trait.compose(EventEmitter, {
   destroy: function destroy() {
     this._removeAllListeners();
     if (this._tab) {
-      this._window.messageManager.removeMessageListener('sdk/tab/event', this._onContentEvent);
+      let browser = this._browser;
+      // The tab may already be removed from DOM -or- not yet added
+      if (browser) {
+        browser.messageManager.removeMessageListener('sdk/tab/event', this._onContentEvent);
+      }
       this._tab = null;
       TABS.splice(TABS.indexOf(this), 1);
     }
@@ -94,10 +100,7 @@ const TabTrait = Trait.compose(EventEmitter, {
    * internal message listener emits public events (ready, load and pageshow)
    * forwarded from content frame script tab-event.js
    */
-  _onContentEvent: function({ target, data }) {
-    if (target !== this._browser)
-      return;
-
+  _onContentEvent: function({ data }) {
     // bug 1024632 - skip initial events from synthetic about:blank document
     if (this._skipBlankEvents && this.window.tabs.length === 1 && this.url === 'about:blank')
       return;

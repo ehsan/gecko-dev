@@ -587,7 +587,7 @@ MacroAssembler::allocateObject(Register result, Register slots, gc::AllocKind al
 }
 
 void
-MacroAssembler::newGCThing(Register result, Register temp, NativeObject *templateObj,
+MacroAssembler::newGCThing(Register result, Register temp, JSObject *templateObj,
                             gc::InitialHeap initialHeap, Label *fail)
 {
     // This method does not initialize the object: if external slots get
@@ -602,7 +602,7 @@ MacroAssembler::newGCThing(Register result, Register temp, NativeObject *templat
 }
 
 void
-MacroAssembler::createGCObject(Register obj, Register temp, NativeObject *templateObj,
+MacroAssembler::createGCObject(Register obj, Register temp, JSObject *templateObj,
                                gc::InitialHeap initialHeap, Label *fail, bool initFixedSlots)
 {
     uint32_t nDynamicSlots = templateObj->numDynamicSlots();
@@ -734,7 +734,7 @@ MacroAssembler::newGCTenuredThingPar(Register result, Register cx,
 
 void
 MacroAssembler::newGCThingPar(Register result, Register cx, Register tempReg1, Register tempReg2,
-                              NativeObject *templateObject, Label *fail)
+                              JSObject *templateObject, Label *fail)
 {
     gc::AllocKind allocKind = templateObject->asTenured().getAllocKind();
     MOZ_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
@@ -758,12 +758,12 @@ MacroAssembler::newGCFatInlineStringPar(Register result, Register cx, Register t
 }
 
 void
-MacroAssembler::copySlotsFromTemplate(Register obj, const NativeObject *templateObj,
+MacroAssembler::copySlotsFromTemplate(Register obj, const JSObject *templateObj,
                                       uint32_t start, uint32_t end)
 {
     uint32_t nfixed = Min(templateObj->numFixedSlots(), end);
     for (unsigned i = start; i < nfixed; i++)
-        storeValue(templateObj->getFixedSlot(i), Address(obj, NativeObject::getFixedSlotOffset(i)));
+        storeValue(templateObj->getFixedSlot(i), Address(obj, JSObject::getFixedSlotOffset(i)));
 }
 
 void
@@ -791,7 +791,7 @@ MacroAssembler::fillSlotsWithUndefined(Address base, Register temp, uint32_t sta
 }
 
 static uint32_t
-FindStartOfUndefinedSlots(NativeObject *templateObj, uint32_t nslots)
+FindStartOfUndefinedSlots(JSObject *templateObj, uint32_t nslots)
 {
     MOZ_ASSERT(nslots == templateObj->lastProperty()->slotSpan(templateObj->getClass()));
     MOZ_ASSERT(nslots > 0);
@@ -803,7 +803,7 @@ FindStartOfUndefinedSlots(NativeObject *templateObj, uint32_t nslots)
 }
 
 void
-MacroAssembler::initGCSlots(Register obj, Register slots, NativeObject *templateObj,
+MacroAssembler::initGCSlots(Register obj, Register slots, JSObject *templateObj,
                             bool initFixedSlots)
 {
     // Slots of non-array objects are required to be initialized.
@@ -830,7 +830,7 @@ MacroAssembler::initGCSlots(Register obj, Register slots, NativeObject *template
 
     // Fill the rest of the fixed slots with undefined.
     if (initFixedSlots) {
-        fillSlotsWithUndefined(Address(obj, NativeObject::getFixedSlotOffset(startOfUndefined)), slots,
+        fillSlotsWithUndefined(Address(obj, JSObject::getFixedSlotOffset(startOfUndefined)), slots,
                                startOfUndefined, nfixed);
     }
 
@@ -838,14 +838,14 @@ MacroAssembler::initGCSlots(Register obj, Register slots, NativeObject *template
         // We are short one register to do this elegantly. Borrow the obj
         // register briefly for our slots base address.
         push(obj);
-        loadPtr(Address(obj, NativeObject::offsetOfSlots()), obj);
+        loadPtr(Address(obj, JSObject::offsetOfSlots()), obj);
         fillSlotsWithUndefined(Address(obj, 0), slots, 0, ndynamic);
         pop(obj);
     }
 }
 
 void
-MacroAssembler::initGCThing(Register obj, Register slots, NativeObject *templateObj,
+MacroAssembler::initGCThing(Register obj, Register slots, JSObject *templateObj,
                             bool initFixedSlots)
 {
     // Fast initialization of an empty object returned by allocateObject().
@@ -855,21 +855,21 @@ MacroAssembler::initGCThing(Register obj, Register slots, NativeObject *template
     storePtr(ImmGCPtr(templateObj->lastProperty()), Address(obj, JSObject::offsetOfShape()));
     storePtr(ImmGCPtr(templateObj->type()), Address(obj, JSObject::offsetOfType()));
     if (templateObj->hasDynamicSlots())
-        storePtr(slots, Address(obj, NativeObject::offsetOfSlots()));
+        storePtr(slots, Address(obj, JSObject::offsetOfSlots()));
     else
-        storePtr(ImmPtr(nullptr), Address(obj, NativeObject::offsetOfSlots()));
+        storePtr(ImmPtr(nullptr), Address(obj, JSObject::offsetOfSlots()));
 
     if (templateObj->denseElementsAreCopyOnWrite()) {
         storePtr(ImmPtr((const Value *) templateObj->getDenseElements()),
-                 Address(obj, NativeObject::offsetOfElements()));
+                 Address(obj, JSObject::offsetOfElements()));
     } else if (templateObj->is<ArrayObject>()) {
         Register temp = slots;
         MOZ_ASSERT(!templateObj->getDenseInitializedLength());
 
-        int elementsOffset = NativeObject::offsetOfFixedElements();
+        int elementsOffset = JSObject::offsetOfFixedElements();
 
         computeEffectiveAddress(Address(obj, elementsOffset), temp);
-        storePtr(temp, Address(obj, NativeObject::offsetOfElements()));
+        storePtr(temp, Address(obj, JSObject::offsetOfElements()));
 
         // Fill in the elements header.
         store32(Imm32(templateObj->getDenseCapacity()),
@@ -884,14 +884,14 @@ MacroAssembler::initGCThing(Register obj, Register slots, NativeObject *template
                 Address(obj, elementsOffset + ObjectElements::offsetOfFlags()));
         MOZ_ASSERT(!templateObj->hasPrivate());
     } else {
-        storePtr(ImmPtr(emptyObjectElements), Address(obj, NativeObject::offsetOfElements()));
+        storePtr(ImmPtr(emptyObjectElements), Address(obj, JSObject::offsetOfElements()));
 
         initGCSlots(obj, slots, templateObj, initFixedSlots);
 
         if (templateObj->hasPrivate()) {
             uint32_t nfixed = templateObj->numFixedSlots();
             storePtr(ImmPtr(templateObj->getPrivate()),
-                     Address(obj, NativeObject::getPrivateDataOffset(nfixed)));
+                     Address(obj, JSObject::getPrivateDataOffset(nfixed)));
         }
     }
 

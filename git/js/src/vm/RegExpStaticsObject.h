@@ -11,7 +11,7 @@
 
 namespace js {
 
-class RegExpStaticsObject : public NativeObject
+class RegExpStaticsObject : public JSObject
 {
   public:
     static const Class class_;

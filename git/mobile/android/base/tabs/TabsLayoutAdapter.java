@@ -70,23 +70,23 @@ public class TabsLayoutAdapter extends BaseAdapter {
     }
 
     @Override
-    final public TabsLayoutItemView getView(int position, View convertView, ViewGroup parent) {
-        final TabsLayoutItemView view;
+    final public View getView(int position, View convertView, ViewGroup parent) {
+        final View view;
         if (convertView == null) {
             view = newView(position, parent);
         } else {
-            view = (TabsLayoutItemView) convertView;
+            view = convertView;
         }
         final Tab tab = mTabs.get(position);
         bindView(view, tab);
         return view;
     }
 
-    TabsLayoutItemView newView(int position, ViewGroup parent) {
-        return (TabsLayoutItemView) mInflater.inflate(R.layout.tabs_layout_item_view, parent, false);
+    View newView(int position, ViewGroup parent) {
+        return mInflater.inflate(R.layout.tabs_layout_item_view, parent, false);
     }
 
-    void bindView(TabsLayoutItemView view, Tab tab) {
-        view.assignValues(tab);
+    void bindView(View view, Tab tab) {
+        ((TabsLayoutItemView) view).assignValues(tab);
     }
 }

@@ -247,7 +247,7 @@ HTMLVideoElement::UpdateScreenWakeLock()
     return;
   }
 
-  if (!mScreenWakeLock && !mPaused && !hidden && mHasVideo) {
+  if (!mScreenWakeLock && !mPaused && !hidden) {
     nsRefPtr<power::PowerManagerService> pmService =
       power::PowerManagerService::GetInstance();
     NS_ENSURE_TRUE_VOID(pmService);

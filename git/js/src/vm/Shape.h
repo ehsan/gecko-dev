@@ -110,6 +110,7 @@ namespace js {
 class Bindings;
 class Debugger;
 class Nursery;
+class ObjectImpl;
 class StaticBlockObject;
 
 namespace gc {
@@ -637,7 +638,7 @@ class Shape : public gc::TenuredCell
     friend class js::Bindings;
     friend class js::Nursery;
     friend class js::gc::ForkJoinNursery;
-    friend class js::NativeObject;
+    friend class js::ObjectImpl;
     friend class js::PropertyTree;
     friend class js::StaticBlockObject;
     friend struct js::StackShape;
@@ -695,7 +696,7 @@ class Shape : public gc::TenuredCell
                                            Shape ***pspp, bool adding = false);
     static inline Shape *searchNoHashify(Shape *start, jsid id);
 
-    void removeFromDictionary(NativeObject *obj);
+    void removeFromDictionary(ObjectImpl *obj);
     void insertIntoDictionary(HeapPtrShape *dictp);
 
     void initDictionaryShape(const StackShape &child, uint32_t nfixed, HeapPtrShape *dictp) {
@@ -703,8 +704,7 @@ class Shape : public gc::TenuredCell
         this->flags |= IN_DICTIONARY;
 
         this->listp = nullptr;
-        if (dictp)
-            insertIntoDictionary(dictp);
+        insertIntoDictionary(dictp);
     }
 
     /* Replace the base shape of the last shape in a non-dictionary lineage with base. */

@@ -4,7 +4,7 @@
 var expect = chai.expect;
 
 describe("loop.conversationViews", function () {
-  var sandbox, oldTitle, view, dispatcher;
+  var sandbox, oldTitle, view;
 
   var CALL_STATES = loop.store.CALL_STATES;
 
@@ -15,9 +15,6 @@ describe("loop.conversationViews", function () {
     sandbox.stub(document.mozL10n, "get", function(x) {
       return x;
     });
-
-    dispatcher = new loop.Dispatcher();
-    sandbox.stub(dispatcher, "dispatch");
   });
 
   afterEach(function() {
@@ -56,8 +53,7 @@ describe("loop.conversationViews", function () {
       function() {
         view = mountTestComponent({
           callState: CALL_STATES.CONNECTING,
-          calleeId: "mrsmith",
-          dispatcher: dispatcher
+          calleeId: "mrsmith"
         });
 
         var label = TestUtils.findRenderedDOMComponentWithClass(
@@ -70,8 +66,7 @@ describe("loop.conversationViews", function () {
       function() {
         view = mountTestComponent({
           callState: CALL_STATES.ALERTING,
-          calleeId: "mrsmith",
-          dispatcher: dispatcher
+          calleeId: "mrsmith"
         });
 
         var label = TestUtils.findRenderedDOMComponentWithClass(
@@ -79,86 +74,6 @@ describe("loop.conversationViews", function () {
 
         expect(label).to.have.string("ringing");
     });
-
-    it("should disable the cancel button if enableCancelButton is false",
-      function() {
-        view = mountTestComponent({
-          callState: CALL_STATES.CONNECTING,
-          calleeId: "mrsmith",
-          dispatcher: dispatcher,
-          enableCancelButton: false
-        });
-
-        var cancelBtn = view.getDOMNode().querySelector('.btn-cancel');
-
-        expect(cancelBtn.classList.contains("disabled")).eql(true);
-      });
-
-    it("should enable the cancel button if enableCancelButton is false",
-      function() {
-        view = mountTestComponent({
-          callState: CALL_STATES.CONNECTING,
-          calleeId: "mrsmith",
-          dispatcher: dispatcher,
-          enableCancelButton: true
-        });
-
-        var cancelBtn = view.getDOMNode().querySelector('.btn-cancel');
-
-        expect(cancelBtn.classList.contains("disabled")).eql(false);
-      });
-
-    it("should dispatch a cancelCall action when the cancel button is pressed",
-      function() {
-        view = mountTestComponent({
-          callState: CALL_STATES.CONNECTING,
-          calleeId: "mrsmith",
-          dispatcher: dispatcher
-        });
-
-        var cancelBtn = view.getDOMNode().querySelector('.btn-cancel');
-
-        React.addons.TestUtils.Simulate.click(cancelBtn);
-
-        sinon.assert.calledOnce(dispatcher.dispatch);
-        sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("name", "cancelCall"));
-      });
-  });
-
-  describe("CallFailedView", function() {
-    function mountTestComponent(props) {
-      return TestUtils.renderIntoDocument(
-        loop.conversationViews.CallFailedView({
-          dispatcher: dispatcher
-        }));
-    }
-
-    it("should dispatch a retryCall action when the retry button is pressed",
-      function() {
-        view = mountTestComponent();
-
-        var retryBtn = view.getDOMNode().querySelector('.btn-retry');
-
-        React.addons.TestUtils.Simulate.click(retryBtn);
-
-        sinon.assert.calledOnce(dispatcher.dispatch);
-        sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("name", "retryCall"));
-      });
-
-    it("should dispatch a cancelCall action when the cancel button is pressed",
-      function() {
-        view = mountTestComponent();
-
-        var cancelBtn = view.getDOMNode().querySelector('.btn-cancel');
-
-        React.addons.TestUtils.Simulate.click(cancelBtn);
-
-        sinon.assert.calledOnce(dispatcher.dispatch);
-        sinon.assert.calledWithMatch(dispatcher.dispatch,
-          sinon.match.hasOwn("name", "cancelCall"));
-      });
   });
 
   describe("OutgoingConversationView", function() {
@@ -173,18 +88,9 @@ describe("loop.conversationViews", function () {
 
     beforeEach(function() {
       store = new loop.store.ConversationStore({}, {
-        dispatcher: dispatcher,
+        dispatcher: new loop.Dispatcher(),
         client: {}
       });
-
-      navigator.mozLoop = {
-        getLoopCharPref: function() { return "fake"; },
-        appVersionInfo: sinon.spy()
-      };
-    });
-
-    afterEach(function() {
-      delete navigator.mozLoop;
     });
 
     it("should render the CallFailedView when the call state is 'terminated'",
@@ -197,9 +103,9 @@ describe("loop.conversationViews", function () {
           loop.conversationViews.CallFailedView);
     });
 
-    it("should render the PendingConversationView when the call state is 'init'",
+    it("should render the PendingConversationView when the call state is connecting",
       function() {
-        store.set({callState: CALL_STATES.INIT});
+        store.set({callState: CALL_STATES.CONNECTING});
 
         view = mountTestComponent();
 
@@ -207,29 +113,9 @@ describe("loop.conversationViews", function () {
           loop.conversationViews.PendingConversationView);
     });
 
-    it("should render the OngoingConversationView when the call state is 'ongoing'",
-      function() {
-        store.set({callState: CALL_STATES.ONGOING});
-
-        view = mountTestComponent();
-
-        TestUtils.findRenderedComponentWithType(view,
-          loop.conversationViews.OngoingConversationView);
-    });
-
-    it("should render the FeedbackView when the call state is 'finished'",
-      function() {
-        store.set({callState: CALL_STATES.FINISHED});
-
-        view = mountTestComponent();
-
-        TestUtils.findRenderedComponentWithType(view,
-          loop.shared.views.FeedbackView);
-    });
-
     it("should update the rendered views when the state is changed.",
       function() {
-        store.set({callState: CALL_STATES.INIT});
+        store.set({callState: CALL_STATES.CONNECTING});
 
         view = mountTestComponent();
 

@@ -235,6 +235,7 @@
       var searchStr = "text";
 
       synthesizeComposition({ type: "compositionstart" });
+      synthesizeComposition({ type: "compositionupdate", data: searchStr });
       synthesizeText(
         { "composition":
           { "string": searchStr,

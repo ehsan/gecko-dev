@@ -3621,13 +3621,6 @@ GetRTIdByIndex(JSContext *cx, unsigned index);
 
 namespace xpc {
 
-enum WrapperDenialType {
-    WrapperDenialForXray = 0,
-    WrapperDenialForCOW,
-    WrapperDenialTypeCount
-};
-bool ReportWrapperDenial(JSContext *cx, JS::HandleId id, WrapperDenialType type, const char *reason);
-
 class CompartmentPrivate
 {
 public:
@@ -3642,11 +3635,11 @@ public:
         , skipWriteToGlobalPrototype(false)
         , universalXPConnectEnabled(false)
         , forcePermissiveCOWs(false)
+        , warnedAboutXrays(false)
         , scriptability(c)
         , scope(nullptr)
     {
         MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
-        mozilla::PodArrayZero(wrapperDenialWarnings);
     }
 
     ~CompartmentPrivate();
@@ -3695,8 +3688,8 @@ public:
     bool forcePermissiveCOWs;
 
     // Whether we've emitted a warning about a property that was filtered out
-    // by a security wrapper. See XrayWrapper.cpp.
-    bool wrapperDenialWarnings[WrapperDenialTypeCount];
+    // by XrayWrappers. See XrayWrapper.cpp.
+    bool warnedAboutXrays;
 
     // The scriptability of this compartment.
     Scriptability scriptability;

@@ -15,7 +15,6 @@
 namespace js {
 
 class GlobalObject;
-class RegExpStaticsObject;
 
 class RegExpStatics
 {
@@ -48,7 +47,7 @@ class RegExpStatics
 
   public:
     RegExpStatics() : bufferLink(nullptr), copied(false) { clear(); }
-    static RegExpStaticsObject *create(ExclusiveContext *cx, GlobalObject *parent);
+    static JSObject *create(ExclusiveContext *cx, GlobalObject *parent);
 
   private:
     bool executeLazy(JSContext *cx);

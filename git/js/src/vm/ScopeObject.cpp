@@ -330,8 +330,7 @@ DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::Initi
     if (!emptyDeclEnvShape)
         return nullptr;
 
-    RootedNativeObject obj(cx, MaybeNativeObject(JSObject::create(cx, FINALIZE_KIND, heap,
-                                                                  emptyDeclEnvShape, type)));
+    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, heap, emptyDeclEnvShape, type));
     if (!obj)
         return nullptr;
 
@@ -339,8 +338,8 @@ DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::Initi
     Rooted<jsid> id(cx, AtomToId(fun->atom()));
     const Class *clasp = obj->getClass();
     unsigned attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY;
-    if (!NativeObject::putProperty<SequentialExecution>(cx, obj, id, clasp->getProperty,
-                                                        clasp->setProperty, lambdaSlot(), attrs, 0)) {
+    if (!JSObject::putProperty<SequentialExecution>(cx, obj, id, clasp->getProperty,
+                                                    clasp->setProperty, lambdaSlot(), attrs, 0)) {
         return nullptr;
     }
 
@@ -351,13 +350,13 @@ DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::Initi
 DeclEnvObject *
 DeclEnvObject::create(JSContext *cx, HandleObject enclosing, HandleFunction callee)
 {
-    Rooted<DeclEnvObject*> obj(cx, createTemplateObject(cx, callee, gc::DefaultHeap));
+    RootedObject obj(cx, createTemplateObject(cx, callee, gc::DefaultHeap));
     if (!obj)
         return nullptr;
 
-    obj->setEnclosingScope(enclosing);
+    obj->as<ScopeObject>().setEnclosingScope(enclosing);
     obj->setFixedSlot(lambdaSlot(), ObjectValue(*callee));
-    return obj;
+    return &obj->as<DeclEnvObject>();
 }
 
 template<XDRMode mode>
@@ -432,8 +431,7 @@ DynamicWithObject::create(JSContext *cx, HandleObject object, HandleObject enclo
     if (!shape)
         return nullptr;
 
-    RootedNativeObject obj(cx, MaybeNativeObject(JSObject::create(cx, FINALIZE_KIND,
-                                                                  gc::DefaultHeap, shape, type)));
+    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, gc::DefaultHeap, shape, type));
     if (!obj)
         return nullptr;
 
@@ -620,8 +618,7 @@ ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, Abst
 
     RootedShape shape(cx, block->lastProperty());
 
-    RootedNativeObject obj(cx, MaybeNativeObject(JSObject::create(cx, FINALIZE_KIND,
-                                                                  gc::TenuredHeap, shape, type)));
+    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, gc::TenuredHeap, shape, type));
     if (!obj)
         return nullptr;
 
@@ -708,14 +705,14 @@ StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block
      * block's shape later.
      */
     uint32_t slot = JSSLOT_FREE(&BlockObject::class_) + index;
-    return NativeObject::addPropertyInternal<SequentialExecution>(cx, block, id,
-                                                                  /* getter = */ nullptr,
-                                                                  /* setter = */ nullptr,
-                                                                  slot,
-                                                                  JSPROP_ENUMERATE | JSPROP_PERMANENT,
-                                                                  /* attrs = */ 0,
-                                                                  spp,
-                                                                  /* allowDictionary = */ false);
+    return JSObject::addPropertyInternal<SequentialExecution>(cx, block, id,
+                                                              /* getter = */ nullptr,
+                                                              /* setter = */ nullptr,
+                                                              slot,
+                                                              JSPROP_ENUMERATE | JSPROP_PERMANENT,
+                                                              /* attrs = */ 0,
+                                                              spp,
+                                                              /* allowDictionary = */ false);
 }
 
 const Class BlockObject::class_ = {
@@ -1359,7 +1356,7 @@ class DebugScopeProxy : public BaseProxyHandler
                         vp.set(frame.unaliasedLocal(i));
                     else
                         frame.unaliasedLocal(i) = vp;
-                } else if (NativeObject *snapshot = debugScope->maybeSnapshot()) {
+                } else if (JSObject *snapshot = debugScope->maybeSnapshot()) {
                     if (action == GET)
                         vp.set(snapshot->getDenseElement(bindings.numArgs() + i));
                     else
@@ -1390,7 +1387,7 @@ class DebugScopeProxy : public BaseProxyHandler
                         else
                             frame.unaliasedFormal(i, DONT_CHECK_ALIASING) = vp;
                     }
-                } else if (NativeObject *snapshot = debugScope->maybeSnapshot()) {
+                } else if (JSObject *snapshot = debugScope->maybeSnapshot()) {
                     if (action == GET)
                         vp.set(snapshot->getDenseElement(i));
                     else
@@ -1803,16 +1800,15 @@ DebugScopeObject::enclosingScope() const
     return extra(ENCLOSING_EXTRA).toObject();
 }
 
-ArrayObject *
+JSObject *
 DebugScopeObject::maybeSnapshot() const
 {
     MOZ_ASSERT(!scope().as<CallObject>().isForEval());
-    JSObject *obj = extra(SNAPSHOT_EXTRA).toObjectOrNull();
-    return obj ? &obj->as<ArrayObject>() : nullptr;
+    return extra(SNAPSHOT_EXTRA).toObjectOrNull();
 }
 
 void
-DebugScopeObject::initSnapshot(ArrayObject &o)
+DebugScopeObject::initSnapshot(JSObject &o)
 {
     MOZ_ASSERT(maybeSnapshot() == nullptr);
     setExtra(SNAPSHOT_EXTRA, ObjectValue(o));
@@ -1976,7 +1972,7 @@ DebugScopes::sweep(JSRuntime *rt)
             ScopeIterKey key = e.front().key();
             bool needsUpdate = false;
             if (IsForwarded(key.cur())) {
-                key.updateCur(&gc::Forwarded(key.cur())->as<NativeObject>());
+                key.updateCur(js::gc::Forwarded(key.cur()));
                 needsUpdate = true;
             }
             if (key.staticScope() && IsForwarded(key.staticScope())) {
@@ -2215,7 +2211,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
          * Use a dense array as storage (since proxies do not have trace
          * hooks). This array must not escape into the wild.
          */
-        RootedArrayObject snapshot(cx, NewDenseCopiedArray(cx, vec.length(), vec.begin()));
+        RootedObject snapshot(cx, NewDenseCopiedArray(cx, vec.length(), vec.begin()));
         if (!snapshot) {
             cx->clearPendingException();
             return;

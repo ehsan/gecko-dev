@@ -388,7 +388,7 @@ class CodeGenerator : public CodeGeneratorSpecific
 
     bool emitAllocateGCThingPar(LInstruction *lir, Register objReg, Register cxReg,
                                 Register tempReg1, Register tempReg2,
-                                NativeObject *templateObj);
+                                JSObject *templateObj);
 
     bool emitCallToUncompiledScriptPar(LInstruction *lir, Register calleeReg);
 

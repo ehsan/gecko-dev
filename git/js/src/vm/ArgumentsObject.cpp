@@ -34,7 +34,7 @@ CopyStackFrameArguments(const AbstractFramePtr frame, HeapValue *dst, unsigned t
 }
 
 /* static */ void
-ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObject *obj,
+ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
                                           ArgumentsData *data)
 {
     JSScript *script = frame.script();
@@ -47,7 +47,7 @@ ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObjec
 
 /* static */ void
 ArgumentsObject::MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
-                                          ArgumentsObject *obj, ArgumentsData *data)
+                                          JSObject *obj, ArgumentsData *data)
 {
     JSFunction *callee = jit::CalleeTokenToFunction(frame->calleeToken());
     JSScript *script = callee->nonLazyScript();
@@ -75,7 +75,7 @@ struct CopyFrameArgs
      * If a call object exists and the arguments object aliases formals, the
      * call object is the canonical location for formals.
      */
-    void maybeForwardToCallObject(ArgumentsObject *obj, ArgumentsData *data) {
+    void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
         ArgumentsObject::MaybeForwardToCallObject(frame_, obj, data);
     }
 };
@@ -114,7 +114,7 @@ struct CopyIonJSFrameArgs
      * If a call object exists and the arguments object aliases formals, the
      * call object is the canonical location for formals.
      */
-    void maybeForwardToCallObject(ArgumentsObject *obj, ArgumentsData *data) {
+    void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
         ArgumentsObject::MaybeForwardToCallObject(frame_, callObj_, obj, data);
     }
 };
@@ -149,7 +149,7 @@ struct CopyScriptFrameIterArgs
      * Ion frames are copying every argument onto the stack, other locations are
      * invalid.
      */
-    void maybeForwardToCallObject(ArgumentsObject *obj, ArgumentsData *data) {
+    void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
         if (!iter_.isIon())
             ArgumentsObject::MaybeForwardToCallObject(iter_.abstractFramePtr(), obj, data);
     }
@@ -193,10 +193,8 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     if (!data)
         return nullptr;
 
-    RootedNativeObject obj(cx);
-    obj = MaybeNativeObject(JSObject::create(cx, FINALIZE_KIND,
-                                             GetInitialHeap(GenericObject, clasp),
-                                             shape, type));
+    RootedObject obj(cx);
+    obj = JSObject::create(cx, FINALIZE_KIND, GetInitialHeap(GenericObject, clasp), shape, type);
     if (!obj) {
         js_free(data);
         return nullptr;
@@ -222,7 +220,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
 
     obj->initFixedSlot(INITIAL_LENGTH_SLOT, Int32Value(numActuals << PACKED_BITS_COUNT));
 
-    copy.maybeForwardToCallObject(&obj->as<ArgumentsObject>(), data);
+    copy.maybeForwardToCallObject(obj, data);
 
     ArgumentsObject &argsobj = obj->as<ArgumentsObject>();
     MOZ_ASSERT(argsobj.initialLength() == numActuals);
@@ -323,20 +321,20 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
 {
     if (!obj->is<NormalArgumentsObject>())
         return true;
-    Handle<NormalArgumentsObject*> argsobj = obj.as<NormalArgumentsObject>();
 
     unsigned attrs;
-    if (!baseops::GetAttributes(cx, argsobj, id, &attrs))
+    if (!baseops::GetAttributes(cx, obj, id, &attrs))
         return false;
     MOZ_ASSERT(!(attrs & JSPROP_READONLY));
     attrs &= (JSPROP_ENUMERATE | JSPROP_PERMANENT); /* only valid attributes */
 
-    RootedScript script(cx, argsobj->containingScript());
+    NormalArgumentsObject &argsobj = obj->as<NormalArgumentsObject>();
+    RootedScript script(cx, argsobj.containingScript());
 
     if (JSID_IS_INT(id)) {
         unsigned arg = unsigned(JSID_TO_INT(id));
-        if (arg < argsobj->initialLength() && !argsobj->isElementDeleted(arg)) {
-            argsobj->setElement(cx, arg, vp);
+        if (arg < argsobj.initialLength() && !argsobj.isElementDeleted(arg)) {
+            argsobj.setElement(cx, arg, vp);
             if (arg < script->functionNonDelazifying()->nargs())
                 types::TypeScript::SetArgument(cx, script, arg, vp);
             return true;
@@ -354,8 +352,8 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
      * that has a setter for this id.
      */
     bool succeeded;
-    return baseops::DeleteGeneric(cx, argsobj, id, &succeeded) &&
-           baseops::DefineGeneric(cx, argsobj, id, vp, nullptr, nullptr, attrs);
+    return baseops::DeleteGeneric(cx, obj, id, &succeeded) &&
+           baseops::DefineGeneric(cx, obj, id, vp, nullptr, nullptr, attrs);
 }
 
 static bool
@@ -445,13 +443,14 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
 {
     if (!obj->is<StrictArgumentsObject>())
         return true;
-    Handle<StrictArgumentsObject*> argsobj = obj.as<StrictArgumentsObject>();
 
     unsigned attrs;
-    if (!baseops::GetAttributes(cx, argsobj, id, &attrs))
+    if (!baseops::GetAttributes(cx, obj, id, &attrs))
         return false;
     MOZ_ASSERT(!(attrs & JSPROP_READONLY));
     attrs &= (JSPROP_ENUMERATE | JSPROP_PERMANENT); /* only valid attributes */
+
+    Rooted<StrictArgumentsObject*> argsobj(cx, &obj->as<StrictArgumentsObject>());
 
     if (JSID_IS_INT(id)) {
         unsigned arg = unsigned(JSID_TO_INT(id));

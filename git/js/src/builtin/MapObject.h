@@ -85,7 +85,7 @@ typedef OrderedHashSet<HashableValue,
                        HashableValue::Hasher,
                        RuntimeAllocPolicy> ValueSet;
 
-class MapObject : public NativeObject {
+class MapObject : public JSObject {
   public:
     enum IteratorKind { Keys, Values, Entries };
 
@@ -130,7 +130,7 @@ class MapObject : public NativeObject {
     static bool clear(JSContext *cx, unsigned argc, Value *vp);
 };
 
-class SetObject : public NativeObject {
+class SetObject : public JSObject {
   public:
     enum IteratorKind { Values, Entries };
     static JSObject *initClass(JSContext *cx, JSObject *obj);

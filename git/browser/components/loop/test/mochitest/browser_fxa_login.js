@@ -14,34 +14,6 @@ const {
 
 const BASE_URL = "http://mochi.test:8888/browser/browser/components/loop/test/mochitest/loop_fxa.sjs?";
 
-function* checkFxA401() {
-  let err = MozLoopService.errors.get("login");
-  ise(err.code, 401, "Check error code");
-  ise(err.friendlyMessage, getLoopString("could_not_authenticate"),
-      "Check friendlyMessage");
-  ise(err.friendlyDetails, getLoopString("password_changed_question"),
-      "Check friendlyDetails");
-  ise(err.friendlyDetailsButtonLabel, getLoopString("retry_button"),
-      "Check friendlyDetailsButtonLabel");
-  let loopButton = document.getElementById("loop-call-button");
-  is(loopButton.getAttribute("state"), "error",
-     "state of loop button should be error after a 401 with login");
-
-  let loopPanel = document.getElementById("loop-notification-panel");
-  yield loadLoopPanel({loopURL: BASE_URL });
-  let loopDoc = document.getElementById("loop").contentDocument;
-  is(loopDoc.querySelector(".alert-error .message").textContent,
-     getLoopString("could_not_authenticate"),
-     "Check error bar message");
-  is(loopDoc.querySelector(".details-error .details").textContent,
-     getLoopString("password_changed_question"),
-     "Check error bar details message");
-  is(loopDoc.querySelector(".details-error .detailsButton").textContent,
-     getLoopString("retry_button"),
-     "Check error bar details button");
-  loopPanel.hidePopup();
-}
-
 add_task(function* setup() {
   Services.prefs.setCharPref("loop.server", BASE_URL);
   Services.prefs.setCharPref("services.push.serverURL", "ws://localhost/");
@@ -50,7 +22,7 @@ add_task(function* setup() {
     yield promiseDeletedOAuthParams(BASE_URL);
     Services.prefs.clearUserPref("loop.server");
     Services.prefs.clearUserPref("services.push.serverURL");
-    yield resetFxA();
+    resetFxA();
     Services.prefs.clearUserPref(MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.GUEST));
   });
 });
@@ -80,14 +52,14 @@ add_task(function* basicAuthorization() {
 });
 
 add_task(function* sameOAuthClientForTwoCalls() {
-  yield resetFxA();
+  resetFxA();
   let client1 = yield MozLoopServiceInternal.promiseFxAOAuthClient();
   let client2 = yield MozLoopServiceInternal.promiseFxAOAuthClient();
   ise(client1, client2, "The same client should be returned");
 });
 
 add_task(function* paramsInvalid() {
-  yield resetFxA();
+  resetFxA();
   // Delete the params so an empty object is returned.
   yield promiseDeletedOAuthParams(BASE_URL);
   let result = null;
@@ -102,7 +74,7 @@ add_task(function* paramsInvalid() {
 });
 
 add_task(function* params_no_hawk_session() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -129,7 +101,7 @@ add_task(function* params_no_hawk_session() {
 add_task(function* params_nonJSON() {
   Services.prefs.setCharPref("loop.server", "https://loop.invalid");
   // Reset after changing the server so a new HawkClient is created
-  yield resetFxA();
+  resetFxA();
 
   let loginPromise = MozLoopService.logInToFxA();
   let caught = false;
@@ -142,7 +114,7 @@ add_task(function* params_nonJSON() {
 });
 
 add_task(function* invalidState() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -158,7 +130,7 @@ add_task(function* invalidState() {
 });
 
 add_task(function* basicRegistrationWithoutSession() {
-  yield resetFxA();
+  resetFxA();
   yield promiseDeletedOAuthParams(BASE_URL);
 
   let caught = false;
@@ -167,7 +139,6 @@ add_task(function* basicRegistrationWithoutSession() {
     is(error.code, 401, "Should have returned a 401");
   });
   ok(caught, "Should have caught the error requesting /token without a hawk session");
-  yield checkFxA401();
 });
 
 add_task(function* basicRegistration() {
@@ -179,7 +150,7 @@ add_task(function* basicRegistration() {
     state: "state",
   };
   yield promiseOAuthParamsSetup(BASE_URL, params);
-  yield resetFxA();
+  resetFxA();
   // Create a fake FxA hawk session token
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
   Services.prefs.setCharPref(fxASessionPref, "X".repeat(HAWK_TOKEN_LENGTH));
@@ -191,7 +162,7 @@ add_task(function* basicRegistration() {
 });
 
 add_task(function* registrationWithInvalidState() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -215,7 +186,7 @@ add_task(function* registrationWithInvalidState() {
 });
 
 add_task(function* registrationWith401() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -233,12 +204,10 @@ add_task(function* registrationWith401() {
   error => {
     is(error.code, 401, "Check error code");
   });
-
-  yield checkFxA401();
 });
 
 add_task(function* basicAuthorizationAndRegistration() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -303,7 +272,7 @@ add_task(function* basicAuthorizationAndRegistration() {
 });
 
 add_task(function* loginWithParams401() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -323,12 +292,10 @@ add_task(function* loginWithParams401() {
     ise(error.code, 401, "Check error code");
     ise(gFxAOAuthTokenData, null, "Check there is no saved token data");
   });
-
-  yield checkFxA401();
 });
 
 add_task(function* logoutWithIncorrectPushURL() {
-  yield resetFxA();
+  resetFxA();
   let pushURL = "http://www.example.com/";
   mockPushHandler.pushUrl = pushURL;
 
@@ -351,7 +318,7 @@ add_task(function* logoutWithIncorrectPushURL() {
 });
 
 add_task(function* logoutWithNoPushURL() {
-  yield resetFxA();
+  resetFxA();
   let pushURL = "http://www.example.com/";
   mockPushHandler.pushUrl = pushURL;
 
@@ -363,14 +330,18 @@ add_task(function* logoutWithNoPushURL() {
   let registrationResponse = yield promiseOAuthGetRegistration(BASE_URL);
   ise(registrationResponse.response.simplePushURL, pushURL, "Check registered push URL");
   mockPushHandler.pushUrl = null;
-  yield MozLoopService.logOutFromFxA();
+  let caught = false;
+  yield MozLoopService.logOutFromFxA().catch((error) => {
+    caught = true;
+  });
+  ok(caught, "Should have caught an error logging out without a push URL");
   checkLoggedOutState();
   registrationResponse = yield promiseOAuthGetRegistration(BASE_URL);
   ise(registrationResponse.response.simplePushURL, pushURL, "Check registered push URL wasn't deleted");
 });
 
 add_task(function* loginWithRegistration401() {
-  yield resetFxA();
+  resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -389,6 +360,4 @@ add_task(function* loginWithRegistration401() {
     ise(error.code, 401, "Check error code");
     ise(gFxAOAuthTokenData, null, "Check there is no saved token data");
   });
-
-  yield checkFxA401();
 });
