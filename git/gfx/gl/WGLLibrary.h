@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLContextTypes.h"
-#include <windows.h>
-
 struct PRLibrary;
 
 namespace mozilla {

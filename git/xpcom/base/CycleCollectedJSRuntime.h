@@ -194,7 +194,7 @@ public:
   nsCycleCollectionParticipant* GCThingParticipant();
   nsCycleCollectionParticipant* ZoneParticipant();
 
-  nsresult TraverseRoots(nsCycleCollectionNoteRootCallback &aCb);
+  nsresult BeginCycleCollection(nsCycleCollectionNoteRootCallback &aCb);
   bool UsefulToMergeZones() const;
   void FixWeakMappingGrayBits() const;
   bool NeedCollect() const;

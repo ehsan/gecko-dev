@@ -10,8 +10,6 @@
 #include "nsHttp.h"
 #include "nsString.h"
 
-namespace mozilla { namespace net {
-
 //-----------------------------------------------------------------------------
 // nsHttpResponseHead represents the status line and headers from an HTTP
 // response.
@@ -134,6 +132,5 @@ private:
 
     friend struct IPC::ParamTraits<nsHttpResponseHead>;
 };
-}} // namespace mozilla::net
 
 #endif // nsHttpResponseHead_h__

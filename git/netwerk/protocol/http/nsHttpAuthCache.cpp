@@ -18,9 +18,6 @@
 #include "mozilla/Services.h"
 #include "nsNetUtil.h"
 
-namespace mozilla {
-namespace net {
-
 static inline void
 GetAuthKey(const char *scheme, const char *host, int32_t port, uint32_t appId, bool inBrowserElement, nsCString &key)
 {
@@ -59,7 +56,7 @@ nsHttpAuthCache::nsHttpAuthCache()
     : mDB(nullptr)
     , mObserver(new AppDataClearObserver(MOZ_THIS_IN_INITIALIZER_LIST()))
 {
-    nsCOMPtr<nsIObserverService> obsSvc = services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
     if (obsSvc) {
         obsSvc->AddObserver(mObserver, "webapps-clear-data", false);
     }
@@ -69,7 +66,7 @@ nsHttpAuthCache::~nsHttpAuthCache()
 {
     if (mDB)
         ClearAll();
-    nsCOMPtr<nsIObserverService> obsSvc = services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
     if (obsSvc) {
         obsSvc->RemoveObserver(mObserver, "webapps-clear-data");
         mObserver->mOwner = nullptr;
@@ -608,6 +605,3 @@ nsHttpAuthNode::ClearAuthEntry(const char *realm)
         mList.RemoveElement(entry); // double search OK
     }
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

@@ -61,7 +61,7 @@ private:
   nsCOMPtr<nsILoadGroupConnectionInfo> mLoadGroupCI;
 
   SpdyPush31TransactionBuffer *mBufferedPush;
-  TimeStamp          mLastRead;
+  mozilla::TimeStamp          mLastRead;
 
   nsCString mHashKey;
   nsresult mStatus;
