@@ -156,9 +156,6 @@ protected:
             WithUnions* o);
 
     NS_OVERRIDE
-    virtual bool RecvTest17(const nsTArray<Op>& sa);
-
-    NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
@@ -223,7 +220,6 @@ private:
     void Test14();
     void Test15();
     void Test16();
-    void Test17();
 
     nsTArray<PTestDataStructuresSubChild*> mKids;
 };

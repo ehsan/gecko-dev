@@ -54,8 +54,6 @@
 #ifndef nsIPresShell_h___
 #define nsIPresShell_h___
 
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 #include "nsISupports.h"
 #include "nsQueryFrame.h"
 #include "nsCoord.h"
@@ -83,7 +81,7 @@ class nsFrameManager;
 class nsILayoutHistoryState;
 class nsIReflowCallback;
 class nsIDOMNode;
-class nsIntRegion;
+class nsIRegion;
 class nsIStyleSheet;
 class nsCSSFrameConstructor;
 class nsISelection;
@@ -127,8 +125,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0x7ae0e29f, 0x4d2e, 0x4acd, \
-    { 0xb5, 0x74, 0xb6, 0x40, 0x8a, 0xca, 0xb8, 0x4d } }
+  { 0x47c5b7c4, 0x8d35, 0x4d36, \
+    { 0xa1, 0xf9, 0x19, 0x44, 0xf8, 0xb9, 0x46, 0xb5 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -839,12 +837,12 @@ public:
 
   /**
    * Renders a node aNode to a surface and returns it. The aRegion may be used
-   * to clip the rendering. This region is measured in CSS pixels from the
+   * to clip the rendering. This region is measured in device pixels from the
    * edge of the presshell area. The aPoint, aScreenRect and aSurface
    * arguments function in a similar manner as RenderSelection.
    */
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
-                                                   nsIntRegion* aRegion,
+                                                   nsIRegion* aRegion,
                                                    nsIntPoint& aPoint,
                                                    nsIntRect* aScreenRect) = 0;
 
@@ -999,12 +997,6 @@ public:
   PRUint64 GetPaintCount() { return mPaintCount; }
   void IncrementPaintCount() { ++mPaintCount; }
 
-  /**
-   * Initialize and shut down static variables.
-   */
-  static void InitializeStatics();
-  static void ReleaseStatics();
-
 protected:
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -1057,10 +1049,6 @@ protected:
 
   // Most recent canvas background color.
   nscolor                   mCanvasBackgroundColor;
-
-  // Live pres shells, for memory and other tracking
-  typedef nsPtrHashKey<nsIPresShell> PresShellPtrKey;
-  static nsTHashtable<PresShellPtrKey> *sLiveShells;
 };
 
 /**

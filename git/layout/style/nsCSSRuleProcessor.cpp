@@ -1109,9 +1109,13 @@ RuleProcessorData::ContentState()
 {
   if (!mGotContentState) {
     mGotContentState = PR_TRUE;
-    mContentState = mPresContext ?
-      mPresContext->EventStateManager()->GetContentState(mElement) :
-      mElement->IntrinsicState();
+    mContentState = 0;
+    if (mPresContext) {
+      mPresContext->EventStateManager()->GetContentState(mElement,
+                                                         mContentState);
+    } else {
+      mContentState = mElement->IntrinsicState();
+    }
 
     // If we are not supposed to mark visited links as such, be sure to
     // flip the bits appropriately.  We want to do this here, rather

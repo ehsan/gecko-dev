@@ -357,18 +357,15 @@ nsSVGPatternFrame::GetPatternTransform()
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::patternTransform, mContent);
 
-  static const gfxMatrix identityMatrix;
-  if (!patternElement->mPatternTransform) {
-    return identityMatrix;
-  }
+  gfxMatrix matrix;
   nsCOMPtr<nsIDOMSVGTransformList> lTrans;
   patternElement->mPatternTransform->GetAnimVal(getter_AddRefs(lTrans));
   nsCOMPtr<nsIDOMSVGMatrix> patternTransform =
     nsSVGTransformList::GetConsolidationMatrix(lTrans);
-  if (!patternTransform) {
-    return identityMatrix;
+  if (patternTransform) {
+    matrix = nsSVGUtils::ConvertSVGMatrixToThebes(patternTransform);
   }
-  return nsSVGUtils::ConvertSVGMatrixToThebes(patternTransform);
+  return matrix;
 }
 
 const nsSVGViewBox &

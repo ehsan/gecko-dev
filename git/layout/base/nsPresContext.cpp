@@ -1416,16 +1416,6 @@ nsPresContext::GetBidi() const
 {
   return Document()->GetBidiOptions();
 }
-
-PRUint32
-nsPresContext::GetBidiMemoryUsed()
-{
-  if (!mBidiUtils)
-    return 0;
-
-  return mBidiUtils->EstimateMemoryUsed();
-}
-
 #endif //IBMBIDI
 
 PRBool

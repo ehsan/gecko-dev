@@ -120,8 +120,7 @@ public:
   NS_IMETHOD GetEventTarget(nsIFrame **aFrame);
   NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent);
 
-  virtual PRInt32 GetContentState(nsIContent *aContent,
-                                  PRBool aFollowLabels = PR_FALSE);
+  NS_IMETHOD GetContentState(nsIContent *aContent, PRInt32& aState);
   virtual PRBool SetContentState(nsIContent *aContent, PRInt32 aState);
   NS_IMETHOD ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
   NS_IMETHOD EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK);

@@ -258,8 +258,8 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
   if (esm) {
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);
-    *aState = esm->GetContentState(content);
-    return NS_OK;
+  
+    return esm->GetContentState(content, *aState);
   }
 
   return NS_ERROR_FAILURE;

@@ -154,28 +154,14 @@ IteratorNext(JSContext *cx, uintN argc, jsval *vp)
   return JS_TRUE;
 }
 
-static JSObject *
-IteratorIterator(JSContext *, JSObject *obj, JSBool)
-{
-  return obj;
-}
+static JSClass IteratorClass = {
+  "XOW iterator", JSCLASS_HAS_RESERVED_SLOTS(3),
+  JS_PropertyStub, JS_PropertyStub,
+  JS_PropertyStub, JS_PropertyStub,
+  JS_EnumerateStub, JS_ResolveStub,
+  JS_ConvertStub, IteratorFinalize,
 
-static JSExtendedClass IteratorClass = {
-  { "Wrapper iterator",
-    JSCLASS_HAS_RESERVED_SLOTS(3) | JSCLASS_IS_EXTENDED,
-    JS_PropertyStub, JS_PropertyStub,
-    JS_PropertyStub, JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub, IteratorFinalize,
-
-    JSCLASS_NO_OPTIONAL_MEMBERS
-  },
-
-  nsnull,             // equality
-  nsnull, nsnull,     // innerObject/outerObject
-  IteratorIterator,
-  nsnull,             // wrappedObject
-  JSCLASS_NO_RESERVED_MEMBERS
+  JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 JSBool
@@ -331,7 +317,7 @@ CreateIteratorObj(JSContext *cx, JSObject *tempWrapper,
   // delegates (via the __proto__ link) to the wrapper.
 
   JSObject *iterObj =
-    JS_NewObjectWithGivenProto(cx, &IteratorClass.base, tempWrapper, wrapperObj);
+    JS_NewObjectWithGivenProto(cx, &IteratorClass, tempWrapper, wrapperObj);
   if (!iterObj) {
     return nsnull;
   }
@@ -394,7 +380,7 @@ JSObject *
 CreateSimpleIterator(JSContext *cx, JSObject *scope, JSBool keysonly,
                      JSObject *propertyContainer)
 {
-  JSObject *iterObj = JS_NewObjectWithGivenProto(cx, &IteratorClass.base,
+  JSObject *iterObj = JS_NewObjectWithGivenProto(cx, &IteratorClass,
                                                  propertyContainer, scope);
   if (!iterObj) {
     return nsnull;

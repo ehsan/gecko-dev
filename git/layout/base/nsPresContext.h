@@ -746,10 +746,6 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
-
-  PRUint32 GetBidiMemoryUsed();
-#else
-  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -958,15 +954,6 @@ public:
       return aContent->GetPrimaryFrame();
     }
     return nsnull;
-  }
-
-  PRUint32 EstimateMemoryUsed() {
-    PRUint32 result = 0;
-
-    result += sizeof(nsPresContext);
-    result += GetBidiMemoryUsed();
-
-    return result;
   }
 
 protected:

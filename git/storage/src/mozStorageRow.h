@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageRow_h
-#define mozStorageRow_h
+#ifndef __mozStorageRow_h__
+#define __mozStorageRow_h__
 
 #include "mozIStorageRow.h"
 #include "nsCOMArray.h"
@@ -85,4 +85,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageRow_h
+#endif // __mozStorageRow_h__

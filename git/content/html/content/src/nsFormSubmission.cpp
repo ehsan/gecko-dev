@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 
 #include "nsCOMPtr.h"
 #include "nsIForm.h"

@@ -1715,12 +1715,13 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
   }
 
-  /* No mDocShell means we're already been partially closed down.  When that
-     happens, setting status isn't a big requirement, so don't. (Doesn't happen
-     under normal circumstances, but bug 49615 describes a case.) */
+  /* No mDocShell means we're either an inner window or we're already
+     been partially closed down.  When that happens, setting status
+     isn't a big requirement, so don't. (Doesn't happen under normal
+     circumstances, but bug 49615 describes a case.) */
 
-  nsContentUtils::AddScriptRunner(
-    NS_NewRunnableMethod(this, &nsGlobalWindow::ClearStatus));
+  SetStatus(EmptyString());
+  SetDefaultStatus(EmptyString());
 
   PRBool reUseInnerWindow = WouldReuseInnerWindow(aDocument);
 
@@ -2152,13 +2153,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   }
 
   return NS_OK;
-}
-
-void
-nsGlobalWindow::ClearStatus()
-{
-  SetStatus(EmptyString());
-  SetDefaultStatus(EmptyString());
 }
 
 nsresult

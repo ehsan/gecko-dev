@@ -66,15 +66,17 @@ using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsEmptyStyleRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 nsEmptyStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsEmptyStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
+  return NS_OK;
 }
 #endif
 

@@ -53,14 +53,12 @@
 #include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsContentUtils.h"
-#include "nsStubMutationObserver.h"
 
 // Attribute helper class used to wrap up an attribute with a dom
 // object that implements nsIDOMAttr, nsIDOM3Attr, nsIDOMNode, nsIDOM3Node
 class nsDOMAttribute : public nsIAttribute,
                        public nsIDOMAttr,
-                       public nsIDOM3Attr,
-                       public nsStubMutationObserver
+                       public nsIDOM3Attr
 {
 public:
   nsDOMAttribute(nsDOMAttributeMap* aAttrMap, nsINodeInfo *aNodeInfo,
@@ -120,8 +118,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDOMAttribute,
                                                          nsIAttribute)
 
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
   {
@@ -133,7 +129,15 @@ protected:
 private:
   already_AddRefed<nsIAtom> GetNameAtom(nsIContent* aContent);
 
-  void EnsureChildState();
+  nsresult EnsureChildState(PRBool aSetText, PRBool &aHasChild) const;
+
+  PRUint32 GetChildCount(PRBool aSetText) const
+  {
+    PRBool hasChild;
+    EnsureChildState(aSetText, hasChild);
+
+    return hasChild ? 1 : 0;
+  }
 
   nsString mValue;
   // XXX For now, there's only a single child - a text element

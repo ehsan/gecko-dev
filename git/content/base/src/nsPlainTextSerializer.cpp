@@ -1411,10 +1411,8 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
         else {
           mCurrentLine.Right(restOfLine, linelength-goodSpace);
         }
-        // if breaker was U+0020, it has to consider for delsp=yes support
-        PRBool breakBySpace = mCurrentLine.CharAt(goodSpace) == ' ';
         mCurrentLine.Truncate(goodSpace); 
-        EndLine(PR_TRUE, breakBySpace);
+        EndLine(PR_TRUE);
         mCurrentLine.Truncate();
         // Space stuff new line?
         if(mFlags & nsIDocumentEncoder::OutputFormatFlowed) {
@@ -1452,7 +1450,7 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
  * preformatted.
  */
 void
-nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak, PRBool aBreakBySpace)
+nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak)
 {
   PRUint32 currentlinelength = mCurrentLine.Length();
 
@@ -1484,13 +1482,7 @@ nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak, PRBool aBreakBySpace)
     // Add the soft part of the soft linebreak (RFC 2646 4.1)
     // We only do this when there is no indentation since format=flowed
     // lines and indentation doesn't work well together.
-
-    // If breaker character is ASCII space with RFC 3676 support (delsp=yes),
-    // add twice space.
-    if (mFlags & nsIDocumentEncoder::OutputFormatDelSp && aBreakBySpace)
-      mCurrentLine.Append(NS_LITERAL_STRING("  "));
-    else
-      mCurrentLine.Append(PRUnichar(' '));
+    mCurrentLine.Append(PRUnichar(' '));
   }
 
   if(aSoftlinebreak) {

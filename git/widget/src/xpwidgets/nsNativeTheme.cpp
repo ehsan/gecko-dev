@@ -89,8 +89,8 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   if (!shell)
     return 0;
 
-  nsIEventStateManager* esm = shell->GetPresContext()->EventStateManager();
-  PRInt32 flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
+  PRInt32 flags = 0;
+  shell->GetPresContext()->EventStateManager()->GetContentState(aFrame->GetContent(), flags);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))

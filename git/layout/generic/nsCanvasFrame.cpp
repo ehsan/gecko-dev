@@ -341,7 +341,8 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsIFrame* kid;
   for (kid = GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
     // Put our child into its own pseudo-stack.
-    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists,
+                                  DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

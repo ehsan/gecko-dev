@@ -1185,11 +1185,10 @@ class TypedArrayTemplate
         }
 
         jsval argv = INT_TO_JSVAL(bytes);
-        AutoValueRooter tvr(cx);
-        if (!ArrayBuffer::create(cx, NULL, 1, &argv, tvr.addr()))
+        JSObject *obj = JS_ConstructObjectWithArguments(cx, &ArrayBuffer::jsclass, NULL, NULL,
+                                                        1, &argv);
+        if (!obj)
             return false;
-
-        JSObject *obj = JSVAL_TO_OBJECT(tvr.value());
 
         bufferJS = obj;
         buffer = ArrayBuffer::fromJSObject(obj);

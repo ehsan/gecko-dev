@@ -107,7 +107,7 @@ ifeq (Linux,$(OS_ARCH))
 OS_LIBS += -lrt
 endif
 ifeq (WINNT,$(OS_ARCH))
-OS_LIBS += dbghelp.lib
+OS_LIBS += psapi.lib dbghelp.lib
 endif
 endif
 
@@ -295,10 +295,6 @@ DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-COMPONENT_LIBS += widget_android
-endif
-
 STATIC_LIBS += thebes ycbcr
 COMPONENT_LIBS += gkgfxthebes
 
@@ -378,8 +374,4 @@ endif
 
 ifdef HAVE_CLOCK_MONOTONIC
 EXTRA_DSO_LDOPTS += $(REALTIME_LIBS)
-endif
-
-ifeq (android,$(MOZ_WIDGET_TOOLKIT))
-OS_LIBS += -lGLESv2
 endif

@@ -607,8 +607,7 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
 PRBool
 nsHtml5TreeOpExecutor::IsScriptEnabled()
 {
-  if (!mDocument || !mDocShell)
-    return PR_TRUE;
+  NS_ENSURE_TRUE(mDocument && mDocShell, PR_TRUE);
   nsCOMPtr<nsIScriptGlobalObject> globalObject = mDocument->GetScriptGlobalObject();
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet

@@ -3571,10 +3571,9 @@ CancelExecution(JSRuntime *rt)
 #ifdef JS_THREADSAFE
     if (gWorkers) {
         JSContext *cx = JS_NewContext(rt, 8192);
-        if (cx) {
+        if (cx)
             js::workers::terminateAll(cx, gWorkers);
-            JS_DestroyContextNoGC(cx);
-        }
+        JS_DestroyContextNoGC(cx);
     }
 #endif
     JS_TriggerAllOperationCallbacks(rt);

@@ -86,9 +86,7 @@ BadCertHandler.prototype = {
   onChannelRedirect: function(oldChannel, newChannel, flags) {
     // make sure the certificate of the old channel checks out before we follow
     // a redirect from it.  See bug 340198.
-    // Don't call checkCert for internal redirects. See bug 569648.
-    if (!(flags & Components.interfaces.nsIChannelEventSink.REDIRECT_INTERNAL))
-      checkCert(oldChannel);
+    checkCert(oldChannel);
   },
 
   // Suppress any certificate errors

@@ -63,9 +63,6 @@ Cu.import("resource://gre/modules/PluralForm.jsm");
 const nsIDM = Ci.nsIDownloadManager;
 
 let gDownloadManager = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
-let gDownloadManagerUI = Cc["@mozilla.org/download-manager-ui;1"].
-                         getService(Ci.nsIDownloadManagerUI);
-
 let gDownloadListener = null;
 let gDownloadsView = null;
 let gSearchBox = null;
@@ -170,8 +167,6 @@ function downloadCompleted(aDownload)
 
     if (gDownloadManager.activeDownloadCount == 0)
       document.title = document.documentElement.getAttribute("statictitle");
-
-    gDownloadManagerUI.getAttention();
   }
   catch (e) { }
 }

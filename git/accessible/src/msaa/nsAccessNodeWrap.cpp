@@ -413,7 +413,7 @@ ISimpleDOMNode* nsAccessNodeWrap::MakeAccessNode(nsIDOMNode *node)
     return NULL;
 
   ISimpleDOMNode *iNode = NULL;
-  nsAccessible *acc =
+  nsRefPtr<nsAccessible> acc =
     GetAccService()->GetAccessibleInWeakShell(node, mWeakShell);
   if (acc) {
     IAccessible *msaaAccessible = nsnull;

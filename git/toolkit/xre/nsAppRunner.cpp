@@ -213,10 +213,6 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 #ifdef WINCE
 class WindowsMutex {
 public:
@@ -1753,9 +1749,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 
   SaveToEnv("MOZ_LAUNCHED_CHILD=1");
 
-#if defined(ANDROID)
-  mozilla::AndroidBridge::Bridge()->ScheduleRestart();
-#else
 #if defined(XP_MACOSX)
   SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
   LaunchChildMac(gRestartArgc, gRestartArgv);
@@ -1808,7 +1801,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #endif // XP_OS2 series
 #endif // WP_WIN
 #endif // WP_MACOSX
-#endif // ANDROID
 
   return NS_ERROR_LAUNCHED_CHILD_PROCESS;
 }
@@ -3123,7 +3115,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
 #if defined(MOZ_WIDGET_QT)
     const char* qgraphicssystemARG = NULL;
-    ar = CheckArg("graphicssystem", PR_TRUE, &qgraphicssystemARG, PR_FALSE);
+    ar = CheckArg("graphicssystem", PR_TRUE, &qgraphicssystemARG);
     if (ar == ARG_FOUND)
       PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
     QApplication app(gArgc, gArgv);

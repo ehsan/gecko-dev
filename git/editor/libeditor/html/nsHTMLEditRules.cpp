@@ -8019,10 +8019,8 @@ nsHTMLEditRules::RemoveEmptyNodes()
   {
     nsCOMPtr<nsIDOMNode> delNode = arrayOfEmptyNodes[0];
     arrayOfEmptyNodes.RemoveObjectAt(0);
-    if (mHTMLEditor->IsModifiableNode(delNode)) {
-      res = mHTMLEditor->DeleteNode(delNode);
-      NS_ENSURE_SUCCESS(res, res);
-    }
+    res = mHTMLEditor->DeleteNode(delNode);
+    if (NS_FAILED(res)) return res;
   }
   
   // now delete the empty mailcites

@@ -274,8 +274,7 @@ public:
   PRBool ParsePositiveIntValue(const nsAString& aString);
 
   /**
-   * Parse a string into a color.  This implements what HTML5 calls the
-   * "rules for parsing a legacy color value".
+   * Parse a string into a color.
    *
    * @param aString the string to parse
    * @param aDocument the document (to find out whether we're in quirks mode)

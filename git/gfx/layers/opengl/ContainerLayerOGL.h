@@ -51,7 +51,10 @@ public:
   ContainerLayerOGL(LayerManagerOGL *aManager);
   ~ContainerLayerOGL();
 
-  nsIntRect GetVisibleRect() { return mVisibleRegion.GetBounds(); }
+  const nsIntRect &GetVisibleRect();
+
+  /** ContainerLayer implementation */
+  void SetVisibleRegion(const nsIntRegion& aRegion);
 
   void InsertAfter(Layer* aChild, Layer* aAfter);
 
@@ -66,9 +69,12 @@ public:
 
   PRBool IsEmpty();
 
-  virtual void RenderLayer(int aPreviousFrameBuffer,
-                           const nsIntPoint& aOffset);
+  void RenderLayer(int aPreviousFrameBuffer,
+                   DrawThebesLayerCallback aCallback,
+                   void* aCallbackData);
 private:
+  nsIntRect mVisibleRect;
+
   GLuint mTexture;
 };
 

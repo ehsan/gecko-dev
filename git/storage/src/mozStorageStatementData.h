@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageStatementData_h
-#define mozStorageStatementData_h
+#ifndef _mozStorageStatementData_h_
+#define _mozStorageStatementData_h_
 
 #include "sqlite3.h"
 
@@ -154,4 +154,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageStatementData_h
+#endif // _mozStorageStatementData_h_

@@ -9,87 +9,63 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=495145
   <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
-  <script type="text/javascript" src="manifest.js"></script>
-
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=495145">Mozilla Bug 495145</a>
 <pre id="test">
 <script class="testbody" type="text/javascript">
+var v;
+var completed = false;
+var testFinishedCount = 0;
+var ended1Count = 0;
 
-var videos = [];
-
-function start(e) {
-  e.target.play();
+function finishTest() {
+  ++testFinishedCount;
+  if (testFinishedCount == 2) {
+    completed = true;
+    SimpleTest.finish();
+  }
 }
 
-function ended1(e) {
-  var v = e.target;
-  if (v._finished)
+function start(event) {
+  event.target.play();
+}
+
+function ended1(event) {
+  if (completed)
     return;
 
-  ++v._endCount;
-  if (v._endCount == 2) {
-    ok(true, "Playing after pause while ended works for " + v._name);
-    v._finished = true;
-    if (AllFinished(videos))
-      SimpleTest.finish();
+  ++ended1Count;
+  if (ended1Count == 2) {
+    ok(true, "Playing after pause while ended works");
+    finishTest();
     return;
   }
 
-  v.pause();
-  v.play();
+  event.target.pause();
+  event.target.play();
 }
 
-function ended2(e) {
-  var v = e.target;
-  if (v._finished)
+function ended2(event) {
+  if (completed)
     return;
 
-  v.pause();
-  v.currentTime = 0;
+  event.target.pause();
+  event.target.currentTime = 0;
 }
 
-function seeked2(e) {
-  var v = e.target;
-  if (v._finished)
+function seeked2(event) {
+  if (completed)
     return;
 
-  ok(v.paused, "Paused after seek after pause while ended for " + v._name);
-  v._finished = true;
-  if (AllFinished(videos))
-    SimpleTest.finish();
+  ok(event.target.paused, "Paused after seek after pause while ended");
+  finishTest();
 }
 
-function createVideo(test, x) {
-  var v = document.createElement('video');
-  if (!v.canPlayType(test.type))
-    return null;
-  v.src = test.name;
-  v._name = test.name + "#" + x;
-  v._endCount = 0;
-  v._finished = false;
-  v.addEventListener("loadedmetadata", start, false);
-  v.addEventListener("ended", x == 1 ? ended1 : ended2, false);
-  if (x == 2)
-    v.addEventListener("seeked", seeked2, false);
-  document.body.appendChild(v);
-  videos.push(v);
-}
-
-for (var i=0; i<gSmallTests.length; ++i) {
-  var test = gSmallTests[i];
-  createVideo(test, 1);
-  createVideo(test, 2);
-}
-
-if (videos.length == 0) {
-  todo(false, "No types supported");
-} else {
-  SimpleTest.waitForExplicitFinish();
-}
-
+SimpleTest.waitForExplicitFinish();
 </script>
 </pre>
+<video src='320x240.ogv' onloadeddata='start(event)' onended='ended1(event)'></video>
+<video src='320x240.ogv' onloadeddata='start(event)' onended='ended2(event)' onseeked="seeked2(event)"></video>
 </body>
 </html>

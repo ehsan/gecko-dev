@@ -224,7 +224,7 @@ WebGLContext::LogMessage(const char *fmt, va_list ap)
 }
 
 nsresult
-WebGLContext::SynthesizeGLError(WebGLenum err)
+WebGLContext::SynthesizeGLError(GLenum err)
 {
     // If there is already a pending error, don't overwrite it;
     // but if there isn't, then we need to check for a gl error
@@ -244,12 +244,11 @@ WebGLContext::SynthesizeGLError(WebGLenum err)
 }
 
 nsresult
-WebGLContext::SynthesizeGLError(WebGLenum err, const char *fmt, ...)
+WebGLContext::SynthesizeGLError(GLenum err, const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
+    LogMessage(fmt, va);
     va_end(va);
 
     return SynthesizeGLError(err);
@@ -260,8 +259,7 @@ WebGLContext::ErrorInvalidEnum(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
+    LogMessage(fmt, va);
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_ENUM);
@@ -272,8 +270,7 @@ WebGLContext::ErrorInvalidOperation(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
+    LogMessage(fmt, va);
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_OPERATION);
@@ -284,8 +281,7 @@ WebGLContext::ErrorInvalidValue(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
+    LogMessage(fmt, va);
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_VALUE);

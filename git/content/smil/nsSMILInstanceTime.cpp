@@ -163,10 +163,11 @@ nsSMILInstanceTime::HandleDeletedInterval()
 }
 
 PRBool
-nsSMILInstanceTime::IsDependent(const nsSMILInstanceTime& aOther) const
+nsSMILInstanceTime::IsDependent(const nsSMILInstanceTime& aOther,
+                                PRUint32 aRecursionDepth) const
 {
-  if (mVisited || mChainEnd)
-    return PR_FALSE;
+  NS_ABORT_IF_FALSE(aRecursionDepth < 1000,
+      "We seem to have created a cycle between instance times");
 
   const nsSMILInstanceTime* myBaseTime = GetBaseTime();
   if (!myBaseTime)
@@ -175,9 +176,7 @@ nsSMILInstanceTime::IsDependent(const nsSMILInstanceTime& aOther) const
   if (myBaseTime == &aOther)
     return PR_TRUE;
 
-  // mVisited is mutable
-  AutoBoolSetter setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
-  return myBaseTime->IsDependent(aOther);
+  return myBaseTime->IsDependent(aOther, ++aRecursionDepth);
 }
 
 void
@@ -186,6 +185,8 @@ nsSMILInstanceTime::SetBaseInterval(nsSMILInterval* aBaseInterval)
   NS_ABORT_IF_FALSE(!mBaseInterval,
       "Attempting to reassociate an instance time with a different interval.");
 
+  // Make sure we don't end up creating a cycle between the dependent time
+  // pointers.
   if (aBaseInterval) {
     NS_ABORT_IF_FALSE(mCreator,
         "Attempting to create a dependent instance time without reference "
@@ -193,6 +194,10 @@ nsSMILInstanceTime::SetBaseInterval(nsSMILInterval* aBaseInterval)
     if (!mCreator)
       return;
 
+    const nsSMILInstanceTime* dependentTime = mCreator->DependsOnBegin() ?
+                                              aBaseInterval->Begin() :
+                                              aBaseInterval->End();
+    dependentTime->BreakPotentialCycle(this);
     aBaseInterval->AddDependentTime(*this);
   }
 
@@ -213,4 +218,22 @@ nsSMILInstanceTime::GetBaseTime() const
 
   return mCreator->DependsOnBegin() ? mBaseInterval->Begin() :
                                       mBaseInterval->End();
+}
+
+void
+nsSMILInstanceTime::BreakPotentialCycle(
+    const nsSMILInstanceTime* aNewTail) const
+{
+  const nsSMILInstanceTime* myBaseTime = GetBaseTime();
+  if (!myBaseTime)
+    return;
+
+  if (myBaseTime == aNewTail) {
+    // Making aNewTail the new tail of the chain would create a cycle so we
+    // prevent this by unlinking the pointer to aNewTail.
+    mBaseInterval->RemoveDependentTime(*this);
+    return;
+  }
+
+  myBaseTime->BreakPotentialCycle(aNewTail);
 }

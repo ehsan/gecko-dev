@@ -903,9 +903,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule interface
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
 protected:
@@ -927,14 +927,14 @@ CSSImportantRule::~CSSImportantRule(void)
 
 NS_IMPL_ISUPPORTS1(CSSImportantRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 CSSImportantRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
-  mImportantBlock->MapRuleInfoInto(aRuleData);
+  return mImportantBlock->MapRuleInfoInto(aRuleData);
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CSSImportantRule::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
@@ -942,6 +942,7 @@ CSSImportantRule::List(FILE* out, PRInt32 aIndent) const
 
   fprintf(out, "! Important rule block=%p\n",
           static_cast<void*>(mImportantBlock.get()));
+  return NS_OK;
 }
 #endif
 
@@ -1214,8 +1215,11 @@ DOMCSSStyleRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
   }
   nsRefPtr<nsCSSStyleSheet> sheet;
   Rule()->GetParentStyleSheet(getter_AddRefs(sheet));
-  NS_IF_ADDREF(*aSheet = sheet);
-  return NS_OK;
+  if (!sheet) {
+    *aSheet = nsnull;
+    return NS_OK;
+  }
+  return CallQueryInterface(sheet, aSheet);
 }
 
 NS_IMETHODIMP    
@@ -1318,10 +1322,10 @@ public:
     DeclarationChanged(PRBool aHandleContainer);
 
   // The new mapping function.
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
 private: 
@@ -1549,16 +1553,16 @@ CSSStyleRuleImpl::DeclarationChanged(PRBool aHandleContainer)
   return clone;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 CSSStyleRuleImpl::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   NS_ABORT_IF_FALSE(mNormalBlock,
                     "somebody forgot to call nsICSSStyleRule::RuleMatched");
-  mNormalBlock->MapRuleInfoInto(aRuleData);
+  return mNormalBlock->MapRuleInfoInto(aRuleData);
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CSSStyleRuleImpl::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
@@ -1577,6 +1581,8 @@ CSSStyleRuleImpl::List(FILE* out, PRInt32 aIndent) const
     fputs("{ null declaration }", out);
   }
   fputs("\n", out);
+
+  return NS_OK;
 }
 #endif
 

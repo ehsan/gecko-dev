@@ -353,7 +353,7 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
 NS_IMETHODIMP
 nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
 {
-  nsresult rv = NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = NS_OK;
 
   char *str = ToNewCString(aValueAsString);
 
@@ -395,8 +395,14 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
         mValueInSpecifiedUnits = value;
         mSpecifiedUnitType     = unitType;
         DidModify();
-        rv = NS_OK;
+      } else { // parse error
+        // not a valid unit type
+        rv = NS_ERROR_DOM_SYNTAX_ERR;
       }
+    }
+    else { // parse error
+      // no number
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
     }
   }
 

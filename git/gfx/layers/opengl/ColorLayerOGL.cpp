@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Robert O'Callahan <robert@ocallahan.org>
- *   Vladimir Vukicevic <vladimir@pobox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,37 +53,41 @@ ColorLayerOGL::GetLayer()
 }
 
 void
-ColorLayerOGL::RenderLayer(int,
-                           const nsIntPoint& aOffset)
+ColorLayerOGL::RenderLayer(int, DrawThebesLayerCallback, void*)
 {
-  mOGLManager->MakeCurrent();
+  static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
 
   // XXX we might be able to improve performance by using glClear
 
+  float quadTransform[4][4];
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
+  // Transform the quad to the size of the visible area.
+  memset(&quadTransform, 0, sizeof(quadTransform));
+  quadTransform[0][0] = (float)visibleRect.width;
+  quadTransform[1][1] = (float)visibleRect.height;
+  quadTransform[2][2] = 1.0f;
+  quadTransform[3][0] = (float)visibleRect.x;
+  quadTransform[3][1] = (float)visibleRect.y;
+  quadTransform[3][3] = 1.0f;
   
-  /* Multiply color by the layer opacity, as the shader
-   * ignores layer opacity and expects a final color to
-   * write to the color buffer.  This saves a needless
-   * multiply in the fragment shader.
-   */
-  float opacity = GetOpacity();
-  gfxRGBA color(mColor);
-  color.r *= opacity;
-  color.g *= opacity;
-  color.b *= opacity;
-  color.a *= opacity;
+  ColorLayerProgram *program =
+    static_cast<LayerManagerOGL*>(mManager)->GetColorLayerProgram();
 
-  SolidColorLayerProgram *program = mOGLManager->GetColorLayerProgram();
   program->Activate();
-  program->SetLayerQuadRect(visibleRect);
-  program->SetLayerTransform(mTransform);
-  program->SetRenderOffset(aOffset);
-  program->SetRenderColor(color);
 
-  mOGLManager->BindAndDrawQuad(program);
+  program->SetLayerQuadTransform(&quadTransform[0][0]);
 
-  DEBUG_GL_ERROR_CHECK(gl());
+  gfxRGBA color = mColor;
+  // color is premultiplied, so we need to adjust all channels
+  color.r *= GetOpacity();
+  color.g *= GetOpacity();
+  color.b *= GetOpacity();
+  color.a *= GetOpacity();
+  program->SetLayerColor(color);
+  program->SetLayerTransform(&mTransform._11);
+  program->Apply();
+
+  gl()->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
 }
 
 } /* layers */

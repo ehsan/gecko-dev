@@ -113,7 +113,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
     NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
                          __LINE__, NS_LossyConvertUTF16toASCII(aURL).get());
 #else
-    (void)aURL; // prevent compiler warning
+    aURL; // prevent compiler warning
 #endif
 
     /* get JS things from the CallContext */

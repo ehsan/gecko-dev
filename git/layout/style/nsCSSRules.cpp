@@ -78,12 +78,12 @@ NS_IMETHODIMP _class::GetStyleSheet(nsIStyleSheet*& aSheet) const { return super
 NS_IMETHODIMP _class::SetStyleSheet(nsCSSStyleSheet* aSheet) { return super::SetStyleSheet(aSheet); }  \
 NS_IMETHODIMP _class::SetParentRule(nsICSSGroupRule* aRule) { return super::SetParentRule(aRule); }  \
 nsIDOMCSSRule* _class::GetDOMRuleWeak(nsresult *aResult) { *aResult = NS_OK; return this; }  \
-/* virtual */ void _class::MapRuleInfoInto(nsRuleData* aRuleData) { }
+NS_IMETHODIMP _class::MapRuleInfoInto(nsRuleData* aRuleData) { return NS_OK; } 
 
 #define IMPL_STYLE_RULE_INHERIT2(_class, super) \
 NS_IMETHODIMP _class::GetStyleSheet(nsIStyleSheet*& aSheet) const { return super::GetStyleSheet(aSheet); }  \
 NS_IMETHODIMP _class::SetParentRule(nsICSSGroupRule* aRule) { return super::SetParentRule(aRule); }  \
-/* virtual */ void _class::MapRuleInfoInto(nsRuleData* aRuleData) { }
+NS_IMETHODIMP _class::MapRuleInfoInto(nsRuleData* aRuleData) { return NS_OK; } 
 
 // -------------------------------
 // Style Rule List for group rules
@@ -200,7 +200,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsICSSRule methods
@@ -252,7 +252,7 @@ NS_INTERFACE_MAP_END
 IMPL_STYLE_RULE_INHERIT(CSSCharsetRuleImpl, nsCSSRule)
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CSSCharsetRuleImpl::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
@@ -261,6 +261,8 @@ CSSCharsetRuleImpl::List(FILE* out, PRInt32 aIndent) const
   fputs("@charset \"", out);
   fputs(NS_LossyConvertUTF16toASCII(mEncoding).get(), out);
   fputs("\"\n", out);
+
+  return NS_OK;
 }
 #endif
 
@@ -340,7 +342,10 @@ CSSCharsetRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
 
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -374,7 +379,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsICSSRule methods
@@ -450,7 +455,7 @@ NS_INTERFACE_MAP_END
 IMPL_STYLE_RULE_INHERIT(CSSImportRuleImpl, nsCSSRule)
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CSSImportRuleImpl::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
@@ -464,6 +469,8 @@ CSSImportRuleImpl::List(FILE* out, PRInt32 aIndent) const
   mMedia->GetText(mediaText);
   fputs(NS_LossyConvertUTF16toASCII(mediaText).get(), out);
   fputs("\n", out);
+
+  return NS_OK;
 }
 #endif
 
@@ -592,8 +599,10 @@ NS_IMETHODIMP
 CSSImportRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
-
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -630,9 +639,12 @@ NS_IMETHODIMP
 CSSImportRuleImpl::GetStyleSheet(nsIDOMCSSStyleSheet * *aStyleSheet)
 {
   NS_ENSURE_ARG_POINTER(aStyleSheet);
+  if (!mChildSheet) {
+    *aStyleSheet = nsnull;
+    return NS_OK;
+  }
 
-  NS_IF_ADDREF(*aStyleSheet = mChildSheet);
-  return NS_OK;
+  return CallQueryInterface(mChildSheet, aStyleSheet);
 }
 
 nsCSSGroupRule::nsCSSGroupRule()
@@ -696,7 +708,7 @@ nsCSSGroupRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSGroupRule::List(FILE* out, PRInt32 aIndent) const
 {
   fputs(" {\n", out);
@@ -705,6 +717,7 @@ nsCSSGroupRule::List(FILE* out, PRInt32 aIndent) const
     mRules.ObjectAt(index)->List(out, aIndent + 1);
   }
   fputs("}\n", out);
+  return NS_OK;
 }
 #endif
 
@@ -817,7 +830,10 @@ nsCSSGroupRule::AppendRulesToCssText(nsAString& aCssText)
 nsresult
 nsCSSGroupRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -929,7 +945,7 @@ nsCSSMediaRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSMediaRule::List(FILE* out, PRInt32 aIndent) const
 {
   for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
@@ -944,7 +960,7 @@ nsCSSMediaRule::List(FILE* out, PRInt32 aIndent) const
     fputs(NS_LossyConvertUTF16toASCII(mediaText).get(), out);
   }
 
-  nsCSSGroupRule::List(out, aIndent);
+  return nsCSSGroupRule::List(out, aIndent);
 }
 #endif
 
@@ -1089,7 +1105,7 @@ NS_INTERFACE_MAP_BEGIN(nsCSSDocumentRule)
 NS_INTERFACE_MAP_END
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSDocumentRule::List(FILE* out, PRInt32 aIndent) const
 {
   for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
@@ -1116,7 +1132,7 @@ nsCSSDocumentRule::List(FILE* out, PRInt32 aIndent) const
   str.Cut(str.Length() - 2, 1); // remove last ,
   fputs(str.get(), out);
 
-  nsCSSGroupRule::List(out, aIndent);
+  return nsCSSGroupRule::List(out, aIndent);
 }
 #endif
 
@@ -1271,7 +1287,7 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsICSSRule methods
@@ -1331,7 +1347,7 @@ NS_INTERFACE_MAP_END
 IMPL_STYLE_RULE_INHERIT(CSSNameSpaceRuleImpl, nsCSSRule)
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CSSNameSpaceRuleImpl::List(FILE* out, PRInt32 aIndent) const
 {
   for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
@@ -1349,6 +1365,7 @@ CSSNameSpaceRuleImpl::List(FILE* out, PRInt32 aIndent) const
   fputs("url(", out);
   fputs(NS_LossyConvertUTF16toASCII(mURLSpec).get(), out);
   fputs(")\n", out);
+  return NS_OK;
 }
 #endif
 
@@ -1450,7 +1467,10 @@ CSSNameSpaceRuleImpl::SetCssText(const nsAString& aCssText)
 NS_IMETHODIMP
 CSSNameSpaceRuleImpl::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 
@@ -1819,7 +1839,7 @@ NS_INTERFACE_MAP_END
 IMPL_STYLE_RULE_INHERIT(nsCSSFontFaceRule, nsCSSRule)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsCSSFontFaceRule::List(FILE* out, PRInt32 aIndent) const
 {
   nsCString baseInd, descInd;
@@ -1846,6 +1866,7 @@ nsCSSFontFaceRule::List(FILE* out, PRInt32 aIndent) const
               NS_ConvertUTF16toUTF8(descStr).get());
     }
   fprintf(out, "%s}\n", baseInd.get());
+  return NS_OK;
 }
 #endif
 
@@ -1884,7 +1905,10 @@ nsCSSFontFaceRule::SetCssText(const nsAString& aCssText)
 NS_IMETHODIMP
 nsCSSFontFaceRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mSheet);
+  if (mSheet) {
+    return CallQueryInterface(mSheet, aSheet);
+  }
+  *aSheet = nsnull;
   return NS_OK;
 }
 

@@ -72,7 +72,6 @@ CSRCS		+= \
 		pngpread.c \
 		pngread.c \
 		pngrio.c \
-		pngrtran.c \
 		pngrutil.c \
 		$(NULL)
 
@@ -85,6 +84,7 @@ CSRCS		+= \
 		pngwio.c \
 		pngwrite.c \
 		pngwtran.c \
+		pngrtran.c \
 		pngwutil.c \
 		$(NULL)
 

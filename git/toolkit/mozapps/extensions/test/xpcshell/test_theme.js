@@ -2,9 +2,9 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-Components.utils.import("resource://gre/modules/NetUtil.jsm");
-
 // This verifies that themes behave as expected
+
+// TODO This test relies on the default theme being present
 
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
 
@@ -77,7 +77,6 @@ function run_test() {
     do_check_false(t1.userDisabled);
     do_check_false(t1.appDisabled);
     do_check_true(t1.isActive);
-    do_check_eq(t1.screenshots.length, 0);
     do_check_true(isThemeInAddonsList(profileDir, t1.id));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
@@ -86,7 +85,6 @@ function run_test() {
     do_check_true(t2.userDisabled);
     do_check_false(t2.appDisabled);
     do_check_false(t2.isActive);
-    do_check_eq(t2.screenshots.length, 0);
     do_check_false(isThemeInAddonsList(profileDir, t2.id));
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
@@ -619,11 +617,6 @@ function run_test_11() {
 function check_test_11() {
   AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
     do_check_neq(t1, null);
-    var preview = profileDir.clone();
-    preview.append("theme1@tests.mozilla.org");
-    preview.append("preview.png");
-    do_check_eq(t1.screenshots.length, 1);
-    do_check_eq(t1.screenshots[0], NetUtil.newURI(preview).spec);
 
     run_test_12();
   });

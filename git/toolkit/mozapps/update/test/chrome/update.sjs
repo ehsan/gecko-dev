@@ -8,22 +8,16 @@ const SHA512_HASH = "1d2307e309587ddd04299423b34762639ce6af3ee17cfdaa8fdd4e6" +
                     "8b4222e3417a2fa2d0";
 const SERVICE_URL = URL_HOST + URL_PATH + "empty.mar";
 
-const SLOW_MAR_DOWNLOAD_INTERVAL = 100;
 
-function handleRequest(aRequest, aResponse) {
+function handleRequest(request, response) {
   var params = { };
-  if (aRequest.queryString)
-    params = parseQueryString(aRequest.queryString);
+  if (request.queryString)
+    params = parseQueryString(request.queryString);
 
   var statusCode = params.statusCode ? parseInt(params.statusCode) : 200;
   var statusReason = params.statusReason ? params.statusReason : "OK";
-  aResponse.setStatusLine(aRequest.httpVersion, statusCode, statusReason);
-  aResponse.setHeader("Cache-Control", "no-cache", false);
-  
-  if (params.addonID) {
-    aResponse.write(getUpdateRDF(params));
-    return;
-  }
+  response.setStatusLine(request.httpVersion, statusCode, statusReason);
+  response.setHeader("Cache-Control", "no-cache", false);
 
   // When a mar download is started by the update service it can finish
   // downloading before the ui has loaded. By specifying a serviceURL for the
@@ -31,8 +25,8 @@ function handleRequest(aRequest, aResponse) {
   // mar will be downloaded asynchronously which will allow the ui to load
   // before the download completes.
   if (params.slowDownloadMar) {
-    aResponse.processAsync();
-    aResponse.setHeader("Content-Length", "775");
+    response.processAsync();
+    response.setHeader("Content-Length", "775");
     var marFile = AUS_Cc["@mozilla.org/file/directory_service;1"].
                   getService(AUS_Ci.nsIProperties).
                   get("CurWorkD", AUS_Ci.nsILocalFile);
@@ -44,9 +38,9 @@ function handleRequest(aRequest, aResponse) {
     var timer = AUS_Cc["@mozilla.org/timer;1"].
                 createInstance(AUS_Ci.nsITimer);
     timer.initWithCallback(function() {
-      aResponse.write(contents);
-      aResponse.finish();
-    }, SLOW_MAR_DOWNLOAD_INTERVAL, AUS_Ci.nsITimer.TYPE_ONE_SHOT);
+      response.write(contents);
+      response.finish();
+    }, 2000, AUS_Ci.nsITimer.TYPE_ONE_SHOT);
     return;
   }
 
@@ -55,21 +49,21 @@ function handleRequest(aRequest, aResponse) {
     if (!params.remoteNoTypeAttr &&
         (params.uiURL == "BILLBOARD" || params.uiURL == "LICENSE"))
       remoteType = " " + params.uiURL.toLowerCase() + "=\"1\"";
-    aResponse.write("<html><head><meta http-equiv=\"content-type\" content=" +
-                    "\"text/html; charset=utf-8\"></head><body" +
-                    remoteType + ">" + params.uiURL +
-                    "<br><br>this is a test mar that will not affect your " +
-                    "build.</body></html>");
+    response.write("<html><head><meta http-equiv=\"content-type\" content=" +
+                   "\"text/html; charset=utf-8\"></head><body" +
+                   remoteType + ">" + params.uiURL +
+                   "<br><br>this is a test mar that will not affect your " +
+                   "build.</body></html>");
     return;
   }
 
   if (params.xmlMalformed) {
-    aResponse.write("xml error");
+    response.write("xml error");
     return;
   }
 
   if (params.noUpdates) {
-    aResponse.write(getRemoteUpdatesXMLString(""));
+    response.write(getRemoteUpdatesXMLString(""));
     return;
   }
 
@@ -82,8 +76,7 @@ function handleRequest(aRequest, aResponse) {
   var type = params.type ? params.type : "major";
   var name = params.name ? params.name : "App Update Test";
   var appVersion = params.appVersion ? params.appVersion : "99.9";
-  var displayVersion = params.displayVersion ? params.displayVersion
-                                             : "version " + appVersion;
+  var displayVersion = params.displayVersion ? params.displayVersion : "version " + appVersion;
   var platformVersion = params.platformVersion ? params.platformVersion : "99.8";
   var buildID = params.buildID ? params.buildID : "01234567890123";
   // XXXrstrong - not specifying a detailsURL will cause a leak due to bug 470244
@@ -110,20 +103,11 @@ function handleRequest(aRequest, aResponse) {
                                       licenseURL, showPrompt,
                                       showNever, showSurvey, "test extra1");
 
-  aResponse.write(getRemoteUpdatesXMLString(updates));
+  response.write(getRemoteUpdatesXMLString(updates));
 }
 
-/**
- * Helper function to create a JS object representing the url parameters from
- * the request's queryString.
- *
- * @param  aQueryString
- *         The request's query string.
- * @return A JS object representing the url parameters from the request's
- *         queryString.
- */
-function parseQueryString(aQueryString) {
-  var paramArray = aQueryString.split("&");
+function parseQueryString(str) {
+  var paramArray = str.split("&");
   var regex = /^([^=]+)=(.*)$/;
   var params = {};
   for (var i = 0, sz = paramArray.length; i < sz; i++) {
@@ -134,63 +118,4 @@ function parseQueryString(aQueryString) {
   }
 
   return params;
-}
-
-/**
- * Helper function to gets the string representation of the contents of the
- * add-on's update manifest file.
- *
- * @param  aParams
- *         A JS object representing the url parameters from the request's
- *         queryString.
- * @return A string representation of the contents of the add-on's update
- *         manifest file.
- */
-function getUpdateRDF(aParams) {
-  var addonVersion;
-  var addonID = aParams.addonID;
-  var addonUpdateType = addonID.split("_")[0];
-  var maxVersion = aParams.platformVersion;
-
-  switch (addonUpdateType) {
-    case "updatecompatibility":
-      // Use "1.0" for the add-on version for the compatibility update case since
-      // the tests create all add-ons with "1.0" for the version.
-      addonVersion = "1.0";
-      break;
-    case "updateversion":
-      // Use "2.0" for the add-on version for the version update case since the
-      // tests create all add-ons with "1.0" for the version.
-      addonVersion = "2.0";
-      break;
-    default:
-      return "<?xml version=\"1.0\"?>\n" +
-             "<RDF:RDF xmlns:RDF=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" " +
-             "         xmlns:em=\"http://www.mozilla.org/2004/em-rdf#\">\n" +
-             "</RDF:RDF>\n";
-  }
-
-  return "<?xml version=\"1.0\"?>\n" +
-         "<RDF:RDF xmlns:RDF=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" " +
-         "         xmlns:em=\"http://www.mozilla.org/2004/em-rdf#\">\n" +
-         "  <RDF:Description about=\"urn:mozilla:extension:" + addonID + "\">\n" +
-         "    <em:updates>\n" +
-         "      <RDF:Seq>\n" +
-         "        <RDF:li resource=\"urn:mozilla:extension:" + addonID + ":" + addonVersion + "\"/>\n" +
-         "      </RDF:Seq>\n" +
-         "    </em:updates>\n" +
-         "  </RDF:Description>\n" +
-         "  <RDF:Description about=\"urn:mozilla:extension:" + addonID + ":" + addonVersion + "\">\n" +
-         "    <em:version>" + addonVersion + "</em:version>\n" +
-         "    <em:targetApplication>\n" +
-         "      <RDF:Description>\n" +
-         "        <em:id>toolkit@mozilla.org</em:id>\n" +
-         "        <em:minVersion>0</em:minVersion>\n" +
-         "        <em:maxVersion>" + maxVersion + "</em:maxVersion>\n" +
-         "        <em:updateLink>" + URL_HOST + URL_PATH + "</em:updateLink>\n" +
-         "        <em:updateHash>sha256:0</em:updateHash>\n" + 
-         "      </RDF:Description>\n" +
-         "    </em:targetApplication>\n" +
-         "  </RDF:Description>\n" +
-         "</RDF:RDF>\n";
 }

@@ -49,7 +49,7 @@
 #include "nsFocusManager.h"
 #include "nsIFrame.h"
 
-class nsHTMLLegendElement : public nsGenericHTMLElement,
+class nsHTMLLegendElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLLegendElement
 {
 public:
@@ -60,18 +60,23 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLFormElement::)
 
   // nsIDOMElement
-  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
+  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLLegendElement
   NS_DECL_NSIDOMHTMLLEGENDELEMENT
 
-  // nsGenericHTMLElement
+  // nsIFormControl
+  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_LEGEND; }
+  NS_IMETHOD Reset();
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                               nsIContent* aSubmitElement);
+
   NS_IMETHODIMP Focus();
 
   virtual void PerformAccesskey(PRBool aKeyCausesActivation,
@@ -115,7 +120,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Legend)
 
 
 nsHTMLLegendElement::nsHTMLLegendElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
+  : nsGenericHTMLFormElement(aNodeInfo)
 {
 }
 
@@ -134,7 +139,7 @@ DOMCI_DATA(HTMLLegendElement, nsHTMLLegendElement)
 NS_INTERFACE_TABLE_HEAD(nsHTMLLegendElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLegendElement, nsIDOMHTMLLegendElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLegendElement,
-                                               nsGenericHTMLElement)
+                                               nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLegendElement)
 
 
@@ -199,7 +204,7 @@ nsHTMLLegendElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
                                             PRInt32 aModType) const
 {
   nsChangeHint retval =
-      nsGenericHTMLElement::GetAttributeChangeHint(aAttribute, aModType);
+      nsGenericHTMLFormElement::GetAttributeChangeHint(aAttribute, aModType);
   if (aAttribute == nsGkAtoms::align) {
     NS_UpdateHint(retval, NS_STYLE_HINT_REFLOW);
   }
@@ -214,15 +219,14 @@ nsHTMLLegendElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   PRBool accesskey = (aAttribute == nsGkAtoms::accesskey &&
                       aNameSpaceID == kNameSpaceID_None);
   if (accesskey) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
-  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aAttribute,
-                                              aPrefix, aValue, aNotify);
+  nsresult rv = nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aAttribute,
+                                                  aPrefix, aValue, aNotify);
 
   if (accesskey && !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -234,12 +238,16 @@ nsHTMLLegendElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 {
   if (aAttribute == nsGkAtoms::accesskey &&
       aNameSpaceID == kNameSpaceID_None) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
-  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+  return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+}
+
+nsresult
+nsHTMLLegendElement::Reset()
+{
+  return NS_OK;
 }
 
 nsresult
@@ -247,13 +255,13 @@ nsHTMLLegendElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
                                 PRBool aCompileEventHandlers)
 {
-  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
-                                                 aBindingParent,
-                                                 aCompileEventHandlers);
+  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
+                                                     aBindingParent,
+                                                     aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -263,10 +271,10 @@ void
 nsHTMLLegendElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
-  nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
+  nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 }
 
 NS_IMETHODIMP
@@ -299,3 +307,9 @@ nsHTMLLegendElement::PerformAccesskey(PRBool aKeyCausesActivation,
   Focus();
 }
 
+NS_IMETHODIMP
+nsHTMLLegendElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+                                       nsIContent* aSubmitElement)
+{
+  return NS_OK;
+}

@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Bas Schouten <bschouten@mozilla.org>
- *   Vladimir Vukicevic <vladimir@pobox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -80,7 +79,7 @@ ThebesLayerOGL::ThebesLayerOGL(LayerManagerOGL *aManager)
 
 ThebesLayerOGL::~ThebesLayerOGL()
 {
-  mOGLManager->MakeCurrent();
+  static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
   if (mTexture) {
     gl()->fDeleteTextures(1, &mTexture);
   }
@@ -89,36 +88,35 @@ ThebesLayerOGL::~ThebesLayerOGL()
 void
 ThebesLayerOGL::SetVisibleRegion(const nsIntRegion &aRegion)
 {
-  if (aRegion.IsEqual(mVisibleRegion))
+  if (aRegion.GetBounds() == mVisibleRect) {
     return;
+  }
+  mVisibleRect = aRegion.GetBounds();
 
-  ThebesLayer::SetVisibleRegion(aRegion);
+  static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
 
-  mInvalidatedRect = mVisibleRegion.GetBounds();
-
-  mOGLManager->MakeCurrent();
-
-  if (!mTexture)
+  if (!mTexture) {
     gl()->fGenTextures(1, &mTexture);
+  }
 
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  mInvalidatedRect = mVisibleRect;
+
   gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+
   gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
   gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
   gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
   gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
 
   gl()->fTexImage2D(LOCAL_GL_TEXTURE_2D,
-                    0,
-                    LOCAL_GL_RGBA,
-                    mInvalidatedRect.width,
-                    mInvalidatedRect.height,
-                    0,
-                    LOCAL_GL_RGBA,
-                    LOCAL_GL_UNSIGNED_BYTE,
-                    NULL);
-
-  DEBUG_GL_ERROR_CHECK(gl());
+                  0,
+                  LOCAL_GL_RGBA,
+                  mVisibleRect.width,
+                  mVisibleRect.height,
+                  0,
+                  LOCAL_GL_BGRA,
+                  LOCAL_GL_UNSIGNED_BYTE,
+                  NULL);
 }
 
 void
@@ -126,7 +124,7 @@ ThebesLayerOGL::InvalidateRegion(const nsIntRegion &aRegion)
 {
   nsIntRegion invalidatedRegion;
   invalidatedRegion.Or(aRegion, mInvalidatedRect);
-  invalidatedRegion.And(invalidatedRegion, mVisibleRegion);
+  invalidatedRegion.And(invalidatedRegion, mVisibleRect);
   mInvalidatedRect = invalidatedRegion.GetBounds();
 }
 
@@ -136,18 +134,20 @@ ThebesLayerOGL::GetType()
   return TYPE_THEBES;
 }
 
+const nsIntRect&
+ThebesLayerOGL::GetVisibleRect()
+{
+  return mVisibleRect;
+}
+
 void
 ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
-                            const nsIntPoint& aOffset)
+                            DrawThebesLayerCallback aCallback,
+                            void* aCallbackData)
 {
-  if (!mTexture)
+  if (!mTexture) {
     return;
-
-  mOGLManager->MakeCurrent();
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-
-  bool needsTextureBind = true;
-  nsIntRect visibleRect = mVisibleRegion.GetBounds();
+  }
 
   if (!mInvalidatedRect.IsEmpty()) {
     gfxASurface::gfxImageFormat imageFormat;
@@ -166,12 +166,10 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
     nsRefPtr<gfxContext> ctx = new gfxContext(surface);
     ctx->Translate(gfxPoint(-mInvalidatedRect.x, -mInvalidatedRect.y));
+    aCallback(this, ctx, mInvalidatedRect, aCallbackData);
 
-    /* Call the thebes layer callback */
-    mOGLManager->CallThebesLayerDrawCallback(this, ctx, mInvalidatedRect);
+    static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
 
-    /* Then take its results and put it in an image surface,
-     * in preparation for a texture upload */
     nsRefPtr<gfxImageSurface> imageSurface;
 
     switch (surface->GetType()) {
@@ -205,37 +203,40 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
     gl()->fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
                          0,
-                         mInvalidatedRect.x - visibleRect.x,
-                         mInvalidatedRect.y - visibleRect.y,
+                         mInvalidatedRect.x - mVisibleRect.x,
+                         mInvalidatedRect.y - mVisibleRect.y,
                          mInvalidatedRect.width,
                          mInvalidatedRect.height,
-                         LOCAL_GL_RGBA,
+                         LOCAL_GL_BGRA,
                          LOCAL_GL_UNSIGNED_BYTE,
                          imageSurface->Data());
-
-    needsTextureBind = false;
   }
 
-  if (needsTextureBind)
-    gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+  float quadTransform[4][4];
+  /*
+   * Matrix to transform the <0.0,0.0>, <1.0,1.0> quad to the correct position
+   * and size.
+   */
+  memset(&quadTransform, 0, sizeof(quadTransform));
+  quadTransform[0][0] = (float)GetVisibleRect().width;
+  quadTransform[1][1] = (float)GetVisibleRect().height;
+  quadTransform[2][2] = 1.0f;
+  quadTransform[3][0] = (float)GetVisibleRect().x;
+  quadTransform[3][1] = (float)GetVisibleRect().y;
+  quadTransform[3][3] = 1.0f;
 
-  // Note BGR: Cairo's image surfaces are always in what
-  // OpenGL and our shaders consider BGR format.
-  ColorTextureLayerProgram *program =
-    UseOpaqueSurface(this)
-    ? mOGLManager->GetBGRXLayerProgram()
-    : mOGLManager->GetBGRALayerProgram();
+  RGBLayerProgram *program = 
+    static_cast<LayerManagerOGL*>(mManager)->GetRGBLayerProgram();
 
   program->Activate();
-  program->SetLayerQuadRect(visibleRect);
+  program->SetLayerQuadTransform(&quadTransform[0][0]);
   program->SetLayerOpacity(GetOpacity());
-  program->SetLayerTransform(mTransform);
-  program->SetRenderOffset(aOffset);
-  program->SetTextureUnit(0);
+  program->SetLayerTransform(&mTransform._11);
+  program->Apply();
 
-  mOGLManager->BindAndDrawQuad(program);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
 
-  DEBUG_GL_ERROR_CHECK(gl());
+  gl()->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
 }
 
 const nsIntRect&

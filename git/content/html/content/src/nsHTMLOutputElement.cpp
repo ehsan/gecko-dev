@@ -37,7 +37,7 @@
 
 #include "nsIDOMHTMLOutputElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsDOMSettableTokenList.h"
 #include "nsStubMutationObserver.h"
 

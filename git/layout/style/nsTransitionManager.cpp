@@ -106,9 +106,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule implementation
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   ElementTransitionsStyleRule(ElementTransitions *aOwner,
@@ -142,9 +142,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule implementation
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   void CoverValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
@@ -217,22 +217,18 @@ ElementTransitionsPropertyDtor(void           *aObject,
 
 NS_IMPL_ISUPPORTS1(ElementTransitionsStyleRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   nsStyleContext *contextParent = aRuleData->mStyleContext->GetParent();
   if (contextParent && contextParent->HasPseudoElementData()) {
     // Don't apply transitions to things inside of pseudo-elements.
     // FIXME (Bug 522599): Add tests for this.
-    return;
+    return NS_OK;
   }
 
   ElementTransitions *et = ElementData();
-  if (NS_UNLIKELY(!et)) { // FIXME (Bug 522597): Why can this be null? 
-     NS_WARNING("ElementData returned null");
-     return;
-  }
-
+  NS_ENSURE_TRUE(et, NS_OK); // FIXME (Bug 522597): Why can this be null?
   for (PRUint32 i = 0, i_end = et->mPropertyTransitions.Length();
        i < i_end; ++i)
   {
@@ -271,13 +267,16 @@ ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }
+
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 ElementTransitionsStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
   // WRITE ME?
+  return NS_OK;
 }
 #endif
 
@@ -311,7 +310,7 @@ ElementTransitions::EnsureStyleRuleFor(TimeStamp aRefreshTime)
 
 NS_IMPL_ISUPPORTS1(CoverTransitionStartStyleRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 CoverTransitionStartStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   for (PRUint32 i = 0, i_end = mCoveredValues.Length(); i < i_end; ++i) {
@@ -329,13 +328,16 @@ CoverTransitionStartStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }
+
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CoverTransitionStartStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
   // WRITE ME?
+  return NS_OK;
 }
 #endif
 

@@ -599,10 +599,8 @@ Connection::internalClose()
 nsCString
 Connection::getFilename()
 {
-  nsCString leafname(":memory:");
-  if (mDatabaseFile) {
-    (void)mDatabaseFile->GetNativeLeafName(leafname);
-  }
+  nsCString leafname;
+  (void)mDatabaseFile->GetNativeLeafName(leafname);
   return leafname;
 }
 

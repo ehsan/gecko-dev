@@ -38,8 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageBindingParams_h
-#define mozStorageBindingParams_h
+#ifndef _mozStorageBindingParams_h_
+#define _mozStorageBindingParams_h_
 
 #include "nsCOMArray.h"
 #include "nsIVariant.h"
@@ -152,4 +152,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageBindingParams_h
+#endif // _mozStorageBindingParams_h_
