@@ -138,14 +138,11 @@ public:
   }
 
   /**
-   * Marks this document as loaded or loading, used to expose busy state.
-   * The loaded flag has special meaning for error pages and used as workaround
-   * to make IsContentLoaded() return correct result since these pages do not
+   * Marks as loaded, used for error pages as workaround since they do not
    * receive pageshow event and as consequence nsIDocument::IsShowing() returns
    * false.
    */
   void MarkAsLoaded() { mIsLoaded = PR_TRUE; }
-  void MarkAsLoading() { mIsLoaded = PR_FALSE; }
 
   /**
    * Return a native window handler or pointer depending on platform.
@@ -216,16 +213,6 @@ public:
   nsAccessible* GetCachedAccessibleByUniqueIDInSubtree(void* aUniqueID);
 
   /**
-   * Return true if the given ID is referred by relation attribute.
-   *
-   * @note Different elements may share the same ID if they are hosted inside
-   *       XBL bindings. Be careful the result of this method may be  senseless
-   *       while it's called for XUL elements (where XBL is used widely).
-   */
-  PRBool IsDependentID(const nsAString& aID) const
-    { return mDependentIDsHash.Get(aID, nsnull); }
-
-  /**
    * Initialize the newly created accessible and put it into document caches.
    *
    * @param  aAccessible    [in] created accessible
@@ -256,23 +243,8 @@ public:
    */
   void RecreateAccessible(nsINode* aNode);
 
-  /**
-   * Used to notify the document that the accessible caching is started or
-   * finished.
-   *
-   * While children are cached we may encounter the case there's no accessible
-   * for referred content by related accessible. Keep the caching root and
-   * these related nodes to invalidate their containers after root caching.
-   */
-  void NotifyOfCachingStart(nsAccessible* aAccessible);
-  void NotifyOfCachingEnd(nsAccessible* aAccessible);
-
 protected:
 
-  // nsAccessible
-  virtual void CacheChildren();
-
-  // nsDocAccessible
     virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
     virtual nsresult AddEventListeners();
     virtual nsresult RemoveEventListeners();
@@ -422,7 +394,7 @@ protected:
       mRelAttr(aRelAttr), mContent(aContent) { }
 
     nsIAtom* mRelAttr;
-    nsCOMPtr<nsIContent> mContent;
+    nsIContent* mContent;
 
   private:
     AttrRelProvider();
@@ -437,17 +409,6 @@ protected:
   nsClassHashtable<nsStringHashKey, AttrRelProviderArray> mDependentIDsHash;
 
   friend class RelatedAccIterator;
-
-  /**
-   * Used for our caching algorithm. We store the root of the tree that needs
-   * caching, the list of nodes that should be invalidated, and whether we are
-   * processing the invalidation list.
-   *
-   * @see NotifyOfCachingStart/NotifyOfCachingEnd
-   */
-  nsAccessible* mCacheRoot;
-  nsTArray<nsIContent*> mInvalidationList;
-  PRBool mIsPostCacheProcessing;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,

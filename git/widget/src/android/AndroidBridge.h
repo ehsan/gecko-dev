@@ -170,8 +170,6 @@ public:
 
     void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
 
-    void PerformHapticFeedback(PRBool aIsLongPress);
-
     void SetFullScreen(PRBool aFullScreen);
 
     void ShowInputMethodPicker();
@@ -180,10 +178,7 @@ public:
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
-            // Make sure there is enough space to store a local ref to the
-            // exception.  I am not completely sure this is needed, but does
-            // not hurt.
-            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries + 1);
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
         // Note! Calling Purge makes all previous local refs created in
         // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
@@ -193,12 +188,6 @@ public:
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
         ~AutoLocalJNIFrame() {
-            jthrowable exception =
-                AndroidBridge::Bridge()->JNI()->ExceptionOccurred();
-            if (exception) {
-                AndroidBridge::Bridge()->JNI()->ExceptionDescribe();
-                AndroidBridge::Bridge()->JNI()->ExceptionClear();
-            }
             AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
         }
         int mEntries;
@@ -255,7 +244,6 @@ protected:
     jmethodID jSetFullScreen;
     jmethodID jShowInputMethodPicker;
     jmethodID jHideProgressDialog;
-    jmethodID jPerformHapticFeedback;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

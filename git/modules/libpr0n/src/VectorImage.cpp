@@ -212,7 +212,6 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker) :
   mLastRenderedSize(0, 0),
   mIsInitialized(PR_FALSE),
   mIsFullyLoaded(PR_FALSE),
-  mIsDrawing(PR_FALSE),
   mHaveAnimations(PR_FALSE),
   mHaveRestrictedRegion(PR_FALSE)
 {
@@ -515,15 +514,10 @@ VectorImage::Draw(gfxContext* aContext,
                   const nsIntSize& aViewportSize,
                   PRUint32 aFlags)
 {
-  NS_ENSURE_ARG_POINTER(aContext);
   if (mError || !mIsFullyLoaded)
     return NS_ERROR_FAILURE;
 
-  if (mIsDrawing) {
-    NS_WARNING("Refusing to make re-entrant call to VectorImage::Draw");
-    return NS_ERROR_FAILURE;
-  }
-  mIsDrawing = PR_TRUE;
+  NS_ENSURE_ARG_POINTER(aContext);
 
   if (aViewportSize != mLastRenderedSize) {
     mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
@@ -558,7 +552,6 @@ VectorImage::Draw(gfxContext* aContext,
                              subimage, sourceRect, imageRect, aFill,
                              gfxASurface::ImageFormatARGB32, aFilter);
 
-  mIsDrawing = PR_FALSE;
   return NS_OK;
 }
 

@@ -3184,14 +3184,12 @@ nsUrlClassifierDBServiceWorker::ApplyUpdate()
 {
   LOG(("nsUrlClassifierDBServiceWorker::ApplyUpdate"));
 
-  if (mConnection) {
-    if (NS_FAILED(mUpdateStatus)) {
-      mConnection->RollbackTransaction();
-    } else {
-      mUpdateStatus = FlushChunkLists();
-      if (NS_SUCCEEDED(mUpdateStatus)) {
-        mUpdateStatus = mConnection->CommitTransaction();
-      }
+  if (NS_FAILED(mUpdateStatus)) {
+    mConnection->RollbackTransaction();
+  } else {
+    mUpdateStatus = FlushChunkLists();
+    if (NS_SUCCEEDED(mUpdateStatus)) {
+      mUpdateStatus = mConnection->CommitTransaction();
     }
   }
 
@@ -3228,8 +3226,7 @@ nsUrlClassifierDBServiceWorker::FinishUpdate()
   // We need to get the error code before ApplyUpdate, because it might
   // close/open the connection.
   PRInt32 errcode = SQLITE_OK;
-  if (mConnection)
-    mConnection->GetLastError(&errcode);
+  mConnection->GetLastError(&errcode);
 
   ApplyUpdate();
 

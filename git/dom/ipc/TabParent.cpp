@@ -83,10 +83,11 @@ namespace dom {
 
 TabParent *TabParent::mIMETabParent = nsnull;
 
-NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
+NS_IMPL_ISUPPORTS4(TabParent, nsITabParent, nsIAuthPromptProvider, nsISSLStatusProvider, nsISecureBrowserUI)
 
 TabParent::TabParent()
-  : mIMECompositionEnding(PR_FALSE)
+  : mSecurityState(0)
+  , mIMECompositionEnding(PR_FALSE)
   , mIMEComposing(PR_FALSE)
 {
 }
@@ -198,16 +199,24 @@ TabParent::GetState(PRUint32 *aState)
 {
   NS_ENSURE_ARG(aState);
   NS_WARNING("SecurityState not valid here");
-  *aState = 0;
+  *aState = mSecurityState;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TabParent::GetTooltipText(nsAString & aTooltipText)
 {
-  aTooltipText.Truncate();
+  aTooltipText = mSecurityTooltipText;
   return NS_OK;
 }
+
+NS_IMETHODIMP
+TabParent::GetSSLStatus(nsISupports ** aStatus)
+{
+  NS_IF_ADDREF(*aStatus = mSecurityStatusObject);
+  return NS_OK;
+}
+
 
 PDocumentRendererParent*
 TabParent::AllocPDocumentRenderer(const nsRect& documentRect,

@@ -67,7 +67,6 @@ protected:
   virtual bool RecvSetCharsetAndSource(const PRInt32& source,
                                        const nsCString& charset);
   virtual bool RecvSetSecurityInfo(const nsCString& securityInfo);
-  virtual bool RecvCancel(const nsresult& statusCode);
 
   virtual void ActorDestroy(ActorDestroyReason why);
 

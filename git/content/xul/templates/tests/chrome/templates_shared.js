@@ -75,13 +75,8 @@ function test_template()
     var src = window.location.href.replace(/test_tmpl.*xul/, "animals.rdf");
     ds = RDF.GetDataSourceBlocking(src);
 
-    if (expectLoggedMessages) {
-      Components.classes["@mozilla.org/consoleservice;1"].
-                 getService(Components.interfaces.nsIConsoleService).reset();
-    }
-
-    if (root.getAttribute("datasources") == "rdf:null")
-      root.setAttribute("datasources", "animals.rdf");
+    if (root.datasources == "rdf:null")
+      root.datasources = "animals.rdf";
   }
   else if (queryType == "xml") {
     var src = window.location.href.replace(/test_tmpl.*xul/, "animals.xml");
@@ -131,8 +126,7 @@ function iterateChanged(root, ds)
 
   if (needsOpen)
     root.open = false;
-  if (expectedConsoleMessages.length)
-    compareConsoleMessages();
+  compareConsoleMessages();
   SimpleTest.finish();
 }
 
@@ -178,8 +172,7 @@ function checkResults(root, step)
     serializedXML = serializedXML.replace(nsrepl, "");
     if (debug)
       dump("-------- " + adjtestid + "  " + error + ":\n" + serializedXML + "\n");
-    if (error)
-      is(serializedXML, "Same", "Error is: " + error);
+    is(serializedXML, "Same", "Error is: " + error);
   }
 }
 

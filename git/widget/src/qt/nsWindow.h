@@ -277,7 +277,9 @@ protected:
     virtual nsEventStatus OnScrollEvent(QGraphicsSceneWheelEvent *);
 
     virtual nsEventStatus contextMenuEvent(QGraphicsSceneContextMenuEvent *);
-    virtual nsEventStatus imComposeEvent(QInputMethodEvent *, PRBool &handled);
+    virtual nsEventStatus imStartEvent(QEvent *);
+    virtual nsEventStatus imComposeEvent(QEvent *);
+    virtual nsEventStatus imEndEvent(QEvent *);
     virtual nsEventStatus OnDragEnter (QGraphicsSceneDragDropEvent *);
     virtual nsEventStatus OnDragMotionEvent(QGraphicsSceneDragDropEvent *);
     virtual nsEventStatus OnDragLeaveEvent(QGraphicsSceneDragDropEvent *);

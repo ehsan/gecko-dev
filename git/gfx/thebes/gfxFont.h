@@ -327,7 +327,7 @@ public:
 protected:
     friend class gfxPlatformFontList;
     friend class gfxMacPlatformFontList;
-    friend class gfxUserFcFontEntry;
+    friend class gfxFcFontEntry;
     friend class gfxFontFamily;
     friend class gfxSingleFaceMacFontFamily;
 

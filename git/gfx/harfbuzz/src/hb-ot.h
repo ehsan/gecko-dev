@@ -33,7 +33,4 @@
 #include "hb-ot-shape.h"
 #include "hb-ot-tag.h"
 
-HB_BEGIN_DECLS
-HB_END_DECLS
-
 #endif /* HB_OT_H */

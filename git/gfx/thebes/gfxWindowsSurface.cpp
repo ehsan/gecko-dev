@@ -202,7 +202,7 @@ gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
                                  const nsAString& aPrintToFileName)
 {
 #ifdef NS_PRINTING
-#define DOC_TITLE_LENGTH (MAX_PATH-1)
+#define DOC_TITLE_LENGTH 30
     DOCINFOW docinfo;
 
     nsString titleStr(aTitle);

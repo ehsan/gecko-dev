@@ -144,7 +144,9 @@ nsresult NS_NewHTMLEditRules(nsIEditRules** aInstancePtrResult);
 nsHTMLEditor::nsHTMLEditor()
 : nsPlaintextEditor()
 , mIgnoreSpuriousDragEvent(PR_FALSE)
+, mTypeInState(nsnull)
 , mCRInParagraphCreatesParagraph(PR_FALSE)
+, mHTMLCSSUtils(nsnull)
 , mSelectedCellIndex(0)
 , mIsObjectResizingEnabled(PR_TRUE)
 , mIsResizing(PR_FALSE)
@@ -199,8 +201,10 @@ nsHTMLEditor::~nsHTMLEditor()
     }
   }
 
-  mTypeInState = nsnull;
+  NS_IF_RELEASE(mTypeInState);
   mSelectionListenerP = nsnull;
+
+  delete mHTMLCSSUtils;
 
   // free any default style propItems
   RemoveAllDefaultProperties();
@@ -284,7 +288,9 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     }
 
     // Init the HTML-CSS utils
-    result = NS_NewHTMLCSSUtils(getter_Transfers(mHTMLCSSUtils));
+    if (mHTMLCSSUtils)
+      delete mHTMLCSSUtils;
+    result = NS_NewHTMLCSSUtils(&mHTMLCSSUtils);
     if (NS_FAILED(result)) { return result; }
     mHTMLCSSUtils->Init(this);
 
@@ -300,6 +306,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     // init the type-in state
     mTypeInState = new TypeInState();
     if (!mTypeInState) {return NS_ERROR_NULL_POINTER;}
+    NS_ADDREF(mTypeInState);
 
     // init the selection listener for image resizing
     mSelectionListenerP = new ResizerSelectionListener(this);
@@ -427,9 +434,7 @@ nsHTMLEditor::FindSelectionRoot(nsINode *aNode)
 nsresult
 nsHTMLEditor::CreateEventListeners()
 {
-  // Don't create the handler twice
-  if (mEventListener)
-    return NS_OK;
+  NS_ENSURE_TRUE(!mEventListener, NS_ERROR_ALREADY_INITIALIZED);
   mEventListener = do_QueryInterface(
     static_cast<nsIDOMKeyListener*>(new nsHTMLEditorEventListener()));
   NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
@@ -3855,8 +3860,6 @@ nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
     return;
   }
 
-  nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(this);
-
   if (ShouldReplaceRootElement()) {
     ResetRootElementAndEventTarget();
   }
@@ -3876,8 +3879,6 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
                              nsIContent* aChild, PRInt32 aIndexInContainer,
                              nsIContent* aPreviousSibling)
 {
-  nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(this);
-
   if (SameCOMIdentity(aChild, mRootElement)) {
     ResetRootElementAndEventTarget();
   }
