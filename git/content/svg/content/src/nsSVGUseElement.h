@@ -102,9 +102,8 @@ public:
   void DestroyAnonymousContent();
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
   virtual void DidChangeString(PRUint8 aAttrEnum);
   virtual void DidAnimateString(PRUint8 aAttrEnum);
 
@@ -132,7 +131,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual StringAttributesInfo GetStringInfo();
 
-  PRBool HasValidDimensions();
   void SyncWidthHeight(PRUint8 aAttrEnum);
   void LookupHref();
   void TriggerReclone();

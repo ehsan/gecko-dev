@@ -35,8 +35,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   /** Test for Bug 522545 **/
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
   requestLongerTimeout(2);
@@ -271,7 +282,7 @@ function test() {
          "userTypedValue was null after loading a URI");
       is(browser.userTypedClear, 0,
          "userTypeClear reset to 0");
-      is(gURLBar.value, gURLBar.trimValue("http://example.com/"),
+      is(gURLBar.value, "http://example.com/",
          "Address bar's value set after loading URI");
       runNextTest();
     });
@@ -293,7 +304,10 @@ function test() {
       waitForBrowserState(state, tests.shift());
     } else {
       ss.setBrowserState(originalState);
-      executeSoon(finish);
+      executeSoon(function () {
+        is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
+        finish();
+      });
     }
   }
 

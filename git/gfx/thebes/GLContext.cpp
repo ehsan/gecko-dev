@@ -53,8 +53,6 @@
 
 #include "gfxCrashReporterUtils.h"
 
-#include "mozilla/Util.h" // for DebugOnly
-
 namespace mozilla {
 namespace gl {
 
@@ -1779,7 +1777,7 @@ GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
                           0);
 
     if (aTexture) {
-        DebugOnly<GLenum> status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+        GLenum status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
 
         // Note: if you are hitting this assertion, it is likely that
         // your texture is not texture complete -- that is, you

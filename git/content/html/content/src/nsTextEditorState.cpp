@@ -54,16 +54,16 @@
 #include "nsIControllerContext.h"
 #include "nsAttrValue.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMKeyListener.h"
 #include "nsIEditorObserver.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIDocumentEncoder.h"
 #include "nsISelectionPrivate.h"
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIDOMEventGroup.h"
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
-#include "nsEventListenerManager.h"
 
 #include "nsTextEditorState.h"
 
@@ -609,7 +609,7 @@ nsTextInputSelectionImpl::CheckVisibility(nsIDOMNode *node, PRInt16 startOffset,
 }
 
 class nsTextInputListener : public nsISelectionListener,
-                            public nsIDOMEventListener,
+                            public nsIDOMKeyListener,
                             public nsIEditorObserver,
                             public nsSupportsWeakReference
 {
@@ -632,7 +632,12 @@ public:
 
   NS_DECL_NSISELECTIONLISTENER
 
-  NS_DECL_NSIDOMEVENTLISTENER
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+
+  // nsIDOMKeyListener
+  NS_IMETHOD KeyDown(nsIDOMEvent *aKeyEvent);
+  NS_IMETHOD KeyPress(nsIDOMEvent *aKeyEvent);
+  NS_IMETHOD KeyUp(nsIDOMEvent *aKeyEvent);
 
   NS_DECL_NSIEDITOROBSERVER
 
@@ -685,11 +690,17 @@ nsTextInputListener::~nsTextInputListener()
 {
 }
 
-NS_IMPL_ISUPPORTS4(nsTextInputListener,
-                   nsISelectionListener,
-                   nsIEditorObserver,
-                   nsISupportsWeakReference,
-                   nsIDOMEventListener)
+NS_IMPL_ADDREF(nsTextInputListener)
+NS_IMPL_RELEASE(nsTextInputListener)
+
+NS_INTERFACE_MAP_BEGIN(nsTextInputListener)
+  NS_INTERFACE_MAP_ENTRY(nsISelectionListener)
+  NS_INTERFACE_MAP_ENTRY(nsIEditorObserver)
+  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMKeyListener)
+NS_INTERFACE_MAP_END
 
 // BEGIN nsIDOMSelectionListener
 
@@ -752,6 +763,14 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
 
 // END nsIDOMSelectionListener
 
+// BEGIN nsIDOMKeyListener
+
+NS_IMETHODIMP
+nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
+{
+  return NS_OK;
+}
+
 static void
 DoCommandCallback(const char *aCommand, void *aData)
 {
@@ -783,40 +802,61 @@ DoCommandCallback(const char *aCommand, void *aData)
   }
 }
 
-NS_IMETHODIMP
-nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
-{
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
 
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
+NS_IMETHODIMP
+nsTextInputListener::KeyDown(nsIDOMEvent *aDOMEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
 
   nsNativeKeyEvent nativeEvent;
   nsINativeKeyBindings *bindings = GetKeyBindings();
   if (bindings &&
       nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_FALSE)) {
-
-    PRBool handled = PR_FALSE;
-    if (eventType.EqualsLiteral("keydown")) {
-      handled = bindings->KeyDown(nativeEvent, DoCommandCallback, mFrame);
-    }
-    else if (eventType.EqualsLiteral("keyup")) {
-      handled = bindings->KeyUp(nativeEvent, DoCommandCallback, mFrame);
-    }
-    else if (eventType.EqualsLiteral("keypress")) {
-      handled = bindings->KeyPress(nativeEvent, DoCommandCallback, mFrame);
-    }
-    else {
-      NS_ABORT();
-    }
-    if (handled) {
-      aEvent->PreventDefault();
+    if (bindings->KeyDown(nativeEvent, DoCommandCallback, mFrame)) {
+      aDOMEvent->PreventDefault();
     }
   }
 
   return NS_OK;
 }
+
+NS_IMETHODIMP
+nsTextInputListener::KeyPress(nsIDOMEvent *aDOMEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
+
+  nsNativeKeyEvent nativeEvent;
+  nsINativeKeyBindings *bindings = GetKeyBindings();
+  if (bindings &&
+      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_TRUE)) {
+    if (bindings->KeyPress(nativeEvent, DoCommandCallback, mFrame)) {
+      aDOMEvent->PreventDefault();
+    }
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsTextInputListener::KeyUp(nsIDOMEvent *aDOMEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aDOMEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
+
+  nsNativeKeyEvent nativeEvent;
+  nsINativeKeyBindings *bindings = GetKeyBindings();
+  if (bindings &&
+      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_FALSE)) {
+    if (bindings->KeyUp(nativeEvent, DoCommandCallback, mFrame)) {
+      aDOMEvent->PreventDefault();
+    }
+  }
+
+  return NS_OK;
+}
+// END nsIDOMKeyListener
 
 // BEGIN nsIEditorObserver
 
@@ -968,10 +1008,6 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTextEditorState, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTextEditorState, Release)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsTextEditorState)
   tmp->Clear();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelCon)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEditor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPlaceholderDiv)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTextEditorState)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSelCon, nsISelectionController)
@@ -1473,22 +1509,21 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   {
     mTextListener->SetFrame(nsnull);
 
-    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
-    nsEventListenerManager* manager =
-      target->GetListenerManager(PR_FALSE);
-    if (manager) {
-      manager->RemoveEventListenerByType(mTextListener,
-                                         NS_LITERAL_STRING("keydown"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
-      manager->RemoveEventListenerByType(mTextListener,
-                                         NS_LITERAL_STRING("keypress"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
-      manager->RemoveEventListenerByType(mTextListener,
-                                         NS_LITERAL_STRING("keyup"),
-                                         NS_EVENT_FLAG_BUBBLE |
-                                         NS_EVENT_FLAG_SYSTEM_EVENT);
+    nsCOMPtr<nsIDOMEventGroup> systemGroup;
+    nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+    content->GetSystemEventGroup(getter_AddRefs(systemGroup));
+    nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(mTextCtrlElement);
+    if (dom3Targ) {
+      // cast because of ambiguous base
+      nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
+                                                 (mTextListener);
+
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keydown"),
+                                           listener, PR_FALSE, systemGroup);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keypress"),
+                                           listener, PR_FALSE, systemGroup);
+      dom3Targ->RemoveGroupedEventListener(NS_LITERAL_STRING("keyup"),
+                                           listener, PR_FALSE, systemGroup);
     }
 
     NS_RELEASE(mTextListener);
@@ -1527,8 +1562,7 @@ nsTextEditorState::CreateRootNode()
   // Now create a DIV and add it to the anonymous content child list.
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                                 kNameSpaceID_XHTML,
-                                                 nsIDOMNode::ELEMENT_NODE);
+                                                 kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo.forget(),
@@ -1605,8 +1639,7 @@ be called if @placeholder is the empty string when trimmed from line breaks");
   // and add it to the anonymous content child list
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = pNodeInfoManager->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                           kNameSpaceID_XHTML,
-                                           nsIDOMNode::ELEMENT_NODE);
+                                           kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo.forget(),
@@ -1898,22 +1931,23 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
 void
 nsTextEditorState::InitializeKeyboardEventListeners()
 {
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+
   //register key listeners
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
-  nsEventListenerManager* manager = target->GetListenerManager(PR_TRUE);
-  if (manager) {
-    manager->AddEventListenerByType(mTextListener,
-                                    NS_LITERAL_STRING("keydown"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    manager->AddEventListenerByType(mTextListener,
-                                    NS_LITERAL_STRING("keypress"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
-    manager->AddEventListenerByType(mTextListener,
-                                    NS_LITERAL_STRING("keyup"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  content->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(content);
+  if (dom3Targ) {
+    // cast because of ambiguous base
+    nsIDOMEventListener *listener = static_cast<nsIDOMKeyListener*>
+                                               (mTextListener);
+
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keydown"),
+                                      listener, PR_FALSE, systemGroup);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keypress"),
+                                      listener, PR_FALSE, systemGroup);
+    dom3Targ->AddGroupedEventListener(NS_LITERAL_STRING("keyup"),
+                                      listener, PR_FALSE, systemGroup);
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstChild(nsnull)));

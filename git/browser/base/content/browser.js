@@ -5093,10 +5093,6 @@ var TabsInTitlebar = {
 #endif
   },
 
-  get enabled() {
-    return document.documentElement.getAttribute("tabsintitlebar") == "true";
-  },
-
 #ifdef CAN_DRAW_IN_TITLEBAR
   observe: function (subject, topic, data) {
     if (topic == "nsPref:changed")
@@ -5122,7 +5118,8 @@ var TabsInTitlebar = {
       break;
     }
 
-    if (allowed == this.enabled)
+    let docElement = document.documentElement;
+    if (allowed == (docElement.getAttribute("tabsintitlebar") == "true"))
       return;
 
     function $(id) document.getElementById(id);
@@ -5143,18 +5140,20 @@ var TabsInTitlebar = {
       titlebar.style.marginBottom = - Math.min(tabsToolbarRect.top - titlebarTop,
                                                tabsToolbarRect.height) + "px";
 
-      document.documentElement.setAttribute("tabsintitlebar", "true");
+      docElement.setAttribute("tabsintitlebar", "true");
 
       if (!this._draghandle) {
         let tmp = {};
         Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm", tmp);
         this._draghandle = new tmp.WindowDraggingElement(tabsToolbar, window);
         this._draghandle.mouseDownCheck = function () {
-          return !this._dragBindingAlive && TabsInTitlebar.enabled;
+          return !this._dragBindingAlive &&
+                 this.ownerDocument.documentElement
+                     .getAttribute("tabsintitlebar") == "true";
         };
       }
     } else {
-      document.documentElement.removeAttribute("tabsintitlebar");
+      docElement.removeAttribute("tabsintitlebar");
 
       titlebar.style.marginBottom = "";
     }
@@ -5919,6 +5918,10 @@ var BrowserOffline = {
     }
 
     ioService.offline = !ioService.offline;
+
+    // Save the current state for later use as the initial state
+    // (if there is no netLinkService)
+    gPrefService.setBoolPref("browser.offline", ioService.offline);
   },
 
   /////////////////////////////////////////////////////////////////////////////

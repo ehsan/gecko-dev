@@ -3,7 +3,7 @@
  */
 
 #include "tests.h"
-#include "vm/String.h"
+#include "jsstr.h"
 
 BEGIN_TEST(testIntString_bug515273)
 {

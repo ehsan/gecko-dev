@@ -66,7 +66,9 @@
 #include "nsStyleSet.h"
 #include "nsCSSStyleSheet.h" // XXX for UA sheet loading hack, can this go away please?
 #include "nsIDOMCSSStyleSheet.h"  // for Pref-related rule management (bugs 22963,20760,31816)
+#ifdef MOZ_CSS_ANIMATIONS
 #include "nsAnimationManager.h"
+#endif
 #include "nsINameSpaceManager.h"  // for Pref-related rule management (bugs 22963,20760,31816)
 #include "nsIServiceManager.h"
 #include "nsFrame.h"
@@ -94,6 +96,7 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNode.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMElement.h"
 #include "nsRange.h"
@@ -4365,24 +4368,73 @@ nsresult PresShell::GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocationStrin
 #endif
 
   NS_ENSURE_ARG_POINTER(aNode);
+  nsresult rv;
+  nsAutoString anchorText;
+  static const char strippedChars[] = "\t\r\n";
 
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
-  if (content) {
-    nsCOMPtr<nsIURI> hrefURI = content->GetHrefURI();
-    if (hrefURI) {
-      nsCAutoString specUTF8;
-      nsresult rv = hrefURI->GetSpec(specUTF8);
+  // are we an anchor?
+  nsCOMPtr<nsIDOMHTMLAnchorElement> anchor(do_QueryInterface(aNode));
+  nsCOMPtr<nsIDOMHTMLAreaElement> area;
+  nsCOMPtr<nsIDOMHTMLLinkElement> link;
+  nsAutoString xlinkType;
+  if (anchor) {
+    rv = anchor->GetHref(anchorText);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    // area?
+    area = do_QueryInterface(aNode);
+    if (area) {
+      rv = area->GetHref(anchorText);
       NS_ENSURE_SUCCESS(rv, rv);
+    } else {
+      // link?
+      link = do_QueryInterface(aNode);
+      if (link) {
+        rv = link->GetHref(anchorText);
+        NS_ENSURE_SUCCESS(rv, rv);
+      } else {
+        // Xlink?
+        nsCOMPtr<nsIDOMElement> element(do_QueryInterface(aNode));
+        if (element) {
+          NS_NAMED_LITERAL_STRING(xlinkNS,"http://www.w3.org/1999/xlink");
+          element->GetAttributeNS(xlinkNS,NS_LITERAL_STRING("type"),xlinkType);
+          if (xlinkType.EqualsLiteral("simple")) {
+            element->GetAttributeNS(xlinkNS,NS_LITERAL_STRING("href"),anchorText);
+            if (!anchorText.IsEmpty()) {
+              // Resolve the full URI using baseURI property
 
-      nsAutoString anchorText;
-      CopyUTF8toUTF16(specUTF8, anchorText);
+              nsAutoString base;
+              nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(aNode,&rv));
+              NS_ENSURE_SUCCESS(rv, rv);
+              node->GetBaseURI(base);
 
-      // Remove all the '\t', '\r' and '\n' from 'anchorText'
-      static const char strippedChars[] = "\t\r\n";
-      anchorText.StripChars(strippedChars);
-      aLocationString = anchorText;
-      return NS_OK;
+              nsCOMPtr<nsIIOService>
+                ios(do_GetService("@mozilla.org/network/io-service;1", &rv));
+              NS_ENSURE_SUCCESS(rv, rv);
+
+              nsCOMPtr<nsIURI> baseURI;
+              rv = ios->NewURI(NS_ConvertUTF16toUTF8(base),nsnull,nsnull,getter_AddRefs(baseURI));
+              NS_ENSURE_SUCCESS(rv, rv);
+
+              nsCAutoString spec;
+              rv = baseURI->Resolve(NS_ConvertUTF16toUTF8(anchorText),spec);
+              NS_ENSURE_SUCCESS(rv, rv);
+
+              CopyUTF8toUTF16(spec, anchorText);
+            }
+          }
+        }
+      }
     }
+  }
+
+  if (anchor || area || link || xlinkType.EqualsLiteral("simple")) {
+    //Remove all the '\t', '\r' and '\n' from 'anchorText'
+    anchorText.StripChars(strippedChars);
+
+    aLocationString = anchorText;
+
+    return NS_OK;
   }
 
   // if no link, fail.
@@ -4770,11 +4822,13 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       mFrameConstructor->ProcessPendingRestyles();
     }
 
+#ifdef MOZ_CSS_ANIMATIONS
     // Dispatch any 'animationstart' events those (or earlier) restyles
     // queued up.
     if (!mIsDestroying) {
       mPresContext->AnimationManager()->DispatchEvents();
     }
+#endif
 
     // Process whatever XBL constructors those restyles queued up.  This
     // ensures that onload doesn't fire too early and that we won't do extra
@@ -5093,7 +5147,9 @@ nsIPresShell::ReconstructStyleDataInternal()
 
   if (mPresContext) {
     mPresContext->RebuildUserFontSet();
+#ifdef MOZ_CSS_ANIMATIONS
     mPresContext->AnimationManager()->KeyframesListIsDirty();
+#endif
   }
 
   Element* root = mDocument->GetRootElement();
@@ -7058,9 +7114,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
           !AdjustContextMenuKeyEvent(me)) {
         return NS_OK;
       }
-      if (me->isShift)
-        aEvent->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH |
-                         NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS;
     }                                
 
     nsAutoHandlingUserInputStatePusher userInpStatePusher(isHandlingUserInput,

@@ -391,15 +391,6 @@ var Browser = {
       Browser.pageScrollboxScroller.scrollTo(0, 0);
   },
 
-  quit: function quit() {
-    // NOTE: onclose seems to be called only when using OS chrome to close a window,
-    // so we need to handle the Browser.closing check ourselves.
-    if (this.closing()) {
-      window.QueryInterface(Ci.nsIDOMChromeWindow).minimize();
-      window.close();
-    }
-  },
-
   _waitingToClose: false,
   closing: function closing() {
     // If we are already waiting for the close prompt, don't show another
@@ -1754,13 +1745,11 @@ const ContentTouchHandler = {
       case "Browser:ContextMenu":
         // Long tap
         let contextMenu = { name: aMessage.name, json: json, target: aMessage.target };
-        if (!SelectionHelper.showPopup(contextMenu)) {
-          if (ContextHelper.showPopup(contextMenu)) {
-            // Stop all input sequences
-            let event = document.createEvent("Events");
-            event.initEvent("CancelTouchSequence", true, false);
-            document.dispatchEvent(event);
-          }
+        if (ContextHelper.showPopup(contextMenu)) {
+          // Stop all input sequences
+          let event = document.createEvent("Events");
+          event.initEvent("CancelTouchSequence", true, false);
+          document.dispatchEvent(event);
         }
         break;
       case "Browser:CaptureEvents": {

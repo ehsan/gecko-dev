@@ -453,9 +453,7 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 void
 nsXMLHttpRequest::RootResultArrayBuffer()
 {
-  nsContentUtils::PreserveWrapper(
-    static_cast<nsIDOMEventTarget*>(
-      static_cast<nsDOMEventTargetHelper*>(this)), this);
+  nsContentUtils::PreserveWrapper(static_cast<nsPIDOMEventTarget*>(this), this);
 }
 
 /**
@@ -482,8 +480,7 @@ nsXMLHttpRequest::Init()
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
-    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
+    secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   }
   NS_ENSURE_STATE(subjectPrincipal);
   mPrincipal = subjectPrincipal;
@@ -867,9 +864,9 @@ nsresult nsXMLHttpRequest::CreateResponseArrayBuffer(JSContext *aCx)
   }
 
   if (dataLen > 0) {
-    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(mResultArrayBuffer);
+    js::ArrayBuffer *abuf = js::ArrayBuffer::fromJSObject(mResultArrayBuffer);
     NS_ASSERTION(abuf, "What happened?");
-    memcpy(JS_GetArrayBufferData(abuf), mResponseBody.BeginReading(), dataLen);
+    memcpy(abuf->data, mResponseBody.BeginReading(), dataLen);
   }
 
   return NS_OK;
@@ -1275,7 +1272,7 @@ nsXMLHttpRequest::CreateReadystatechangeEvent(nsIDOMEvent** aDOMEvent)
 }
 
 void
-nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
+nsXMLHttpRequest::DispatchProgressEvent(nsPIDOMEventTarget* aTarget,
                                         const nsAString& aType,
                                         PRBool aUseLSEventWrapper,
                                         PRBool aLengthComputable,

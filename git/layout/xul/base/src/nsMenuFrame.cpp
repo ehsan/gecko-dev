@@ -871,24 +871,6 @@ nsMenuFrame::IsMenu()
   return mIsMenu;
 }
 
-nsMenuListType
-nsMenuFrame::GetParentMenuListType()
-{
-  if (mMenuParent && mMenuParent->IsMenu()) {
-    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(mMenuParent);
-    nsIFrame* parentMenu = popupFrame->GetParent();
-    if (parentMenu) {
-      nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(parentMenu->GetContent());
-      if (menulist) {
-        PRBool isEditable = PR_FALSE;
-        menulist->GetEditable(&isEditable);
-        return isEditable ? eEditableMenuList : eReadonlyMenuList;
-      }
-    }
-  }
-  return eNotMenuList;
-}
-
 nsresult
 nsMenuFrame::Notify(nsITimer* aTimer)
 {
@@ -1216,9 +1198,18 @@ nsMenuFrame::ShouldBlink()
     return PR_FALSE;
 
   // Don't blink in editable menulists.
-  if (GetParentMenuListType() == eEditableMenuList)
-    return PR_FALSE;
-
+  if (mMenuParent && mMenuParent->IsMenu()) {
+    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(mMenuParent);
+    nsIFrame* parentMenu = popupFrame->GetParent();
+    if (parentMenu) {
+      nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(parentMenu->GetContent());
+      if (menulist) {
+        PRBool isEditable = PR_FALSE;
+        menulist->GetEditable(&isEditable);
+        return !isEditable;
+      }
+    }
+  }
   return PR_TRUE;
 }
 

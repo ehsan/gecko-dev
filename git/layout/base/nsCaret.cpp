@@ -632,30 +632,10 @@ nsresult nsCaret::PrimeTimer()
   return NS_OK;
 }
 
-void nsCaret::InvalidateTextOverflowBlock()
-{
-  // If the nearest block has a potential 'text-overflow' marker then
-  // invalidate it.
-  if (mLastContent) {
-    nsIFrame* caretFrame = mLastContent->GetPrimaryFrame();
-    if (caretFrame) {
-      nsIFrame* block = nsLayoutUtils::GetAsBlock(caretFrame) ? caretFrame :
-        nsLayoutUtils::FindNearestBlockAncestor(caretFrame);
-      if (block) {
-        const nsStyleTextReset* style = block->GetStyleTextReset();
-        if (style->mTextOverflow.mType != NS_STYLE_TEXT_OVERFLOW_CLIP) {
-          block->InvalidateOverflowRect();
-        }
-      }
-    }
-  }
-}
 
 //-----------------------------------------------------------------------------
 void nsCaret::StartBlinking()
 {
-  InvalidateTextOverflowBlock();
-
   if (mReadOnly) {
     // Make sure the one draw command we use for a readonly caret isn't
     // done until the selection is set
@@ -679,8 +659,6 @@ void nsCaret::StartBlinking()
 //-----------------------------------------------------------------------------
 void nsCaret::StopBlinking()
 {
-  InvalidateTextOverflowBlock();
-
   if (mDrawn)     // erase the caret if necessary
     DrawCaret(PR_TRUE);
 

@@ -44,6 +44,8 @@
 #include "mozilla/jetpack/Handle.h"
 #include "mozilla/IntentionalCrash.h"
 
+#include "jsarray.h"
+
 #include <stdio.h>
 
 namespace mozilla {

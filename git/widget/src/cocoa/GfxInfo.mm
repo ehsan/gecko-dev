@@ -101,12 +101,6 @@ GfxInfo::GetD2DEnabled(PRBool *aEnabled)
 }
 
 NS_IMETHODIMP
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
 GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
 {
   return NS_ERROR_FAILURE;

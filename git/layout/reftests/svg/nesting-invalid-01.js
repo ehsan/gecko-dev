@@ -1,5 +1,5 @@
 // Any copyright is dedicated to the Public Domain.
-// http://creativecommons.org/publicdomain/zero/1.0/
+// http://creativecommons.org/licenses/publicdomain/
 
 // These are all of the SVG 1.1 element names, except for container elements,
 // with the addition of an "UNKNOWN" element in the SVG namespace.

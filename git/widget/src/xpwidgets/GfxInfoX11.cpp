@@ -299,12 +299,6 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP
-GfxInfo::GetAzureEnabled(PRBool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute DOMString DWriteVersion; */
 NS_IMETHODIMP
 GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
