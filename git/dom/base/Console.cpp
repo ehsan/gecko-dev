@@ -814,11 +814,14 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
         language == nsIProgrammingLanguage::JAVASCRIPT2) {
       ConsoleStackEntry& data = *callData->mStack.AppendElement();
 
-      rv = stack->GetFilename(data.mFilename);
+      nsCString string;
+      rv = stack->GetFilename(string);
       if (NS_FAILED(rv)) {
         Throw(aCx, rv);
         return;
       }
+
+      CopyUTF8toUTF16(string, data.mFilename);
 
       int32_t lineNumber;
       rv = stack->GetLineNumber(&lineNumber);
@@ -829,11 +832,13 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
 
       data.mLineNumber = lineNumber;
 
-      rv = stack->GetName(data.mFunctionName);
+      rv = stack->GetName(string);
       if (NS_FAILED(rv)) {
         Throw(aCx, rv);
         return;
       }
+
+      CopyUTF8toUTF16(string, data.mFunctionName);
 
       data.mLanguage = language;
     }

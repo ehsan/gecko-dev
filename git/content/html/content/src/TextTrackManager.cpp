@@ -8,10 +8,8 @@
 #include "mozilla/dom/TextTrackManager.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLTrackElement.h"
-#include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/TextTrack.h"
 #include "mozilla/dom/TextTrackCue.h"
-#include "mozilla/dom/Event.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "nsComponentManagerUtils.h"
 #include "nsVideoFrame.h"
@@ -77,13 +75,8 @@ CompareTextTracks::LessThan(TextTrack* aOne, TextTrack* aTwo) const
 
 NS_IMPL_CYCLE_COLLECTION_4(TextTrackManager, mMediaElement, mTextTracks,
                            mPendingTextTracks, mNewCues)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TextTrackManager)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(TextTrackManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(TextTrackManager)
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(TextTrackManager, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(TextTrackManager, Release)
 
 StaticRefPtr<nsIWebVTTParserWrapper> TextTrackManager::sParserWrapper;
 
@@ -91,6 +84,8 @@ TextTrackManager::TextTrackManager(HTMLMediaElement *aMediaElement)
   : mMediaElement(aMediaElement)
   , performedTrackSelection(false)
 {
+  MOZ_COUNT_CTOR(TextTrackManager);
+
   bool hasHadScriptObject = true;
   nsIScriptGlobalObject* scriptObject =
     mMediaElement->OwnerDoc()->GetScriptHandlingObject(hasHadScriptObject);
@@ -108,6 +103,11 @@ TextTrackManager::TextTrackManager(HTMLMediaElement *aMediaElement)
     sParserWrapper = parserWrapper;
     ClearOnShutdown(&sParserWrapper);
   }
+}
+
+TextTrackManager::~TextTrackManager()
+{
+  MOZ_COUNT_DTOR(TextTrackManager);
 }
 
 TextTrackList*
@@ -256,15 +256,6 @@ TextTrackManager::PopulatePendingList()
 }
 
 void
-TextTrackManager::AddListeners()
-{
-  if (mMediaElement) {
-    mMediaElement->AddEventListener(NS_LITERAL_STRING("resizevideocontrols"),
-                                    this, false, false);
-  }
-}
-
-void
 TextTrackManager::HonorUserPreferencesForTrackSelection()
 {
   if (performedTrackSelection || !mTextTracks) {
@@ -359,23 +350,6 @@ TextTrackManager::GetTextTracksOfKind(TextTrackKind aTextTrackKind,
       aTextTracks.AppendElement(textTrack);
     }
   }
-}
-
-NS_IMETHODIMP
-TextTrackManager::HandleEvent(nsIDOMEvent* aEvent)
-{
-  if (!mTextTracks) {
-    return NS_OK;
-  }
-
-  nsAutoString type;
-  aEvent->GetType(type);
-  if (type.EqualsLiteral("resizevideocontrols")) {
-    for (uint32_t i = 0; i< mTextTracks->Length(); i++) {
-      ((*mTextTracks)[i])->SetCuesDirty();
-    }
-  }
-  return NS_OK;
 }
 
 } // namespace dom

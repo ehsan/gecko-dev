@@ -53,6 +53,7 @@ private:
     mozilla::CondVar     mCondVar;
     bool                 mShutdownPending;
     nsCOMPtr<nsIThread>  mLoadInfoThread;
+    uint64_t             mTicksPerInterval;
     float                mSystemLoad;
     float                mProcessLoad;
     LoadNotificationCallback* mLoadNotificationCallback;

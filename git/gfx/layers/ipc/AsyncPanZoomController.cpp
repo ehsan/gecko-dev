@@ -424,7 +424,6 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
      mPreventDefault(false),
      mPreventDefaultSet(false),
      mTreeManager(aTreeManager),
-     mScrollParentId(FrameMetrics::NULL_SCROLL_ID),
      mAPZCId(sAsyncPanZoomControllerCount++),
      mSharedFrameMetricsBuffer(nullptr),
      mSharedLock(nullptr)
