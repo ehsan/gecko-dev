@@ -161,9 +161,9 @@ ContainerRender(ContainerT* aContainer,
 
     compositor->SetRenderTarget(previousTarget);
     EffectChain effectChain;
-    LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(aContainer->GetMaskLayer(),
-                                                            effectChain,
-                                                            !aContainer->GetTransform().CanDraw2D());
+    LayerManagerComposite::AddMaskEffect(aContainer->GetMaskLayer(),
+                                         effectChain,
+                                         !aContainer->GetTransform().CanDraw2D());
 
     effectChain.mPrimaryEffect = new EffectRenderTarget(surface);
 
@@ -188,6 +188,8 @@ ContainerRender(ContainerT* aContainer,
                                                rect, clipRect,
                                                transform, gfx::Point(aOffset.x, aOffset.y));
   }
+
+  LayerManagerComposite::RemoveMaskEffect(aContainer->GetMaskLayer());
 }
 
 ContainerLayerComposite::ContainerLayerComposite(LayerManagerComposite *aManager)

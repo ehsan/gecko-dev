@@ -1096,8 +1096,7 @@ DrawTargetCG::CopySurface(SourceSurface *aSurface,
 
   CGImageRef image;
   CGImageRef subimage = nullptr;
-  if (aSurface->GetType() == SURFACE_COREGRAPHICS_IMAGE ||
-      aSurface->GetType() == SURFACE_COREGRAPHICS_CGCONTEXT) {
+  if (aSurface->GetType() == SURFACE_COREGRAPHICS_IMAGE) {
     image = GetImageFromSourceSurface(aSurface);
     /* we have two options here:
      *  - create a subimage -- this is slower

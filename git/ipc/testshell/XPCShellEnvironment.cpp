@@ -15,7 +15,7 @@
 #include "base/basictypes.h"
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 
 #include "xpcpublic.h"
 

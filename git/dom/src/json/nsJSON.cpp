@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include "nsIServiceManager.h"
 #include "nsJSON.h"
 #include "nsIXPConnect.h"
@@ -21,7 +21,6 @@
 #include "nsCRTGlue.h"
 #include "nsAutoPtr.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/Maybe.h"
 #include <algorithm>
 
 static const char kXPConnectServiceCID[] = "@mozilla.org/js/xpc/XPConnect;1";

@@ -45,7 +45,7 @@
 #include "mozilla/Services.h"
 
 // JS
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 
 // This file's exports are listed in GeckoProfilerImpl.h.
 
