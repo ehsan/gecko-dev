@@ -695,7 +695,7 @@ public:
 
     *aResult = niMgr->GetNodeInfo(aName, aNodeInfo->GetPrefixAtom(),
                                   aNodeInfo->NamespaceID()).get();
-    return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    return *aResult ? NS_OK : NS_ERROR_FAILURE;
   }
 
   /**
@@ -709,7 +709,7 @@ public:
 
     *aResult = niMgr->GetNodeInfo(aNodeInfo->NameAtom(), aPrefix,
                                   aNodeInfo->NamespaceID()).get();
-    return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    return *aResult ? NS_OK : NS_ERROR_FAILURE;
   }
 
   /**

@@ -369,6 +369,63 @@ DrawLine (nsIRenderingContext& aContext,
   }
 }
 
+// Fill a polygon, skipping that portion which crosses aGap. aGap
+// defines a rectangle gap. This services fieldset legends and only
+// works for points defining a horizontal rectangle.
+static void
+FillPolygon (nsIRenderingContext& aContext, const nsPoint aPoints[],
+             PRInt32 aNumPoints, nsRect* aGap)
+{
+  if (nsnull == aGap) {
+    aContext.FillPolygon(aPoints, aNumPoints);
+  } else if (4 == aNumPoints) {
+    nsPoint gapUpperRight(aGap->x + aGap->width, aGap->y);
+    nsPoint gapLowerRight(aGap->x + aGap->width, aGap->y + aGap->height);
+
+    // sort the 4 points by x
+    nsPoint points[4];
+    for (PRInt32 pX = 0; pX < 4; pX++) {
+      points[pX] = aPoints[pX];
+    }
+    for (PRInt32 i = 0; i < 3; i++) {
+      for (PRInt32 j = i+1; j < 4; j++) { 
+        if (points[j].x < points[i].x) {
+          nsPoint swap = points[i];
+          points[i] = points[j];
+          points[j] = swap;
+        }
+      }
+    }
+
+    nsPoint upperLeft  = (points[0].y <= points[1].y) ? points[0] : points[1];
+    nsPoint lowerLeft  = (points[0].y <= points[1].y) ? points[1] : points[0];
+    nsPoint upperRight = (points[2].y <= points[3].y) ? points[2] : points[3];
+    nsPoint lowerRight = (points[2].y <= points[3].y) ? points[3] : points[2];
+
+
+    if ((aGap->y <= upperLeft.y) && (gapLowerRight.y >= lowerRight.y)) {
+      if ((aGap->x > upperLeft.x) && (aGap->x < upperRight.x)) {
+        nsPoint leftRect[4];
+        leftRect[0] = upperLeft;
+        leftRect[1] = nsPoint(aGap->x, upperLeft.y);
+        leftRect[2] = nsPoint(aGap->x, lowerLeft.y);
+        leftRect[3] = lowerLeft;
+        aContext.FillPolygon(leftRect, 4);
+      } 
+      if ((gapUpperRight.x > upperLeft.x) && (gapUpperRight.x < upperRight.x)) {
+        nsPoint rightRect[4];
+        rightRect[0] = nsPoint(gapUpperRight.x, upperRight.y);
+        rightRect[1] = upperRight;
+        rightRect[2] = lowerRight;
+        rightRect[3] = nsPoint(gapLowerRight.x, lowerRight.y);
+        aContext.FillPolygon(rightRect, 4);
+      } 
+    } else {
+      aContext.FillPolygon(aPoints, aNumPoints);
+    }      
+  }
+}
+
 /**
  * Make a bevel color
  */
@@ -2262,7 +2319,7 @@ DrawBorderImageSide(gfxContext *aThebesContext,
   gfxFloat hScale(1.0), vScale(1.0);
 
   nsRefPtr<gfxPattern> pattern = new gfxPattern(interSurface);
-  pattern->SetExtend(gfxPattern::EXTEND_PAD_EDGE);
+  pattern->SetExtend(gfxPattern::EXTEND_PAD);
   switch (aHFillType) {
     case NS_STYLE_BORDER_IMAGE_REPEAT:
       renderOffset.x = (rectSize.width - aInterSize.width*NS_ceil(rectSize.width/aInterSize.width))*-0.5;
@@ -2963,43 +3020,153 @@ GetTextDecorationRectInternal(const gfxPoint& aPt,
 // -----
 // nsContextBoxBlur
 // -----
+void
+nsContextBoxBlur::BoxBlurHorizontal(unsigned char* aInput,
+                                    unsigned char* aOutput,
+                                    PRUint32 aLeftLobe,
+                                    PRUint32 aRightLobe)
+{
+  // Box blur involves looking at one pixel, and setting its value to the average of
+  // its neighbouring pixels. leftLobe is how many pixels to the left to include
+  // in the average, rightLobe is to the right.
+  // boxSize is how many pixels total will be averaged when looking at each pixel.
+  PRUint32 boxSize = aLeftLobe + aRightLobe + 1;
+
+  long stride = mImageSurface->Stride();
+  PRUint32 rows = mRect.Height();
+
+  for (PRUint32 y = 0; y < rows; y++) {
+    PRUint32 alphaSum = 0;
+    for (PRUint32 i = 0; i < boxSize; i++) {
+      PRInt32 pos = i - aLeftLobe;
+      pos = PR_MAX(pos, 0);
+      pos = PR_MIN(pos, stride - 1);
+      alphaSum += aInput[stride * y + pos];
+    }
+    for (PRInt32 x = 0; x < stride; x++) {
+      PRInt32 tmp = x - aLeftLobe;
+      PRInt32 last = PR_MAX(tmp, 0);
+      PRInt32 next = PR_MIN(tmp + boxSize, stride - 1);
+
+      aOutput[stride * y + x] = alphaSum/boxSize;
+
+      alphaSum += aInput[stride * y + next] -
+                  aInput[stride * y + last];
+    }
+  }
+}
+
+void
+nsContextBoxBlur::BoxBlurVertical(unsigned char* aInput,
+                                  unsigned char* aOutput,
+                                  PRUint32 aTopLobe,
+                                  PRUint32 aBottomLobe)
+{
+  PRUint32 boxSize = aTopLobe + aBottomLobe + 1;
+
+  long stride = mImageSurface->Stride();
+  PRUint32 rows = mRect.Height();
+
+  for (PRInt32 x = 0; x < stride; x++) {
+    PRUint32 alphaSum = 0;
+    for (PRUint32 i = 0; i < boxSize; i++) {
+      PRInt32 pos = i - aTopLobe;
+      pos = PR_MAX(pos, 0);
+      pos = PR_MIN(pos, rows - 1);
+      alphaSum += aInput[stride * pos + x];
+    }
+    for (PRUint32 y = 0; y < rows; y++) {
+      PRInt32 tmp = y - aTopLobe;
+      PRInt32 last = PR_MAX(tmp, 0);
+      PRInt32 next = PR_MIN(tmp + boxSize, rows - 1);
+
+      aOutput[stride * y + x] = alphaSum/boxSize;
+
+      alphaSum += aInput[stride * next + x] -
+                  aInput[stride * last + x];
+    }
+  }
+}
+
 gfxContext*
 nsContextBoxBlur::Init(const gfxRect& aRect, nscoord aBlurRadius,
                        PRInt32 aAppUnitsPerDevPixel,
                        gfxContext* aDestinationCtx)
 {
-  mDestinationCtx = aDestinationCtx;
+  mBlurRadius = aBlurRadius / aAppUnitsPerDevPixel;
 
-  PRInt32 blurRadius = static_cast<PRInt32>(aBlurRadius / aAppUnitsPerDevPixel);
-
-  // if not blurring, draw directly onto the destination device
-  if (blurRadius <= 0) {
+  if (mBlurRadius <= 0) {
     mContext = aDestinationCtx;
     return mContext;
   }
 
   // Convert from app units to device pixels
-  gfxRect rect = aRect;
-  rect.ScaleInverse(aAppUnitsPerDevPixel);
+  mRect = aRect;
+  mRect.Outset(aBlurRadius);
+  mRect.ScaleInverse(aAppUnitsPerDevPixel);
+  mRect.RoundOut();
 
-  if (rect.IsEmpty()) {
+  if (mRect.IsEmpty()) {
+    mBlurRadius = 0;
     mContext = aDestinationCtx;
     return mContext;
   }
 
   mDestinationCtx = aDestinationCtx;
 
-  mContext = blur.Init(rect, gfxIntSize(blurRadius, blurRadius));
+  // Make an alpha-only surface to draw on. We will play with the data after everything is drawn
+  // to create a blur effect.
+  mImageSurface = new gfxImageSurface(gfxIntSize(mRect.Width(), mRect.Height()),
+                                      gfxASurface::ImageFormatA8);
+  if (!mImageSurface || mImageSurface->CairoStatus())
+    return nsnull;
+
+  // Use a device offset so callers don't need to worry about translating coordinates,
+  // they can draw as if this was part of the destination context at the coordinates
+  // of mRect.
+  mImageSurface->SetDeviceOffset(-mRect.TopLeft());
+
+  mContext = new gfxContext(mImageSurface);
   return mContext;
 }
 
 void
 nsContextBoxBlur::DoPaint()
 {
-  if (mContext == mDestinationCtx)
+  if (mBlurRadius <= 0)
     return;
 
-  blur.Paint(mDestinationCtx);
+  unsigned char* boxData = mImageSurface->Data();
+
+  // A blur radius of 1 achieves nothing (1/2 = 0 in int terms),
+  // but we still want a blur!
+  mBlurRadius = PR_MAX(mBlurRadius, 2);
+
+  nsTArray<unsigned char> tempAlphaDataBuf;
+  if (!tempAlphaDataBuf.SetLength(mImageSurface->GetDataSize()))
+    return; // OOM
+
+  // Here we do like what the SVG gaussian blur filter does in calculating
+  // the lobes.
+  if (mBlurRadius & 1) {
+    // blur radius is odd
+    BoxBlurHorizontal(boxData, tempAlphaDataBuf.Elements(), mBlurRadius/2, mBlurRadius/2);
+    BoxBlurHorizontal(tempAlphaDataBuf.Elements(), boxData, mBlurRadius/2, mBlurRadius/2);
+    BoxBlurHorizontal(boxData, tempAlphaDataBuf.Elements(), mBlurRadius/2, mBlurRadius/2);
+    BoxBlurVertical(tempAlphaDataBuf.Elements(), boxData, mBlurRadius/2, mBlurRadius/2);
+    BoxBlurVertical(boxData, tempAlphaDataBuf.Elements(), mBlurRadius/2, mBlurRadius/2);
+    BoxBlurVertical(tempAlphaDataBuf.Elements(), boxData, mBlurRadius/2, mBlurRadius/2);
+  } else {
+    // blur radius is even
+    BoxBlurHorizontal(boxData, tempAlphaDataBuf.Elements(), mBlurRadius/2, mBlurRadius/2 - 1);
+    BoxBlurHorizontal(tempAlphaDataBuf.Elements(), boxData, mBlurRadius/2 - 1, mBlurRadius/2);
+    BoxBlurHorizontal(boxData, tempAlphaDataBuf.Elements(), mBlurRadius/2, mBlurRadius/2);
+    BoxBlurVertical(tempAlphaDataBuf.Elements(), boxData, mBlurRadius/2, mBlurRadius/2 - 1);
+    BoxBlurVertical(boxData, tempAlphaDataBuf.Elements(), mBlurRadius/2 - 1, mBlurRadius/2);
+    BoxBlurVertical(tempAlphaDataBuf.Elements(), boxData, mBlurRadius/2, mBlurRadius/2);
+  }
+
+  mDestinationCtx->Mask(mImageSurface);
 }
 
 gfxContext*

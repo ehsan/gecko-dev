@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Eric Butler <zantifon@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -104,7 +103,6 @@
 #include "gfxPlatform.h"
 #include "gfxFont.h"
 #include "gfxTextRunCache.h"
-#include "gfxBlur.h"
 
 #include "nsFrameManager.h"
 
@@ -318,6 +316,7 @@ public:
     virtual ~nsCanvasRenderingContext2D();
 
     nsresult Redraw();
+    void SetThebesColor(nscolor c);
 
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsICanvasElement* aParentCanvas);
@@ -335,6 +334,11 @@ public:
     // nsIDOMCanvasRenderingContext2D interface
     NS_DECL_NSIDOMCANVASRENDERINGCONTEXT2D
 
+protected:
+    // destroy thebes/image stuff, in preparation for possibly recreating
+    void Destroy();
+
+    // Some helpers.  Doesn't modify acolor on failure.
     enum Style {
         STYLE_STROKE = 0,
         STYLE_FILL,
@@ -342,21 +346,11 @@ public:
         STYLE_MAX
     };
 
-protected:
-    // destroy thebes/image stuff, in preparation for possibly recreating
-    void Destroy();
-
-    // Some helpers.  Doesn't modify acolor on failure.
     nsresult SetStyleFromVariant(nsIVariant* aStyle, Style aWhichStyle);
     void StyleColorToString(const nscolor& aColor, nsAString& aStr);
 
     void DirtyAllStyles();
-    /**
-     * applies the given style as the current source. If the given style is
-     * a solid color, aUseGlobalAlpha indicates whether to multiply the alpha
-     * by global alpha, and is ignored otherwise.
-     */
-    void ApplyStyle(Style aWhichStyle, PRBool aUseGlobalAlpha = PR_TRUE);
+    void ApplyStyle(Style aWhichStyle);
     
     // If aPrincipal is not subsumed by this canvas element, then
     // we make the canvas write-only so bad guys can't extract the pixel
@@ -389,95 +383,6 @@ protected:
      * Redraw is called, reset to false when Render is called.
      */
     PRBool mIsFrameInvalid;
-
-    /**
-     * Returns true iff the the given operator should affect areas of the
-     * destination where the source is transparent. Among other things, this
-     * implies that a fully transparent source would still affect the canvas.
-     */
-    PRBool OperatorAffectsUncoveredAreas(gfxContext::GraphicsOperator op) const
-    {
-        return PR_FALSE;
-        // XXX certain operators cause 2d.composite.uncovered.* tests to fail
-#if 0
-        return op == gfxContext::OPERATOR_IN ||
-               op == gfxContext::OPERATOR_OUT ||
-               op == gfxContext::OPERATOR_DEST_IN ||
-               op == gfxContext::OPERATOR_DEST_ATOP ||
-               op == gfxContext::OPERATOR_SOURCE;
-#endif
-    }
-
-    /**
-     * Returns true iff a shadow should be drawn along with a
-     * drawing operation.
-     */
-    PRBool NeedToDrawShadow()
-    {
-        ContextState& state = CurrentState();
-
-        // special case the default values as a "don't draw shadows" mode
-        PRBool doDraw = state.colorStyles[STYLE_SHADOW] != 0 ||
-                        state.shadowOffset.x != 0 ||
-                        state.shadowOffset.y != 0;
-        PRBool isColor = CurrentState().StyleIsColor(STYLE_SHADOW);
-
-        // if not using one of the cooky operators, can avoid drawing a shadow
-        // if the color is fully transparent
-        return (doDraw || !isColor) && (!isColor ||
-               NS_GET_A(state.colorStyles[STYLE_SHADOW]) != 0 ||
-               OperatorAffectsUncoveredAreas(mThebes->CurrentOperator()));
-    }
-
-    /**
-     * Checks the current state to determine if an intermediate surface would
-     * be necessary to complete a drawing operation. Does not check the
-     * condition pertaining to global alpha and patterns since that does not
-     * pertain to all drawing operations.
-     */
-    PRBool NeedToUseIntermediateSurface()
-    {
-        // certain operators always need an intermediate surface, except
-        // with quartz since quartz does compositing differently than cairo
-        return mThebes->OriginalSurface()->GetType() != gfxASurface::SurfaceTypeQuartz &&
-               OperatorAffectsUncoveredAreas(mThebes->CurrentOperator());
-
-        // XXX there are other unhandled cases but they should be investigated
-        // first to ensure we aren't using an intermediate surface unecessarily
-    }
-
-    /**
-     * Returns true iff the current source is such that global alpha would not
-     * be handled correctly without the use of an intermediate surface.
-     */
-    PRBool NeedIntermediateSurfaceToHandleGlobalAlpha(Style aWhichStyle)
-    {
-        return CurrentState().globalAlpha != 1.0 && !CurrentState().StyleIsColor(aWhichStyle);
-    }
-
-    /**
-     * Initializes the drawing of a shadow onto the canvas. The returned context
-     * should have the shadow shape drawn onto it, and then ShadowFinalize
-     * should be called. The return value is null if an error occurs.
-     * @param extents The extents of the shadow object, in device space.
-     * @param blur A newly contructed gfxAlphaBoxBlur, made with the default
-     *  constructor and left uninitialized.
-     * @remark The lifetime of the return value is tied to the lifetime of
-     *  the gfxAlphaBoxBlur, so it does not need to be ref counted.
-     */
-    gfxContext* ShadowInitialize(const gfxRect& extents, gfxAlphaBoxBlur& blur);
-
-    /**
-     * Completes a shadow drawing operation.
-     * @param blur The gfxAlphaBoxBlur that was passed to ShadowInitialize.
-     */
-    void ShadowFinalize(gfxAlphaBoxBlur& blur);
-
-    /**
-     * Draws the current path in the given style. Takes care of
-     * any shadow drawing and will use intermediate surfaces as needed.
-     */
-    nsresult DrawPath(Style style);
 
     /**
      * Draws a rectangle in the given style; used by FillRect and StrokeRect.
@@ -532,16 +437,12 @@ protected:
     // state stack handling
     class ContextState {
     public:
-        ContextState() : shadowOffset(0.0, 0.0),
-                         globalAlpha(1.0),             
-                         shadowBlur(0.0),
+        ContextState() : globalAlpha(1.0),
                          textAlign(TEXT_ALIGN_START),
                          textBaseline(TEXT_BASELINE_ALPHABETIC) { }
 
         ContextState(const ContextState& other)
-            : shadowOffset(other.shadowOffset),
-              globalAlpha(other.globalAlpha),
-              shadowBlur(other.shadowBlur),
+            : globalAlpha(other.globalAlpha),
               font(other.font),
               fontGroup(other.fontGroup),
               textAlign(other.textAlign),
@@ -570,18 +471,7 @@ protected:
             patternStyles[whichStyle] = nsnull;
         }
 
-        /**
-         * returns true iff the given style is a solid color.
-         */
-        inline PRBool StyleIsColor(Style whichStyle) const
-        {
-            return !(patternStyles[whichStyle] ||
-                     gradientStyles[whichStyle]);
-        }
-
-        gfxPoint shadowOffset;
         float globalAlpha;
-        float shadowBlur;
 
         nsString font;
         nsRefPtr<gfxFontGroup> fontGroup;
@@ -821,20 +711,16 @@ nsCanvasRenderingContext2D::DoDrawImageSecurityCheck(nsIPrincipal* aPrincipal,
 }
 
 void
-nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle,
-                                       PRBool aUseGlobalAlpha)
+nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle)
 {
     if (mLastStyle == aWhichStyle &&
-        !mDirtyStyle[aWhichStyle] &&
-        aUseGlobalAlpha)
+        !mDirtyStyle[aWhichStyle])
     {
         // nothing to do, this is already the set style
         return;
     }
 
-    // if not using global alpha, don't optimize with dirty bit
-    if (aUseGlobalAlpha)
-        mDirtyStyle[aWhichStyle] = PR_FALSE;
+    mDirtyStyle[aWhichStyle] = PR_FALSE;
     mLastStyle = aWhichStyle;
 
     nsCanvasPattern* pattern = CurrentState().patternStyles[aWhichStyle];
@@ -853,11 +739,7 @@ nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle,
         return;
     }
 
-    gfxRGBA color(CurrentState().colorStyles[aWhichStyle]);
-    if (aUseGlobalAlpha)
-        color.a *= CurrentState().globalAlpha;
-
-    mThebes->SetColor(color);
+    SetThebesColor(CurrentState().colorStyles[aWhichStyle]);
 }
 
 nsresult
@@ -872,6 +754,15 @@ nsCanvasRenderingContext2D::Redraw()
     }
 
     return NS_OK;
+}
+
+void
+nsCanvasRenderingContext2D::SetThebesColor(nscolor c)
+{
+    gfxRGBA color(c);
+    color.a *= CurrentState().globalAlpha;
+
+    mThebes->SetColor(color);
 }
 
 NS_IMETHODIMP
@@ -912,10 +803,10 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 
     ContextState *state = mStyleStack.AppendElement();
     state->globalAlpha = 1.0;
+    for (int i = 0; i < STYLE_MAX; i++)
+        state->colorStyles[i] = NS_RGB(0,0,0);
+    mLastStyle = STYLE_MAX;
 
-    state->colorStyles[STYLE_FILL] = NS_RGB(0,0,0);
-    state->colorStyles[STYLE_STROKE] = NS_RGB(0,0,0);
-    state->colorStyles[STYLE_SHADOW] = NS_RGBA(0,0,0,0);
     DirtyAllStyles();
 
     mThebes->SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -1349,14 +1240,14 @@ nsCanvasRenderingContext2D::SetShadowOffsetX(float x)
 {
     if (!FloatValidate(x))
         return NS_ERROR_DOM_SYNTAX_ERR;
-    CurrentState().shadowOffset.x = x;
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetShadowOffsetX(float *x)
 {
-    *x = static_cast<float>(CurrentState().shadowOffset.x);
+    *x = 0.0f;
     return NS_OK;
 }
 
@@ -1365,14 +1256,14 @@ nsCanvasRenderingContext2D::SetShadowOffsetY(float y)
 {
     if (!FloatValidate(y))
         return NS_ERROR_DOM_SYNTAX_ERR;
-    CurrentState().shadowOffset.y = y;
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetShadowOffsetY(float *y)
 {
-    *y = static_cast<float>(CurrentState().shadowOffset.y);
+    *y = 0.0f;
     return NS_OK;
 }
 
@@ -1381,190 +1272,28 @@ nsCanvasRenderingContext2D::SetShadowBlur(float blur)
 {
     if (!FloatValidate(blur))
         return NS_ERROR_DOM_SYNTAX_ERR;
-    if (blur < 0.0)
-        return NS_OK;
-    CurrentState().shadowBlur = blur;
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetShadowBlur(float *blur)
 {
-    *blur = CurrentState().shadowBlur;
+    *blur = 0.0f;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::SetShadowColor(const nsAString& colorstr)
+nsCanvasRenderingContext2D::SetShadowColor(const nsAString& color)
 {
-    nscolor color;
-
-    nsresult rv = mCSSParser->ParseColorString(nsString(colorstr), nsnull, 0, &color);
-    if (NS_FAILED(rv)) {
-        // Error reporting happens inside the CSS parser
-        return NS_OK;
-    }
-
-    CurrentState().SetColorStyle(STYLE_SHADOW, color);
-
-    mDirtyStyle[STYLE_SHADOW] = PR_TRUE;
-
+    // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetShadowColor(nsAString& color)
 {
-    StyleColorToString(CurrentState().colorStyles[STYLE_SHADOW], color);
-
-    return NS_OK;
-}
-
-static void
-CopyContext(gfxContext* dest, gfxContext* src)
-{
-    dest->Multiply(src->CurrentMatrix());
-
-    nsRefPtr<gfxPath> path = src->CopyPath();
-    dest->NewPath();
-    dest->AppendPath(path);
-
-    nsRefPtr<gfxPattern> pattern = src->GetPattern();
-    dest->SetPattern(pattern);
-
-    dest->SetLineWidth(src->CurrentLineWidth());
-    dest->SetLineCap(src->CurrentLineCap());
-    dest->SetLineJoin(src->CurrentLineJoin());
-    dest->SetMiterLimit(src->CurrentMiterLimit());
-    dest->SetFillRule(src->CurrentFillRule());
-
-    dest->SetAntialiasMode(src->CurrentAntialiasMode());
-}
-
-static const gfxFloat SIGMA_MAX = 25;
-
-gfxContext*
-nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBoxBlur& blur)
-{
-    gfxIntSize blurRadius;
-
-    gfxFloat sigma = CurrentState().shadowBlur > 8 ? sqrt(CurrentState().shadowBlur) : CurrentState().shadowBlur / 2;
-    // limit to avoid overly huge temp images
-    if (sigma > SIGMA_MAX)
-        sigma = SIGMA_MAX;
-    blurRadius = gfxAlphaBoxBlur::CalculateBlurRadius(gfxPoint(sigma, sigma));
-
-    // calculate extents
-    gfxRect drawExtents = extents;
-
-    // intersect with clip to avoid making overly huge temp images
-    gfxMatrix matrix = mThebes->CurrentMatrix();
-    mThebes->IdentityMatrix();
-    gfxRect clipExtents = mThebes->GetClipExtents();
-    mThebes->SetMatrix(matrix);
-    // outset by the blur radius so that blurs can leak onto the canvas even
-    // when the shape is outside the clipping area
-    clipExtents.Outset(blurRadius.height, blurRadius.width,
-                       blurRadius.height, blurRadius.width);
-    drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
-
-    gfxContext* ctx = blur.Init(drawExtents, blurRadius);
-
-    if (!ctx)
-        return nsnull;
-
-    return ctx;
-}
-
-void
-nsCanvasRenderingContext2D::ShadowFinalize(gfxAlphaBoxBlur& blur)
-{
-    ApplyStyle(STYLE_SHADOW);
-    // canvas matrix was already applied, don't apply it twice, but do
-    // apply the shadow offset
-    gfxMatrix matrix = mThebes->CurrentMatrix();
-    mThebes->IdentityMatrix();
-    mThebes->Translate(CurrentState().shadowOffset);
-
-    blur.Paint(mThebes);
-    mThebes->SetMatrix(matrix);
-}
-
-nsresult
-nsCanvasRenderingContext2D::DrawPath(Style style)
-{
-    /*
-     * Need an intermediate surface when:
-     * - globalAlpha != 1 and gradients/patterns are used (need to paint_with_alpha)
-     * - certain operators are used and are not on mac (quartz/cairo composite operators don't quite line up)
-     */
-    PRBool doUseIntermediateSurface = NeedToUseIntermediateSurface() ||
-                                      NeedIntermediateSurfaceToHandleGlobalAlpha(style);
-
-    PRBool doDrawShadow = NeedToDrawShadow();
-
-    if (doDrawShadow) {
-        gfxMatrix matrix = mThebes->CurrentMatrix();
-        mThebes->IdentityMatrix();
-
-        // calculate extents of path
-        gfxRect drawExtents;
-        if (style == STYLE_FILL)
-            drawExtents = mThebes->GetUserFillExtent();
-        else // STYLE_STROKE
-            drawExtents = mThebes->GetUserStrokeExtent();
-
-        mThebes->SetMatrix(matrix);
-
-        gfxAlphaBoxBlur blur;
-
-        // no need for a ref here, the blur owns the context
-        gfxContext* ctx = ShadowInitialize(drawExtents, blur);
-        if (ctx) {
-            ApplyStyle(style, PR_FALSE);
-            CopyContext(ctx, mThebes);
-            ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-
-            if (style == STYLE_FILL)
-                ctx->Fill();
-            else
-                ctx->Stroke();
-
-            ShadowFinalize(blur);
-        }
-    }
-
-    if (doUseIntermediateSurface) {
-        nsRefPtr<gfxPath> path = mThebes->CopyPath();
-        // if the path didn't copy correctly then we can't restore it, so bail
-        if (!path)
-            return NS_ERROR_FAILURE;
-
-        // draw onto a pushed group
-        mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-
-        // XXX for some reason clipping messes up the path when push/popping
-        // copying the path seems to fix it, for unknown reasons
-        mThebes->NewPath();
-        mThebes->AppendPath(path);
-
-        // don't want operators to be applied twice
-        mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
-    }
-
-    ApplyStyle(style);
-    if (style == STYLE_FILL)
-        mThebes->Fill();
-    else
-        mThebes->Stroke();
-
-    if (doUseIntermediateSurface) {
-        mThebes->PopGroupToSource();
-        DirtyAllStyles();
-
-        mThebes->Paint(CurrentState().StyleIsColor(style) ? 1.0 : CurrentState().globalAlpha);
-    }
-
+    color.SetIsVoid(PR_TRUE);
     return NS_OK;
 }
 
@@ -1578,13 +1307,17 @@ nsCanvasRenderingContext2D::ClearRect(float x, float y, float w, float h)
     if (!FloatValidate(x,y,w,h))
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    gfxContextPathAutoSaveRestore pathSR(mThebes);
-    gfxContextAutoSaveRestore autoSR(mThebes);
+    nsRefPtr<gfxPath> path = mThebes->CopyPath();
 
+    mThebes->Save();
     mThebes->SetOperator(gfxContext::OPERATOR_CLEAR);
     mThebes->NewPath();
     mThebes->Rectangle(gfxRect(x, y, w, h));
     mThebes->Fill();
+    mThebes->Restore();
+
+    mThebes->NewPath();
+    mThebes->AppendPath(path);
 
     return Redraw();
 }
@@ -1595,14 +1328,19 @@ nsCanvasRenderingContext2D::DrawRect(const gfxRect& rect, Style style)
     if (!FloatValidate(rect.pos.x, rect.pos.y, rect.size.width, rect.size.height))
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    gfxContextPathAutoSaveRestore pathSR(mThebes);
+    nsRefPtr<gfxPath> path = mThebes->CopyPath();
 
     mThebes->NewPath();
     mThebes->Rectangle(rect);
 
-    nsresult rv = DrawPath(style);
-    if (NS_FAILED(rv))
-        return rv;
+    ApplyStyle(style);
+    if (style == STYLE_FILL)
+        mThebes->Fill();
+    else // STYLE_STROKE
+        mThebes->Stroke();
+
+    mThebes->NewPath();
+    mThebes->AppendPath(path);
 
     return Redraw();
 }
@@ -1640,18 +1378,16 @@ nsCanvasRenderingContext2D::ClosePath()
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::Fill()
 {
-    nsresult rv = DrawPath(STYLE_FILL);
-    if (NS_FAILED(rv))
-        return rv;
+    ApplyStyle(STYLE_FILL);
+    mThebes->Fill();
     return Redraw();
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::Stroke()
 {
-    nsresult rv = DrawPath(STYLE_STROKE);
-    if (NS_FAILED(rv))
-        return rv;
+    ApplyStyle(STYLE_STROKE);
+    mThebes->Stroke();
     return Redraw();
 }
 
@@ -2147,25 +1883,19 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
         mTextRun = gfxTextRunCache::MakeTextRun(text,
                                                 length,
                                                 mFontgrp,
-                                                mThebes,
+                                                mCtx->mThebes,
                                                 mAppUnitsPerDevPixel,
                                                 direction==NSBIDI_RTL ? gfxTextRunFactory::TEXT_IS_RTL : 0);
     }
 
     virtual nscoord GetWidth()
     {
+        PRBool tightBoundingBox = PR_FALSE;
         gfxTextRun::Metrics textRunMetrics = mTextRun->MeasureText(0,
                                                                    mTextRun->GetLength(),
-                                                                   mDoMeasureBoundingBox,
-                                                                   mThebes,
+                                                                   tightBoundingBox,
+                                                                   mCtx->mThebes,
                                                                    nsnull);
-
-        // this only measures the height; the total width is gotten from the
-        // the return value of ProcessText.
-        if (mDoMeasureBoundingBox) {
-            textRunMetrics.mBoundingBox.Scale(1.0 / mAppUnitsPerDevPixel);
-            mBoundingBox = mBoundingBox.Union(textRunMetrics.mBoundingBox);
-        }
 
         return static_cast<nscoord>(textRunMetrics.mAdvanceWidth/gfxFloat(mAppUnitsPerDevPixel));
     }
@@ -2181,7 +1911,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
 
         // stroke or fill the text depending on operation
         if (mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
-            mTextRun->DrawToPath(mThebes,
+            mTextRun->DrawToPath(mCtx->mThebes,
                                  point,
                                  0,
                                  mTextRun->GetLength(),
@@ -2189,7 +1919,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
                                  nsnull);
         else
             // mOp == TEXT_DRAW_OPERATION_FILL
-            mTextRun->Draw(mThebes,
+            mTextRun->Draw(mCtx->mThebes,
                            point,
                            0,
                            mTextRun->GetLength(),
@@ -2201,9 +1931,8 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
     // current text run
     gfxTextRunCache::AutoTextRun mTextRun;
 
-    // pointer to the context, may not be the canvas's context
-    // if an intermediate surface is being used
-    gfxContext* mThebes;
+    // pointer to the context
+    nsCanvasRenderingContext2D* mCtx;
 
     // position of the left side of the string, alphabetic baseline
     gfxPoint mPt;
@@ -2216,12 +1945,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
 
     // operation (fill or stroke)
     nsCanvasRenderingContext2D::TextDrawOperation mOp;
-
-    // union of bounding boxes of all runs, needed for shadows
-    gfxRect mBoundingBox;
-
-    // true iff the bounding box should be measured
-    PRBool mDoMeasureBoundingBox;
 };
 
 nsresult
@@ -2279,28 +2002,22 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
             NS_STYLE_DIRECTION_RTL;
     }
 
-    // don't need to take care of these with stroke since Stroke() does that
-    PRBool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
-    PRBool doUseIntermediateSurface = aOp == TEXT_DRAW_OPERATION_FILL &&
-        (NeedToUseIntermediateSurface() || NeedIntermediateSurfaceToHandleGlobalAlpha(STYLE_FILL));
-
     nsCanvasBidiProcessor processor;
 
     GetAppUnitsValues(&processor.mAppUnitsPerDevPixel, NULL);
     processor.mPt = gfxPoint(aX, aY);
-    processor.mThebes = mThebes;
+    processor.mCtx = this;
     processor.mOp = aOp;
-    processor.mBoundingBox = gfxRect(0, 0, 0, 0);
-    // need to measure size if using an intermediate surface for drawing
-    processor.mDoMeasureBoundingBox = doDrawShadow;
 
     processor.mFontgrp = GetCurrentFontStyle();
     NS_ASSERTION(processor.mFontgrp, "font group is null");
 
     nscoord totalWidth;
 
-    // calls bidi algo twice since it needs the full text width and the
-    // bounding boxes before rendering anything
+    // currently calls bidi algo twice since it needs the full width before
+    // rendering anything. Can probably restructure function to avoid this if
+    // it's cheaper to store all the runs locally rather than do bidi resolution
+    // twice.
     rv = bidiUtils->ProcessText(textToDraw.get(),
                                 textToDraw.Length(),
                                 isRTL ? NSBIDI_RTL : NSBIDI_LTR,
@@ -2367,18 +2084,13 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
 
     processor.mPt.y += anchorY;
 
-    // correct bounding box to get it to be the correct size/position
-    processor.mBoundingBox.size.width = totalWidth;
-    processor.mBoundingBox.MoveBy(processor.mPt);
-
     processor.mPt.x *= processor.mAppUnitsPerDevPixel;
     processor.mPt.y *= processor.mAppUnitsPerDevPixel;
 
     // if text is over aMaxWidth, then scale the text horizontally such that its
     // width is precisely aMaxWidth
-    gfxContextAutoSaveRestore autoSR;
     if (aMaxWidth > 0 && totalWidth > aMaxWidth) {
-        autoSR.SetContext(mThebes);
+        mThebes->Save();
         // translate the anchor point to 0, then scale and translate back
         gfxPoint trans(aX, 0);
         mThebes->Translate(trans);
@@ -2386,59 +2098,13 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         mThebes->Translate(-trans);
     }
 
-    // don't ever need to measure the bounding box twice
-    processor.mDoMeasureBoundingBox = PR_FALSE;
-
-    if (doDrawShadow) {
-        // for some reason the box is too tight, probably rounding error
-        processor.mBoundingBox.Outset(2.0);
-
-        // this is unnecessarily big is max-width scaling is involved, but it
-        // will still produce correct output
-        gfxRect drawExtents = mThebes->UserToDevice(processor.mBoundingBox);
-        gfxAlphaBoxBlur blur;
-
-        gfxContext* ctx = ShadowInitialize(drawExtents, blur);
-
-        if (ctx) {
-            CopyContext(ctx, mThebes);
-            ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-            processor.mThebes = ctx;
-
-            rv = bidiUtils->ProcessText(textToDraw.get(),
-                                        textToDraw.Length(),
-                                        isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                        presShell->GetPresContext(),
-                                        processor,
-                                        nsBidiPresUtils::MODE_DRAW,
-                                        nsnull,
-                                        0,
-                                        nsnull);
-            if (NS_FAILED(rv))
-                return rv;
-
-            ShadowFinalize(blur);
-        }
-
-        processor.mThebes = mThebes;
-    }
-
-    gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
+    nsRefPtr<gfxPath> path;
 
     // back up path if stroking
     if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
-        pathSR.Save();
-    // doUseIntermediateSurface is mutually exclusive to op == STROKE
-    else {
-        if (doUseIntermediateSurface) {
-            mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-
-            // don't want operators to be applied twice
-            mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
-        }
-
+        path = mThebes->CopyPath();
+    else
         ApplyStyle(STYLE_FILL);
-    }
 
     rv = bidiUtils->ProcessText(textToDraw.get(),
                                 textToDraw.Length(),
@@ -2450,22 +2116,21 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
                                 0,
                                 nsnull);
 
-    // this needs to be restored before function can return
-    if (doUseIntermediateSurface) {
-        mThebes->PopGroupToSource();
-        DirtyAllStyles();
+    // stroke and restore path
+    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
+        ApplyStyle(STYLE_STROKE);
+        mThebes->Stroke();
+
+        mThebes->NewPath();
+        mThebes->AppendPath(path);
     }
+
+    // have to restore the context if was modified for maxWidth
+    if (aMaxWidth > 0 && totalWidth > aMaxWidth)
+        mThebes->Restore();
 
     if (NS_FAILED(rv))
         return rv;
-
-    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
-        // DrawPath takes care of all shadows and composite oddities
-        rv = DrawPath(STYLE_STROKE);
-        if (NS_FAILED(rv))
-            return rv;
-    } else if (doUseIntermediateSurface)
-        mThebes->Paint(CurrentState().StyleIsColor(STYLE_FILL) ? 1.0 : CurrentState().globalAlpha);
 
     return Redraw();
 }
@@ -2864,8 +2529,6 @@ nsCanvasRenderingContext2D::DrawImage()
         return rv;
     DoDrawImageSecurityCheck(principal, forceWriteOnly);
 
-    gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
-
 #define GET_ARG(dest,whicharg) \
     do { if (!ConvertJSValToDouble(dest, ctx, whicharg)) { rv = NS_ERROR_INVALID_ARG; goto FINISH; } } while (0)
 
@@ -2930,51 +2593,14 @@ nsCanvasRenderingContext2D::DrawImage()
     pattern = new gfxPattern(imgsurf);
     pattern->SetMatrix(matrix);
 
-    pathSR.Save();
+    path = mThebes->CopyPath();
 
-    {
-        gfxContextAutoSaveRestore autoSR(mThebes);
-        mThebes->Translate(gfxPoint(dx, dy));
-        mThebes->SetPattern(pattern);
-
-        gfxRect clip(0, 0, dw, dh);
-
-        if (NeedToDrawShadow()) {
-            gfxRect drawExtents = mThebes->UserToDevice(clip);
-            gfxAlphaBoxBlur blur;
-
-            gfxContext* ctx = ShadowInitialize(drawExtents, blur);
-
-            if (ctx) {
-                CopyContext(ctx, mThebes);
-                ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-                ctx->Clip(clip);
-                ctx->Paint();
-
-                ShadowFinalize(blur);
-            }
-        }
-
-        PRBool doUseIntermediateSurface = NeedToUseIntermediateSurface();
-
-        mThebes->SetPattern(pattern);
-        DirtyAllStyles();
-
-        if (doUseIntermediateSurface) {
-            // draw onto a pushed group
-            mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-            mThebes->Clip(clip);
-
-            // don't want operators to be applied twice
-            mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
-
-            mThebes->Paint();
-            mThebes->PopGroupToSource();
-        } else
-            mThebes->Clip(clip);
-
-        mThebes->Paint(CurrentState().globalAlpha);
-    }
+    mThebes->Save();
+    mThebes->Translate(gfxPoint(dx, dy));
+    mThebes->SetPattern(pattern);
+    mThebes->Clip(gfxRect(0, 0, dw, dh));
+    mThebes->Paint(CurrentState().globalAlpha);
+    mThebes->Restore();
 
 #if 1
     // XXX cairo bug workaround; force a clip update on mThebes.
@@ -2986,6 +2612,9 @@ nsCanvasRenderingContext2D::DrawImage()
     // away in this function earlier.
     mThebes->UpdateSurfaceClip();
 #endif
+
+    mThebes->NewPath();
+    mThebes->AppendPath(path);
 
 FINISH:
     if (NS_SUCCEEDED(rv))
@@ -3698,9 +3327,9 @@ nsCanvasRenderingContext2D::PutImageData()
     if (!imgsurf || imgsurf->CairoStatus())
         return NS_ERROR_FAILURE;
 
-    gfxContextPathAutoSaveRestore pathSR(mThebes);
-    gfxContextAutoSaveRestore autoSR(mThebes);
+    nsRefPtr<gfxPath> path = mThebes->CopyPath();
 
+    mThebes->Save();
     mThebes->IdentityMatrix();
     mThebes->Translate(gfxPoint(x, y));
     mThebes->NewPath();
@@ -3708,6 +3337,10 @@ nsCanvasRenderingContext2D::PutImageData()
     mThebes->SetSource(imgsurf, gfxPoint(0, 0));
     mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
     mThebes->Fill();
+    mThebes->Restore();
+
+    mThebes->NewPath();
+    mThebes->AppendPath(path);
 
     return Redraw();
 }

@@ -14,7 +14,6 @@ REQUIRES	= cairo \
 
 EXPORTS		= 	gfxASurface.h \
 			gfxAlphaRecovery.h \
-			gfxBlur.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \

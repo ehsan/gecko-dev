@@ -1313,8 +1313,10 @@ DocumentViewerImpl::Close(nsISHEntry *aSHEntry)
   // A Close was called while we were printing
   // so don't clear the ScriptGlobalObject
   // or clear the mDocument below
+  // Also, do an extra addref to keep the viewer from going away.
   if (mPrintEngine && !mClosingWhilePrinting) {
     mClosingWhilePrinting = PR_TRUE;
+    NS_ADDREF_THIS();
   } else
 #endif
     {
@@ -4072,6 +4074,7 @@ DocumentViewerImpl::OnDonePrinting()
         mDocument = nsnull;
       }
       mClosingWhilePrinting = PR_FALSE;
+      NS_RELEASE_THIS();
     }
     if (mPresContext)
       mPresContext->RestoreImageAnimationMode();

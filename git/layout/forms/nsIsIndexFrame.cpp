@@ -110,8 +110,8 @@ nsIsIndexFrame::Destroy()
 // REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 
-nsresult
-nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
+NS_IMETHODIMP
+nsIsIndexFrame::UpdatePromptLabel()
 {
   if (!mTextContent) return NS_ERROR_UNEXPECTED;
 
@@ -133,7 +133,7 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
                                          "IsIndexPrompt", prompt);
   }
 
-  mTextContent->SetText(prompt, aNotify);
+  mTextContent->SetText(prompt, PR_TRUE);
 
   return NS_OK;
 }
@@ -203,7 +203,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // set the value of the text node and add it to the child list
-  UpdatePromptLabel(PR_FALSE);
+  UpdatePromptLabel();
   if (!aElements.AppendElement(mTextContent))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -283,7 +283,7 @@ nsIsIndexFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   nsresult rv = NS_OK;
   if (nsGkAtoms::prompt == aAttribute) {
-    rv = UpdatePromptLabel(PR_TRUE);
+    rv = UpdatePromptLabel();
   } else {
     rv = nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }
