@@ -19,38 +19,15 @@ XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function () {
 });
 
 /**
- * Makes a structure representing an individual profile.
- */
-function makeProfile(name) {
-  return {
-    name: name,
-    timeStarted: null,
-    timeEnded: null
-  };
-}
-
-/**
  * Object acting as a mediator between the ProfilerController and
  * DebuggerServer.
  */
 function ProfilerConnection(client) {
   this.client = client;
-  this.startTime = 0;
 }
 
 ProfilerConnection.prototype = {
   actor: null,
-  startTime: null,
-
-  /**
-   * Returns how many milliseconds have passed since the connection
-   * was started (start time is specificed by the startTime property).
-   *
-   * @return number
-   */
-  get currentTime() {
-    return (new Date()).getTime() - this.startTime;
-  },
 
   /**
    * Connects to a debugee and executes a callback when ready.
@@ -94,13 +71,7 @@ ProfilerConnection.prototype = {
       interval: 1,
       features: ["js"],
     };
-
-    this.client.request(message, function () {
-      // Record the current time so we could split profiler data
-      // in chunks later.
-      this.startTime = (new Date()).getTime();
-      aCallback.apply(null, Array.slice(arguments));
-    }.bind(this));
+    this.client.request(message, aCallback);
   },
 
   /**
@@ -142,12 +113,9 @@ ProfilerConnection.prototype = {
  */
 function ProfilerController(target) {
   this.profiler = new ProfilerConnection(target.client);
-  this.pool = {};
-
-  // Chrome debugging targets have already obtained a reference to the
-  // profiler actor.
+  // Chrome debugging targets have already obtained a reference to the profiler
+  // actor.
   this._connected = !!target.chrome;
-
   if (target.chrome) {
     this.profiler.actor = target.form.profilerActor;
   }
@@ -189,118 +157,44 @@ ProfilerController.prototype = {
   },
 
   /**
-   * Checks whether the profile is currently recording.
+   * Starts the profiler.
    *
-   * @param object profile
-   *        An object made by calling makeProfile function.
-   * @return boolean
-   */
-  isProfileRecording: function PC_isProfileRecording(profile) {
-    return profile.timeStarted !== null && profile.timeEnded === null;
-  },
-
-  /**
-   * Creates a new profile and starts the profiler, if needed.
-   *
-   * @param string name
-   *        Name of the profile.
-   * @param function cb
+   * @param function aCallback
    *        Function to be called once the profiler is started
    *        or we get an error. It will be called with a single
    *        argument: an error object (may be null).
    */
-  start: function PC_start(name, cb) {
-    if (this.pool[name]) {
-      return;
-    }
-
-    let profile = this.pool[name] = makeProfile(name);
-    let profiler = this.profiler;
-
-    // If profile is already running, no need to do anything.
-    if (this.isProfileRecording(profile)) {
-      return void cb();
-    }
-
-    this.isActive(function (err, isActive) {
-      if (isActive) {
-        profile.timeStarted = profiler.currentTime;
-        return void cb();
-      }
-
-      profiler.startProfiler(function onStart(aResponse) {
-        if (aResponse.error) {
-          return void cb(aResponse.error);
-        }
-
-        profile.timeStarted = profiler.currentTime;
-        cb();
-      });
+  start: function PC_start(aCallback) {
+    this.profiler.startProfiler(function onStart(aResponse) {
+      aCallback(aResponse.error);
     });
   },
 
   /**
    * Stops the profiler.
    *
-   * @param string name
-   *        Name of the profile that needs to be stopped.
-   * @param function cb
+   * @param function aCallback
    *        Function to be called once the profiler is stopped
    *        or we get an error. It will be called with a single
    *        argument: an error object (may be null).
    */
-  stop: function PC_stop(name, cb) {
-    let profiler = this.profiler;
-    let profile = this.pool[name];
-
-    if (!profile || !this.isProfileRecording(profile)) {
-      return;
-    }
-
-    let isRecording = function () {
-      for (let name in this.pool) {
-        if (this.isProfileRecording(this.pool[name])) {
-          return true;
-        }
-      }
-
-      return false;
-    }.bind(this);
-
-    let onStop = function (data) {
-      if (isRecording()) {
-        return void cb(null, data);
-      }
-
-      profiler.stopProfiler(function onStopProfiler(response) {
-        cb(response.error, data);
-      });
-    }.bind(this);
-
-    profiler.getProfileData(function onData(aResponse) {
+  stop: function PC_stop(aCallback) {
+    this.profiler.getProfileData(function onData(aResponse) {
+      let data = aResponse.profile;
       if (aResponse.error) {
         Cu.reportError("Failed to fetch profile data before stopping the profiler.");
-        return void cb(aResponse.error, null);
       }
 
-      let data = aResponse.profile;
-      profile.timeEnded = profiler.currentTime;
-
-      data.threads = data.threads.map(function (thread) {
-        let samples = thread.samples.filter(function (sample) {
-          return sample.time >= profile.timeStarted;
-        });
-        return { samples: samples };
+      this.profiler.stopProfiler(function onStop(aResponse) {
+        aCallback(aResponse.error, data);
       });
-
-      onStop(data);
-    });
+    }.bind(this));
   },
 
   /**
    * Cleanup.
    */
-  destroy: function PC_destroy() {
+  destroy: function PC_destroy(aCallback) {
     this.profiler.destroy();
     this.profiler = null;
   }
