@@ -30,7 +30,8 @@ namespace ion {
   class IonBuilder;
 }
 
-#ifdef JS_WORKER_THREADS
+#if defined(JS_THREADSAFE) && defined(JS_ION)
+# define JS_WORKER_THREADS
 
 /* Per-runtime state for off thread work items. */
 class WorkerThreadState
@@ -74,7 +75,6 @@ class WorkerThreadState
     ~WorkerThreadState();
 
     bool init(JSRuntime *rt);
-    void cleanup(JSRuntime *rt);
 
     void lock();
     void unlock();
@@ -236,10 +236,8 @@ WaitForOffThreadParsingToFinish(JSRuntime *rt);
 
 class AutoLockWorkerThreadState
 {
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-#ifdef JS_WORKER_THREADS
     WorkerThreadState &state;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
     AutoLockWorkerThreadState(WorkerThreadState &state
@@ -247,20 +245,18 @@ class AutoLockWorkerThreadState
       : state(state)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+#ifdef JS_WORKER_THREADS
         state.lock();
+#else
+        (void)state;
+#endif
     }
 
     ~AutoLockWorkerThreadState() {
+#ifdef JS_WORKER_THREADS
         state.unlock();
-    }
-#else
-  public:
-    AutoLockWorkerThreadState(WorkerThreadState &state
-                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
 #endif
+    }
 };
 
 class AutoUnlockWorkerThreadState

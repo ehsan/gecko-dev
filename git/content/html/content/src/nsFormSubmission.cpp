@@ -51,7 +51,7 @@ SendJSWarning(nsIDocument* aDocument,
               const PRUnichar** aWarningArgs, uint32_t aWarningArgsLen)
 {
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("HTML"), aDocument,
+                                  "HTML", aDocument,
                                   nsContentUtils::eFORMS_PROPERTIES,
                                   aWarningName,
                                   aWarningArgs, aWarningArgsLen);

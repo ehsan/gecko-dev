@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'Netd.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-

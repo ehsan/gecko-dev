@@ -65,5 +65,3 @@ GTEST_CPP_SOURCES += [
     'SanityTest.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-

@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'nsShmImage.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-

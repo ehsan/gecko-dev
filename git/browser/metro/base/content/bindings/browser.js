@@ -652,7 +652,11 @@ let ContentScroll =  {
         break;
 
       case "scroll": {
-        this.sendScroll(aEvent.target);
+        let doc = aEvent.target;
+        if (doc != content.document)
+          break;
+
+        this.sendScroll();
         break;
       }
 
@@ -679,35 +683,13 @@ let ContentScroll =  {
     }
   },
 
-  sendScroll: function sendScroll(target) {
-    let isRoot = false;
-    if (target instanceof Ci.nsIDOMDocument) {
-      var window = target.defaultView;
-      var scrollOffset = this.getScrollOffset(window);
-      var element = target.documentElement;
+  sendScroll: function sendScroll() {
+    let scrollOffset = this.getScrollOffset(content);
+    if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y)
+      return;
 
-      if (target == content.document) {
-        if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y) {
-          return;
-        }
-        this._scrollOffset = scrollOffset;
-        isRoot = true;
-      }
-    } else {
-      var window = target.currentDoc.defaultView;
-      var scrollOffset = this.getScrollOffsetForElement(target);
-      var element = target;
-    }
-
-    let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    let presShellId = {};
-    utils.getPresShellId(presShellId);
-    let viewId = utils.getViewId(element);
-
-    sendAsyncMessage("scroll", { presShellId: presShellId.value,
-                                 viewId: viewId,
-                                 scrollOffset: scrollOffset,
-                                 isRoot: isRoot });
+    this._scrollOffset = scrollOffset;
+    sendAsyncMessage("scroll", scrollOffset);
   }
 };
 

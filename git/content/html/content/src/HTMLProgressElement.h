@@ -33,12 +33,12 @@ public:
   double Value() const;
   void SetValue(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::value, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::value, aValue);
   }
   double Max() const;
   void SetMax(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::max, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::max, aValue);
   }
   double Position() const;
 

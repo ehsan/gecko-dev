@@ -267,8 +267,3 @@ IPDL_SOURCES = [
     'ipc/PLayer.ipdl',
     'ipc/PLayerTransaction.ipdl',
 ]
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-

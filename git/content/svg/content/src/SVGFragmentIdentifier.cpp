@@ -9,7 +9,6 @@
 #include "mozilla/dom/SVGViewElement.h"
 #include "nsContentUtils.h" // for nsCharSeparatedTokenizerTemplate
 #include "nsSVGAnimatedTransformList.h"
-#include "nsCharSeparatedTokenizer.h"
 
 using namespace mozilla;
 

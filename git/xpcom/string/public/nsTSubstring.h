@@ -3,7 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-// IWYU pragma: private, include "nsStringGlue.h"
+
+// IWYU pragma: private, include "nsAString.h"
 
 #include "mozilla/MemoryReporting.h"
 
@@ -341,8 +342,8 @@ class nsTSubstring_CharT
       void NS_FASTCALL Assign( char_type c );
       bool NS_FASTCALL Assign( char_type c, const fallible_t& ) NS_WARN_UNUSED_RESULT;
 
-      void NS_FASTCALL Assign( const char_type* data );
-      void NS_FASTCALL Assign( const char_type* data, size_type length );
+      void NS_FASTCALL
+        Assign( const char_type* data, size_type length = size_type(-1) );
       bool NS_FASTCALL Assign( const char_type* data, size_type length, const fallible_t& ) NS_WARN_UNUSED_RESULT;
 
       void NS_FASTCALL Assign( const self_type& );

@@ -31,8 +31,6 @@ class nsIRadioVisitor;
 namespace mozilla {
 namespace dom {
 
-class Date;
-
 class UploadLastDir MOZ_FINAL : public nsIObserver, public nsSupportsWeakReference {
 public:
   NS_DECL_ISUPPORTS

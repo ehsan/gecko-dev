@@ -168,8 +168,6 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsXULPopupManager.h"
 #include "xpcprivate.h" // nsXPConnect
-#include "HTMLSplitOnSpacesTokenizer.h"
-#include "nsContentTypeParser.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -189,6 +187,7 @@ using namespace mozilla;
 
 const char kLoadAsData[] = "loadAsData";
 
+nsIDOMScriptObjectFactory *nsContentUtils::sDOMScriptObjectFactory = nullptr;
 nsIXPConnect *nsContentUtils::sXPConnect;
 nsIScriptSecurityManager *nsContentUtils::sSecurityManager;
 nsIParserService *nsContentUtils::sParserService = nullptr;
@@ -1452,6 +1451,7 @@ nsContentUtils::Shutdown()
 
   NS_IF_RELEASE(sStringBundleService);
   NS_IF_RELEASE(sConsoleService);
+  NS_IF_RELEASE(sDOMScriptObjectFactory);
   sXPConnect = nullptr;
   NS_IF_RELEASE(sSecurityManager);
   NS_IF_RELEASE(sNameSpaceManager);
@@ -4352,7 +4352,7 @@ nsContentUtils::CheckSecurityBeforeLoad(nsIURI* aURIToLoad,
                                         bool aAllowData,
                                         uint32_t aContentPolicyType,
                                         nsISupports* aContext,
-                                        const nsAFlatCString& aMimeGuess,
+                                        const nsACString& aMimeGuess,
                                         nsISupports* aExtra)
 {
   NS_PRECONDITION(aLoadingPrincipal, "Must have a loading principal here");
@@ -6491,53 +6491,4 @@ nsContentUtils::DOMWindowDumpEnabled()
 #else
   return true;
 #endif
-}
-
-void
-nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult)
-{
-  aResult.Truncate();
-  AppendNodeTextContent(aNode, aDeep, aResult);
-}
-
-void
-nsContentUtils::DestroyMatchString(void* aData)
-{
-  if (aData) {
-    nsString* matchString = static_cast<nsString*>(aData);
-    delete matchString;
-  }
-}
-
-bool
-nsContentUtils::IsJavascriptMIMEType(const nsAString& aMIMEType)
-{
-  // Table ordered from most to least likely JS MIME types.
-  static const char* jsTypes[] = {
-    "text/javascript",
-    "text/ecmascript",
-    "application/javascript",
-    "application/ecmascript",
-    "application/x-javascript",
-    "application/x-ecmascript",
-    "text/javascript1.0",
-    "text/javascript1.1",
-    "text/javascript1.2",
-    "text/javascript1.3",
-    "text/javascript1.4",
-    "text/javascript1.5",
-    "text/jscript",
-    "text/livescript",
-    "text/x-ecmascript",
-    "text/x-javascript",
-    nullptr
-  };
-
-  for (uint32_t i = 0; jsTypes[i]; ++i) {
-    if (aMIMEType.LowerCaseEqualsASCII(jsTypes[i])) {
-      return true;
-    }
-  }
-
-  return false;
 }

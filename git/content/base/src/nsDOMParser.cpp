@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMParser.h"
-
-#include "nsIDOMDocument.h"
 #include "nsNetUtil.h"
 #include "nsStringStream.h"
 #include "nsIScriptSecurityManager.h"

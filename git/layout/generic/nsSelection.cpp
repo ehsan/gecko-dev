@@ -129,6 +129,8 @@ struct CachedOffsetForFrame {
   bool mCanCacheFrameOffset;    // cached frame offset is valid?
 };
 
+static RangeData sEmptyData(nullptr);
+
 // Stack-class to turn on/off selection batching for table selection
 class MOZ_STACK_CLASS nsSelectionBatcher MOZ_FINAL
 {
@@ -4523,8 +4525,7 @@ Selection::GetRangeCount(int32_t* aRangeCount)
 NS_IMETHODIMP
 Selection::GetRangeAt(int32_t aIndex, nsIDOMRange** aReturn)
 {
-  RangeData empty(nullptr);
-  *aReturn = mRanges.SafeElementAt(aIndex, empty).mRange;
+  *aReturn = mRanges.SafeElementAt(aIndex, sEmptyData).mRange;
   if (!*aReturn) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -4537,8 +4538,7 @@ Selection::GetRangeAt(int32_t aIndex, nsIDOMRange** aReturn)
 nsRange*
 Selection::GetRangeAt(int32_t aIndex)
 {
-  RangeData empty(nullptr);
-  return mRanges.SafeElementAt(aIndex, empty).mRange;
+  return mRanges.SafeElementAt(aIndex, sEmptyData).mRange;
 }
 
 /*

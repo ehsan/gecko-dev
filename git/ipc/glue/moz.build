@@ -100,6 +100,3 @@ IPDL_SOURCES = [
     'InputStreamParams.ipdlh',
     'URIParams.ipdlh',
 ]
-
-LIBXUL_LIBRARY = True
-

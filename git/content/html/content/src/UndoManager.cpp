@@ -9,7 +9,6 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMEvent.h"
 #include "nsIClassInfo.h"
-#include "nsIDOMDocument.h"
 #include "nsIXPCScriptable.h"
 #include "nsIVariant.h"
 #include "nsVariant.h"

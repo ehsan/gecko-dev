@@ -40,5 +40,3 @@ else:
 
 LIBRARY_NAME = 'appstartup_s'
 
-LIBXUL_LIBRARY = True
-

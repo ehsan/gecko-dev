@@ -859,11 +859,9 @@
 
             switch (aMessage.name) {
               case "scroll":
-	        if (!json.isRoot)
-		  return;
                 if (!self.scrollSync)
                   return;
-                this.doScroll(json.scrollOffset.x, json.scrollOffset.y, 0);
+                this.doScroll(json.x, json.y, 0);
                 break;
            }
          },
