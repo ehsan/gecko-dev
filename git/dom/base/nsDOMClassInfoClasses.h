@@ -19,6 +19,7 @@ DOMCI_CLASS(DOMConstructor)
 DOMCI_CLASS(DOMException)
 DOMCI_CLASS(Element)
 DOMCI_CLASS(Attr)
+DOMCI_CLASS(MozNamedAttrMap)
 
 // Event classes
 DOMCI_CLASS(Event)
