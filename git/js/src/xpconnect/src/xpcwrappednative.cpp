@@ -81,7 +81,7 @@ TraverseExpandoObjects(xpc::PtrAndPrincipalHashKey *aKey, JSCompartment *compart
 
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(closure->cb, "XPCWrappedNative expando object");
     closure->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
-                                priv->LookupExpandoObject(closure->wn));
+                                priv->LookupExpandoObjectPreserveColor(closure->wn));
 
     return PL_DHASH_NEXT;
 }
@@ -1628,38 +1628,9 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
                 if(!propertyHolder || !propertyHolder->copyPropertiesFrom(ccx, flat))
                     return NS_ERROR_OUT_OF_MEMORY;
 
-                JSObject *ww = wrapper->GetWrapper();
-                if(ww)
-                {
-                    JSObject *newwrapper;
-                    if(xpc::WrapperFactory::IsLocationObject(flat))
-                    {
-                        newwrapper = xpc::WrapperFactory::WrapLocationObject(ccx, newobj);
-                        if(!newwrapper)
-                            return NS_ERROR_FAILURE;
-                    }
-                    else
-                    {
-                        NS_ASSERTION(wrapper->NeedsSOW(), "weird wrapper wrapper");
-                        newwrapper = xpc::WrapperFactory::WrapSOWObject(ccx, newobj);
-                        if(!newwrapper)
-                            return NS_ERROR_FAILURE;
-                    }
-
-                    ww = js_TransplantObjectWithWrapper(ccx, flat, ww, newobj,
-                                                        newwrapper);
-                    if(!ww)
-                        return NS_ERROR_FAILURE;
-                    flat = newobj;
-                    wrapper->SetWrapper(ww);
-                }
-                else
-                {
-                    flat = JS_TransplantObject(ccx, flat, newobj);
-                    if(!flat)
-                        return NS_ERROR_FAILURE;
-                }
-
+                flat = JS_TransplantObject(ccx, flat, newobj);
+                if(!flat)
+                    return NS_ERROR_FAILURE;
                 wrapper->mFlatJSObject = flat;
                 if(cache)
                     cache->SetWrapper(flat);
