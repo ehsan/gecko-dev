@@ -97,7 +97,6 @@ let AboutHome = {
     "AboutHome:Settings",
     "AboutHome:RequestUpdate",
     "AboutHome:Search",
-    "AboutHome:OpenSearchPanel",
   ],
 
   init: function() {
@@ -160,7 +159,7 @@ let AboutHome = {
             if (userData) {
               window.openPreferences("paneSync");
             } else {
-              window.loadURI("about:accounts");
+              window.loadURI("about:accounts?entrypoint=abouthome");
             }
           });
         } else {
@@ -192,7 +191,7 @@ let AboutHome = {
 
           let engine = Services.search.currentEngine;
 #ifdef MOZ_SERVICES_HEALTHREPORT
-          window.BrowserSearch.recordSearchInHealthReport(engine, "abouthome");
+          window.BrowserSearch.recordSearchInHealthReport(engine, "abouthome", data.selection);
 #endif
           // Trigger a search through nsISearchEngine.getSubmission()
           let submission = engine.getSubmission(data.searchTerms, null, "homepage");
@@ -203,18 +202,6 @@ let AboutHome = {
           mm.sendAsyncMessage("AboutHome:SearchTriggered", aMessage.data.searchData);
         });
 
-        break;
-
-      case "AboutHome:OpenSearchPanel":
-        let panel = window.document.getElementById("abouthome-search-panel");
-        let anchor = aMessage.objects.anchor;
-        panel.hidden = false;
-        panel.openPopup(anchor);
-        anchor.setAttribute("active", "true");
-        panel.addEventListener("popuphidden", function onHidden() {
-          panel.removeEventListener("popuphidden", onHidden);
-          anchor.removeAttribute("active");
-        });
         break;
     }
   },

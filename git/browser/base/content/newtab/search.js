@@ -8,21 +8,10 @@ let gSearch = {
 
   currentEngineName: null,
 
-  get useNewUI() {
-    let newUI = Services.prefs.getBoolPref("browser.search.showOneOffButtons");
-    delete this.useNewUI;
-    this.useNewUI = newUI;
-    return newUI;
-  },
-
   init: function () {
     for (let idSuffix of this._nodeIDSuffixes) {
       this._nodes[idSuffix] =
         document.getElementById("newtab-search-" + idSuffix);
-    }
-
-    if (this.useNewUI) {
-      this._nodes.logo.classList.add("magnifier");
     }
 
     window.addEventListener("ContentSearchService", this);
@@ -44,13 +33,24 @@ let gSearch = {
     if (event) {
       event.preventDefault();
     }
-    let searchStr = this._nodes.text.value;
+    let searchText = this._nodes.text;
+    let searchStr = searchText.value;
     if (this.currentEngineName && searchStr.length) {
-      this._send("Search", {
+
+      let eventData = {
         engineName: this.currentEngineName,
         searchString: searchStr,
         whence: "newtab",
-      });
+      }
+
+      if (searchText.hasAttribute("selection-index")) {
+        eventData.selection = {
+          index: searchText.getAttribute("selection-index"),
+          kind: searchText.getAttribute("selection-kind")
+        };
+      }
+
+      this._send("Search", eventData);
     }
     this._suggestionController.addInputValueToFormHistory();
   },
@@ -120,11 +120,6 @@ let gSearch = {
   },
 
   _setUpPanel: function () {
-    // The new search UI only contains the "manage" engine entry in the panel
-    if (this.useNewUI) {
-      return;
-    }
-
     // Build the panel if necessary.
     if (this._newEngines) {
       this._buildPanel(this._newEngines);
@@ -165,6 +160,14 @@ let gSearch = {
     }
   },
 
+  // Converts favicon array buffer into data URI of the right size and dpi.
+  _getFaviconURIFromBuffer: function (buffer) {
+    let blob = new Blob([buffer]);
+    let dpiSize = Math.round(16 * window.devicePixelRatio);
+    let sizeStr = dpiSize + "," + dpiSize;
+    return URL.createObjectURL(blob) + "#-moz-resolution=" + sizeStr;
+  },
+
   _makePanelEngine: function (panel, engine) {
     let box = document.createElementNS(XUL_NAMESPACE, "hbox");
     box.className = "newtab-search-panel-engine";
@@ -178,10 +181,7 @@ let gSearch = {
 
     let image = document.createElementNS(XUL_NAMESPACE, "image");
     if (engine.iconBuffer) {
-      let blob = new Blob([engine.iconBuffer]);
-      let size = Math.round(16 * window.devicePixelRatio);
-      let sizeStr = size + "," + size;
-      let uri = URL.createObjectURL(blob) + "#-moz-resolution=" + sizeStr;
+      let uri = this._getFaviconURIFromBuffer(engine.iconBuffer);
       image.setAttribute("src", uri);
     }
     box.appendChild(image);
@@ -196,20 +196,28 @@ let gSearch = {
   _setCurrentEngine: function (engine) {
     this.currentEngineName = engine.name;
 
-    if (!this.useNewUI) {
-      // Set the logo.
-      let logoBuf = window.devicePixelRatio == 2 ? engine.logo2xBuffer :
-                    engine.logoBuffer || engine.logo2xBuffer;
-      if (logoBuf) {
-        this._nodes.logo.hidden = false;
-        let uri = URL.createObjectURL(new Blob([logoBuf]));
-        this._nodes.logo.style.backgroundImage = "url(" + uri + ")";
-        this._nodes.text.placeholder = "";
-      }
-      else {
-        this._nodes.logo.hidden = true;
-        this._nodes.text.placeholder = engine.name;
-      }
+    let type = "";
+    let uri;
+    let logoBuf = window.devicePixelRatio >= 2 ?
+                  engine.logo2xBuffer || engine.logoBuffer :
+                  engine.logoBuffer || engine.logo2xBuffer;
+    if (logoBuf) {
+      uri = URL.createObjectURL(new Blob([logoBuf]));
+      type = "logo";
+    }
+    else if (engine.iconBuffer) {
+      uri = this._getFaviconURIFromBuffer(engine.iconBuffer);
+      type = "favicon";
+    }
+    this._nodes.logo.setAttribute("type", type);
+
+    if (uri) {
+      this._nodes.logo.style.backgroundImage = "url(" + uri + ")";
+      this._nodes.text.placeholder = "";
+    }
+    else {
+      this._nodes.logo.style.backgroundImage = "";
+      this._nodes.text.placeholder = engine.name;
     }
 
     // Set up the suggestion controller.

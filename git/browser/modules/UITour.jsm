@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["UITour", "UITourMetricsProvider"];
+this.EXPORTED_SYMBOLS = ["UITour"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
@@ -15,19 +15,18 @@ Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
   "resource://gre/modules/LightweightThemeManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PermissionsUtils",
-  "resource://gre/modules/PermissionsUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "ResetProfile",
+  "resource://gre/modules/ResetProfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CustomizableUI",
   "resource:///modules/CustomizableUI.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
   "resource://gre/modules/UITelemetry.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
   "resource:///modules/BrowserUITelemetry.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Metrics",
-  "resource://gre/modules/Metrics.jsm");
+
 
 const UITOUR_PERMISSION   = "uitour";
-const PREF_PERM_BRANCH    = "browser.uitour.";
+const PREF_TEST_WHITELIST = "browser.uitour.testingOrigins";
 const PREF_SEENPAGEIDS    = "browser.uitour.seenPageIDs";
 const MAX_BUTTONS         = 4;
 
@@ -104,6 +103,8 @@ this.UITour = {
     ["help",        {query: "#PanelUI-help"}],
     ["home",        {query: "#home-button"}],
     ["loop",        {query: "#loop-button-throttled"}],
+    ["devtools",    {query: "#developer-button"}],
+    ["webide",      {query: "#webide-button"}],
     ["forget", {
       query: "#panic-button",
       widgetName: "panic-button",
@@ -474,7 +475,13 @@ this.UITour = {
         // 'signup' is the only action that makes sense currently, so we don't
         // accept arbitrary actions just to be safe...
         // We want to replace the current tab.
-        contentDocument.location.href = "about:accounts?action=signup";
+        contentDocument.location.href = "about:accounts?action=signup&entrypoint=uitour";
+        break;
+      }
+
+      case "resetFirefox": {
+        // Open a reset profile dialog window.
+        ResetProfile.openConfirmationDialog(window);
         break;
       }
 
@@ -483,64 +490,6 @@ this.UITour = {
         let targetPromise = this.getTarget(window, data.name);
         targetPromise.then(target => {
           this.addNavBarWidget(target, contentDocument, data.callbackID);
-        }).then(null, Cu.reportError);
-        break;
-      }
-
-      case "setDefaultSearchEngine": {
-        let enginePromise = this.selectSearchEngine(data.identifier);
-        enginePromise.catch(Cu.reportError);
-        break;
-      }
-
-      case "setTreatmentTag": {
-        let name = data.name;
-        let value = data.value;
-        let string = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-        string.data = value;
-        Services.prefs.setComplexValue("browser.uitour.treatment." + name,
-                                       Ci.nsISupportsString, string);
-        UITourHealthReport.recordTreatmentTag(name, value);
-        break;
-      }
-
-      case "getTreatmentTag": {
-        let name = data.name;
-        let value;
-        try {
-          value = Services.prefs.getComplexValue("browser.uitour.treatment." + name,
-                                                 Ci.nsISupportsString).data;
-        } catch (ex) {}
-        this.sendPageCallback(contentDocument, data.callbackID, { value: value });
-        break;
-      }
-
-      case "setSearchTerm": {
-        let targetPromise = this.getTarget(window, "search");
-        targetPromise.then(target => {
-          let searchbar = target.node;
-          searchbar.value = data.term;
-          searchbar.inputChanged();
-        }).then(null, Cu.reportError);
-        break;
-      }
-
-      case "openSearchPanel": {
-        let targetPromise = this.getTarget(window, "search");
-        targetPromise.then(target => {
-          let searchbar = target.node;
-
-          if (searchbar.textbox.open) {
-            this.sendPageCallback(contentDocument, data.callbackID);
-          } else {
-            let onPopupShown = () => {
-              searchbar.textbox.popup.removeEventListener("popupshown", onPopupShown);
-              this.sendPageCallback(contentDocument, data.callbackID);
-            };
-
-            searchbar.textbox.popup.addEventListener("popupshown", onPopupShown);
-            searchbar.openSuggestionsPanel();
-          }
         }).then(null, Cu.reportError);
         break;
       }
@@ -711,12 +660,23 @@ this.UITour = {
                            .wrappedJSObject;
   },
 
-  importPermissions: function() {
-    try {
-      PermissionsUtils.importFromPrefs(PREF_PERM_BRANCH, UITOUR_PERMISSION);
-    } catch (e) {
-      Cu.reportError(e);
+  isTestingOrigin: function(aURI) {
+    if (Services.prefs.getPrefType(PREF_TEST_WHITELIST) != Services.prefs.PREF_STRING) {
+      return false;
     }
+
+    // Add any testing origins (comma-seperated) to the whitelist for the session.
+    for (let origin of Services.prefs.getCharPref(PREF_TEST_WHITELIST).split(",")) {
+      try {
+        let testingURI = Services.io.newURI(origin, null, null);
+        if (aURI.prePath == testingURI.prePath) {
+          return true;
+        }
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
+    }
+    return false;
   },
 
   ensureTrustedOrigin: function(aDocument) {
@@ -731,9 +691,11 @@ this.UITour = {
     if (!this.isSafeScheme(uri))
       return false;
 
-    this.importPermissions();
     let permission = Services.perms.testPermission(uri, UITOUR_PERMISSION);
-    return permission == Services.perms.ALLOW_ACTION;
+    if (permission == Services.perms.ALLOW_ACTION)
+      return true;
+
+    return this.isTestingOrigin(uri);
   },
 
   isSafeScheme: function(aURI) {
@@ -1138,14 +1100,15 @@ this.UITour = {
 
       tooltip.setAttribute("targetName", aAnchor.targetName);
       tooltip.hidden = false;
-      let xOffset = 0, yOffset = 0;
       let alignment = "bottomcenter topright";
-      if (aAnchor.targetName == "search") {
-        alignment = "after_start";
-        xOffset = 18;
-      }
       this._addAnnotationPanelMutationObserver(tooltip);
-      tooltip.openPopup(aAnchorEl, alignment, xOffset, yOffset);
+      tooltip.openPopup(aAnchorEl, alignment);
+      if (tooltip.state == "closed") {
+        document.defaultView.addEventListener("endmodalstate", function endModalStateHandler() {
+          document.defaultView.removeEventListener("endmodalstate", endModalStateHandler);
+          tooltip.openPopup(aAnchorEl, alignment);
+        }, false);
+      }
     }
 
     // Prevent showing a panel at an undefined position.
@@ -1316,18 +1279,11 @@ this.UITour = {
           setup: Services.prefs.prefHasUserValue("services.sync.username"),
         });
         break;
-      case "selectedSearchEngine":
-        Services.search.init(rv => {
-          let engine;
-          if (Components.isSuccessCode(rv)) {
-            engine = Services.search.defaultEngine;
-          } else {
-            engine = { identifier: "" };
-          }
-          this.sendPageCallback(aContentDocument, aCallbackID, {
-            searchEngineIdentifier: engine.identifier
-          });
-        });
+      case "appinfo":
+        let props = ["defaultUpdateChannel", "version"];
+        let appinfo = {};
+        props.forEach(property => appinfo[property] = Services.appinfo[property]);
+        this.sendPageCallback(aContentDocument, aCallbackID, appinfo);
         break;
       default:
         Cu.reportError("getConfiguration: Unknown configuration requested: " + aConfiguration);
@@ -1435,26 +1391,6 @@ this.UITour = {
     }
   },
 
-  selectSearchEngine(aID) {
-    return new Promise((resolve, reject) => {
-      Services.search.init((rv) => {
-        if (!Components.isSuccessCode(rv)) {
-          reject("selectSearchEngine: search service init failed: " + rv);
-          return;
-        }
-
-        let engines = Services.search.getVisibleEngines();
-        for (let engine of engines) {
-          if (engine.identifier == aID) {
-            Services.search.defaultEngine = engine;
-            return resolve();
-          }
-        }
-        reject("selectSearchEngine could not find engine with given ID");
-      });
-    });
-  },
-
   getAvailableSearchEngineTargets(aWindow) {
     return new Promise(resolve => {
       this.getTarget(aWindow, "search").then(searchTarget => {
@@ -1506,105 +1442,3 @@ this.UITour = {
 };
 
 this.UITour.init();
-
-/**
- * UITour Health Report
- */
-const DAILY_DISCRETE_TEXT_FIELD = Metrics.Storage.FIELD_DAILY_DISCRETE_TEXT;
-
-/**
- * Public API to be called by the UITour code
- */
-const UITourHealthReport = {
-  recordTreatmentTag: function(tag, value) {
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    Task.spawn(function*() {
-      let reporter = Cc["@mozilla.org/datareporting/service;1"]
-                       .getService()
-                       .wrappedJSObject
-                       .healthReporter;
-
-      // This can happen if the FHR component of the data reporting service is
-      // disabled. This is controlled by a pref that most will never use.
-      if (!reporter) {
-        return;
-      }
-
-      yield reporter.onInit();
-
-      // Get the UITourMetricsProvider instance from the Health Reporter
-      reporter.getProvider("org.mozilla.uitour").recordTreatmentTag(tag, value);
-    });
-#endif
-  }
-};
-
-this.UITourMetricsProvider = function() {
-  Metrics.Provider.call(this);
-}
-
-UITourMetricsProvider.prototype = Object.freeze({
-  __proto__: Metrics.Provider.prototype,
-
-  name: "org.mozilla.uitour",
-
-  measurementTypes: [
-    UITourTreatmentMeasurement1,
-  ],
-
-  recordTreatmentTag: function(tag, value) {
-    let m = this.getMeasurement(UITourTreatmentMeasurement1.prototype.name,
-                                UITourTreatmentMeasurement1.prototype.version);
-    let field = tag;
-
-    if (this.storage.hasFieldFromMeasurement(m.id, field,
-                                             DAILY_DISCRETE_TEXT_FIELD)) {
-      let fieldID = this.storage.fieldIDFromMeasurement(m.id, field);
-      return this.enqueueStorageOperation(function recordKnownField() {
-        return this.storage.addDailyDiscreteTextFromFieldID(fieldID, value);
-      }.bind(this));
-    }
-
-    // Otherwise, we first need to create the field.
-    return this.enqueueStorageOperation(function recordField() {
-      // This function has to return a promise.
-      return Task.spawn(function () {
-        let fieldID = yield this.storage.registerField(m.id, field,
-                                                       DAILY_DISCRETE_TEXT_FIELD);
-        yield this.storage.addDailyDiscreteTextFromFieldID(fieldID, value);
-      }.bind(this));
-    }.bind(this));
-  },
-});
-
-function UITourTreatmentMeasurement1() {
-  Metrics.Measurement.call(this);
-
-  this._serializers = {};
-  this._serializers[this.SERIALIZE_JSON] = {
-    //singular: We don't need a singular serializer because we have none of this data
-    daily: this._serializeJSONDaily.bind(this)
-  };
-
-}
-
-UITourTreatmentMeasurement1.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "treatment",
-  version: 1,
-
-  // our fields are dynamic
-  fields: { },
-
-  // We need a custom serializer because the default one doesn't accept unknown fields
-  _serializeJSONDaily: function(data) {
-    let result = {_v: this.version };
-
-    for (let [field, data] of data) {
-      result[field] = data;
-    }
-
-    return result;
-  }
-});

@@ -335,28 +335,24 @@ input[type=button] {
 
 #newtab-search-logo {
   display: -moz-box;
-  width: 77px; /* 65 image width + 6 left "padding" + 6 right "padding" */
+  width: 38px;
   height: 38px; /* 26 image height + 6 top "padding" + 6 bottom "padding" */
   border: 1px solid transparent;
   -moz-margin-end: 8px;
   background-repeat: no-repeat;
   background-position: center;
+  background-image: url(chrome://global/skin/icons/autocomplete-search.svg#search-icon);
+  background-size: 26px 26px;
+}
+
+#newtab-search-logo[type="logo"] {
   background-size: 65px 26px;
+  width: 77px; /* 65 image width + 6 left "padding" + 6 right "padding" */
 }
 
-#newtab-search-logo.magnifier {
-  width: 38px; /* 26 image width + 6 left "padding" + 6 right "padding" */
-  -moz-margin-end: 5px;
-  background-size: 26px;
-  background-image: url("chrome://browser/skin/magnifier.png");
+#newtab-search-logo[type="favicon"] {
+  background-size: 16px 16px;
 }
-
-@media not all and (max-resolution: 1dppx) {
-  #newtab-search-icon.magnifier {
-    background-image: url("chrome://browser/skin/magnifier@2x.png");
-  }
-}
-
 
 #newtab-search-logo[hidden] {
   display: none;
@@ -370,7 +366,7 @@ input[type=button] {
 }
 
 #newtab-search-text {
-  height: 38px; /* same height as #newtab-search-logo */
+  height: 38px;
   -moz-box-flex: 1;
 
   padding: 0 8px;
@@ -394,7 +390,7 @@ input[type=button] {
 }
 
 #newtab-search-submit {
-  height: 38px; /* same height as #newtab-search-logo */
+  height: 38px;
   font-size: 13px !important;
 
   -moz-margin-start: -1px;
