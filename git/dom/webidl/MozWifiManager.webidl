@@ -281,7 +281,7 @@ interface MozWifiManager : EventTarget {
 
   /**
    * A connectionInformation object with the same information found in an
-   * MozWifiConnectionInfoEvent (but without the network).
+   * nsIDOMMozWifiConnectionInfoEvent (but without the network).
    * If we are not currently connected to a network, this will be null.
    */
   readonly attribute MozWifiConnectionInfo? connectionInformation;
@@ -293,8 +293,8 @@ interface MozWifiManager : EventTarget {
 
   /**
    * State notification listeners. These all take an
-   * MozWifiStatusChangeEvent with the new status and a network (which may be
-   * null).
+   * nsIDOMMozWifiStatusChangeEvent with the new status and a network (which
+   * may be null).
    *
    * The possible statuses are:
    *   - connecting: Fires when we start the process of connecting to a

@@ -306,7 +306,7 @@ this.DOMApplicationRegistry = {
   },
 
   // Registers all the activities and system messages.
-  registerAppsHandlers: Task.async(function*(aRunUpdate) {
+  registerAppsHandlers: function(aRunUpdate) {
     this.notifyAppsRegistryStart();
     let ids = [];
     for (let id in this.webapps) {
@@ -318,40 +318,42 @@ this.DOMApplicationRegistry = {
       // Read the CSPs and roles. If MOZ_SYS_MSG is defined this is done on
       // _processManifestForIds so as to not reading the manifests
       // twice
-      let results = yield this._readManifests(ids);
-      results.forEach((aResult) => {
-        if (!aResult.manifest) {
-          // If we can't load the manifest, we probably have a corrupted
-          // registry. We delete the app since we can't do anything with it.
-          delete this.webapps[aResult.id];
-          return;
-        }
-        let app = this.webapps[aResult.id];
-        app.csp = aResult.manifest.csp || "";
-        app.role = aResult.manifest.role || "";
-        if (app.appStatus >= Ci.nsIPrincipal.APP_STATUS_PRIVILEGED) {
-          app.redirects = this.sanitizeRedirects(aResult.redirects);
-        }
+      this._readManifests(ids).then((aResults) => {
+        aResults.forEach((aResult) => {
+          if (!aResult.manifest) {
+            // If we can't load the manifest, we probably have a corrupted
+            // registry. We delete the app since we can't do anything with it.
+            delete this.webapps[aResult.id];
+            return;
+          }
+          let app = this.webapps[aResult.id];
+          app.csp = aResult.manifest.csp || "";
+          app.role = aResult.manifest.role || "";
+          if (app.appStatus >= Ci.nsIPrincipal.APP_STATUS_PRIVILEGED) {
+            app.redirects = this.sanitizeRedirects(aResult.redirects);
+          }
+        });
       });
 
       // Nothing else to do but notifying we're ready.
       this.notifyAppsRegistryReady();
     }
-  }),
+  },
 
-  updateDataStoreForApp: Task.async(function*(aId) {
+  updateDataStoreForApp: function(aId) {
     if (!this.webapps[aId]) {
       return;
     }
 
     // Create or Update the DataStore for this app
-    let results = yield this._readManifests([{ id: aId }]);
-    let app = this.webapps[aId];
-    this.updateDataStore(app.localId, app.origin, app.manifestURL,
-                         results[0].manifest, app.appStatus);
-  }),
+    this._readManifests([{ id: aId }]).then((aResult) => {
+      let app = this.webapps[aId];
+      this.updateDataStore(app.localId, app.origin, app.manifestURL,
+                           aResult[0].manifest, app.appStatus);
+    });
+  },
 
-  updatePermissionsForApp: function(aId, aIsPreinstalled, aIsSystemUpdate) {
+  updatePermissionsForApp: function(aId, aIsPreinstalled) {
     if (!this.webapps[aId]) {
       return;
     }
@@ -366,8 +368,7 @@ this.DOMApplicationRegistry = {
           manifest: data.manifest,
           manifestURL: this.webapps[aId].manifestURL,
           origin: this.webapps[aId].origin,
-          isPreinstalled: aIsPreinstalled,
-          isSystemUpdate: aIsSystemUpdate
+          isPreinstalled: aIsPreinstalled
         }, true, function() {
           debug("Error installing permissions for " + aId);
         });
@@ -599,8 +600,7 @@ this.DOMApplicationRegistry = {
             continue;
           }
           this.updateOfflineCacheForApp(id);
-          this.updatePermissionsForApp(id, isPreinstalled,
-                                       true /* isSystemUpdate */);
+          this.updatePermissionsForApp(id, isPreinstalled);
         }
         // Need to update the persisted list of apps since
         // installPreinstalledApp() removes the ones failing to install.
@@ -609,10 +609,10 @@ this.DOMApplicationRegistry = {
 
       // DataStores must be initialized at startup.
       for (let id in this.webapps) {
-        yield this.updateDataStoreForApp(id);
+        this.updateDataStoreForApp(id);
       }
 
-      yield this.registerAppsHandlers(runUpdate);
+      this.registerAppsHandlers(runUpdate);
     }.bind(this)).then(null, Cu.reportError);
   },
 
@@ -1101,11 +1101,7 @@ this.DOMApplicationRegistry = {
         this.getSelf(msg, mm);
         break;
       case "Webapps:Uninstall":
-#ifdef MOZ_WIDGET_ANDROID
-        Services.obs.notifyObservers(mm, "webapps-runtime-uninstall", JSON.stringify(msg));
-#else
         this.doUninstall(msg, mm);
-#endif
         break;
       case "Webapps:Launch":
         this.doLaunch(msg, mm);
