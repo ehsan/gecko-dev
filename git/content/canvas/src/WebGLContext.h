@@ -424,7 +424,7 @@ protected:
     void UnbindFakeBlackTextures();
 
     int WhatDoesVertexAttrib0Need();
-    bool DoFakeVertexAttrib0(WebGLuint vertexCount);
+    void DoFakeVertexAttrib0(WebGLuint vertexCount);
     void UndoFakeVertexAttrib0();
     void InvalidateFakeVertexAttrib0();
 
