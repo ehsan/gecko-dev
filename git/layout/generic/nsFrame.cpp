@@ -415,7 +415,7 @@ NS_IMETHODIMP nsFrame::SetInitialChildList(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsFrame::AppendFrames(nsIAtom*        aListName,
-                      nsIFrame*       aFrameList)
+                      nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "not a container");
   return NS_ERROR_UNEXPECTED;
@@ -424,7 +424,7 @@ nsFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsFrame::InsertFrames(nsIAtom*        aListName,
                       nsIFrame*       aPrevFrame,
-                      nsIFrame*       aFrameList)
+                      nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "not a container");
   return NS_ERROR_UNEXPECTED;
@@ -6716,6 +6716,15 @@ nsFrame::SetParent(const nsIFrame* aParent)
     InitBoxMetrics(PR_TRUE);
   else if (wasBoxWrapped && !IsBoxWrapped())
     DeleteProperty(nsGkAtoms::boxMetricsProperty);
+
+  if (aParent && aParent->IsBoxFrame()) {
+    if (aParent->ChildrenMustHaveWidgets()) {
+        nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
+        nsIView* view = GetView();
+        if (!view->HasWidget())
+          CreateWidgetForView(view);
+    }
+  }
 
   return NS_OK;
 }
