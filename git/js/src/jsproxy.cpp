@@ -26,11 +26,8 @@ using namespace js::gc;
 using mozilla::ArrayLength;
 
 void
-js::AutoEnterPolicy::reportErrorIfExceptionIsNotPending(JSContext *cx, jsid id)
+js::AutoEnterPolicy::reportError(JSContext *cx, jsid id)
 {
-    if (JS_IsExceptionPending(cx))
-        return;
-
     if (JSID_IS_VOID(id)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_OBJECT_ACCESS_DENIED);

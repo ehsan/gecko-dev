@@ -42,7 +42,7 @@ interface Node : EventTarget {
   [Pure]
   readonly attribute Element? parentElement;
   boolean hasChildNodes();
-  [SameObject]
+  [Constant]
   readonly attribute NodeList childNodes;
   [Pure]
   readonly attribute Node? firstChild;
