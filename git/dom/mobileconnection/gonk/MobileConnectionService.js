@@ -797,7 +797,7 @@ MobileConnectionProvider.prototype = {
         return false;
       }
 
-      aCallback.notifyGetRoamingPreferenceSuccess(aResponse.mode);
+      aCallback.notifySuccessWithString(aResponse.mode);
       return false;
     }).bind(this));
   },

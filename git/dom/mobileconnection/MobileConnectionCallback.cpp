@@ -65,10 +65,15 @@ MobileConnectionCallback::NotifySuccess(JS::Handle<JS::Value> aResult)
   return rs->FireSuccessAsync(mRequest, aResult);
 }
 
-/**
- * Notify Success with string.
- */
-nsresult
+// nsIMobileConnectionCallback
+
+NS_IMETHODIMP
+MobileConnectionCallback::NotifySuccess()
+{
+  return NotifySuccess(JS::UndefinedHandleValue);
+}
+
+NS_IMETHODIMP
 MobileConnectionCallback::NotifySuccessWithString(const nsAString& aResult)
 {
   AutoJSAPI jsapi;
@@ -85,14 +90,6 @@ MobileConnectionCallback::NotifySuccessWithString(const nsAString& aResult)
   }
 
   return NotifySuccess(jsResult);
-}
-
-// nsIMobileConnectionCallback
-
-NS_IMETHODIMP
-MobileConnectionCallback::NotifySuccess()
-{
-  return NotifySuccess(JS::UndefinedHandleValue);
 }
 
 NS_IMETHODIMP
@@ -369,18 +366,6 @@ MobileConnectionCallback::NotifyGetPreferredNetworkTypeSuccess(int32_t aType)
   CONVERT_ENUM_TO_STRING(MobilePreferredNetworkType, type, typeString);
 
   return NotifySuccessWithString(typeString);
-};
-
-NS_IMETHODIMP
-MobileConnectionCallback::NotifyGetRoamingPreferenceSuccess(int32_t aMode)
-{
-  MOZ_ASSERT(aMode < static_cast<int32_t>(MobileRoamingMode::EndGuard_));
-  MobileRoamingMode mode = static_cast<MobileRoamingMode>(aMode);
-
-  nsAutoString modeString;
-  CONVERT_ENUM_TO_STRING(MobileRoamingMode, mode, modeString);
-
-  return NotifySuccessWithString(modeString);
 };
 
 NS_IMETHODIMP

@@ -21,9 +21,7 @@ loop.store.ActiveRoomStore = (function() {
     // The room is known to be joined on the loop-server
     JOINED: "room-joined",
     // There was an issue with the room
-    FAILED: "room-failed",
-    // XXX to be implemented in bug 1074686/1074702
-    HAS_PARTICIPANTS: "room-has-participants"
+    FAILED: "room-failed"
   };
 
   /**

@@ -39,9 +39,6 @@ private:
   NotifySuccess(JS::Handle<JS::Value> aResult);
 
   nsresult
-  NotifySuccessWithString(const nsAString& aResult);
-
-  nsresult
   NotifySendCancelMmiSuccess(const MozMMIResult& aResult);
 
   nsCOMPtr<nsPIDOMWindow> mWindow;

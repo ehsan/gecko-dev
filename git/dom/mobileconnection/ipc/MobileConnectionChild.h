@@ -143,6 +143,9 @@ public:
   DoReply(const MobileConnectionReplySuccess& aReply);
 
   bool
+  DoReply(const MobileConnectionReplySuccessString& aReply);
+
+  bool
   DoReply(const MobileConnectionReplySuccessBoolean& aReply);
 
   bool
@@ -162,9 +165,6 @@ public:
 
   bool
   DoReply(const MobileConnectionReplySuccessPreferredNetworkType& aReply);
-
-  bool
-  DoReply(const MobileConnectionReplySuccessRoamingPreference& aMode);
 
   bool
   DoReply(const MobileConnectionReplyError& aReply);

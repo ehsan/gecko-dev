@@ -108,7 +108,7 @@ loop.shared.views = (function(_, OT, l10n) {
       var cx = React.addons.classSet;
       return (
         <ul className="conversation-toolbar">
-          <li className="conversation-toolbar-btn-box btn-hangup-entry">
+          <li className="conversation-toolbar-btn-box">
             <button className="btn btn-hangup" onClick={this.handleClickHangup}
                     title={l10n.get("hangup_button_title")}>
               {l10n.get("hangup_button_caption2")}
