@@ -264,7 +264,7 @@ PluginModuleParent::SetChildTimeout(const int32_t aChildTimeout)
     SetReplyTimeoutMs(timeoutMs);
 }
 
-int
+void
 PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -284,7 +284,6 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
       int32_t timeoutSecs = Preferences::GetInt(kParentTimeoutPref, 0);
       unused << static_cast<PluginModuleParent*>(aModule)->SendSetParentHangTimeout(timeoutSecs);
     }
-    return 0;
 }
 
 void
@@ -1763,7 +1762,7 @@ NS_IMPL_ISUPPORTS2(PluginProfilerObserver, nsIObserver, nsISupportsWeakReference
 NS_IMETHODIMP
 PluginProfilerObserver::Observe(nsISupports *aSubject,
                                 const char *aTopic,
-                                const PRUnichar *aData)
+                                const char16_t *aData)
 {
     nsCOMPtr<nsIProfileSaveEvent> pse = do_QueryInterface(aSubject);
     if (pse) {

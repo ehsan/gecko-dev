@@ -12,6 +12,7 @@
 
 #include "nsCSSProps.h"
 #include "nsCSSKeywords.h"
+#include "nsLayoutUtils.h"
 #include "nsStyleConsts.h"
 #include "nsIWidget.h"
 #include "nsThemeConstants.h"  // For system widget appearance types
@@ -20,9 +21,6 @@
 
 #include "nsString.h"
 #include "nsStaticNameTable.h"
-#include "nsStyleConsts.h"
-#include "gfxFontConstants.h"
-#include "nsStyleStruct.h"
 
 #include "mozilla/Preferences.h"
 
@@ -348,11 +346,43 @@ nsCSSProps::ReleaseTable(void)
   }
 }
 
+// Length of the "var-" custom property name prefix.
+#define VAR_PREFIX_LENGTH 4
+
+/* static */ bool
+nsCSSProps::IsInherited(nsCSSProperty aProperty)
+{
+  MOZ_ASSERT(!IsShorthand(aProperty));
+
+  nsStyleStructID sid = kSIDTable[aProperty];
+  return nsCachedStyleData::IsInherited(sid);
+}
+
+/* static */ bool
+nsCSSProps::IsCustomPropertyName(const nsACString& aProperty)
+{
+  // Custom properties must have at least one character after the "var-" prefix.
+  return aProperty.Length() >= (VAR_PREFIX_LENGTH + 1) &&
+         StringBeginsWith(aProperty, NS_LITERAL_CSTRING("var-"));
+}
+
+/* static */ bool
+nsCSSProps::IsCustomPropertyName(const nsAString& aProperty)
+{
+  return aProperty.Length() >= (VAR_PREFIX_LENGTH + 1) &&
+         StringBeginsWith(aProperty, NS_LITERAL_STRING("var-"));
+}
+
 nsCSSProperty
 nsCSSProps::LookupProperty(const nsACString& aProperty,
                            EnabledState aEnabled)
 {
   NS_ABORT_IF_FALSE(gPropertyTable, "no lookup table, needs addref");
+
+  if (nsLayoutUtils::CSSVariablesEnabled() &&
+      IsCustomPropertyName(aProperty)) {
+    return eCSSPropertyExtra_variable;
+  }
 
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
   // Check eCSSAliasCount against 0 to make it easy for the
@@ -377,6 +407,11 @@ nsCSSProps::LookupProperty(const nsACString& aProperty,
 nsCSSProperty
 nsCSSProps::LookupProperty(const nsAString& aProperty, EnabledState aEnabled)
 {
+  if (nsLayoutUtils::CSSVariablesEnabled() &&
+      IsCustomPropertyName(aProperty)) {
+    return eCSSPropertyExtra_variable;
+  }
+
   // This is faster than converting and calling
   // LookupProperty(nsACString&).  The table will do its own
   // converting and avoid a PromiseFlatCString() call.
@@ -612,6 +647,7 @@ const int32_t nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_win_glass,         NS_THEME_WIN_GLASS,
   eCSSKeyword__moz_win_borderless_glass,      NS_THEME_WIN_BORDERLESS_GLASS,
   eCSSKeyword__moz_mac_unified_toolbar,       NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR,
+  eCSSKeyword__moz_mac_fullscreen_button,     NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON,
   eCSSKeyword__moz_window_titlebar,           NS_THEME_WINDOW_TITLEBAR,
   eCSSKeyword__moz_window_titlebar_maximized, NS_THEME_WINDOW_TITLEBAR_MAXIMIZED,
   eCSSKeyword__moz_window_frame_left,         NS_THEME_WINDOW_FRAME_LEFT,
@@ -1320,6 +1356,12 @@ const int32_t nsCSSProps::kMathVariantKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const int32_t nsCSSProps::kMathDisplayKTable[] = {
+  eCSSKeyword_inline, NS_MATHML_DISPLAYSTYLE_INLINE,
+  eCSSKeyword_block, NS_MATHML_DISPLAYSTYLE_BLOCK,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const int32_t nsCSSProps::kContextOpacityKTable[] = {
   eCSSKeyword_context_fill_opacity, NS_STYLE_CONTEXT_FILL_OPACITY,
   eCSSKeyword_context_stroke_opacity, NS_STYLE_CONTEXT_STROKE_OPACITY,
@@ -1552,6 +1594,12 @@ const int32_t nsCSSProps::kTextTransformKTable[] = {
   eCSSKeyword_uppercase, NS_STYLE_TEXT_TRANSFORM_UPPERCASE,
   eCSSKeyword_full_width, NS_STYLE_TEXT_TRANSFORM_FULLWIDTH,
   eCSSKeyword_UNKNOWN,-1
+};
+
+const int32_t nsCSSProps::kTouchActionKTable[] = {
+  eCSSKeyword_pan_x, NS_STYLE_TOUCH_ACTION_PAN_X,
+  eCSSKeyword_pan_y, NS_STYLE_TOUCH_ACTION_PAN_Y,
+  eCSSKeyword_UNKNOWN, -1
 };
 
 const int32_t nsCSSProps::kTransitionTimingFunctionKTable[] = {
@@ -2698,6 +2746,13 @@ enum ColumnCheckCounter {
   #include "nsCSSPropList.h"
   #undef CSS_PROP_COLUMN
   ePropertyCount_for_Column
+};
+
+enum VariablesCheckCounter {
+  #define CSS_PROP_VARIABLES ENUM_DATA_FOR_PROPERTY
+  #include "nsCSSPropList.h"
+  #undef CSS_PROP_VARIABLES
+  ePropertyCount_for_Variables
 };
 
 #undef ENUM_DATA_FOR_PROPERTY

@@ -152,7 +152,7 @@ public:
   NS_IMETHOD              GetAttention(int32_t aCycleCount);
   virtual bool            HasPendingInputEvent();
   virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
-                                          LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
+                                          LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
   gfxASurface             *GetThebesSurface();
@@ -337,6 +337,20 @@ protected:
     return mTransparencyMode == eTransparencyGlass ||
            mTransparencyMode == eTransparencyBorderlessGlass;
   }
+  HWND                    GetOwnerWnd() const
+  {
+    return ::GetWindow(mWnd, GW_OWNER);
+  }
+  bool                    IsOwnerForegroundWindow() const
+  {
+    HWND owner = GetOwnerWnd();
+    return owner && owner == ::GetForegroundWindow();
+  }
+  bool                    IsPopup() const
+  {
+    return mWindowType == eWindowType_popup;
+  }
+
 
   /**
    * Event processing helpers
@@ -358,7 +372,7 @@ protected:
                                               bool *aEventDispatched);
   LRESULT                 ProcessKeyDownMessage(const MSG &aMsg,
                                                 bool *aEventDispatched);
-  static bool             EventIsInsideWindow(UINT Msg, nsWindow* aWindow);
+  static bool             EventIsInsideWindow(nsWindow* aWindow);
   // Convert nsEventStatus value to a windows boolean
   static bool             ConvertStatus(nsEventStatus aStatus);
   static void             PostSleepWakeNotification(const bool aIsSleepMode);
@@ -405,6 +419,9 @@ protected:
   static void             ScheduleHookTimer(HWND aWnd, UINT aMsgId);
   static void             RegisterSpecialDropdownHooks();
   static void             UnregisterSpecialDropdownHooks();
+  static bool             GetPopupsToRollup(nsIRollupListener* aRollupListener,
+                                            uint32_t* aPopupsToRollup);
+  static bool             NeedsToHandleNCActivateDelayed(HWND aWnd);
   static bool             DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLParam, LRESULT* outResult);
 
   /**
@@ -554,6 +571,10 @@ protected:
   // True if the taskbar (possibly through the tab preview) tells us that the
   // icon has been created on the taskbar.
   bool                  mHasTaskbarIconBeenCreated;
+
+  // Indicates that mouse events should be ignored and pass through to the
+  // window below. This is currently only used for popups.
+  bool                  mMouseTransparent;
 
   // The point in time at which the last paint completed. We use this to avoid
   //  painting too rapidly in response to frequent input events.

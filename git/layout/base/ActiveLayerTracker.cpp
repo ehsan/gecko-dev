@@ -10,6 +10,8 @@
 #include "nsRefreshDriver.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocument.h"
+#include "nsAnimationManager.h"
+#include "nsTransitionManager.h"
 
 namespace mozilla {
 
@@ -206,6 +208,16 @@ ActiveLayerTracker::NotifyInlineStyleRuleModified(nsIFrame* aFrame,
 /* static */ bool
 ActiveLayerTracker::IsStyleAnimated(nsIFrame* aFrame, nsCSSProperty aProperty)
 {
+  // TODO: Add some abuse restrictions
+  if ((aFrame->StyleDisplay()->mWillChangeBitField & NS_STYLE_WILL_CHANGE_TRANSFORM) &&
+      aProperty == eCSSProperty_transform) {
+    return true;
+  }
+  if ((aFrame->StyleDisplay()->mWillChangeBitField & NS_STYLE_WILL_CHANGE_OPACITY) &&
+      aProperty == eCSSProperty_opacity) {
+    return true;
+  }
+
   LayerActivity* layerActivity = GetLayerActivity(aFrame);
   if (layerActivity) {
     if (layerActivity->RestyleCountForProperty(aProperty) >= 2) {
@@ -215,6 +227,18 @@ ActiveLayerTracker::IsStyleAnimated(nsIFrame* aFrame, nsCSSProperty aProperty)
   if (aProperty == eCSSProperty_transform && aFrame->Preserves3D()) {
     return IsStyleAnimated(aFrame->GetParent(), aProperty);
   }
+  nsIContent* content = aFrame->GetContent();
+  if (content) {
+    if (mozilla::HasAnimationOrTransition<ElementAnimations>(
+          content, nsGkAtoms::animationsProperty, aProperty)) {
+      return true;
+    }
+    if (mozilla::HasAnimationOrTransition<ElementTransitions>(
+          content, nsGkAtoms::transitionsProperty, aProperty)) {
+      return true;
+    }
+  }
+
   return false;
 }
 

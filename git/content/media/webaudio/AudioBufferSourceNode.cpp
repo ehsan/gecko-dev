@@ -217,7 +217,7 @@ public:
                                              outputData, &outSamples);
         if (++i == aChannels) {
           mPosition += inSamples;
-          MOZ_ASSERT(mPosition <= mDuration);
+          MOZ_ASSERT(mPosition <= mDuration || mLoop);
           aFramesWritten = outSamples;
           if (inSamples == aAvailableInInputBuffer && !mLoop) {
             // If the available output space were unbounded then the input
@@ -280,7 +280,7 @@ public:
     if (numFrames == WEBAUDIO_BLOCK_SIZE) {
       aOutput->SetNull(numFrames);
     } else {
-      if (aOutput->IsNull()) {
+      if (*aOffsetWithinBlock == 0) {
         AllocateAudioBlock(aChannels, aOutput);
       }
       WriteZeroesToAudioBlock(aOutput, *aOffsetWithinBlock, numFrames);
@@ -317,8 +317,7 @@ public:
       *aCurrentPosition += numFrames;
       mPosition += numFrames;
     } else {
-      if (aOutput->IsNull()) {
-        MOZ_ASSERT(*aOffsetWithinBlock == 0);
+      if (*aOffsetWithinBlock == 0) {
         AllocateAudioBlock(aChannels, aOutput);
       }
       if (!ShouldResample(aStream->SampleRate())) {
@@ -392,6 +391,7 @@ public:
                                  bool* aFinished)
   {
     if (!mBuffer || !mDuration) {
+      aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
       return;
     }
 

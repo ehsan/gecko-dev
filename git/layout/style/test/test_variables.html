@@ -1,0 +1,43 @@
+<!DOCTYPE type>
+<title>Assorted CSS variable tests</title>
+<script src="/MochiKit/MochiKit.js"></script>
+<script src="/tests/SimpleTest/SimpleTest.js"></script>
+<link rel="stylesheet" href="/tests/SimpleTest/test.css" type="text/css">
+
+<style id="test1">
+p { var-a:123!important; }
+</style>
+
+<style id="test2">
+p { var-a: a !important; }
+</style>
+
+<style id="test3">
+p { border-left-style: inset; padding: 1px; var-decoration: line-through; }
+</style>
+
+<script>
+var tests = [
+  function() {
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=773296#c121
+    var declaration = document.getElementById("test1").sheet.cssRules[0].style;
+    declaration.cssText;
+    declaration.setProperty("color", "black");
+    is(declaration.getPropertyValue("var-a"), "123");
+  },
+
+  function() {
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=773296#c121
+    var declaration = document.getElementById("test2").sheet.cssRules[0].style;
+    is(declaration.getPropertyPriority("var-a"), "important");
+  },
+
+  function() {
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=955913
+    var declaration = document.getElementById("test3").sheet.cssRules[0].style;
+    is(declaration[declaration.length - 1], "var-decoration");
+  },
+];
+
+tests.forEach(function(fn) { fn(); });
+</script>

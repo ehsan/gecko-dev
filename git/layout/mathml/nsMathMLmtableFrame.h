@@ -26,21 +26,6 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  // Overloaded nsIMathMLFrame methods
-
-  NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
-
-  NS_IMETHOD
-  UpdatePresentationData(uint32_t aFlagsValues,
-                         uint32_t aWhichFlags) MOZ_OVERRIDE;
-
-  NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aWhichFlags) MOZ_OVERRIDE;
-
   // overloaded nsTableOuterFrame methods
 
   NS_IMETHOD
@@ -209,6 +194,11 @@ public:
                    nsIAtom* aAttribute,
                    int32_t  aModType) MOZ_OVERRIDE;
 
+  virtual uint8_t GetVerticalAlign() const;
+  virtual nsresult ProcessBorders(nsTableFrame* aFrame,
+                                  nsDisplayListBuilder* aBuilder,
+                                  const nsDisplayListSet& aLists);
+
   virtual int32_t GetRowSpan() MOZ_OVERRIDE;
   virtual int32_t GetColSpan() MOZ_OVERRIDE;
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
@@ -256,9 +246,15 @@ public:
       ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
+  virtual const nsStyleText* StyleTextForLineLayout();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+
 protected:
-  nsMathMLmtdInnerFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {}
+  nsMathMLmtdInnerFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmtdInnerFrame();
+
+  nsStyleText* mUniqueStyleText;
+
 };  // class nsMathMLmtdInnerFrame
 
 #endif /* nsMathMLmtableFrame_h___ */

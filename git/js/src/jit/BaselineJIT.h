@@ -100,9 +100,14 @@ struct BaselineScript
   public:
     static const uint32_t MAX_JSSCRIPT_LENGTH = 0x0fffffffu;
 
+    // Limit the locals on a given script so that stack check on baseline frames
+    // doesn't overflow a uint32_t value.
+    // (MAX_JSSCRIPT_SLOTS * sizeof(Value)) must fit within a uint32_t.
+    static const uint32_t MAX_JSSCRIPT_SLOTS = 0xffffu;
+
   private:
     // Code pointer containing the actual method.
-    HeapPtr<IonCode> method_;
+    HeapPtr<JitCode> method_;
 
     // For heavyweight scripts, template objects to use for the call object and
     // decl env object (linked via the call object's enclosing scope).
@@ -232,10 +237,10 @@ struct BaselineScript
         return &fallbackStubSpace_;
     }
 
-    IonCode *method() const {
+    JitCode *method() const {
         return method_;
     }
-    void setMethod(IonCode *code) {
+    void setMethod(JitCode *code) {
         JS_ASSERT(!method_);
         method_ = code;
     }
@@ -289,8 +294,8 @@ struct BaselineScript
 
     void toggleSPS(bool enable);
 
-    void noteAccessedGetter(uint32_t pcOffset);
-    void noteArrayWriteHole(uint32_t pcOffset);
+    void noteAccessedGetter(JSContext *cx, uint32_t pcOffset);
+    void noteArrayWriteHole(JSContext *cx, uint32_t pcOffset);
 
     static size_t offsetOfFlags() {
         return offsetof(BaselineScript, flags_);

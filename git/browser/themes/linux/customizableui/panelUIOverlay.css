@@ -1,0 +1,18 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%include ../../shared/customizableui/panelUIOverlay.inc.css
+
+#BMB_bookmarksPopup > menuitem[type="checkbox"] {
+  -moz-appearance: none !important; /* important, to override toolkit rule */
+}
+
+.widget-overflow-list .toolbarbutton-1 > .toolbarbutton-menubutton-button {
+  -moz-appearance: none;
+  border: 0;
+}
+
+.widget-overflow-list .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+  -moz-margin-start: 0;
+}

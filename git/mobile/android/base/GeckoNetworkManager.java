@@ -5,6 +5,8 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.mozglue.JNITarget;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -220,7 +222,11 @@ public class GeckoNetworkManager extends BroadcastReceiver {
             return NetworkType.NETWORK_NONE;
         }
 
-        NetworkInfo ni = cm.getActiveNetworkInfo();
+        NetworkInfo ni = null;
+        try {
+            ni = cm.getActiveNetworkInfo();
+        } catch (SecurityException se) {} // if we don't have the permission, fall through to null check
+
         if (ni == null) {
             return NetworkType.NETWORK_NONE;
         }
@@ -348,10 +354,13 @@ public class GeckoNetworkManager extends BroadcastReceiver {
         return -1;
     }
 
+    /* These are called from javascript c-types. Avoid letting pro-guard delete them */
+    @JNITarget
     public static int getMCC() {
         return getNetworkOperator(InfoType.MCC);
     }
 
+    @JNITarget
     public static int getMNC() {
         return getNetworkOperator(InfoType.MNC);
     }

@@ -66,7 +66,9 @@ class CompileRuntime
     const Value &NaNValue();
     const Value &positiveInfinityValue();
 
+#ifdef DEBUG
     bool isInsideNursery(gc::Cell *cell);
+#endif
 
     // DOM callbacks must be threadsafe (and will hopefully be removed soon).
     const DOMCallbacks *DOMcallbacks();
@@ -96,6 +98,8 @@ class CompileCompartment
 {
     JSCompartment *compartment();
 
+    friend class js::AutoLockForCompilation;
+
   public:
     static CompileCompartment *get(JSCompartment *comp);
 
@@ -109,7 +113,30 @@ class CompileCompartment
     const JitCompartment *jitCompartment();
 
     bool hasObjectMetadataCallback();
+
+    // Mirror CompartmentOptions.
+    void setSingletonsAsValues();
 };
+
+class JitCompileOptions
+{
+  public:
+    JitCompileOptions();
+    JitCompileOptions(JSContext *cx);
+
+    bool cloneSingletons() const {
+        return cloneSingletons_;
+    }
+
+    bool spsSlowAssertionsEnabled() const {
+        return spsSlowAssertionsEnabled_;
+    }
+
+  private:
+    bool cloneSingletons_;
+    bool spsSlowAssertionsEnabled_;
+};
+
 
 } // namespace jit
 } // namespace js

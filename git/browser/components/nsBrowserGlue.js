@@ -481,7 +481,7 @@ BrowserGlue.prototype = {
     SessionStore.init();
     BrowserUITelemetry.init();
 
-    if (Services.prefs.getBoolPref("browser.tabs.remote"))
+    if (Services.appinfo.browserTabsRemote)
       ContentClick.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
@@ -1289,78 +1289,17 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 15;
+    const UI_VERSION = 19;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
-
-    let wasCustomizedAndOnAustralis = Services.prefs.prefHasUserValue("browser.uiCustomization.state");
     let currentUIVersion = 0;
     try {
       currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
     } catch(ex) {}
-    if (!wasCustomizedAndOnAustralis && currentUIVersion >= UI_VERSION)
+    if (currentUIVersion >= UI_VERSION)
       return;
 
     this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
     this._dataSource = this._rdf.GetDataSource("rdf:local-store");
-
-    function migrateDetector() {
-      let detector = null;    
-      try {
-        detector = Services.prefs.getComplexValue("intl.charset.detector",
-                                                  Ci.nsIPrefLocalizedString).data;
-      } catch (ex) {}
-      if (!(detector == "" ||
-            detector == "ja_parallel_state_machine" ||
-            detector == "ruprob" ||
-            detector == "ukprob")) {
-        // If the encoding detector pref value is not reachable from the UI,
-        // reset to default (varies by localization).
-        Services.prefs.clearUserPref("intl.charset.detector");
-      }
-    }
-
-    // No version check for this as this code should run until we have Australis everywhere:
-    if (wasCustomizedAndOnAustralis) {
-      // This profile's been on australis! If it's missing the back/fwd button
-      // or go/stop/reload button, then put them back:
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
-      let oldCurrentset = currentset;
-      if (currentset) {
-        if (currentset.indexOf("unified-back-forward-button") == -1) {
-          currentset = currentset.replace("urlbar-container",
-                                          "unified-back-forward-button,urlbar-container");
-        }
-        if (currentset.indexOf("reload-button") == -1) {
-          currentset = currentset.replace("urlbar-container", "urlbar-container,reload-button");
-        }
-        if (currentset.indexOf("stop-button") == -1) {
-          currentset = currentset.replace("reload-button", "reload-button,stop-button");
-        }
-      }
-      Services.prefs.clearUserPref("browser.uiCustomization.state");
-
-      if (oldCurrentset != currentset) {
-        this._setPersist(toolbarResource, currentsetResource, currentset);
-      }
-
-      // Taking the opportunity to do the version 15 action here as well to
-      // address profiles that have been on Australis.
-      migrateDetector();
-
-      // If we don't have anything else to do, we can bail here:
-      if (currentUIVersion >= UI_VERSION) {
-        if (this._dirty) {
-          this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
-        }
-        delete this._rdf;
-        delete this._dataSource;
-        return;
-      }
-    }
-
-
     this._dirty = false;
 
     if (currentUIVersion < 2) {
@@ -1544,12 +1483,73 @@ BrowserGlue.prototype = {
       OS.File.remove(path);
     }
 
-    // Reusing the version 15, which is no longer in use on m-c, on Holly.
-    // This fails if the user has used Australis with this profile without
-    // customization and then gone back no the non-Australis version stream.
-    // However, the situation will fix itself once Australis reaches the user.
-    if (currentUIVersion < 15) {
-      migrateDetector();
+    // Version 15 was obsoleted in favour of 18.
+
+    if (currentUIVersion < 16) {
+      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
+      let collapsedResource = this._rdf.GetResource("collapsed");
+      let isCollapsed = this._getPersist(toolbarResource, collapsedResource);
+      if (isCollapsed == "true") {
+        this._setPersist(toolbarResource, collapsedResource, "false");
+      }
+    }
+
+    // Insert the bookmarks-menu-button into the nav-bar if it isn't already
+    // there.
+    if (currentUIVersion < 17) {
+      let currentsetResource = this._rdf.GetResource("currentset");
+      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
+      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      // Need to migrate only if toolbar is customized.
+      if (currentset) {
+        if (!currentset.contains("bookmarks-menu-button")) {
+          // The button isn't in the nav-bar, so let's look for an appropriate
+          // place to put it.
+          if (currentset.contains("downloads-button")) {
+            currentset = currentset.replace(/(^|,)downloads-button($|,)/,
+                                            "$1bookmarks-menu-button,downloads-button$2");
+          } else if (currentset.contains("home-button")) {
+            currentset = currentset.replace(/(^|,)home-button($|,)/,
+                                            "$1bookmarks-menu-button,home-button$2");
+          } else {
+            // Just append.
+            currentset = currentset.replace(/(^|,)window-controls($|,)/,
+                                            "$1bookmarks-menu-button,window-controls$2")
+          }
+          this._setPersist(toolbarResource, currentsetResource, currentset);
+        }
+      }
+    }
+
+    if (currentUIVersion < 18) {
+      // Remove iconsize and mode from all the toolbars
+      let toolbars = ["navigator-toolbox", "nav-bar", "PersonalToolbar",
+                      "addon-bar", "TabsToolbar", "toolbar-menubar"];
+      for (let resourceName of ["mode", "iconsize"]) {
+        let resource = this._rdf.GetResource(resourceName);
+        for (let toolbarId of toolbars) {
+          let toolbar = this._rdf.GetResource(BROWSER_DOCURL + toolbarId);
+          if (this._getPersist(toolbar, resource)) {
+            this._setPersist(toolbar, resource);
+          }
+        }
+      }
+    }
+
+    if (currentUIVersion < 19) {
+      let detector = null;    
+      try {
+        detector = Services.prefs.getComplexValue("intl.charset.detector",
+                                                  Ci.nsIPrefLocalizedString).data;
+      } catch (ex) {}
+      if (!(detector == "" ||
+            detector == "ja_parallel_state_machine" ||
+            detector == "ruprob" ||
+            detector == "ukprob")) {
+        // If the encoding detector pref value is not reachable from the UI,
+        // reset to default (varies by localization).
+        Services.prefs.clearUserPref("intl.charset.detector");
+      }
     }
 
     if (this._dirty)

@@ -293,7 +293,9 @@
             }
 
             function loadCurrent() {
-              let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+              let webnav = Ci.nsIWebNavigation;
+              let flags = webnav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
+                          webnav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
               // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
               // inheriting the currently loaded document's principal, unless this
               // URL is marked as safe to inherit (e.g. came from a bookmark
@@ -931,7 +933,7 @@
             <xul:menupopup anonid="menupopup"
                            xbl:inherits="oncommand=menucommand">
               <children/>
-              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem close-icon"
                             label="&closeNotificationItem.label;"
                             xbl:inherits="oncommand=closeitemcommand"/>
             </xul:menupopup>
@@ -940,7 +942,7 @@
       </xul:vbox>
       <xul:vbox pack="start">
         <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton tabbable"
+                           class="messageCloseButton close-icon popup-notification-closebutton tabbable"
                            xbl:inherits="oncommand=closebuttoncommand"
                            tooltiptext="&closeNotification.tooltip;"/>
       </xul:vbox>
@@ -1163,7 +1165,7 @@
             <xul:menupopup anonid="menupopup"
                            xbl:inherits="oncommand=menucommand">
               <children/>
-              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem close-icon"
                             label="&closeNotificationItem.label;"
                             xbl:inherits="oncommand=closeitemcommand"/>
             </xul:menupopup>
@@ -1172,7 +1174,7 @@
       </xul:vbox>
       <xul:vbox pack="start">
         <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton tabbable"
+                           class="messageCloseButton close-icon popup-notification-closebutton tabbable"
                            xbl:inherits="oncommand=closebuttoncommand"
                            tooltiptext="&closeNotification.tooltip;"/>
       </xul:vbox>
@@ -1502,7 +1504,7 @@
             <xul:label class="text-link click-to-play-plugins-notification-link" anonid="click-to-play-plugins-notification-link" />
           </xul:description>
           <xul:toolbarbutton anonid="closebutton"
-                             class="messageCloseButton popup-notification-closebutton tabbable"
+                             class="messageCloseButton popup-notification-closebutton tabbable close-icon"
                              xbl:inherits="oncommand=closebuttoncommand"
                              tooltiptext="&closeNotification.tooltip;"/>
         </xul:hbox>
@@ -2021,7 +2023,7 @@
                              onclick="document.getBindingParent(this).onLinkClick();"/>
           </xul:description>
         </xul:hbox>
-        <xul:toolbarbutton class="panel-promo-closebutton"
+        <xul:toolbarbutton class="panel-promo-closebutton close-icon"
                            oncommand="document.getBindingParent(this).onCloseButtonCommand();"
                            tooltiptext="&closeNotification.tooltip;"/>
       </xul:hbox>

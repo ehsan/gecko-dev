@@ -9,6 +9,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
+Cu.import("resource://services-sync/util.js");
 
 const SYNC_PREFS_BRANCH = "services.sync.";
 
@@ -64,6 +65,26 @@ WeaveService.prototype = {
     Weave.Service;
   },
 
+  get fxAccountsEnabled() {
+    // work out what identity manager to use.  This is stored in a preference;
+    // if the preference exists, we trust it.
+    let fxAccountsEnabled;
+    try {
+      fxAccountsEnabled = Services.prefs.getBoolPref("services.sync.fxaccounts.enabled");
+    } catch (_) {
+      // That pref doesn't exist - so let's assume this is a first-run.
+      // If sync already appears configured, we assume it's for the legacy
+      // provider.
+      let prefs = Services.prefs.getBranch(SYNC_PREFS_BRANCH);
+      fxAccountsEnabled = !prefs.prefHasUserValue("username");
+      Services.prefs.setBoolPref("services.sync.fxaccounts.enabled", fxAccountsEnabled);
+    }
+    // Currently we don't support toggling this pref after initialization, so
+    // inject the pref value as a regular boolean.
+    delete this.fxAccountsEnabled;
+    return this.fxAccountsEnabled = fxAccountsEnabled;
+  },
+
   observe: function (subject, topic, data) {
     switch (topic) {
     case "app-startup":
@@ -79,7 +100,6 @@ WeaveService.prototype = {
         notify: function() {
           // We only load more if it looks like Sync is configured.
           let prefs = Services.prefs.getBranch(SYNC_PREFS_BRANCH);
-
           if (!prefs.prefHasUserValue("username")) {
             return;
           }

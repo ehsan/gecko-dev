@@ -144,6 +144,9 @@ private:
   mozilla::dom::CSSValue* CreateTextAlignValue(uint8_t aAlign,
                                                bool aAlignTrue,
                                                const int32_t aTable[]);
+  // This indicates error by leaving mStyleContextHolder null.
+  void UpdateCurrentStyleSources(bool aNeedsLayoutFlush);
+  void ClearCurrentStyleSources();
 
 #define STYLE_STRUCT(name_, checkdata_cb_)                              \
   const nsStyle##name_ * Style##name_() {                               \
@@ -389,6 +392,7 @@ private:
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
   mozilla::dom::CSSValue* DoGetImageOrientation();
+  mozilla::dom::CSSValue* DoGetWillChange();
   mozilla::dom::CSSValue* DoGetOverflow();
   mozilla::dom::CSSValue* DoGetOverflowX();
   mozilla::dom::CSSValue* DoGetOverflowY();
@@ -396,6 +400,7 @@ private:
   mozilla::dom::CSSValue* DoGetPageBreakAfter();
   mozilla::dom::CSSValue* DoGetPageBreakBefore();
   mozilla::dom::CSSValue* DoGetPageBreakInside();
+  mozilla::dom::CSSValue* DoGetTouchAction();
   mozilla::dom::CSSValue* DoGetTransform();
   mozilla::dom::CSSValue* DoGetTransformOrigin();
   mozilla::dom::CSSValue* DoGetPerspective();
@@ -490,6 +495,9 @@ private:
   mozilla::dom::CSSValue* DoGetMask();
   mozilla::dom::CSSValue* DoGetMaskType();
   mozilla::dom::CSSValue* DoGetPaintOrder();
+
+  /* Custom properties */
+  mozilla::dom::CSSValue* DoGetCustomProperty(const nsAString& aPropertyName);
 
   nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);
   void SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);

@@ -7,7 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.home.HomePager;
+import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.mozglue.JNITarget;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -53,6 +53,10 @@ public class Tabs implements GeckoEventListener {
     private AccountManager mAccountManager;
     private OnAccountsUpdateListener mAccountListener = null;
 
+    private static final int LOAD_PROGRESS_START = 20;
+    private static final int LOAD_PROGRESS_LOCATION_CHANGE = 60;
+    private static final int LOAD_PROGRESS_LOADED = 80;
+
     public static final int LOADURL_NONE         = 0;
     public static final int LOADURL_NEW_TAB      = 1 << 0;
     public static final int LOADURL_USER_ENTERED = 1 << 1;
@@ -62,7 +66,6 @@ public class Tabs implements GeckoEventListener {
     public static final int LOADURL_DESKTOP      = 1 << 5;
     public static final int LOADURL_BACKGROUND   = 1 << 6;
     public static final int LOADURL_EXTERNAL     = 1 << 7;
-    public static final int LOADURL_READING_LIST = 1 << 8;
 
     private static final long PERSIST_TABS_AFTER_MILLISECONDS = 1000 * 5;
 
@@ -76,7 +79,9 @@ public class Tabs implements GeckoEventListener {
         @Override
         public void run() {
             try {
-                boolean syncIsSetup = SyncAccounts.syncAccountsExist(getAppContext());
+                final Context context = getAppContext();
+                boolean syncIsSetup = SyncAccounts.syncAccountsExist(context) ||
+                                      FirefoxAccounts.firefoxAccountsExist(context);
                 if (syncIsSetup) {
                     TabsAccessor.persistLocalTabs(getContentResolver(), getTabsInOrder());
                 }
@@ -161,7 +166,7 @@ public class Tabs implements GeckoEventListener {
         return count;
     }
 
-    public synchronized int isOpen(String url) {
+    public int isOpen(String url) {
         for (Tab tab : mOrder) {
             if (tab.getURL().equals(url)) {
                 return tab.getId();
@@ -411,10 +416,13 @@ public class Tabs implements GeckoEventListener {
                                           message.getInt("parentId"),
                                           message.getString("title"),
                                           message.getBoolean("isPrivate"));
+
+                    // If we added the tab as a stub, we should have already
+                    // selected it, so ignore this flag for stubbed tabs.
+                    if (message.getBoolean("selected"))
+                        selectTab(id);
                 }
 
-                if (message.getBoolean("selected"))
-                    selectTab(id);
                 if (message.getBoolean("delayLoad"))
                     tab.setState(Tab.STATE_DELAYED);
                 if (message.getBoolean("desktopMode"))
@@ -434,6 +442,7 @@ public class Tabs implements GeckoEventListener {
             } else if (event.equals("Tab:Select")) {
                 selectTab(tab.getId());
             } else if (event.equals("Content:LocationChange")) {
+                tab.setLoadProgress(LOAD_PROGRESS_LOCATION_CHANGE);
                 tab.handleLocationChange(message);
             } else if (event.equals("Content:SecurityChange")) {
                 tab.updateIdentityData(message.getJSONObject("identity"));
@@ -447,6 +456,7 @@ public class Tabs implements GeckoEventListener {
                     if ((state & GeckoAppShell.WPL_STATE_START) != 0) {
                         boolean showProgress = message.getBoolean("showProgress");
                         tab.handleDocumentStart(showProgress, message.getString("uri"));
+                        tab.setLoadProgress(LOAD_PROGRESS_START);
                         notifyListeners(tab, Tabs.TabEvents.START);
                     } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
                         tab.handleDocumentStop(message.getBoolean("success"));
@@ -454,6 +464,7 @@ public class Tabs implements GeckoEventListener {
                     }
                 }
             } else if (event.equals("Content:LoadError")) {
+                tab.setLoadProgress(LOAD_PROGRESS_LOADED);
                 notifyListeners(tab, Tabs.TabEvents.LOAD_ERROR);
             } else if (event.equals("Content:PageShow")) {
                 notifyListeners(tab, TabEvents.PAGE_SHOW);
@@ -466,6 +477,7 @@ public class Tabs implements GeckoEventListener {
                     tab.setBackgroundColor(Color.WHITE);
                 }
                 tab.setErrorType(message.optString("errorType"));
+                tab.setLoadProgress(LOAD_PROGRESS_LOADED);
                 notifyListeners(tab, Tabs.TabEvents.LOADED);
             } else if (event.equals("DOMTitleChanged")) {
                 tab.updateTitle(message.getString("title"));
@@ -636,32 +648,44 @@ public class Tabs implements GeckoEventListener {
     /**
      * Looks for an open tab with the given URL.
      * @param url       the URL of the tab we're looking for
+     *
+     * @return first Tab with the given URL, or null if there is no such tab.
+     */
+    public Tab getFirstTabForUrl(String url) {
+        return getFirstTabForUrlHelper(url, null);
+    }
+
+    /**
+     * Looks for an open tab with the given URL and private state.
+     * @param url       the URL of the tab we're looking for
      * @param isPrivate if true, only look for tabs that are private. if false,
      *                  only look for tabs that are non-private.
      *
-     * @return id of an open tab with the given URL; -1 if the tab doesn't exist.
+     * @return first Tab with the given URL, or null if there is no such tab.
      */
-    public int getTabIdForUrl(String url, boolean isPrivate) {
+    public Tab getFirstTabForUrl(String url, boolean isPrivate) {
+        return getFirstTabForUrlHelper(url, isPrivate);
+    }
+
+    private Tab getFirstTabForUrlHelper(String url, Boolean isPrivate) {
+        if (url == null) {
+            return null;
+        }
+
         for (Tab tab : mOrder) {
+            if (isPrivate != null && isPrivate != tab.isPrivate()) {
+                continue;
+            }
             String tabUrl = tab.getURL();
             if (AboutPages.isAboutReader(tabUrl)) {
                 tabUrl = ReaderModeUtils.getUrlFromAboutReader(tabUrl);
             }
-            if (TextUtils.equals(tabUrl, url) && isPrivate == tab.isPrivate()) {
-                return tab.getId();
+            if (url.equals(tabUrl)) {
+                return tab;
             }
         }
 
-        return -1;
-    }
-
-    public int getTabIdForUrl(String url) {
-        return getTabIdForUrl(url, Tabs.getInstance().getSelectedTab().isPrivate());
-    }
-
-    public synchronized Tab getTabForUrl(String url) {
-        int tabId = getTabIdForUrl(url);
-        return getTab(tabId);
+        return null;
     }
 
     /**
@@ -721,7 +745,6 @@ public class Tabs implements GeckoEventListener {
             args.put("delayLoad", delayLoad);
             args.put("desktopMode", desktopMode);
             args.put("selected", !background);
-            args.put("aboutHomePage", (flags & LOADURL_READING_LIST) != 0 ? HomePager.Page.READING_LIST : "");
 
             if ((flags & LOADURL_NEW_TAB) != 0) {
                 int tabId = getNextTabId();
@@ -766,7 +789,7 @@ public class Tabs implements GeckoEventListener {
      */
     private Bitmap getAboutPageFavicon(final String url) {
         int faviconSize = Math.round(mAppContext.getResources().getDimension(R.dimen.browser_toolbar_favicon_size));
-        return Favicons.getCachedFaviconForSize(url, faviconSize);
+        return Favicons.getSizedFaviconForPageFromCache(url, faviconSize);
     }
 
     /**
