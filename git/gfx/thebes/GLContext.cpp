@@ -352,11 +352,7 @@ GLContext::InitExtensions()
     const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
     char *exts = strdup((char *)extensions);
 
-#ifdef DEBUG
     static bool once = false;
-#else
-    const bool once = true;
-#endif
 
     if (!once) {
         printf_stderr("GL extensions: %s\n", exts);
@@ -386,9 +382,7 @@ GLContext::InitExtensions()
 
     free(exts);
 
-#ifdef DEBUG
     once = true;
-#endif
 }
 
 PRBool

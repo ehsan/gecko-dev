@@ -121,7 +121,6 @@ public:
 protected:
   bool RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                           const PRBool& useResponseHead,
-                          const RequestHeaderTuples& requestHeaders,
                           const PRBool& isFromCache,
                           const PRBool& cacheEntryAvailable,
                           const PRUint32& cacheExpirationTime,
@@ -182,7 +181,6 @@ private:
 
   void OnStartRequest(const nsHttpResponseHead& responseHead,
                           const PRBool& useResponseHead,
-                          const RequestHeaderTuples& requestHeaders,
                           const PRBool& isFromCache,
                           const PRBool& cacheEntryAvailable,
                           const PRUint32& cacheExpirationTime,
