@@ -61,8 +61,6 @@
 
 #include "json.h"
 
-#include "jsatominlines.h"
-
 JSClass js_JSONClass = {
     js_JSON_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
@@ -229,8 +227,7 @@ public:
 
     ~StringifyContext()
     {
-        if (STRING_BUFFER_OK(&gap))
-            js_FinishStringBuffer(&gap);
+        js_FinishStringBuffer(&gap);
     }
 
     JSONWriteCallback callback;
@@ -580,12 +577,11 @@ InitializeGap(JSContext *cx, jsval space, JSStringBuffer *sb)
         return WriteStringGap(cx, space, sb);
 
     if (JSVAL_IS_NUMBER(space)) {
-        jsdouble d = JSVAL_IS_INT(space)
-                     ? JSVAL_TO_INT(space)
-                     : js_DoubleToInteger(*JSVAL_TO_DOUBLE(space));
-        d = JS_MIN(10, d);
-        if (d >= 1)
-            js_RepeatChar(sb, jschar(' '), uint32(d));
+        uint32 i;
+        if (!JS_ValueToECMAUint32(cx, space, &i))
+            return JS_FALSE;
+
+        js_RepeatChar(sb, jschar(' '), i);
 
         if (!STRING_BUFFER_OK(sb)) {
             JS_ReportOutOfMemory(cx);

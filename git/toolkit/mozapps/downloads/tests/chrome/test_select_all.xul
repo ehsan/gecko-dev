@@ -116,7 +116,6 @@ function test()
         return;
 
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      win.focus();
 
       var checkSelectAndRemove = function(alreadyFocused)
       {

@@ -328,7 +328,7 @@ nsHTMLStyleElement::GetStyleSheetURL(PRBool* aIsInline,
     return;
   }
 
-  *aURI = GetHrefURIForAnchors().get();
+  GetHrefURIForAnchors(aURI);
   return;
 }
 

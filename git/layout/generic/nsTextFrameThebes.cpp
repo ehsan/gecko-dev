@@ -5958,19 +5958,10 @@ nsTextFrame::SetLength(PRInt32 aLength)
     f = static_cast<nsTextFrame*>(f->GetNextInFlow());
   }
 #ifdef DEBUG
-  f = this;
-  PRInt32 iterations = 0;
-  while (f && iterations < 10) {
+  f = static_cast<nsTextFrame*>(this->GetFirstContinuation());
+  while (f) {
     f->GetContentLength(); // Assert if negative length
     f = static_cast<nsTextFrame*>(f->GetNextContinuation());
-    ++iterations;
-  }
-  f = this;
-  iterations = 0;
-  while (f && iterations < 10) {
-    f->GetContentLength(); // Assert if negative length
-    f = static_cast<nsTextFrame*>(f->GetPrevContinuation());
-    ++iterations;
   }
 #endif
 }

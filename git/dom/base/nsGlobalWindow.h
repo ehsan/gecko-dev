@@ -608,7 +608,6 @@ protected:
   PRBool WindowExists(const nsAString& aName, PRBool aLookForCallerOnJSStack);
 
   already_AddRefed<nsIWidget> GetMainWidget();
-  nsIWidget* GetNearestWidget();
 
   void Freeze()
   {

@@ -161,7 +161,6 @@ public:
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
   gfxASurface             *GetThebesSurface();
-  NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   virtual nsresult        SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
                                                    PRInt32 aNativeKeyCode,
                                                    PRUint32 aModifierFlags,
@@ -418,7 +417,7 @@ protected:
   HBRUSH                mBrush;
   PRPackedBool          mIsTopWidgetWindow;
   PRPackedBool          mHas3DBorder;
-  PRPackedBool          mInDtor;
+  PRPackedBool          mIsDestroying;
   PRPackedBool          mIsVisible;
   PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mInWheelProcessing;

@@ -196,7 +196,7 @@ public:
   PRBool IsHTMLLink(nsIURI** aURI) const;
 
   // Used by A, AREA, LINK, and STYLE.
-  already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
+  nsresult GetHrefURIForAnchors(nsIURI** aURI) const;
 
   // As above, but makes sure to return a URI object that we can mutate with
   // impunity without changing our current URI.  That is, if the URI is cached

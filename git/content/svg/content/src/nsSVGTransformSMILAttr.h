@@ -63,7 +63,6 @@ public:
                                    const nsISMILAnimationElement* aSrcElement,
                                    nsSMILValue& aValue) const;
   virtual nsSMILValue  GetBaseValue() const;
-  virtual void         ClearAnimValue();
   virtual nsresult     SetAnimValue(const nsSMILValue& aValue);
 
 protected:

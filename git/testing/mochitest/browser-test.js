@@ -152,13 +152,8 @@ function testResult(aCondition, aName, aDiag, aIsTodo) {
     else
       this.result = "TEST-PASS";
   } else {
-    if (aDiag) {
-      if (typeof aDiag == "object" && "fileName" in aDiag) {
-        // we have an exception - print filename and linenumber information
-        this.msg += " at " + aDiag.fileName + ":" + aDiag.lineNumber;
-      }
+    if (aDiag)
       this.msg += " - " + aDiag;
-    }
     if (aIsTodo)
       this.result = "TEST-UNEXPECTED-PASS";
     else
