@@ -1796,6 +1796,8 @@ GetFirstFontMetrics(gfxFontGroup* aFontGroup)
   if (!aFontGroup)
     return gfxFont::Metrics();
   gfxFont* font = aFontGroup->GetFirstValidFont();
+  if (!font)
+    return gfxFont::Metrics();
   return font->GetMetrics(gfxFont::eHorizontal); // XXX vertical
 }
 
@@ -5680,6 +5682,8 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   }
 
   gfxFont* firstFont = aProvider.GetFontGroup()->GetFirstValidFont();
+  if (!firstFont)
+    return; // OOM
   gfxFont::Metrics
     decorationMetrics(firstFont->GetMetrics(gfxFont::eHorizontal)); // XXX vertical?
   decorationMetrics.underlineOffset =
@@ -6373,6 +6377,8 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
                                         GetFontSizeInflation());
   gfxFontGroup* fontGroup = fm->GetThebesFontGroup();
   gfxFont* firstFont = fontGroup->GetFirstValidFont();
+  if (!firstFont)
+    return false; // OOM
   const gfxFont::Metrics& metrics =
     firstFont->GetMetrics(gfxFont::eHorizontal); // XXX vertical?
   gfxFloat underlineOffset = fontGroup->GetUnderlineOffset();

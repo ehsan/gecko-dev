@@ -4784,17 +4784,17 @@ TypeCompartment::sweep(FreeOp *fop)
 void
 JSCompartment::sweepNewTypeObjectTable(TypeObjectWithNewScriptSet &table)
 {
-    MOZ_ASSERT(zone()->runtimeFromAnyThread()->isHeapCollecting());
+    MOZ_ASSERT(zone()->isCollecting());
     if (table.initialized()) {
         for (TypeObjectWithNewScriptSet::Enum e(table); !e.empty(); e.popFront()) {
             TypeObjectWithNewScriptEntry entry = e.front();
-            if (IsTypeObjectAboutToBeFinalizedFromAnyThread(entry.object.unsafeGet()) ||
-                (entry.newFunction && IsObjectAboutToBeFinalizedFromAnyThread(&entry.newFunction)))
+            if (IsTypeObjectAboutToBeFinalized(entry.object.unsafeGet()) ||
+                (entry.newFunction && IsObjectAboutToBeFinalized(&entry.newFunction)))
             {
                 e.removeFront();
             } else {
                 /* Any rekeying necessary is handled by fixupNewTypeObjectTable() below. */
-                MOZ_ASSERT(entry.object.unbarrieredGet() == e.front().object.unbarrieredGet());
+                MOZ_ASSERT(entry.object == e.front().object);
                 MOZ_ASSERT(entry.newFunction == e.front().newFunction);
             }
         }

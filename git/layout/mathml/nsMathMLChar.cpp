@@ -997,8 +997,10 @@ nsMathMLChar::SetFontFamily(nsPresContext*          aPresContext,
     // or if the same family name has been found
     gfxFont *firstFont = fm->GetThebesFontGroup()->GetFirstValidFont();
     FontFamilyList firstFontList;
-    firstFontList.Append(
-      FontFamilyName(firstFont->GetFontEntry()->FamilyName(), eUnquotedName));
+    if (firstFont) {
+      firstFontList.Append(
+        FontFamilyName(firstFont->GetFontEntry()->FamilyName(), eUnquotedName));
+    }
     if (aGlyphTable == &gGlyphTableList->mUnicodeTable ||
         firstFontList == familyList) {
       aFont.fontlist = familyList;

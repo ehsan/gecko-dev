@@ -9,7 +9,7 @@
 #ifndef LIBGLESV2_ANGLETYPES_H_
 #define LIBGLESV2_ANGLETYPES_H_
 
-#include "libGLESv2/Constants.h"
+#include "libGLESv2/constants.h"
 #include "common/RefCountObject.h"
 
 namespace gl

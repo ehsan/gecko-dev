@@ -36,7 +36,7 @@ public:
   SendPBlobConstructor(PBlobChild* actor,
                        const BlobConstructorParams& params);
 
-  jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
+  jsipc::JavaScriptChild* GetCPOWManager();
 
   virtual bool SendPBrowserConstructor(PBrowserChild* aActor,
                                        const IPCTabContext& aContext,

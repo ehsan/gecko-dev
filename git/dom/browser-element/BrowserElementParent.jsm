@@ -144,8 +144,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
 
   defineMethod('addNextPaintListener', this._addNextPaintListener);
   defineMethod('removeNextPaintListener', this._removeNextPaintListener);
-  defineNoReturnMethod('setActive', this._setActive);
-  defineMethod('getActive', 'this._getActive');
 
   let principal = this._frameElement.ownerDocument.nodePrincipal;
   let perm = Services.perms
@@ -587,14 +585,6 @@ BrowserElementParent.prototype = {
   _setVisible: function(visible) {
     this._sendAsyncMsg('set-visible', {visible: visible});
     this._frameLoader.visible = visible;
-  },
-
-  _setActive: function(active) {
-    this._frameLoader.visible = active;
-  },
-
-  _getActive: function() {
-    return this._frameLoader.visible;
   },
 
   _sendMouseEvent: function(type, x, y, button, clickCount, modifiers) {

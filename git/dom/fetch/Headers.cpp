@@ -7,6 +7,7 @@
 #include "mozilla/dom/Headers.h"
 
 #include "mozilla/ErrorResult.h"
+#include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/WorkerPrivate.h"
 #include "mozilla/Preferences.h"
 
@@ -80,39 +81,6 @@ Headers::Constructor(const GlobalObject& aGlobal,
   }
 
   return headers.forget();
-}
-
-// static
-already_AddRefed<Headers>
-Headers::Constructor(const GlobalObject& aGlobal,
-                     const OwningHeadersOrByteStringSequenceSequenceOrByteStringMozMap& aInit,
-                     ErrorResult& aRv)
-{
-  nsRefPtr<Headers> headers = new Headers(aGlobal.GetAsSupports());
-
-  if (aInit.IsHeaders()) {
-    headers->Fill(aInit.GetAsHeaders(), aRv);
-  } else if (aInit.IsByteStringSequenceSequence()) {
-    headers->Fill(aInit.GetAsByteStringSequenceSequence(), aRv);
-  } else if (aInit.IsByteStringMozMap()) {
-    headers->Fill(aInit.GetAsByteStringMozMap(), aRv);
-  }
-
-  if (NS_WARN_IF(aRv.Failed())) {
-    return nullptr;
-  }
-
-  return headers.forget();
-}
-
-Headers::Headers(const Headers& aOther)
-  : mOwner(aOther.mOwner)
-  , mGuard(aOther.mGuard)
-{
-  SetIsDOMBinding();
-  ErrorResult result;
-  Fill(aOther, result);
-  MOZ_ASSERT(!result.Failed());
 }
 
 void
@@ -232,12 +200,6 @@ Headers::Set(const nsACString& aName, const nsACString& aValue, ErrorResult& aRv
   } else {
     mList.AppendElement(Entry(lowerName, aValue));
   }
-}
-
-void
-Headers::Clear()
-{
-  mList.Clear();
 }
 
 void
@@ -366,5 +328,6 @@ Headers::Fill(const MozMap<nsCString>& aInit, ErrorResult& aRv)
     Append(NS_ConvertUTF16toUTF8(keys[i]), aInit.Get(keys[i]), aRv);
   }
 }
+
 } // namespace dom
 } // namespace mozilla

@@ -6,7 +6,6 @@
 #define CustomElf_h
 
 #include "ElfLoader.h"
-#include "BaseElf.h"
 #include "Logging.h"
 #include "Elfxx.h"
 
@@ -14,7 +13,7 @@
  * Library Handle class for ELF libraries we don't let the system linker
  * handle.
  */
-class CustomElf: public BaseElf, private ElfLoader::link_map
+class CustomElf: public LibHandle, private ElfLoader::link_map
 {
   friend class ElfLoader;
   friend class SEGVHandler;
@@ -32,7 +31,7 @@ public:
                                                const char *path, int flags);
 
   /**
-   * Inherited from LibHandle/BaseElf
+   * Inherited from LibHandle
    */
   virtual ~CustomElf();
   virtual void *GetSymbolPtr(const char *symbol) const;
@@ -56,6 +55,18 @@ public:
 
 private:
   /**
+   * Returns a pointer to the Elf Symbol in the Dynamic Symbol table
+   * corresponding to the given symbol name (with a pre-computed hash).
+   */
+  const Elf::Sym *GetSymbol(const char *symbol, unsigned long hash) const;
+
+  /**
+   * Returns the address corresponding to the given symbol name (with a
+   * pre-computed hash).
+   */
+  void *GetSymbolPtr(const char *symbol, unsigned long hash) const;
+
+  /**
    * Scan dependent libraries to find the address corresponding to the
    * given symbol name. This is used to find symbols that are undefined
    * in the Elf object.
@@ -66,13 +77,31 @@ private:
    * Private constructor
    */
   CustomElf(Mappable *mappable, const char *path)
-  : BaseElf(path)
+  : LibHandle(path)
   , mappable(mappable)
   , init(0)
   , fini(0)
   , initialized(false)
   , has_text_relocs(false)
   { }
+
+  /**
+   * Returns a pointer relative to the base address where the library is
+   * loaded.
+   */
+  void *GetPtr(const Elf::Addr offset) const
+  {
+    return base + offset;
+  }
+
+  /**
+   * Like the above, but returns a typed (const) pointer
+   */
+  template <typename T>
+  const T *GetPtr(const Elf::Addr offset) const
+  {
+    return reinterpret_cast<const T *>(base + offset);
+  }
 
   /**
    * Loads an Elf segment defined by the given PT_LOAD header.
@@ -137,6 +166,19 @@ private:
 
   /* Appropriated Mappable */
   mozilla::RefPtr<Mappable> mappable;
+
+  /* Base address where the library is loaded */
+  MappedPtr base;
+
+  /* String table */
+  Elf::Strtab strtab;
+
+  /* Symbol table */
+  UnsizedArray<Elf::Sym> symtab;
+
+  /* Buckets and chains for the System V symbol hash table */
+  Array<Elf::Word> buckets;
+  UnsizedArray<Elf::Word> chains;
 
   /* List of dependent libraries */
   std::vector<mozilla::RefPtr<LibHandle> > dependencies;
