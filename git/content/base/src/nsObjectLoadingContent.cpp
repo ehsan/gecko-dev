@@ -241,16 +241,6 @@ public:
     MOZ_ASSERT(aTarget);
   }
 
-  nsSimplePluginEvent(nsIContent* aTarget,
-                      nsIDocument* aDocument,
-                      const nsAString& aEvent)
-    : mTarget(aTarget)
-    , mDocument(aDocument)
-    , mEvent(aEvent)
-  {
-    MOZ_ASSERT(aTarget && aDocument);
-  }
-
   ~nsSimplePluginEvent() {}
 
   NS_IMETHOD Run();
@@ -713,7 +703,7 @@ nsObjectLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
   nsIDocument* ownerDoc = thisContent->OwnerDoc();
   ownerDoc->RemovePlugin(this);
 
-  if (mType == eType_Plugin && (mInstanceOwner || mInstantiating)) {
+  if (mType == eType_Plugin && mInstanceOwner) {
     // we'll let the plugin continue to run at least until we get back to
     // the event loop. If we get back to the event loop and the node
     // has still not been added back to the document then we tear down the
@@ -754,7 +744,7 @@ nsObjectLoadingContent::~nsObjectLoadingContent()
     NS_NOTREACHED("Should not be tearing down frame loaders at this point");
     mFrameLoader->Destroy();
   }
-  if (mInstanceOwner || mInstantiating) {
+  if (mInstanceOwner) {
     // This is especially bad as delayed stop will try to hold on to this
     // object...
     NS_NOTREACHED("Should not be tearing down a plugin at this point!");
@@ -782,7 +772,7 @@ nsObjectLoadingContent::InstantiatePluginInstance(bool aIsLoading)
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent *>(this));
 
-  nsCOMPtr<nsIDocument> doc = thisContent->GetCurrentDoc();
+  nsIDocument* doc = thisContent->GetCurrentDoc();
   if (!doc || !InActiveDocument(thisContent)) {
     NS_ERROR("Shouldn't be calling "
              "InstantiatePluginInstance without an active document");
@@ -904,10 +894,8 @@ nsObjectLoadingContent::InstantiatePluginInstance(bool aIsLoading)
     }
   }
 
-  nsCOMPtr<nsIRunnable> ev = \
-    new nsSimplePluginEvent(thisContent,
-                            doc,
-                            NS_LITERAL_STRING("PluginInstantiated"));
+  nsCOMPtr<nsIRunnable> ev = new nsSimplePluginEvent(thisContent,
+    NS_LITERAL_STRING("PluginInstantiated"));
   NS_DispatchToCurrentThread(ev);
 
   return NS_OK;
@@ -921,7 +909,7 @@ nsObjectLoadingContent::NotifyOwnerDocumentActivityChanged()
 
   // If we have a plugin we want to queue an event to stop it unless we are
   // moved into an active document before returning to the event loop.
-  if (mInstanceOwner || mInstantiating)
+  if (mInstanceOwner)
     QueueCheckPluginStopEvent();
 }
 
@@ -1085,10 +1073,8 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
     // Lost our frame. If we aren't going to be getting a new frame, e.g. we've
     // become display:none, we'll want to stop the plugin. Queue a
     // CheckPluginStopEvent
-    if (mInstanceOwner || mInstantiating) {
-      if (mInstanceOwner) {
-        mInstanceOwner->SetFrame(nullptr);
-      }
+    if (mInstanceOwner) {
+      mInstanceOwner->SetFrame(nullptr);
       QueueCheckPluginStopEvent();
     }
     return NS_OK;
@@ -2839,10 +2825,6 @@ nsObjectLoadingContent::StopPluginInstance()
   // Clear any pending events
   mPendingInstantiateEvent = nullptr;
   mPendingCheckPluginStopEvent = nullptr;
-
-  // If we're currently instantiating, clearing this will cause
-  // InstantiatePluginInstance's re-entrance check to destroy the created plugin
-  mInstantiating = false;
 
   if (!mInstanceOwner) {
     return NS_OK;

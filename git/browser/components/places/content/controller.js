@@ -694,10 +694,14 @@ PlacesController.prototype = {
     var selectedNode = this._view.selectedNode;
     if (selectedNode) {
       let itemId = selectedNode.itemId;
-      PlacesUtils.livemarks.getLivemark({ id: itemId })
-        .then(aLivemark => {
-          aLivemark.reload(true);
-        }, Components.utils.reportError);
+      PlacesUtils.livemarks.getLivemark(
+        { id: itemId },
+        (function(aStatus, aLivemark) {
+          if (Components.isSuccessCode(aStatus)) {
+            aLivemark.reload(true);
+          }
+        }).bind(this)
+      );
     }
   },
 

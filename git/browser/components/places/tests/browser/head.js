@@ -1,11 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-  "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-  "resource://gre/modules/commonjs/sdk/core/promise.js");
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 // We need to cache this before test runs...
 let cachedLeftPaneFolderIdGetter;
@@ -186,22 +182,6 @@ function addVisits(aPlaceInfo, aWindow, aCallback, aStack) {
   );
 }
 
-function synthesizeClickOnSelectedTreeCell(aTree, aOptions) {
-  let tbo = aTree.treeBoxObject;
-  if (tbo.view.selection.count != 1)
-     throw new Error("The test node should be successfully selected");
-  // Get selection rowID.
-  let min = {}, max = {};
-  tbo.view.selection.getRangeAt(0, min, max);
-  let rowID = min.value;
-  tbo.ensureRowIsVisible(rowID);
-  // Calculate the click coordinates.
-  let x = {}, y = {}, width = {}, height = {};
-  tbo.getCoordsForCellItem(rowID, aTree.columns[0], "text",
-                           x, y, width, height);
-  x = x.value + width.value / 2;
-  y = y.value + height.value / 2;
-  // Simulate the click.
-  EventUtils.synthesizeMouse(aTree.body, x, y, aOptions || {},
-                             aTree.ownerDocument.defaultView);
-}
+XPCOMUtils.defineLazyModuleGetter(this, "Promise",
+  "resource://gre/modules/commonjs/sdk/core/promise.js");
+

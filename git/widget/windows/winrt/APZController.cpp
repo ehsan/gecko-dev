@@ -228,28 +228,28 @@ APZController::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
 }
 
 void
-APZController::HandleDoubleTap(const CSSPoint& aPoint,
+APZController::HandleDoubleTap(const CSSIntPoint& aPoint,
                                int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid)
 {
 }
 
 void
-APZController::HandleSingleTap(const CSSPoint& aPoint,
+APZController::HandleSingleTap(const CSSIntPoint& aPoint,
                                int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid)
 {
 }
 
 void
-APZController::HandleLongTap(const CSSPoint& aPoint,
+APZController::HandleLongTap(const CSSIntPoint& aPoint,
                              int32_t aModifiers,
                              const ScrollableLayerGuid& aGuid)
 {
 }
 
 void
-APZController::HandleLongTapUp(const CSSPoint& aPoint,
+APZController::HandleLongTapUp(const CSSIntPoint& aPoint,
                                int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid)
 {

@@ -1094,7 +1094,6 @@ let BookmarkingUI = {
     let viewToolbarMenuitem = getPlacesAnonymousElement("view-toolbar");
     if (viewToolbarMenuitem) {
       // Update View bookmarks toolbar checkbox menuitem.
-      viewToolbarMenuitem.classList.add("subviewbutton");
       let personalToolbar = document.getElementById("PersonalToolbar");
       viewToolbarMenuitem.setAttribute("checked", !personalToolbar.collapsed);
     }
@@ -1107,8 +1106,7 @@ let BookmarkingUI = {
 
     new PlacesMenu(event, "place:folder=BOOKMARKS_MENU", {
       extraClasses: {
-        entry: "subviewbutton",
-        footer: "panel-subview-footer"
+        mainLevel: "subviewbutton"
       },
       insertionPoint: ".panel-subview-footer"
     });
@@ -1451,8 +1449,7 @@ let BookmarkingUI = {
                                                   "panelMenu_bookmarksMenu",
                                                   "panelMenu_bookmarksMenu", {
                                                     extraClasses: {
-                                                      entry: "subviewbutton",
-                                                      footer: "panel-subview-footer"
+                                                      mainLevel: "subviewbutton"
                                                     }
                                                   });
     aEvent.target.removeEventListener("ViewShowing", this);

@@ -155,10 +155,12 @@ WrapMode(gl::GLContext *aGl, bool aAllowRepeat)
 }
 
 CompositableDataGonkOGL::CompositableDataGonkOGL()
+ : mTexture(0)
 {
 }
 CompositableDataGonkOGL::~CompositableDataGonkOGL()
 {
+  DeleteTextureIfPresent();
 }
 
 gl::GLContext*
@@ -175,6 +177,28 @@ void CompositableDataGonkOGL::SetCompositor(Compositor* aCompositor)
 void CompositableDataGonkOGL::ClearData()
 {
   CompositableBackendSpecificData::ClearData();
+  DeleteTextureIfPresent();
+}
+
+GLuint CompositableDataGonkOGL::GetTexture()
+{
+  if (!mTexture) {
+    if (gl()->MakeCurrent()) {
+      gl()->fGenTextures(1, &mTexture);
+    }
+  }
+  return mTexture;
+}
+
+void
+CompositableDataGonkOGL::DeleteTextureIfPresent()
+{
+  if (mTexture) {
+    if (gl()->MakeCurrent()) {
+      gl()->fDeleteTextures(1, &mTexture);
+    }
+    mTexture = 0;
+  }
 }
 
 #if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
@@ -246,7 +270,6 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
                                      FlagsToGLFlags(mFlags),
                                      SurfaceFormatToImageFormat(aSurface->GetFormat()));
     }
-    ClearCachedFilter();
   }
 
   mTexImage->UpdateFromDataSource(aSurface, aDestRegion, aSrcOffset);
@@ -294,12 +317,11 @@ nsIntRect TextureImageTextureSourceOGL::GetTileRect()
 }
 
 void
-TextureImageTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
+TextureImageTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 {
   MOZ_ASSERT(mTexImage,
     "Trying to bind a TextureSource that does not have an underlying GL texture.");
   mTexImage->BindTexture(aTextureUnit);
-  SetFilter(mGL, aFilter);
 }
 
 SharedTextureSourceOGL::SharedTextureSourceOGL(CompositorOGL* aCompositor,
@@ -319,7 +341,7 @@ SharedTextureSourceOGL::SharedTextureSourceOGL(CompositorOGL* aCompositor,
 {}
 
 void
-SharedTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
+SharedTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 {
   if (!gl()) {
     NS_WARNING("Trying to bind a texture without a GLContext");
@@ -333,7 +355,7 @@ SharedTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
     NS_ERROR("Failed to bind shared texture handle");
     return;
   }
-  ApplyFilterToBoundTexture(gl(), aFilter, mTextureTarget);
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
 void
@@ -455,12 +477,11 @@ SharedTextureHostOGL::GetFormat() const
 }
 
 void
-StreamTextureSourceOGL::BindTexture(GLenum activetex, gfx::Filter aFilter)
+StreamTextureSourceOGL::BindTexture(GLenum activetex)
 {
   MOZ_ASSERT(gl());
   gl()->fActiveTexture(activetex);
   gl()->fBindTexture(mTextureTarget, mTextureHandle);
-  SetFilter(gl(), aFilter);
 }
 
 bool
@@ -541,8 +562,6 @@ StreamTextureSourceOGL::RetrieveTextureFromStream()
   gl()->fTexParameteri(mTextureTarget,
                       LOCAL_GL_TEXTURE_WRAP_T,
                       LOCAL_GL_CLAMP_TO_EDGE);
-
-  ClearCachedFilter();
 
   return true;
 }
@@ -712,6 +731,19 @@ TextureImageDeprecatedTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage
     return;
   }
 
+#ifdef MOZ_WIDGET_GONK
+  if (mCompositableBackendData) {
+    // on gonk, this class is used as a fallback from gralloc buffer.
+    // There is a case this class is used with GrallocDeprecatedTextureHostOGL
+    // under same CompositableHost. if it happens, a gralloc buffer of
+    // GrallocDeprecatedTextureHostOGL needs to be unbounded from a texture,
+    // when the gralloc buffer is not rendered.
+    // Establish the unbound by deleting the texture.
+    // See Bug 916264.
+    static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->DeleteTextureIfPresent();
+  }
+#endif
+
   AutoOpenSurface surf(OPEN_READ_ONLY, aImage);
   gfx::IntSize size = surf.Size();
   TextureImage::ImageFormat format = surf.ImageFormat();
@@ -776,11 +808,10 @@ TiledDeprecatedTextureHostOGL::~TiledDeprecatedTextureHostOGL()
 }
 
 void
-TiledDeprecatedTextureHostOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
+TiledDeprecatedTextureHostOGL::BindTexture(GLenum aTextureUnit)
 {
   mGL->fActiveTexture(aTextureUnit);
   mGL->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextureHandle);
-  SetFilter(mGL, aFilter);
 }
 
 static void
@@ -842,9 +873,10 @@ TiledDeprecatedTextureHostOGL::Update(gfxReusableSurfaceWrapper* aReusableSurfac
     SetFlags(aFlags);
     mGL->fGenTextures(1, &mTextureHandle);
     mGL->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextureHandle);
+    mGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+    mGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
     mGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
     mGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-    ClearCachedFilter();
   } else {
     mGL->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextureHandle);
     // We're re-using a texture, but the format may change. Update the memory
@@ -1058,7 +1090,7 @@ GrallocDeprecatedTextureHostOGL::gl() const
   return mCompositor ? mCompositor->gl() : nullptr;
 }
 
-void GrallocDeprecatedTextureHostOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
+void GrallocDeprecatedTextureHostOGL::BindTexture(GLenum aTextureUnit)
 {
   PROFILER_LABEL("Gralloc", "BindTexture");
   /*
@@ -1081,7 +1113,7 @@ void GrallocDeprecatedTextureHostOGL::BindTexture(GLenum aTextureUnit, gfx::Filt
 
   gl()->fActiveTexture(aTextureUnit);
   gl()->fBindTexture(mTextureTarget, tex);
-  ApplyFilterToBoundTexture(gl(), aFilter, mTextureTarget);
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
 bool
@@ -1164,7 +1196,7 @@ GLuint
 GrallocDeprecatedTextureHostOGL::GetGLTexture()
 {
   mCompositableBackendData->SetCompositor(mCompositor);
-  return mCompositor->GetTemporaryTexture(LOCAL_GL_TEXTURE0);
+  return static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->GetTexture();
 }
 
 #endif // MOZ_WIDGET_GONK

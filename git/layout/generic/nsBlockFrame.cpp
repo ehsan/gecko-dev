@@ -456,10 +456,9 @@ nsBlockFrame::GetCaretBaseline() const
   nsRefPtr<nsFontMetrics> fm;
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm), inflation);
-  nscoord lineHeight =
-    nsHTMLReflowState::CalcLineHeight(GetContent(), StyleContext(),
-                                      contentRect.height, inflation);
-  return nsLayoutUtils::GetCenteredFontBaseline(fm, lineHeight) + bp.top;
+  return nsLayoutUtils::GetCenteredFontBaseline(fm, nsHTMLReflowState::
+      CalcLineHeight(StyleContext(), contentRect.height, inflation)) +
+    bp.top;
 }
 
 /////////////////////////////////////////////////////////////////////////////

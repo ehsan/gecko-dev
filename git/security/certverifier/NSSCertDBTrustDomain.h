@@ -19,8 +19,6 @@ void DisableMD5();
 
 extern const char BUILTIN_ROOTS_MODULE_DEFAULT_NAME[];
 
-void PORT_Free_string(char* str);
-
 // The dir parameter is the path to the directory containing the NSS builtin
 // roots module. Usually this is the same as the path to the other NSS shared
 // libraries. If it is null then the (library) path will be searched.
@@ -57,7 +55,7 @@ public:
     LocalOnlyOCSPForEV = 4,
   };
   NSSCertDBTrustDomain(SECTrustType certDBTrustType, OCSPFetching ocspFetching,
-                       OCSPCache& ocspCache, void* pinArg);
+                       void* pinArg);
 
   virtual SECStatus FindPotentialIssuers(
                         const SECItem* encodedIssuerName,
@@ -79,13 +77,8 @@ public:
                        /*optional*/ const SECItem* stapledOCSPResponse);
 
 private:
-  SECStatus VerifyAndMaybeCacheEncodedOCSPResponse(
-    const CERTCertificate* cert, CERTCertificate* issuerCert, PRTime time,
-    const SECItem* encodedResponse);
-
   const SECTrustType mCertDBTrustType;
   const OCSPFetching mOCSPFetching;
-  OCSPCache& mOCSPCache; // non-owning!
   void* mPinArg; // non-owning!
 };
 

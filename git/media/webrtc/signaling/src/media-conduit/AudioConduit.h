@@ -163,12 +163,10 @@ public:
                       mCurSendCodecConfig(nullptr),
                       mCaptureDelay(150),
                       mEchoOn(true),
-                      mEchoCancel(webrtc::kEcAec),
+                      mEchoCancel(webrtc::kEcAec)
 #ifdef MOZILLA_INTERNAL_API
-                      mLastTimestamp(0),
+                      , mLastTimestamp(0)
 #endif // MOZILLA_INTERNAL_API
-                      mSamples(0),
-                      mLastSyncLog(0)
   {
   }
 
@@ -180,9 +178,6 @@ public:
   webrtc::VoiceEngine* GetVoiceEngine() { return mVoiceEngine; }
   bool GetLocalSSRC(unsigned int* ssrc);
   bool GetRemoteSSRC(unsigned int* ssrc);
-  bool GetAVStats(int32_t* jitterBufferDelayMs,
-                  int32_t* playoutBufferDelayMs,
-                  int32_t* avSyncOffsetMs);
   bool GetRTPStats(unsigned int* jitterMs, unsigned int* cumulativeLost);
   bool GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,
                              unsigned int* jitterMs,
@@ -269,9 +264,6 @@ private:
 #ifdef MOZILLA_INTERNAL_API
   uint32_t mLastTimestamp;
 #endif // MOZILLA_INTERNAL_API
-
-  uint32_t mSamples;
-  uint32_t mLastSyncLog;
 };
 
 } // end namespace

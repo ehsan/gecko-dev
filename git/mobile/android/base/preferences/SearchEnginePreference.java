@@ -133,13 +133,13 @@ public class SearchEnginePreference extends CustomListPreference {
             if (mFaviconView != null) {
                 desiredWidth = mFaviconView.getWidth();
             } else {
-                // largestFaviconSize is initialized when Favicons is attached to a
+                // sLargestFaviconSize is initialized when Favicons is attached to a
                 // context, which occurs during GeckoApp.onCreate. That might not
                 // ever happen (leaving it at 0), so we fall back.
-                if (Favicons.largestFaviconSize == 0) {
+                if (Favicons.sLargestFaviconSize == 0) {
                     desiredWidth = 128;
                 } else {
-                    desiredWidth = Favicons.largestFaviconSize;
+                    desiredWidth = Favicons.sLargestFaviconSize;
                 }
             }
 

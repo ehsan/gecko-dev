@@ -2468,13 +2468,12 @@ nsHTMLReflowState::CalcLineHeight() const
     nsLayoutUtils::IsNonWrapperBlock(frame) ? ComputedHeight() :
     (mCBReflowState ? mCBReflowState->ComputedHeight() : NS_AUTOHEIGHT);
 
-  return CalcLineHeight(frame->GetContent(), frame->StyleContext(), blockHeight,
+  return CalcLineHeight(frame->StyleContext(), blockHeight,
                         nsLayoutUtils::FontSizeInflationFor(frame));
 }
 
 /* static */ nscoord
-nsHTMLReflowState::CalcLineHeight(nsIContent* aContent,
-                                  nsStyleContext* aStyleContext,
+nsHTMLReflowState::CalcLineHeight(nsStyleContext* aStyleContext,
                                   nscoord aBlockHeight,
                                   float aFontSizeInflation)
 {
@@ -2484,16 +2483,6 @@ nsHTMLReflowState::CalcLineHeight(nsIContent* aContent,
     ComputeLineHeight(aStyleContext, aBlockHeight, aFontSizeInflation);
 
   NS_ASSERTION(lineHeight >= 0, "ComputeLineHeight screwed up");
-
-  if (aContent && aContent->IsHTML(nsGkAtoms::input)) {
-    // For Web-compatibility, input elements cannot have a line-height
-    // smaller than one.
-    nscoord lineHeightOne =
-      aFontSizeInflation * aStyleContext->StyleFont()->mFont.size;
-    if (lineHeight < lineHeightOne) {
-      lineHeight = lineHeightOne;
-    }
-  }
 
   return lineHeight;
 }

@@ -14,9 +14,7 @@
 #include "mozilla/RefPtr.h"
 #include "nsIMemoryReporter.h"          // for nsIMemoryReporter
 #include "mozilla/Atomics.h"            // for Atomic
-#include "mozilla/layers/LayersMessages.h" // for ShmemSection
 #include "LayersTypes.h"
-#include <vector>
 
 /*
  * FIXME [bjacob] *** PURE CRAZYNESS WARNING ***
@@ -108,20 +106,6 @@ public:
   virtual bool AllocUnsafeShmem(size_t aSize,
                                 mozilla::ipc::SharedMemory::SharedMemoryType aType,
                                 mozilla::ipc::Shmem* aShmem) = 0;
-
-  /**
-   * Allocate memory in shared memory that can always be accessed by both
-   * processes at a time. Safety is left for the user of the memory to care
-   * about.
-   */
-  bool AllocShmemSection(size_t aSize,
-                         mozilla::layers::ShmemSection* aShmemSection);
-
-  /**
-   * Deallocates a shmem section.
-   */
-  void FreeShmemSection(mozilla::layers::ShmemSection& aShmemSection);
-
   /**
    * Deallocate memory allocated by either AllocShmem or AllocUnsafeShmem.
    */
@@ -174,12 +158,7 @@ protected:
                                               SurfaceDescriptor* aBuffer);
 
 
-  virtual ~ISurfaceAllocator();
-
-  void ShrinkShmemSectionHeap();
-
-  // This is used to implement an extremely simple & naive heap allocator.
-  std::vector<mozilla::ipc::Shmem> mUsedShmems;
+  virtual ~ISurfaceAllocator() {}
 
   friend class detail::RefCounted<ISurfaceAllocator, detail::AtomicRefCount>;
 };

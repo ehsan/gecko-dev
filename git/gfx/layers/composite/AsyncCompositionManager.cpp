@@ -662,7 +662,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
 
   CSSToLayerScale geckoZoom = metrics.LayersPixelsPerCSSPixel();
 
-  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.GetScrollOffset() * geckoZoom);
+  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.mScrollOffset * geckoZoom);
 
   if (mIsFirstPaint) {
     mContentRect = metrics.mScrollableRect;
@@ -694,7 +694,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
   // however, we can assume there is no async zooming in progress and so the following statement
   // works fine.
   CSSToScreenScale userZoom(metrics.mDevPixelsPerCSSPixel * metrics.mCumulativeResolution * LayerToScreenScale(1));
-  ScreenPoint userScroll = metrics.GetScrollOffset() * userZoom;
+  ScreenPoint userScroll = metrics.mScrollOffset * userZoom;
   SyncViewportInfo(displayPort, geckoZoom, mLayersUpdated,
                    userScroll, userZoom, fixedLayerMargins,
                    offset);
@@ -713,7 +713,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer)
 
   LayerPoint geckoScroll(0, 0);
   if (metrics.IsScrollable()) {
-    geckoScroll = metrics.GetScrollOffset() * geckoZoom;
+    geckoScroll = metrics.mScrollOffset * geckoZoom;
   }
 
   LayerPoint translation = (userScroll / zoomAdjust) - geckoScroll;

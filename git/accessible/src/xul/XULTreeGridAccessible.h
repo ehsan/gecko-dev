@@ -106,7 +106,6 @@ protected:
 
   // XULTreeItemAccessibleBase
   mutable AccessibleHashtable mAccessibleCache;
-  nsString mCachedName;
 };
 
 
