@@ -67,10 +67,6 @@ flyoutpanel[visible] {
   width: 100%;
 }
 
-.flyoutpanel-contents[input="precise"] {
-  overflow: scroll;
-}
-
 .flyout-close-button {
   border: 0 none;
   -moz-appearance: none;

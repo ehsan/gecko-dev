@@ -181,9 +181,6 @@ DisableIncrementalGC(JSRuntime *rt);
 extern JS_FRIEND_API(void)
 DisableGenerationalGC(JSRuntime *rt);
 
-extern JS_FRIEND_API(void)
-EnableGenerationalGC(JSRuntime *rt);
-
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSRuntime *rt);
 

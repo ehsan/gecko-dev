@@ -1018,8 +1018,8 @@ Class MapObject::class_ = {
     finalize,
     NULL,                    // checkAccess
     NULL,                    // call
-    NULL,                    // hasInstance
     NULL,                    // construct
+    NULL,                    // hasInstance
     mark
 };
 
@@ -1577,8 +1577,8 @@ Class SetObject::class_ = {
     finalize,
     NULL,                    // checkAccess
     NULL,                    // call
-    NULL,                    // hasInstance
     NULL,                    // construct
+    NULL,                    // hasInstance
     mark
 };
 

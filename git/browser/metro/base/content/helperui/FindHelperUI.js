@@ -96,13 +96,11 @@ var FindHelperUI = {
             this.goToNext();
           }
         }
-        break;
 
       case "MozAppbarShowing":
         if (aEvent.target != this._container) {
           this.hide();
         }
-        break;
     }
   },
 

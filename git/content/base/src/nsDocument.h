@@ -94,7 +94,6 @@ class nsWindowSizes;
 class nsHtml5TreeOpExecutor;
 class nsDocumentOnStack;
 class nsPointerLockPermissionRequest;
-class nsISecurityConsoleMessage;
 
 namespace mozilla {
 namespace dom {
@@ -755,7 +754,6 @@ public:
 
 private:
   nsRadioGroupStruct* GetRadioGroupInternal(const nsAString& aName) const;
-  void SendToConsole(nsCOMArray<nsISecurityConsoleMessage>& aMessages);
 
 public:
   // nsIDOMNode

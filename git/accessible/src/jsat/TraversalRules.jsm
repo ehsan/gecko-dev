@@ -43,8 +43,6 @@ const ROLE_TERM = Ci.nsIAccessibleRole.ROLE_TERM;
 const ROLE_SEPARATOR = Ci.nsIAccessibleRole.ROLE_SEPARATOR;
 const ROLE_TABLE = Ci.nsIAccessibleRole.ROLE_TABLE;
 const ROLE_INTERNAL_FRAME = Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME;
-const ROLE_PARAGRAPH = Ci.nsIAccessibleRole.ROLE_PARAGRAPH;
-const ROLE_SECTION = Ci.nsIAccessibleRole.ROLE_SECTION;
 
 this.EXPORTED_SYMBOLS = ['TraversalRules'];
 
@@ -249,19 +247,6 @@ this.TraversalRules = {
 
   PageTab: new BaseTraversalRule(
     [ROLE_PAGETAB]),
-
-  Paragraph: new BaseTraversalRule(
-    [ROLE_PARAGRAPH,
-     ROLE_SECTION],
-    function Paragraph_match(aAccessible) {
-      for (let child = aAccessible.firstChild; child; child = child.nextSibling) {
-        if (child.role === ROLE_TEXT_LEAF) {
-          return FILTER_MATCH | FILTER_IGNORE_SUBTREE;
-        }
-      }
-
-      return FILTER_IGNORE;
-    }),
 
   RadioButton: new BaseTraversalRule(
     [ROLE_RADIOBUTTON,

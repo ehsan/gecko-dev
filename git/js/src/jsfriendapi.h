@@ -1475,10 +1475,6 @@ class JSJitGetterCallArgs : protected JS::MutableHandleValue
       : JS::MutableHandleValue(args.rval())
     {}
 
-    explicit JSJitGetterCallArgs(JS::Rooted<JS::Value>* rooted)
-      : JS::MutableHandleValue(rooted)
-    {}
-
     JS::MutableHandleValue rval() {
         return *this;
     }
@@ -1492,10 +1488,10 @@ class JSJitSetterCallArgs : protected JS::MutableHandleValue
 {
   public:
     explicit JSJitSetterCallArgs(const JS::CallArgs& args)
-      : JS::MutableHandleValue(args[0])
+      : JS::MutableHandleValue(args.handleAt(0))
     {}
 
-    JS::MutableHandleValue operator[](unsigned i) {
+    JS::MutableHandleValue handleAt(unsigned i) {
         MOZ_ASSERT(i == 0);
         return *this;
     }
@@ -1529,8 +1525,8 @@ class JSJitMethodCallArgs : protected JS::detail::CallArgsBase<JS::detail::NoUse
 
     unsigned length() const { return Base::length(); }
 
-    JS::MutableHandleValue operator[](unsigned i) const {
-        return Base::operator[](i);
+    JS::MutableHandleValue handleAt(unsigned i) const {
+        return Base::handleAt(i);
     }
 
     bool hasDefined(unsigned i) const {

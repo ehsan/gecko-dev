@@ -2281,7 +2281,6 @@ struct nsStyleFilter {
     eBlur,
     eBrightness,
     eContrast,
-    eHueRotate,
     eInvert,
     eOpacity,
     eGrayscale,
@@ -2291,7 +2290,7 @@ struct nsStyleFilter {
 
   Type mType;
   nsIURI* mURL;
-  nsStyleCoord mFilterParameter; // coord, percent, factor, angle
+  nsStyleCoord mCoord;
   // FIXME: Add a nsCSSShadowItem when we implement drop shadow.
 };
 

@@ -52,12 +52,6 @@ class Loop
     // the loop is first entered and where hoisted instructions will be placed.
     MBasicBlock* preLoop_;
 
-    // This indicates whether the loop contains calls or other things which
-    // clobber most or all floating-point registers. In such loops,
-    // floating-point constants should not be hoisted unless it enables further
-    // hoisting.
-    bool containsPossibleCall_;
-
     bool hoistInstructions(InstructionQueue &toHoist);
 
     // Utility methods for invariance testing and instruction hoisting.
@@ -78,8 +72,6 @@ class Loop
     inline bool isHoistable(const MDefinition *ins) const {
         return ins->isMovable() && !ins->isEffectful() && !ins->neverHoist();
     }
-
-    bool requiresHoistedUse(const MDefinition *ins) const;
 };
 
 } /* namespace anonymous */
@@ -124,8 +116,7 @@ LICM::analyze()
 
 Loop::Loop(MIRGenerator *mir, MBasicBlock *header)
   : mir(mir),
-    header_(header),
-    containsPossibleCall_(false)
+    header_(header)
 {
     preLoop_ = header_->getPredecessor(0);
 }
@@ -183,11 +174,6 @@ Loop::init()
         for (MInstructionIterator i = block->begin(); i != block->end(); i++) {
             MInstruction *ins = *i;
 
-            // Remember whether this loop contains anything which clobbers most
-            // or all floating-point registers. This is just a rough heuristic.
-            if (ins->possiblyCalls())
-                containsPossibleCall_ = true;
-
             if (isHoistable(ins)) {
                 if (!insertInWorklist(ins))
                     return LoopReturn_Error;
@@ -240,32 +226,16 @@ Loop::optimize()
 }
 
 bool
-Loop::requiresHoistedUse(const MDefinition *ins) const
-{
-    if (ins->isConstantElements() || ins->isBox())
-        return true;
-
-    // Integer constants can often be folded as immediates and aren't worth
-    // hoisting on their own, in general. Floating-point constants typically
-    // are worth hoisting, unless they'll end up being spilled (eg. due to a
-    // call).
-    if (ins->isConstant() && (ins->type() != MIRType_Double || containsPossibleCall_))
-        return true;
-
-    return false;
-}
-
-bool
 Loop::hoistInstructions(InstructionQueue &toHoist)
 {
     // Iterate in post-order (uses before definitions)
     for (int32_t i = toHoist.length() - 1; i >= 0; i--) {
         MInstruction *ins = toHoist[i];
 
-        // Don't hoist a cheap constant if it doesn't enable us to hoist one of
-        // its uses. We want those instructions as close as possible to their
-        // use, to facilitate folding and minimize register pressure.
-        if (requiresHoistedUse(ins)) {
+        // Don't hoist MConstantElements, MConstant and MBox
+        // if it doesn't enable us to hoist one of its uses.
+        // We want those instructions as close as possible to their use.
+        if (ins->isConstantElements() || ins->isConstant() || ins->isBox()) {
             bool loopInvariantUse = false;
             for (MUseDefIterator use(ins); use; use++) {
                 if (use.def()->isLoopInvariant()) {

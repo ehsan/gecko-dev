@@ -6,8 +6,6 @@
 
 /* PR time code. */
 
-#include "prmjtime.h"
-
 #include "mozilla/MathAlgorithms.h"
 
 #ifdef SOLARIS
@@ -16,10 +14,11 @@
 #include <string.h>
 #include <time.h>
 
-#include "jslock.h"
 #include "jsprf.h"
+#include "jslock.h"
 #include "jstypes.h"
 #include "jsutil.h"
+#include "prmjtime.h"
 
 #define PRMJ_DO_MILLISECONDS 1
 

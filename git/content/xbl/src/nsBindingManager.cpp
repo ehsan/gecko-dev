@@ -1114,7 +1114,7 @@ nsBindingManager::Traverse(nsIContent *aContent,
     return;
   }
 
-  if (mBoundContentSet.IsInitialized() && mBoundContentSet.Contains(aContent)) {
+  if (mBoundContentSet.Contains(aContent)) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[via binding manager] mBoundContentSet entry");
     cb.NoteXPCOMChild(aContent);
   }
