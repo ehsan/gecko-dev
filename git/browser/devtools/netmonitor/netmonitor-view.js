@@ -2001,9 +2001,6 @@ CustomRequestView.prototype = {
 function NetworkDetailsView() {
   dumpn("NetworkDetailsView was instantiated");
 
-  // The ToolSidebar requires the panel object to be able to emit events.
-  EventEmitter.decorate(this);
-
   this._onTabSelect = this._onTabSelect.bind(this);
 };
 
@@ -2028,10 +2025,6 @@ NetworkDetailsView.prototype = {
     dumpn("Initializing the NetworkDetailsView");
 
     this.widget = $("#event-details-pane");
-    this.sidebar = new ToolSidebar(this.widget, this, "netmonitor", {
-      disableTelemetry: true,
-      showAllTabsMenu: true
-    });
 
     this._headers = new VariablesView($("#all-headers"),
       Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
@@ -2072,7 +2065,7 @@ NetworkDetailsView.prototype = {
    */
   destroy: function() {
     dumpn("Destroying the NetworkDetailsView");
-    this.sidebar.destroy();
+
     $("tabpanels", this.widget).removeEventListener("select", this._onTabSelect);
   },
 
@@ -2097,7 +2090,8 @@ NetworkDetailsView.prototype = {
     let isHtml = RequestsMenuView.prototype.isHtml({ attachment: aData });
 
     // Show the "Preview" tabpanel only for plain HTML responses.
-    this.sidebar.toggleTab(isHtml, "preview-tab", "preview-tabpanel");
+    $("#preview-tab").hidden = !isHtml;
+    $("#preview-tabpanel").hidden = !isHtml;
 
     // Show the "Security" tab only for requests that
     //   1) are https (state != insecure)

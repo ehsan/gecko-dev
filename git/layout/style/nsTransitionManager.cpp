@@ -229,8 +229,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
                                      &startedAny, &whichStarted);
         }
       } else if (nsCSSProps::IsShorthand(property)) {
-        CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(
-            subprop, property, nsCSSProps::eEnabledForAllContent) {
+        CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subprop, property) {
           ConsiderStartingTransition(*subprop, t, aElement, collection,
                                      aOldStyleContext, aNewStyleContext,
                                      &startedAny, &whichStarted);
@@ -269,8 +268,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
             allTransitionProperties.AddProperty(p);
           }
         } else if (nsCSSProps::IsShorthand(property)) {
-          CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(
-              subprop, property, nsCSSProps::eEnabledForAllContent) {
+          CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(subprop, property) {
             allTransitionProperties.AddProperty(*subprop);
           }
         } else {
@@ -702,6 +700,10 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
             MOZ_ASSERT(player->GetSource()->Properties().Length() == 1,
                        "Should have one animation property for a transition");
             nsCSSProperty prop = player->GetSource()->Properties()[0].mProperty;
+            if (nsCSSProps::PropHasFlags(prop, CSS_PROPERTY_REPORT_OTHER_NAME))
+            {
+              prop = nsCSSProps::OtherNameFor(prop);
+            }
             TimeDuration duration =
               player->GetSource()->Timing().mIterationDuration;
             events.AppendElement(

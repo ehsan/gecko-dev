@@ -51,10 +51,6 @@ public:
   void operator++(int) { value++; }
   void operator--(int) { value--; }
 
-  // Do not define operator+=() or operator-=() here.  These will coerce via
-  // the implicit cast and built-in operators.  Defining explicit methods here
-  // will create ambiguity the compiler can't deal with.
-
   T* operator&() { return &value; }
 
   operator T&() { return value; }
@@ -70,8 +66,6 @@ public:
   DebugOnly& operator=(const T&) { return *this; }
   void operator++(int) { }
   void operator--(int) { }
-  DebugOnly& operator+=(const T&) { return *this; }
-  DebugOnly& operator-=(const T&) { return *this; }
 #endif
 
   /*

@@ -136,7 +136,7 @@ RtspControllerChild::RecvOnMediaDataAvailable(
                        const nsCString& data,
                        const uint32_t& length,
                        const uint32_t& offset,
-                       InfallibleTArray<RtspMetadataParam>&& metaArray)
+                       const InfallibleTArray<RtspMetadataParam>& metaArray)
 {
   nsRefPtr<RtspMetaData> meta = new RtspMetaData();
   nsresult rv = meta->DeserializeRtspMetaData(metaArray);
@@ -164,7 +164,7 @@ RtspControllerChild::GetMetaDataLength()
 bool
 RtspControllerChild::RecvOnConnected(
                        const uint8_t& index,
-                       InfallibleTArray<RtspMetadataParam>&& metaArray)
+                       const InfallibleTArray<RtspMetadataParam>& metaArray)
 {
   // Deserialize meta data.
   nsRefPtr<RtspMetaData> meta = new RtspMetaData();

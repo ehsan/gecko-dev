@@ -23,7 +23,6 @@ EXPORTS += [
     'nsCSSProperty.h',
     'nsCSSPropertySet.h',
     'nsCSSPropList.h',
-    'nsCSSPropLogicalGroupList.h',
     'nsCSSProps.h',
     'nsCSSPseudoClasses.h',
     'nsCSSPseudoClassList.h',

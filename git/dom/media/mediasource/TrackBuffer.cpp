@@ -549,15 +549,6 @@ TrackBuffer::DiscardDecoder()
 }
 
 void
-TrackBuffer::EndCurrentDecoder()
-{
-  ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-  if (mCurrentDecoder) {
-    mCurrentDecoder->GetResource()->Ended();
-  }
-}
-
-void
 TrackBuffer::Detach()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -618,12 +609,6 @@ TrackBuffer::ResetDecode()
   for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
     mDecoders[i]->GetReader()->ResetDecode();
   }
-}
-
-void
-TrackBuffer::ResetParserState()
-{
-  // TODO
 }
 
 const nsTArray<nsRefPtr<SourceBufferDecoder>>&

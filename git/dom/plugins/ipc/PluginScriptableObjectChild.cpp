@@ -753,7 +753,7 @@ PluginScriptableObjectChild::AnswerHasMethod(const PluginIdentifier& aId,
 
 bool
 PluginScriptableObjectChild::AnswerInvoke(const PluginIdentifier& aId,
-                                          InfallibleTArray<Variant>&& aArgs,
+                                          const InfallibleTArray<Variant>& aArgs,
                                           Variant* aResult,
                                           bool* aSuccess)
 {
@@ -823,7 +823,7 @@ PluginScriptableObjectChild::AnswerInvoke(const PluginIdentifier& aId,
 }
 
 bool
-PluginScriptableObjectChild::AnswerInvokeDefault(InfallibleTArray<Variant>&& aArgs,
+PluginScriptableObjectChild::AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
                                                  Variant* aResult,
                                                  bool* aSuccess)
 {
@@ -1074,7 +1074,7 @@ PluginScriptableObjectChild::AnswerEnumerate(InfallibleTArray<PluginIdentifier>*
 }
 
 bool
-PluginScriptableObjectChild::AnswerConstruct(InfallibleTArray<Variant>&& aArgs,
+PluginScriptableObjectChild::AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
                                              Variant* aResult,
                                              bool* aSuccess)
 {

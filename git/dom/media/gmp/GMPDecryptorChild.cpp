@@ -211,7 +211,7 @@ bool
 GMPDecryptorChild::RecvCreateSession(const uint32_t& aCreateSessionToken,
                                      const uint32_t& aPromiseId,
                                      const nsCString& aInitDataType,
-                                     InfallibleTArray<uint8_t>&& aInitData,
+                                     const nsTArray<uint8_t>& aInitData,
                                      const GMPSessionType& aSessionType)
 {
   if (!mSession) {
@@ -247,7 +247,7 @@ GMPDecryptorChild::RecvLoadSession(const uint32_t& aPromiseId,
 bool
 GMPDecryptorChild::RecvUpdateSession(const uint32_t& aPromiseId,
                                      const nsCString& aSessionId,
-                                     InfallibleTArray<uint8_t>&& aResponse)
+                                     const nsTArray<uint8_t>& aResponse)
 {
   if (!mSession) {
     return false;
@@ -294,7 +294,7 @@ GMPDecryptorChild::RecvRemoveSession(const uint32_t& aPromiseId,
 
 bool
 GMPDecryptorChild::RecvSetServerCertificate(const uint32_t& aPromiseId,
-                                            InfallibleTArray<uint8_t>&& aServerCert)
+                                            const nsTArray<uint8_t>& aServerCert)
 {
   if (!mSession) {
     return false;
@@ -309,7 +309,7 @@ GMPDecryptorChild::RecvSetServerCertificate(const uint32_t& aPromiseId,
 
 bool
 GMPDecryptorChild::RecvDecrypt(const uint32_t& aId,
-                               InfallibleTArray<uint8_t>&& aBuffer,
+                               const nsTArray<uint8_t>& aBuffer,
                                const GMPDecryptionData& aMetadata)
 {
   if (!mSession) {

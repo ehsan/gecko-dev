@@ -578,7 +578,7 @@ DownloadItem.prototype = {
 
 let gDownloadList = {
   downloadItemsMap: new Map(),
-  idToDownloadItemMap: new Map(),
+  downloadItems: {},
   _autoIncrementID: 0,
   downloadView: null,
   searchBox: null,
@@ -727,7 +727,7 @@ let gDownloadList = {
     this.downloadView.parentNode.replaceChild(empty, this.downloadView);
     this.downloadView = empty;
 
-    for (let downloadItem of this.idToDownloadItemMap.values()) {
+    for each (let downloadItem in this.downloadItems) {
       if (downloadItem.inProgress ||
           downloadItem.matchesSearch(this.searchTerms, this.searchAttributes)) {
         this.downloadView.appendChild(downloadItem.element);
@@ -773,7 +773,7 @@ let gDownloadList = {
     let button = document.getElementById("clearListButton");
 
     // The button is enabled if we have items in the list that we can clean up.
-    for (let downloadItem of this.idToDownloadItemMap.values()) {
+    for each (let downloadItem in this.downloadItems) {
       if (!downloadItem.inProgress &&
           downloadItem.matchesSearch(this.searchTerms, this.searchAttributes)) {
         button.disabled = false;
@@ -808,7 +808,8 @@ let gDownloadList = {
     }
 
     if (this.downloadView.selectedItem) {
-      let downloadItem = this._getSelectedDownloadItem();
+      let dl = this.downloadView.selectedItem;
+      let downloadItem = this.downloadItems[dl.getAttribute("id")];
 
       let idx = downloadItem.state;
       if (idx < 0) {
@@ -837,10 +838,12 @@ let gDownloadList = {
    */
   doDefaultForSelected: function() {
     // Make sure we have something selected.
-    let download = this._getSelectedDownloadItem();
-    if (!download) {
+    let item = this.downloadView.selectedItem;
+    if (!item) {
       return;
     }
+
+    let download = this.downloadItems[item.getAttribute("id")];
 
     // Get the default action (first item in the menu).
     let menuitem = document.getElementById(this.contextMenus[download.state][0]);
@@ -888,17 +891,17 @@ let gDownloadList = {
       elm = elm.parentNode;
     }
 
-    let downloadItem = this._getDownloadItemForElement(elm);
+    let downloadItem = this.downloadItems[elm.getAttribute("id")];
     downloadItem.doCommand(aCmd);
   },
 
   onDragStart: function(aEvent) {
-    let downloadItem = this._getSelectedDownloadItem();
-    if (!downloadItem) {
+    if (!this.downloadView.selectedItem) {
       return;
     }
 
     let dl = this.downloadView.selectedItem;
+    let downloadItem = this.downloadItems[dl.getAttribute("id")];
     let f = downloadItem.localFile;
     if (!f.exists()) {
       return;
@@ -980,7 +983,7 @@ let gDownloadList = {
     let totalSize = 0;
     let totalTransferred = 0;
 
-    for (let downloadItem of this.idToDownloadItemMap.values()) {
+    for each (let downloadItem in this.downloadItems) {
       if (!downloadItem.inProgress) {
         continue;
       }
@@ -1027,7 +1030,7 @@ let gDownloadList = {
 
     let downloadItem = new DownloadItem(newID, aDownload);
     this.downloadItemsMap.set(aDownload, downloadItem);
-    this.idToDownloadItemMap.set(newID, downloadItem);
+    this.downloadItems[newID] = downloadItem;
 
     if (downloadItem.inProgress ||
         downloadItem.matchesSearch(this.searchTerms, this.searchAttributes)) {
@@ -1085,7 +1088,7 @@ let gDownloadList = {
     }
 
     this.downloadItemsMap.delete(aDownload);
-    this.idToDownloadItemMap.delete(downloadItem.id);
+    delete this.downloadItems[downloadItem.id];
 
     this.removeFromView(downloadItem);
   },
@@ -1102,13 +1105,6 @@ let gDownloadList = {
 
     // We might have removed the last item, so update the clear list button.
     this.updateClearListButton();
-  },
-  _getDownloadItemForElement(element) {
-    return this.idToDownloadItemMap.get(element.getAttribute("id"));
-  },
-  _getSelectedDownloadItem() {
-    let dl = this.downloadView.selectedItem;
-    return dl ? this._getDownloadItemForElement(dl) : null;
   },
 };
 

@@ -73,8 +73,7 @@ let CallTreeView = {
   _onRangeChange: function (_, params) {
     // When a range is cleared, we'll have no beginAt/endAt data,
     // so the rebuild will just render all the data again.
-    let recording = PerformanceController.getCurrentRecording();
-    let profilerData = recording.getProfilerData();
+    let profilerData = PerformanceController.getProfilerData();
     let { beginAt, endAt } = params || {};
     this.render(profilerData, beginAt, endAt);
   },

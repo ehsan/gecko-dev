@@ -29,11 +29,6 @@ namespace mozilla {
 class ErrorResult;
 template <typename T> class AsyncEventRunner;
 
-enum MSRangeRemovalAction: uint8_t {
-  RUN = 0,
-  SKIP = 1
-};
-
 namespace dom {
 
 class GlobalObject;
@@ -134,7 +129,7 @@ private:
   void InitializationEvent();
 
   // SetDuration with no checks.
-  void SetDuration(double aDuration, MSRangeRemovalAction aAction);
+  void SetDuration(double aDuration);
 
   nsRefPtr<SourceBufferList> mSourceBuffers;
   nsRefPtr<SourceBufferList> mActiveSourceBuffers;

@@ -93,10 +93,6 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
                      const nsAString& aURI,
                      nsAString& aEscapedURI);
 
-private:
-  bool IsElementPreformatted(nsIContent* aNode);
-
-protected:
   nsCOMPtr<nsIEntityConverter> mEntityConverter;
 
   /*

@@ -1064,21 +1064,6 @@ GCRuntime::releaseArena(ArenaHeader *aheader, const AutoLockGC &lock)
     return aheader->chunk()->releaseArena(rt, aheader, lock);
 }
 
-void
-GCRuntime::decommitArena(ArenaHeader *aheader, AutoLockGC &lock)
-{
-    aheader->zone->usage.removeGCArena();
-    if (isBackgroundSweeping())
-        aheader->zone->threshold.updateForRemovedArena(tunables);
-
-    bool ok;
-    {
-        AutoUnlockGC unlock(lock);
-        ok = MarkPagesUnused(aheader, ArenaSize);
-    }
-    return aheader->chunk()->releaseArena(rt, aheader, lock, Chunk::ArenaDecommitState(ok));
-}
-
 GCRuntime::GCRuntime(JSRuntime *rt) :
     rt(rt),
     systemZone(nullptr),
@@ -2113,8 +2098,6 @@ PtrIsInRange(const void *ptr, const void *start, size_t length)
 static bool
 RelocateCell(Zone *zone, TenuredCell *src, AllocKind thingKind, size_t thingSize)
 {
-    JS::AutoSuppressGCAnalysis nogc(zone->runtimeFromMainThread());
-
     // Allocate a new cell.
     MOZ_ASSERT(zone == src->zone());
     void *dstAlloc = zone->arenas.allocateFromFreeList(thingKind, thingSize);
@@ -2390,7 +2373,7 @@ namespace gc {
 
 struct ArenasToUpdate
 {
-    explicit ArenasToUpdate(JSRuntime *rt);
+    ArenasToUpdate(JSRuntime *rt);
     bool done() { return initialized && arena == nullptr; }
     ArenaHeader* next();
     ArenaHeader *getArenasToUpdate(AutoLockHelperThreadState& lock, unsigned max);
@@ -2406,7 +2389,7 @@ struct ArenasToUpdate
 
 bool ArenasToUpdate::shouldProcessKind(unsigned kind)
 {
-    MOZ_ASSERT(kind < FINALIZE_LIMIT);
+    MOZ_ASSERT(kind >= 0 && kind < FINALIZE_LIMIT);
     return
         kind != FINALIZE_FAT_INLINE_STRING &&
         kind != FINALIZE_STRING &&
@@ -2739,16 +2722,6 @@ ReleaseArenaList(JSRuntime *rt, ArenaHeader *aheader, const AutoLockGC &lock)
     }
 }
 
-void
-DecommitArenaList(JSRuntime *rt, ArenaHeader *aheader, AutoLockGC &lock)
-{
-    ArenaHeader *next;
-    for (; aheader; aheader = next) {
-        next = aheader->next;
-        rt->gc.decommitArena(aheader, lock);
-    }
-}
-
 ArenaLists::~ArenaLists()
 {
     AutoLockGC lock(runtime_);
@@ -2793,7 +2766,7 @@ ArenaLists::forceFinalizeNow(FreeOp *fop, AllocKind thingKind, KeepArenasEnum ke
         return;
     arenaLists[thingKind].clear();
 
-    const size_t thingsPerArena = Arena::thingsPerArena(Arena::thingSize(thingKind));
+    size_t thingsPerArena = Arena::thingsPerArena(Arena::thingSize(thingKind));
     SortedArenaList finalizedSorted(thingsPerArena);
 
     SliceBudget budget;
@@ -2862,7 +2835,7 @@ ArenaLists::backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, ArenaHeader *
     AllocKind thingKind = listHead->getAllocKind();
     Zone *zone = listHead->zone;
 
-    const size_t thingsPerArena = Arena::thingsPerArena(Arena::thingSize(thingKind));
+    size_t thingsPerArena = Arena::thingsPerArena(Arena::thingSize(thingKind));
     SortedArenaList finalizedSorted(thingsPerArena);
 
     SliceBudget budget;
@@ -3194,7 +3167,7 @@ GCRuntime::maybeAllocTriggerZoneGC(Zone *zone, const AutoLockGC &lock)
         // The threshold has been surpassed, immediately trigger a GC,
         // which will be done non-incrementally.
         triggerZoneGC(zone, JS::gcreason::ALLOC_TRIGGER);
-    } else if (usedBytes >= igcThresholdBytes && interFrameGC) {
+    } else if (usedBytes >= igcThresholdBytes) {
         // Reduce the delay to the start of the next incremental slice.
         if (zone->gcDelayBytes < ArenaSize)
             zone->gcDelayBytes = 0;
@@ -3380,13 +3353,8 @@ GCRuntime::expireChunksAndArenas(bool shouldShrink, AutoLockGC &lock)
 }
 
 void
-GCRuntime::sweepBackgroundThings(ZoneList &zones, LifoAlloc &freeBlocks, ThreadType threadType)
+GCRuntime::sweepBackgroundThings(ZoneList &zones, ThreadType threadType)
 {
-    freeBlocks.freeAll();
-
-    if (zones.isEmpty())
-        return;
-
     // We must finalize thing kinds in the order specified by BackgroundFinalizePhases.
     ArenaHeader *emptyArenas = nullptr;
     FreeOp fop(rt, threadType);
@@ -3402,7 +3370,7 @@ GCRuntime::sweepBackgroundThings(ZoneList &zones, LifoAlloc &freeBlocks, ThreadT
     }
 
     AutoLockGC lock(rt);
-    DecommitArenaList(rt, emptyArenas, lock);
+    ReleaseArenaList(rt, emptyArenas, lock);
     while (!zones.isEmpty())
         zones.removeFront();
 }
@@ -3636,9 +3604,10 @@ GCHelperState::doSweep(AutoLockGC &lock)
             zones.transferFrom(rt->gc.backgroundSweepZones);
             LifoAlloc freeLifoAlloc(JSRuntime::TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
             freeLifoAlloc.transferFrom(&rt->gc.freeLifoAlloc);
-
             AutoUnlockGC unlock(lock);
-            rt->gc.sweepBackgroundThings(zones, freeLifoAlloc, BackgroundThread);
+
+            rt->gc.sweepBackgroundThings(zones, BackgroundThread);
+            freeLifoAlloc.freeAll();
         }
 
         bool shrinking = shrinkFlag;
@@ -5137,13 +5106,12 @@ GCRuntime::endSweepingZoneGroup()
     }
 
     /* Start background thread to sweep zones if required. */
-    ZoneList zones;
-    for (GCZoneGroupIter zone(rt); !zone.done(); zone.next())
-        zones.append(zone);
-    if (sweepOnBackgroundThread)
+    if (sweepOnBackgroundThread) {
+        ZoneList zones;
+        for (GCZoneGroupIter zone(rt); !zone.done(); zone.next())
+            zones.append(zone);
         queueZonesForBackgroundSweep(zones);
-    else
-        sweepBackgroundThings(zones, freeLifoAlloc, MainThread);
+    }
 
     /* Reset the list of arenas marked as being allocated during sweep phase. */
     while (ArenaHeader *arena = arenasAllocatedDuringSweep) {
@@ -5448,7 +5416,11 @@ GCRuntime::endSweepPhase(bool lastGC)
     if (!sweepOnBackgroundThread) {
         gcstats::AutoPhase ap(stats, gcstats::PHASE_DESTROY);
 
-        assertBackgroundSweepingFinished();
+        ZoneList zones;
+        for (GCZonesIter zone(rt); !zone.done(); zone.next())
+            zones.append(zone);
+        if (!zones.isEmpty())
+            sweepBackgroundThings(zones, MainThread);
 
         /*
          * Destroy arenas after we finished the sweeping so finalizers can
@@ -5460,6 +5432,8 @@ GCRuntime::endSweepPhase(bool lastGC)
             AutoLockGC lock(rt);
             expireChunksAndArenas(invocationKind == GC_SHRINK, lock);
         }
+
+        freeLifoAlloc.freeAll();
 
         /* Ensure the compartments get swept if it's the last GC. */
         if (lastGC)

@@ -368,7 +368,10 @@ DirectShowReader::HasVideo()
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-DirectShowReader::Seek(int64_t aTargetUs, int64_t aEndTime)
+DirectShowReader::Seek(int64_t aTargetUs,
+                       int64_t aStartTime,
+                       int64_t aEndTime,
+                       int64_t aCurrentTime)
 {
   nsresult res = SeekInternal(aTargetUs);
   if (NS_FAILED(res)) {

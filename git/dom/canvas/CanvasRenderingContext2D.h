@@ -269,7 +269,6 @@ public:
 
   void AddHitRegion(const HitRegionOptions& options, mozilla::ErrorResult& error);
   void RemoveHitRegion(const nsAString& id);
-  void ClearHitRegions();
 
   void DrawImage(const HTMLImageOrCanvasOrVideoElement& image,
                  double dx, double dy, mozilla::ErrorResult& error)

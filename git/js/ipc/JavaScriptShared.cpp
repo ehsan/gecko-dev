@@ -73,18 +73,6 @@ IdToObjectMap::remove(ObjectId id)
     table_.remove(id);
 }
 
-void
-IdToObjectMap::clear()
-{
-    table_.clear();
-}
-
-bool
-IdToObjectMap::empty() const
-{
-    return table_.empty();
-}
-
 ObjectToIdMap::ObjectToIdMap()
   : table_(nullptr)
 {
@@ -169,12 +157,6 @@ ObjectToIdMap::remove(JSObject *obj)
     table_->remove(obj);
 }
 
-void
-ObjectToIdMap::clear()
-{
-    table_->clear();
-}
-
 bool JavaScriptShared::sLoggingInitialized;
 bool JavaScriptShared::sLoggingEnabled;
 bool JavaScriptShared::sStackLoggingEnabled;
@@ -197,11 +179,6 @@ JavaScriptShared::JavaScriptShared(JSRuntime *rt)
                                          "dom.ipc.cpows.log.stack", false);
         }
     }
-}
-
-JavaScriptShared::~JavaScriptShared()
-{
-    MOZ_RELEASE_ASSERT(cpows_.empty());
 }
 
 bool

@@ -316,8 +316,7 @@ ZoneList::check() const
 #endif
 }
 
-bool
-ZoneList::isEmpty() const
+bool ZoneList::isEmpty() const
 {
     return head == nullptr;
 }

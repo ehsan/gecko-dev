@@ -92,7 +92,7 @@ private:
   virtual bool RecvCreateSession(const uint32_t& aCreateSessionToken,
                                  const uint32_t& aPromiseId,
                                  const nsCString& aInitDataType,
-                                 InfallibleTArray<uint8_t>&& aInitData,
+                                 const nsTArray<uint8_t>& aInitData,
                                  const GMPSessionType& aSessionType) MOZ_OVERRIDE;
 
   virtual bool RecvLoadSession(const uint32_t& aPromiseId,
@@ -100,7 +100,7 @@ private:
 
   virtual bool RecvUpdateSession(const uint32_t& aPromiseId,
                                  const nsCString& aSessionId,
-                                 InfallibleTArray<uint8_t>&& aResponse) MOZ_OVERRIDE;
+                                 const nsTArray<uint8_t>& aResponse) MOZ_OVERRIDE;
 
   virtual bool RecvCloseSession(const uint32_t& aPromiseId,
                                 const nsCString& aSessionId) MOZ_OVERRIDE;
@@ -109,12 +109,12 @@ private:
                                  const nsCString& aSessionId) MOZ_OVERRIDE;
 
   virtual bool RecvDecrypt(const uint32_t& aId,
-                           InfallibleTArray<uint8_t>&& aBuffer,
+                           const nsTArray<uint8_t>& aBuffer,
                            const GMPDecryptionData& aMetadata) MOZ_OVERRIDE;
 
   // Resolve/reject promise on completion.
   virtual bool RecvSetServerCertificate(const uint32_t& aPromiseId,
-                                        InfallibleTArray<uint8_t>&& aServerCert) MOZ_OVERRIDE;
+                                        const nsTArray<uint8_t>& aServerCert) MOZ_OVERRIDE;
 
   virtual bool RecvDecryptingComplete() MOZ_OVERRIDE;
 

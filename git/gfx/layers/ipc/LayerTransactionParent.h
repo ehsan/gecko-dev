@@ -103,7 +103,7 @@ public:
 protected:
   virtual bool RecvShutdown() MOZ_OVERRIDE;
 
-  virtual bool RecvUpdate(EditArray&& cset,
+  virtual bool RecvUpdate(const EditArray& cset,
                           const uint64_t& aTransactionId,
                           const TargetConfig& targetConfig,
                           const bool& isFirstPaint,
@@ -113,7 +113,7 @@ protected:
                           const mozilla::TimeStamp& aTransactionStart,
                           EditReplyArray* reply) MOZ_OVERRIDE;
 
-  virtual bool RecvUpdateNoSwap(EditArray&& cset,
+  virtual bool RecvUpdateNoSwap(const EditArray& cset,
                                 const uint64_t& aTransactionId,
                                 const TargetConfig& targetConfig,
                                 const bool& isFirstPaint,
@@ -147,7 +147,7 @@ protected:
   virtual bool DeallocPTextureParent(PTextureParent* actor) MOZ_OVERRIDE;
 
   virtual bool
-  RecvChildAsyncMessages(InfallibleTArray<AsyncChildMessageData>&& aMessages) MOZ_OVERRIDE;
+  RecvChildAsyncMessages(const InfallibleTArray<AsyncChildMessageData>& aMessages) MOZ_OVERRIDE;
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 

@@ -635,40 +635,28 @@ PLDHashTable::Operate(const void* aKey, PLDHashOperator aOp)
   return entry;
 }
 
-MOZ_ALWAYS_INLINE PLDHashEntryHdr*
-PLDHashTable::Lookup(const void* aKey)
+PLDHashEntryHdr* PL_DHASH_FASTCALL
+PL_DHashTableOperate(PLDHashTable* aTable, const void* aKey, PLDHashOperator aOp)
 {
-  return Operate(aKey, PL_DHASH_LOOKUP);
-}
-
-MOZ_ALWAYS_INLINE PLDHashEntryHdr*
-PLDHashTable::Add(const void* aKey)
-{
-  return Operate(aKey, PL_DHASH_ADD);
-}
-
-MOZ_ALWAYS_INLINE void
-PLDHashTable::Remove(const void* aKey)
-{
-  Operate(aKey, PL_DHASH_REMOVE);
+  return aTable->Operate(aKey, aOp);
 }
 
 PLDHashEntryHdr* PL_DHASH_FASTCALL
 PL_DHashTableLookup(PLDHashTable* aTable, const void* aKey)
 {
-  return aTable->Lookup(aKey);
+  return aTable->Operate(aKey, PL_DHASH_LOOKUP);
 }
 
 PLDHashEntryHdr* PL_DHASH_FASTCALL
 PL_DHashTableAdd(PLDHashTable* aTable, const void* aKey)
 {
-  return aTable->Add(aKey);
+  return aTable->Operate(aKey, PL_DHASH_ADD);
 }
 
 void PL_DHASH_FASTCALL
 PL_DHashTableRemove(PLDHashTable* aTable, const void* aKey)
 {
-  aTable->Remove(aKey);
+  aTable->Operate(aKey, PL_DHASH_REMOVE);
 }
 
 MOZ_ALWAYS_INLINE void

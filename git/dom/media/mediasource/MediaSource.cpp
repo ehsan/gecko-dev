@@ -189,15 +189,15 @@ MediaSource::SetDuration(double aDuration, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  SetDuration(aDuration, MSRangeRemovalAction::RUN);
+  SetDuration(aDuration);
 }
 
 void
-MediaSource::SetDuration(double aDuration, MSRangeRemovalAction aAction)
+MediaSource::SetDuration(double aDuration)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MSE_API("MediaSource(%p)::SetDuration(aDuration=%f)", this, aDuration);
-  mDecoder->SetMediaSourceDuration(aDuration, aAction);
+  mDecoder->SetMediaSourceDuration(aDuration);
 }
 
 already_AddRefed<SourceBuffer>
@@ -285,8 +285,7 @@ MediaSource::EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, Er
   mSourceBuffers->Ended();
   mDecoder->Ended();
   if (!aError.WasPassed()) {
-    mDecoder->SetMediaSourceDuration(mSourceBuffers->GetHighestBufferedEndTime(),
-                                     MSRangeRemovalAction::SKIP);
+    mDecoder->SetMediaSourceDuration(mSourceBuffers->GetHighestBufferedEndTime());
     if (aRv.Failed()) {
       return;
     }

@@ -33,7 +33,8 @@ nsresult RtspOmxReader::InitOmxDecoder()
 }
 
 nsRefPtr<MediaDecoderReader::SeekPromise>
-RtspOmxReader::Seek(int64_t aTime, int64_t aEndTime)
+RtspOmxReader::Seek(int64_t aTime, int64_t aStartTime,
+                    int64_t aEndTime, int64_t aCurrentTime)
 {
   // The seek function of Rtsp is time-based, we call the SeekTime function in
   // RtspMediaResource. The SeekTime function finally send a seek command to
@@ -48,7 +49,7 @@ RtspOmxReader::Seek(int64_t aTime, int64_t aEndTime)
   // seek operation. The function will clear the |mVideoQueue| and |mAudioQueue|
   // that store the decoded data and also call the |DecodeToTarget| to pass
   // the seek time to OMX a/v decoders.
-  return MediaOmxReader::Seek(aTime, aEndTime);
+  return MediaOmxReader::Seek(aTime, aStartTime, aEndTime, aCurrentTime);
 }
 
 void RtspOmxReader::SetIdle() {

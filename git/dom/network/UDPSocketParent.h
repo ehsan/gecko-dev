@@ -34,6 +34,7 @@ public:
   virtual bool RecvOutgoingData(const UDPData& aData, const UDPSocketAddr& aAddr) MOZ_OVERRIDE;
 
   virtual bool RecvClose() MOZ_OVERRIDE;
+
   virtual bool RecvRequestDelete() MOZ_OVERRIDE;
   virtual bool RecvJoinMulticast(const nsCString& aMulticastAddress,
                                  const nsCString& aInterface) MOZ_OVERRIDE;

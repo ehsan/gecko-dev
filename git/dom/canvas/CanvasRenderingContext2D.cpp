@@ -3230,12 +3230,6 @@ CanvasRenderingContext2D::RemoveHitRegion(const nsAString& id)
   }
 }
 
-void
-CanvasRenderingContext2D::ClearHitRegions()
-{
-  mHitRegionsOptions.Clear();
-}
-
 bool
 CanvasRenderingContext2D::GetHitRegionRect(Element* aElement, nsRect& aRect)
 {
