@@ -130,17 +130,12 @@ class GeckoAppShell
         StatFs cacheStats = new StatFs(cacheFile.getPath());
         long freeSpace = cacheStats.getFreeBlocks() * cacheStats.getBlockSize();
 
-        try {
-            File downloadDir = null;
-            if (Build.VERSION.SDK_INT >= 8)
-                downloadDir = GeckoApp.mAppContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-            else
-                downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
-            GeckoAppShell.putenv("DOWNLOADS_DIRECTORY=" + downloadDir.getPath());
-        }
-        catch (Exception e) {
-            Log.i("GeckoApp", "No download directory has been found: " + e);
-        }
+        File downloadDir = null;
+        if (Build.VERSION.SDK_INT >= 8)
+            downloadDir = GeckoApp.mAppContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        else
+            downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
+        GeckoAppShell.putenv("DOWNLOADS_DIRECTORY=" + downloadDir.getPath());
 
         putLocaleEnv();
 

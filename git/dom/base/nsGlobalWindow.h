@@ -102,7 +102,6 @@
 #include "nsIDOMStorageList.h"
 #include "nsIDOMStorageWindow.h"
 #include "nsIDOMStorageEvent.h"
-#include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
@@ -110,7 +109,6 @@
 #include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 #include "mozilla/TimeStamp.h"
-#include "nsContentUtils.h"
 
 // JS includes
 #include "jsapi.h"
@@ -282,7 +280,6 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMNSEventTarget,
                        public nsIDOMViewCSS,
                        public nsIDOMStorageWindow,
-                       public nsIDOMStorageIndexedDB,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
                        public nsIDOMWindow_2_0_BRANCH,
@@ -575,10 +572,6 @@ public:
 
   static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
     return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
-  }
-
-  static bool HasIndexedDBSupport() {
-    return nsContentUtils::GetBoolPref("indexedDB.feature.enabled", PR_TRUE);
   }
 
 private:

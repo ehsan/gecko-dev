@@ -53,7 +53,7 @@ function TabItem(tab, options) {
 
   this.tab = tab;
   // register this as the tab's tabItem
-  this.tab._tabViewTabItem = this;
+  this.tab.tabItem = this;
 
   if (!options)
     options = {};
@@ -142,7 +142,7 @@ function TabItem(tab, options) {
         position: "absolute",
         zIndex: -99
       })
-      .css(groupItemBounds)
+      .css(groupItemBounds.css())
       .hide()
       .appendTo("body");
 
@@ -155,7 +155,7 @@ function TabItem(tab, options) {
 
     // Utils.log('updatedBounds:',updatedBounds);
     if (updatedBounds)
-      phantom.css(updatedBounds);
+      phantom.css(updatedBounds.css());
 
     phantom.fadeIn();
 
@@ -648,7 +648,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
             TabItems.resumePainting();
     
             $tabEl
-              .css(orig)
+              .css(orig.css())
               .removeClass("front");
 
             onZoomDone();
@@ -883,7 +883,7 @@ let TabItems = {
     try {
       Utils.assertThrow(tab, "tab");
       Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
-      Utils.assertThrow(tab._tabViewTabItem, "should already be linked");
+      Utils.assertThrow(tab.tabItem, "should already be linked");
 
       let shouldDefer = (
         this.isPaintingPaused() ||
@@ -923,8 +923,8 @@ let TabItems = {
         this._tabsWaitingForUpdate.splice(index, 1);
 
       // ___ get the TabItem
-      Utils.assertThrow(tab._tabViewTabItem, "must already be linked");
-      let tabItem = tab._tabViewTabItem;
+      Utils.assertThrow(tab.tabItem, "must already be linked");
+      let tabItem = tab.tabItem;
 
       // ___ icon
       let iconUrl = tab.image;
@@ -979,8 +979,8 @@ let TabItems = {
     try {
       Utils.assertThrow(tab, "tab");
       Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
-      Utils.assertThrow(!tab._tabViewTabItem, "shouldn't already be linked");
-      new TabItem(tab, options); // sets tab._tabViewTabItem to itself
+      Utils.assertThrow(!tab.tabItem, "shouldn't already be linked");
+      new TabItem(tab, options); // sets tab.tabItem to itself
     } catch(e) {
       Utils.log(e);
     }
@@ -992,16 +992,16 @@ let TabItems = {
   unlink: function TabItems_unlink(tab) {
     try {
       Utils.assertThrow(tab, "tab");
-      Utils.assertThrow(tab._tabViewTabItem, "should already be linked");
+      Utils.assertThrow(tab.tabItem, "should already be linked");
       // note that it's ok to unlink an app tab; see .handleTabUnpin
 
-      this.unregister(tab._tabViewTabItem);
-      tab._tabViewTabItem._sendToSubscribers("close");
-      iQ(tab._tabViewTabItem.container).remove();
-      tab._tabViewTabItem.removeTrenches();
-      Items.unsquish(null, tab._tabViewTabItem);
+      this.unregister(tab.tabItem);
+      tab.tabItem._sendToSubscribers("close");
+      iQ(tab.tabItem.container).remove();
+      tab.tabItem.removeTrenches();
+      Items.unsquish(null, tab.tabItem);
 
-      tab._tabViewTabItem = null;
+      tab.tabItem = null;
       Storage.saveTab(tab, null);
 
       let index = this._tabsWaitingForUpdate.indexOf(tab);

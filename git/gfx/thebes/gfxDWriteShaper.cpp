@@ -188,7 +188,7 @@ trymoreglyphs:
                                               font->GetAdjustedSize(),
                                               1.0,
                                               nsnull,
-                                              FALSE,
+                                              TRUE,
                                               FALSE,
                                               FALSE,
                                               &runHead->mScript,

@@ -184,7 +184,8 @@ add_test(function() {
     is_element_visible(get("detail-findUpdates-btn"), "Check for updates should be visible");
     EventUtils.synthesizeMouseAtCenter(get("detail-autoUpdate").firstChild, {}, gManagerWindow);
     ok(get("detail-autoUpdate").firstChild.selected, "Updates should be automatic");
-    is_element_hidden(get("detail-findUpdates-btn"), "Check for updates should be hidden");
+//XXX Disabled due to bug 596172
+//    is_element_hidden(get("detail-findUpdates-btn"), "Check for updates should be hidden");
 
     is_element_hidden(get("detail-prefs-btn"), "Preferences button should be hidden");
     is_element_hidden(get("detail-enable-btn"), "Enable button should be hidden");
