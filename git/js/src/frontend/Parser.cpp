@@ -19,32 +19,20 @@
 
 #include "frontend/Parser.h"
 
-#include <stdlib.h>
-#include <string.h>
-
 #include "jstypes.h"
-#include "jsutil.h"
 #include "jsapi.h"
-#include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsfun.h"
-#include "jsgc.h"
-#include "jsiter.h"
-#include "jslock.h"
-#include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsscript.h"
-#include "jsstr.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/FoldConstants.h"
 #include "frontend/ParseMaps.h"
 #include "frontend/TokenStream.h"
-#include "gc/Marking.h"
-#include "vm/Interpreter.h"
 #include "vm/Shape.h"
 
 #include "jsatominlines.h"
@@ -57,7 +45,6 @@
 #include "frontend/SharedContext-inl.h"
 
 #include "vm/NumericConversions.h"
-#include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 
 using namespace js;
@@ -2534,7 +2521,7 @@ Parser<ParseHandler>::statements()
             }
             break;
         }
-        Node next = statement();
+        Node next = statement(canHaveDirectives);
         if (!next) {
             if (tokenStream.isEOF())
                 tokenStream.setUnexpectedEOF();
@@ -4514,7 +4501,7 @@ Parser<ParseHandler>::expressionStatement()
 
 template <typename ParseHandler>
 typename ParseHandler::Node
-Parser<ParseHandler>::statement()
+Parser<ParseHandler>::statement(bool canHaveDirectives)
 {
     Node pn;
 
@@ -4533,7 +4520,7 @@ Parser<ParseHandler>::statement()
         if (!cond)
             return null();
 
-        if (tokenStream.peekToken() == TOK_SEMI &&
+        if (tokenStream.peekToken(TSF_OPERAND) == TOK_SEMI &&
             !report(ParseExtraWarning, false, null(), JSMSG_EMPTY_CONSEQUENT))
         {
             return null();
@@ -4794,7 +4781,14 @@ Parser<ParseHandler>::statement()
       case TOK_ERROR:
         return null();
 
-      case TOK_NAME: {
+      case TOK_STRING:
+        if (!canHaveDirectives && tokenStream.currentToken().atom() == context->names().useAsm) {
+            if (!report(ParseWarning, false, null(), JSMSG_USE_ASM_DIRECTIVE_FAIL))
+                return null();
+        }
+        return expressionStatement();
+
+      case TOK_NAME:
         if (tokenStream.peekToken() == TOK_COLON)
             return labeledStatement();
         if (tokenStream.currentToken().name() == context->names().module
@@ -4802,8 +4796,7 @@ Parser<ParseHandler>::statement()
         {
             return moduleDecl();
         }
-      }
-        /* FALL THROUGH */
+        return expressionStatement();
 
       default:
         return expressionStatement();

@@ -11,6 +11,7 @@
 #include "jsdbgapi.h"
 
 #include <string.h>
+
 #include "jsprvtd.h"
 #include "jstypes.h"
 #include "jsapi.h"
@@ -22,9 +23,9 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jswatchpoint.h"
-#include "jswrapper.h"
 
 #include "frontend/SourceNotes.h"
+#include "ion/AsmJS.h"
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
 #include "vm/Shape.h"
@@ -1265,7 +1266,7 @@ JSAbstractFramePtr::callObject(JSContext *cx)
      */
     while (o) {
         ScopeObject &scope = o->asDebugScope().scope();
-        if (scope.isCall())
+        if (scope.is<CallObject>())
             return o;
         o = o->enclosingScope();
     }

@@ -845,8 +845,8 @@ inline bool JSObject::watched() const
     return lastProperty()->hasObjectFlag(js::BaseShape::WATCHED);
 }
 
-inline bool JSObject::isClonedBlock() const { return isBlock() && !!getProto(); }
-inline bool JSObject::isStaticBlock() const { return isBlock() && !getProto(); }
+inline bool JSObject::isClonedBlock() const { return is<js::BlockObject>() && !!getProto(); }
+inline bool JSObject::isStaticBlock() const { return is<js::BlockObject>() && !getProto(); }
 inline bool JSObject::isTypedArray() const { return IsTypedArrayClass(getClass()); }
 
 inline js::NumberObject &
@@ -861,13 +861,6 @@ JSObject::asString()
 {
     JS_ASSERT(isString());
     return *static_cast<js::StringObject *>(this);
-}
-
-inline js::ScriptSourceObject &
-JSObject::asScriptSource()
-{
-    JS_ASSERT(isScriptSource());
-    return *static_cast<js::ScriptSourceObject *>(this);
 }
 
 inline bool
@@ -926,7 +919,7 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap
         obj->privateRef(shape->numFixedSlots()) = NULL;
 
     size_t span = shape->slotSpan();
-    if (span && clasp != &js::ArrayBufferClass)
+    if (span && clasp != &js::ArrayBufferObject::class_)
         obj->initializeSlotRange(0, span);
 
     return obj;
@@ -1467,21 +1460,6 @@ class AutoPropertyDescriptorRooter : private AutoGCRooter, public PropertyDescri
     friend void AutoGCRooter::trace(JSTracer *trc);
 };
 
-static inline bool
-CanBeFinalizedInBackground(gc::AllocKind kind, Class *clasp)
-{
-    JS_ASSERT(kind <= gc::FINALIZE_OBJECT_LAST);
-    /* If the class has no finalizer or a finalizer that is safe to call on
-     * a different thread, we change the finalize kind. For example,
-     * FINALIZE_OBJECT0 calls the finalizer on the main thread,
-     * FINALIZE_OBJECT0_BACKGROUND calls the finalizer on the gcHelperThread.
-     * IsBackgroundFinalized is called to prevent recursively incrementing
-     * the finalize kind; kind may already be a background finalize kind.
-     */
-    return (!gc::IsBackgroundFinalized(kind) &&
-            (!clasp->finalize || (clasp->flags & JSCLASS_BACKGROUND_FINALIZE)));
-}
-
 /*
  * Make an object with the specified prototype. If parent is null, it will
  * default to the prototype's global if the prototype is non-null.
@@ -1685,8 +1663,8 @@ ObjectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx)
       case ESClass_Number: return obj->isNumber();
       case ESClass_String: return obj->isString();
       case ESClass_Boolean: return obj->isBoolean();
-      case ESClass_RegExp: return obj->isRegExp();
-      case ESClass_ArrayBuffer: return obj->isArrayBuffer();
+      case ESClass_RegExp: return obj->is<RegExpObject>();
+      case ESClass_ArrayBuffer: return obj->is<ArrayBufferObject>();
       case ESClass_Date: return obj->isDate();
     }
     JS_NOT_REACHED("bad classValue");

@@ -33,7 +33,6 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsiter.h"
-#include "jslock.h"
 #include "jsmath.h"
 #include "jsobj.h"
 #include "jsopcode.h"
@@ -48,7 +47,6 @@
 #include "gc/Marking.h"
 #include "js/CharacterEncoding.h"
 #include "js/MemoryMetrics.h"
-#include "frontend/ParseMaps.h"
 #include "vm/Shape.h"
 #include "yarr/BumpPointerAllocator.h"
 
@@ -95,6 +93,15 @@ js::TraceCycleDetectionSet(JSTracer *trc, js::ObjectSet &set)
         MarkObjectRoot(trc, const_cast<JSObject **>(&e.front()), "cycle detector table entry");
         if (prior != e.front())
             e.rekeyFront(e.front());
+    }
+}
+
+void
+NewObjectCache::clearNurseryObjects(JSRuntime *rt)
+{
+    for (unsigned i = 0; i < mozilla::ArrayLength(entries); ++i) {
+        if (IsInsideNursery(rt, entries[i].key))
+            mozilla::PodZero(&entries[i]);
     }
 }
 

@@ -1316,7 +1316,7 @@ ICTypeMonitor_TypeObject::Compiler::generateStubCode(MacroAssembler &masm)
 
 bool
 ICUpdatedStub::addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj,
-                                     jsid id, HandleValue val)
+                                     HandleId id, HandleValue val)
 {
     if (numOptimizedStubs_ >= MAX_OPTIMIZED_STUBS) {
         // TODO: if the TypeSet becomes unknown or has the AnyObject type,
@@ -2549,9 +2549,10 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
         }
     }
 
-    // TODO: unlink previous !allowDouble stub.
     if (lhs.isInt32() && rhs.isInt32()) {
         bool allowDouble = ret.isDouble();
+        if (allowDouble)
+            stub->unlinkStubsWithKind(cx, ICStub::BinaryArith_Int32);
         IonSpew(IonSpew_BaselineIC, "  Generating %s(Int32, Int32%s) stub", js_CodeName[op],
                 allowDouble ? " => Double" : "");
         ICBinaryArith_Int32::Compiler compilerInt32(cx, op, allowDouble);
@@ -3532,9 +3533,9 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, ICGetElem_Fallback *stu
     RootedObject obj(cx, &lhs.toObject());
 
     // Check for ArgumentsObj[int] accesses
-    if (obj->isArguments() && rhs.isInt32()) {
+    if (obj->is<ArgumentsObject>() && rhs.isInt32()) {
         ICGetElem_Arguments::Which which = ICGetElem_Arguments::Normal;
-        if (obj->isStrictArguments())
+        if (obj->is<StrictArgumentsObject>())
             which = ICGetElem_Arguments::Strict;
         if (!ArgumentsGetElemStubExists(stub, which)) {
             IonSpew(IonSpew_BaselineIC, "  Generating GetElem(ArgsObj[Int32]) stub");
@@ -3926,7 +3927,7 @@ ICGetElem_Arguments::Compiler::generateStubCode(MacroAssembler &masm)
               which_ == ICGetElem_Arguments::Normal);
 
     bool isStrict = which_ == ICGetElem_Arguments::Strict;
-    Class *clasp = isStrict ? &StrictArgumentsObjectClass : &NormalArgumentsObjectClass;
+    Class *clasp = isStrict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
 
     GeneralRegisterSet regs(availableGeneralRegs(2));
     Register scratchReg = regs.takeAny();
@@ -4215,7 +4216,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
                 ICUpdatedStub *denseStub = compiler.getStub(compiler.getStubSpace(script));
                 if (!denseStub)
                     return false;
-                if (!denseStub->addUpdateStubForValue(cx, script, obj, JSID_VOID, rhs))
+                if (!denseStub->addUpdateStubForValue(cx, script, obj, JS::JSID_VOIDHANDLE, rhs))
                     return false;
 
                 stub->addNewStub(denseStub);
@@ -4229,7 +4230,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
                 ICUpdatedStub *denseStub = compiler.getStub(compiler.getStubSpace(script));
                 if (!denseStub)
                     return false;
-                if (!denseStub->addUpdateStubForValue(cx, script, obj, JSID_VOID, rhs))
+                if (!denseStub->addUpdateStubForValue(cx, script, obj, JS::JSID_VOIDHANDLE, rhs))
                     return false;
 
                 stub->addNewStub(denseStub);
@@ -5192,11 +5193,11 @@ TryAttachLengthStub(JSContext *cx, HandleScript script, ICGetProp_Fallback *stub
         return true;
     }
 
-    if (obj->isArguments() && res.isInt32()) {
+    if (obj->is<ArgumentsObject>() && res.isInt32()) {
         IonSpew(IonSpew_BaselineIC, "  Generating GetProp(ArgsObj.length %s) stub",
-                obj->isStrictArguments() ? "Strict" : "Normal");
+                obj->is<StrictArgumentsObject>() ? "Strict" : "Normal");
         ICGetProp_ArgumentsLength::Which which = ICGetProp_ArgumentsLength::Normal;
-        if (obj->isStrictArguments())
+        if (obj->is<StrictArgumentsObject>())
             which = ICGetProp_ArgumentsLength::Strict;
         ICGetProp_ArgumentsLength::Compiler compiler(cx, which);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
@@ -6115,7 +6116,7 @@ ICGetProp_ArgumentsLength::Compiler::generateStubCode(MacroAssembler &masm)
               which_ == ICGetProp_ArgumentsLength::Normal);
 
     bool isStrict = which_ == ICGetProp_ArgumentsLength::Strict;
-    Class *clasp = isStrict ? &StrictArgumentsObjectClass : &NormalArgumentsObjectClass;
+    Class *clasp = isStrict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
 
     Register scratchReg = R1.scratchReg();
 
@@ -7834,7 +7835,9 @@ DoIteratorMoreFallback(JSContext *cx, BaselineFrame *frame, ICIteratorMore_Fallb
         return false;
     res.setBoolean(cond);
 
-    if (iterValue.toObject().isPropertyIterator() && !stub->hasStub(ICStub::IteratorMore_Native)) {
+    if (iterValue.toObject().is<PropertyIteratorObject>() &&
+        !stub->hasStub(ICStub::IteratorMore_Native))
+    {
         ICIteratorMore_Native::Compiler compiler(cx);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(frame->script()));
         if (!newStub)
@@ -7912,7 +7915,9 @@ DoIteratorNextFallback(JSContext *cx, BaselineFrame *frame, ICIteratorNext_Fallb
     if (!IteratorNext(cx, iteratorObject, res))
         return false;
 
-    if (iteratorObject->isPropertyIterator() && !stub->hasStub(ICStub::IteratorNext_Native)) {
+    if (iteratorObject->is<PropertyIteratorObject>() &&
+        !stub->hasStub(ICStub::IteratorNext_Native))
+    {
         ICIteratorNext_Native::Compiler compiler(cx);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(frame->script()));
         if (!newStub)

@@ -10,7 +10,6 @@
 #include "mozilla/PodOperations.h"
 
 #include "jsapi.h"
-#include "jsautooplen.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsobj.h"
@@ -18,6 +17,7 @@
 #include "jscntxt.h"
 #include "jsstr.h"
 #include "jsworkers.h"
+#include "prmjtime.h"
 
 #ifdef JS_ION
 #include "ion/BaselineJIT.h"
@@ -149,9 +149,9 @@ const char *
 types::InferSpewColor(TypeConstraint *constraint)
 {
     /* Type constraints are printed out using foreground colors. */
-    static const char *colors[] = { "\x1b[31m", "\x1b[32m", "\x1b[33m",
-                                    "\x1b[34m", "\x1b[35m", "\x1b[36m",
-                                    "\x1b[37m" };
+    static const char * const colors[] = { "\x1b[31m", "\x1b[32m", "\x1b[33m",
+                                           "\x1b[34m", "\x1b[35m", "\x1b[36m",
+                                           "\x1b[37m" };
     if (!InferSpewColorable())
         return "";
     return colors[DefaultHasher<TypeConstraint *>::hash(constraint) % 7];
@@ -161,9 +161,9 @@ const char *
 types::InferSpewColor(TypeSet *types)
 {
     /* Type sets are printed out using bold colors. */
-    static const char *colors[] = { "\x1b[1;31m", "\x1b[1;32m", "\x1b[1;33m",
-                                    "\x1b[1;34m", "\x1b[1;35m", "\x1b[1;36m",
-                                    "\x1b[1;37m" };
+    static const char * const colors[] = { "\x1b[1;31m", "\x1b[1;32m", "\x1b[1;33m",
+                                           "\x1b[1;34m", "\x1b[1;35m", "\x1b[1;36m",
+                                           "\x1b[1;37m" };
     if (!InferSpewColorable())
         return "";
     return colors[DefaultHasher<TypeSet *>::hash(types) % 7];
@@ -6141,7 +6141,7 @@ JSCompartment::getNewType(JSContext *cx, Class *clasp, TaggedProto proto_, JSFun
         if (fun)
             CheckNewScriptProperties(cx, type, fun);
 
-        if (obj->isRegExp()) {
+        if (obj->is<RegExpObject>()) {
             AddTypeProperty(cx, type, "source", types::Type::StringType());
             AddTypeProperty(cx, type, "global", types::Type::BooleanType());
             AddTypeProperty(cx, type, "ignoreCase", types::Type::BooleanType());

@@ -6,8 +6,6 @@
 
 #include "vm/Debugger.h"
 
-#include <limits.h>
-
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -24,7 +22,6 @@
 #include "jsopcodeinlines.h"
 
 #include "gc/FindSCCs-inl.h"
-#include "vm/Interpreter-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -5234,10 +5231,10 @@ DebuggerEnv_getCallee(JSContext *cx, unsigned argc, Value *vp)
         return true;
 
     JSObject &scope = env->asDebugScope().scope();
-    if (!scope.isCall())
+    if (!scope.is<CallObject>())
         return true;
 
-    CallObject &callobj = scope.asCall();
+    CallObject &callobj = scope.as<CallObject>();
     if (callobj.isForEval())
         return true;
 

@@ -10,12 +10,8 @@
 /*
  * JS parser definitions.
  */
-#include "jsversion.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
-#include "jsatom.h"
-#include "jsscript.h"
-#include "jswin.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/FullParseHandler.h"
@@ -376,7 +372,7 @@ struct Parser : private AutoGCRooter, public StrictModeGetter
   public:
 
     /* Public entry points for parsing. */
-    Node statement();
+    Node statement(bool canHaveDirectives = false);
     bool maybeParseDirective(Node pn, bool *cont);
 
     // Parse a function, given only its body. Used for the Function constructor.

@@ -73,13 +73,13 @@ const JSCodeSpec js_CodeSpec[] = {
 #undef OPDEF
 };
 
-unsigned js_NumCodeSpecs = JS_ARRAY_LENGTH(js_CodeSpec);
+const unsigned js_NumCodeSpecs = JS_ARRAY_LENGTH(js_CodeSpec);
 
 /*
  * Each element of the array is either a source literal associated with JS
  * bytecode or null.
  */
-static const char *CodeToken[] = {
+static const char * const CodeToken[] = {
 #define OPDEF(op,val,name,token,length,nuses,ndefs,format) \
     token,
 #include "jsopcode.tbl"
@@ -90,7 +90,7 @@ static const char *CodeToken[] = {
  * Array of JS bytecode names used by PC count JSON, DEBUG-only js_Disassemble
  * and JIT debug spew.
  */
-const char *js_CodeName[] = {
+const char * const js_CodeName[] = {
 #define OPDEF(op,val,name,token,length,nuses,ndefs,format) \
     name,
 #include "jsopcode.tbl"
@@ -172,7 +172,7 @@ js::StackDefs(JSScript *script, jsbytecode *pc)
     return op == JSOP_ENTERLET1 ? n + 1 : n;
 }
 
-static const char * countBaseNames[] = {
+static const char * const countBaseNames[] = {
     "interp",
     "mjit",
     "mjit_calls",
@@ -182,7 +182,7 @@ static const char * countBaseNames[] = {
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) == PCCounts::BASE_LIMIT);
 
-static const char * countAccessNames[] = {
+static const char * const countAccessNames[] = {
     "infer_mono",
     "infer_di",
     "infer_poly",
@@ -200,7 +200,7 @@ static const char * countAccessNames[] = {
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) == PCCounts::ACCESS_LIMIT);
 
-static const char * countElementNames[] = {
+static const char * const countElementNames[] = {
     "id_int",
     "id_double",
     "id_other",
@@ -215,7 +215,7 @@ JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) +
                  JS_ARRAY_LENGTH(countElementNames) == PCCounts::ELEM_LIMIT);
 
-static const char * countPropertyNames[] = {
+static const char * const countPropertyNames[] = {
     "prop_static",
     "prop_definite",
     "prop_other"
@@ -225,7 +225,7 @@ JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) +
                  JS_ARRAY_LENGTH(countPropertyNames) == PCCounts::PROP_LIMIT);
 
-static const char * countArithNames[] = {
+static const char * const countArithNames[] = {
     "arith_int",
     "arith_double",
     "arith_other",
@@ -476,8 +476,9 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
 
     if (!JSVAL_IS_PRIMITIVE(v)) {
         JSObject *obj = JSVAL_TO_OBJECT(v);
-        if (obj->isBlock()) {
-            char *source = JS_sprintf_append(NULL, "depth %d {", obj->asBlock().stackDepth());
+        if (obj->is<BlockObject>()) {
+            char *source = JS_sprintf_append(NULL, "depth %d {",
+                                             obj->as<BlockObject>().stackDepth());
             if (!source)
                 return false;
 
@@ -515,8 +516,8 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             return bytes->encodeLatin1(cx, str);
         }
 
-        if (obj->isRegExp()) {
-            JSString *source = obj->asRegExp().toString(cx);
+        if (obj->is<RegExpObject>()) {
+            JSString *source = obj->as<RegExpObject>().toString(cx);
             if (!source)
                 return false;
             JS::Anchor<JSString *> anchor(source);
@@ -1089,7 +1090,8 @@ GetBlockChainAtPC(JSContext *cx, JSScript *script, jsbytecode *pc)
           case JSOP_ENTERLET0:
           case JSOP_ENTERLET1: {
             JSObject *child = script->getObject(p);
-            JS_ASSERT_IF(blockChain, child->asBlock().stackDepth() >= blockChain->asBlock().stackDepth());
+            JS_ASSERT_IF(blockChain, child->as<BlockObject>().stackDepth() >=
+                                     blockChain->as<BlockObject>().stackDepth());
             blockChain = child;
             break;
           }
@@ -1104,7 +1106,7 @@ GetBlockChainAtPC(JSContext *cx, JSScript *script, jsbytecode *pc)
             if (!(sn && SN_TYPE(sn) == SRC_HIDDEN)) {
                 JS_ASSERT(blockChain);
                 blockChain = blockChain->asStaticBlock().enclosingBlock();
-                JS_ASSERT_IF(blockChain, blockChain->isBlock());
+                JS_ASSERT_IF(blockChain, blockChain->is<BlockObject>());
             }
             break;
           }
@@ -1404,9 +1406,9 @@ ExpressionDecompiler::findLetVar(jsbytecode *pc, unsigned depth)
         JSObject *chain = GetBlockChainAtPC(cx, script, pc);
         if (!chain)
             return NULL;
-        JS_ASSERT(chain->isBlock());
+        JS_ASSERT(chain->is<BlockObject>());
         do {
-            BlockObject &block = chain->asBlock();
+            BlockObject &block = chain->as<BlockObject>();
             uint32_t blockDepth = block.stackDepth();
             uint32_t blockCount = block.slotCount();
             if (uint32_t(depth - blockDepth) < uint32_t(blockCount)) {
@@ -1417,7 +1419,7 @@ ExpressionDecompiler::findLetVar(jsbytecode *pc, unsigned depth)
                 }
             }
             chain = chain->getParent();
-        } while (chain && chain->isBlock());
+        } while (chain && chain->is<BlockObject>());
     }
     return NULL;
 }
@@ -2084,7 +2086,8 @@ AppendJSONProperty(StringBuffer &buf, const char *name, MaybeComma comma = COMMA
 
 static void
 AppendArrayJSONProperties(JSContext *cx, StringBuffer &buf,
-                          double *values, const char **names, unsigned count, MaybeComma &comma)
+                          double *values, const char * const *names, unsigned count,
+                          MaybeComma &comma)
 {
     for (unsigned i = 0; i < count; i++) {
         if (values[i]) {

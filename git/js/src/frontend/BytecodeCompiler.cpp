@@ -13,14 +13,11 @@
 #include "ion/AsmJS.h"
 #include "vm/GlobalObject.h"
 
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "frontend/ParseMaps-inl.h"
-#include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"
 #include "frontend/SharedContext-inl.h"
-#include "vm/Probes-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -108,8 +105,8 @@ MaybeCheckEvalFreeVariables(JSContext *cx, HandleScript evalCaller, HandleObject
     if (pc.sc->hasDebuggerStatement()) {
         RootedObject scope(cx, scopeChain);
         while (scope->isScope() || scope->isDebugScope()) {
-            if (scope->isCall() && !scope->asCall().isForEval()) {
-                RootedScript script(cx, scope->asCall().callee().nonLazyScript());
+            if (scope->is<CallObject>() && !scope->as<CallObject>().isForEval()) {
+                RootedScript script(cx, scope->as<CallObject>().callee().nonLazyScript());
                 if (script->argumentsHasVarBinding()) {
                     if (!JSScript::argumentsOptimizationFailed(cx, script))
                         return false;
@@ -271,7 +268,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
         TokenStream::Position pos(parser.keepAtoms);
         parser.tokenStream.tell(&pos);
 
-        ParseNode *pn = parser.statement();
+        ParseNode *pn = parser.statement(canHaveDirectives);
         if (!pn) {
             if (parser.hadAbortedSyntaxParse()) {
                 // Parsing inner functions lazily may lead the parser into an
