@@ -99,6 +99,7 @@
 #include "nsITextControlFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsIPercentHeightObserver.h"
+#include "nsStyleStructInlines.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -119,6 +120,7 @@
 #include "nsBoxLayoutState.h"
 #include "nsBlockFrame.h"
 #include "nsDisplayList.h"
+#include "nsImageLoadNotifier.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
@@ -553,6 +555,26 @@ nsFrame::GetOffsets(PRInt32 &aStart, PRInt32 &aEnd) const
 /* virtual */ void
 nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
+  // Ensure that this frame gets invalidates (and, in the case of some
+  // 'border-image's, reflows) when images that affect it load.
+  nsRefPtr<nsImageLoadNotifier> notifierChain;
+
+  const nsStyleBackground *background = GetStyleBackground();
+  imgIRequest *newBackgroundImage = background->mBackgroundImage;
+  if (newBackgroundImage) {
+    notifierChain = nsImageLoadNotifier::Create(this, newBackgroundImage,
+                                                PR_FALSE, notifierChain);
+  }
+
+  const nsStyleBorder *border = GetStyleBorder();
+  imgIRequest *newBorderImage = border->GetBorderImage();
+  if (newBorderImage) {
+    notifierChain = nsImageLoadNotifier::Create(this, newBorderImage,
+                                                border->ImageBorderDiffers(),
+                                                notifierChain);
+  }
+
+  PresContext()->SetImageNotifiers(this, notifierChain);
 }
 
 /* virtual */ nsMargin
@@ -4544,11 +4566,14 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
   aPos->mResultContent = nsnull;
   aPos->mAttachForward = (aPos->mDirection == eDirNext);
 
-  nsAutoLineIterator it = aBlockFrame->GetLineIterator();
-  if (!it)
-    return NS_ERROR_FAILURE;
+   nsresult result;
+  nsCOMPtr<nsILineIteratorNavigator> it; 
+  result = aBlockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
+  if (NS_FAILED(result) || !it)
+    return result;
   PRInt32 searchingLine = aLineStart;
-  PRInt32 countLines = it->GetNumLines();
+  PRInt32 countLines;
+  result = it->GetNumLines(&countLines);
   if (aOutSideLimit > 0) //start at end
     searchingLine = countLines;
   else if (aOutSideLimit <0)//start at beginning
@@ -4568,8 +4593,6 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
   nsRect  rect;
   PRBool isBeforeFirstFrame, isAfterLastFrame;
   PRBool found = PR_FALSE;
-
-  nsresult result = NS_OK;
   while (!found)
   {
     if (aPos->mDirection == eDirPrevious)
@@ -4618,17 +4641,17 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
 
     if (NS_SUCCEEDED(result) && resultFrame)
     {
+      nsCOMPtr<nsILineIteratorNavigator> newIt; 
       //check to see if this is ANOTHER blockframe inside the other one if so then call into its lines
-      nsAutoLineIterator newIt = resultFrame->GetLineIterator();
-      if (newIt)
+      result = resultFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(newIt));
+      if (NS_SUCCEEDED(result) && newIt)
       {
         aPos->mResultFrame = resultFrame;
         return NS_OK;
       }
       //resultFrame is not a block frame
-      result = NS_ERROR_FAILURE;
 
-      nsCOMPtr<nsIFrameEnumerator> frameTraversal;
+      nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
       result = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
                                     aPresContext, resultFrame,
                                     ePostOrder,
@@ -4638,6 +4661,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
                                     );
       if (NS_FAILED(result))
         return result;
+      nsISupports *isupports = nsnull;
       nsIFrame *storeOldResultFrame = resultFrame;
       while ( !found ){
         nsPoint point;
@@ -4715,10 +4739,14 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
         if (aPos->mDirection == eDirNext && (resultFrame == nearStoppingFrame))
           break;
         //always try previous on THAT line if that fails go the other way
-        frameTraversal->Prev();
-        resultFrame = frameTraversal->CurrentItem();
-        if (!resultFrame)
-          return NS_ERROR_FAILURE;
+        result = frameTraversal->Prev();
+        if (NS_FAILED(result))
+          break;
+        result = frameTraversal->CurrentItem(&isupports);
+        if (NS_FAILED(result) || !isupports)
+          return result;
+        //we must CAST here to an nsIFrame. nsIFrame doesnt really follow the rules
+        resultFrame = (nsIFrame *)isupports;
       }
 
       if (!found){
@@ -4760,11 +4788,14 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
         if (aPos->mDirection == eDirNext && (resultFrame == farStoppingFrame))
           break;
         //previous didnt work now we try "next"
-        frameTraversal->Next();
-        nsIFrame *tempFrame = frameTraversal->CurrentItem();
-        if (!tempFrame)
+        result = frameTraversal->Next();
+        if (NS_FAILED(result))
           break;
-        resultFrame = tempFrame;
+        result = frameTraversal->CurrentItem(&isupports);
+        if (NS_FAILED(result) || !isupports)
+          break;
+        //we must CAST here to an nsIFrame. nsIFrame doesnt really follow the rules
+        resultFrame = (nsIFrame *)isupports;
       }
       aPos->mResultFrame = resultFrame;
     }
@@ -5064,16 +5095,15 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
     }
     case eSelectLine :
     {
-      nsAutoLineIterator iter;
+      nsCOMPtr<nsILineIteratorNavigator> iter; 
       nsIFrame *blockFrame = this;
 
       while (NS_FAILED(result)){
         PRInt32 thisLine = nsFrame::GetLineNumber(blockFrame, aPos->mScrollViewStop, &blockFrame);
         if (thisLine < 0) 
           return  NS_ERROR_FAILURE;
-        iter = blockFrame->GetLineIterator();
-        NS_ASSERTION(iter, "GetLineNumber() succeeded but no block frame?");
-        result = NS_OK;
+        result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(iter));
+        NS_ASSERTION(NS_SUCCEEDED(result) && iter, "GetLineNumber() succeeded but no block frame?");
 
         int edgeCase = 0;//no edge case. this should look at thisLine
         
@@ -5117,23 +5147,20 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
               //got the table frame now
               while(frame) //ok time to drill down to find iterator
               {
-                iter = frame->GetLineIterator();
-                if (iter)
+                result = frame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),
+                                                          getter_AddRefs(iter));
+                if (NS_SUCCEEDED(result))
                 {
                   aPos->mResultFrame = frame;
                   searchTableBool = PR_TRUE;
-                  result = NS_OK;
                   break; //while(frame)
                 }
-                result = NS_ERROR_FAILURE;
                 frame = frame->GetFirstChild(nsnull);
               }
             }
-
-            if (!searchTableBool) {
-              iter = aPos->mResultFrame->GetLineIterator();
-              result = iter ? NS_OK : NS_ERROR_FAILURE;
-            }
+            if (!searchTableBool)
+              result = aPos->mResultFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),
+                                                        getter_AddRefs(iter));
             if (NS_SUCCEEDED(result) && iter)//we've struck another block element!
             {
               doneLooping = PR_FALSE;
@@ -5163,13 +5190,14 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
     case eSelectBeginLine:
     case eSelectEndLine:
     {
+      nsCOMPtr<nsILineIteratorNavigator> it;
       // Adjusted so that the caret can't get confused when content changes
       nsIFrame* blockFrame = AdjustFrameForSelectionStyles(this);
       PRInt32 thisLine = nsFrame::GetLineNumber(blockFrame, aPos->mScrollViewStop, &blockFrame);
       if (thisLine < 0)
         return NS_ERROR_FAILURE;
-      nsAutoLineIterator it = blockFrame->GetLineIterator();
-      NS_ASSERTION(it, "GetLineNumber() succeeded but no block frame?");
+      result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
+      NS_ASSERTION(NS_SUCCEEDED(result) && it, "GetLineNumber() succeeded but no block frame?");
 
       PRInt32 lineFrameCount;
       nsIFrame *firstFrame;
@@ -5180,7 +5208,8 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       
 #ifdef IBMBIDI
       if (aPos->mVisual && PresContext()->BidiEnabled()) {
-        PRBool lineIsRTL = it->GetDirection();
+        PRBool lineIsRTL;
+        it->GetDirection(&lineIsRTL);
         PRBool isReordered;
         nsIFrame *lastFrame;
         result = it->CheckLineOrder(thisLine, &isReordered, &firstFrame, &lastFrame);
@@ -5336,7 +5365,7 @@ nsFrame::GetLineNumber(nsIFrame *aFrame, PRBool aLockScroll, nsIFrame** aContain
   nsIFrame *blockFrame = aFrame;
   nsIFrame *thisBlock;
   PRInt32   thisLine;
-  nsAutoLineIterator it;
+  nsCOMPtr<nsILineIteratorNavigator> it; 
   nsresult result = NS_ERROR_FAILURE;
   while (NS_FAILED(result) && blockFrame)
   {
@@ -5357,9 +5386,7 @@ nsFrame::GetLineNumber(nsIFrame *aFrame, PRBool aLockScroll, nsIFrame** aContain
     if (blockFrame) {
       if (aLockScroll && blockFrame->GetType() == nsGkAtoms::scrollFrame)
         return -1;
-      it = blockFrame->GetLineIterator();
-      if (!it)
-        result = NS_ERROR_FAILURE;
+      result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
     }
   }
   if (!blockFrame || !it)
@@ -5367,16 +5394,17 @@ nsFrame::GetLineNumber(nsIFrame *aFrame, PRBool aLockScroll, nsIFrame** aContain
 
   if (aContainingBlock)
     *aContainingBlock = blockFrame;
-  return it->FindLineContaining(thisBlock);
+  result = it->FindLineContaining(thisBlock, &thisLine);
+  if (NS_FAILED(result))
+    return -1;
+  return thisLine;
 }
 
 nsresult
 nsIFrame::GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
                                 PRBool aJumpLines, PRBool aScrollViewStop, 
                                 nsIFrame** aOutFrame, PRInt32* aOutOffset, PRBool* aOutJumpedLine)
-{
-  nsresult result;
-
+{  
   if (!aOutFrame || !aOutOffset || !aOutJumpedLine)
     return NS_ERROR_NULL_POINTER;
   
@@ -5390,20 +5418,21 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
   nsIFrame *traversedFrame = this;
   while (!selectable) {
     nsIFrame *blockFrame;
+    nsCOMPtr<nsILineIteratorNavigator> it; 
     
     PRInt32 thisLine = nsFrame::GetLineNumber(traversedFrame, aScrollViewStop, &blockFrame);
     if (thisLine < 0)
       return NS_ERROR_FAILURE;
-
-    nsAutoLineIterator it = blockFrame->GetLineIterator();
-    NS_ASSERTION(it, "GetLineNumber() succeeded but no block frame?");
+    nsresult result = blockFrame->QueryInterface(NS_GET_IID(nsILineIteratorNavigator),getter_AddRefs(it));
+    NS_ASSERTION(NS_SUCCEEDED(result) && it, "GetLineNumber() succeeded but no block frame?");
 
     PRBool atLineEdge;
     nsIFrame *firstFrame;
     nsIFrame *lastFrame;
 #ifdef IBMBIDI
     if (aVisual && presContext->BidiEnabled()) {
-      PRBool lineIsRTL = it->GetDirection();
+      PRBool lineIsRTL;                                                             
+      it->GetDirection(&lineIsRTL);
       PRBool isReordered;
       result = it->CheckLineOrder(thisLine, &isReordered, &firstFrame, &lastFrame);
       nsIFrame** framePtr = aDirection == eDirPrevious ? &firstFrame : &lastFrame;
@@ -5453,7 +5482,7 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
         return NS_ERROR_FAILURE; //we are done. cannot jump lines
     }
 
-    nsCOMPtr<nsIFrameEnumerator> frameTraversal;
+    nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
     result = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
                                   presContext, traversedFrame,
                                   eLeaf,
@@ -5465,13 +5494,21 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
       return result;
 
     if (aDirection == eDirNext)
-      frameTraversal->Next();
+      result = frameTraversal->Next();
     else
-      frameTraversal->Prev();
+      result = frameTraversal->Prev();
+    if (NS_FAILED(result))
+      return result;
 
-    traversedFrame = frameTraversal->CurrentItem();
-    if (!traversedFrame)
-      return NS_ERROR_FAILURE;
+    nsISupports *isupports = nsnull;
+    result = frameTraversal->CurrentItem(&isupports);
+    if (NS_FAILED(result))
+      return result;
+    if (!isupports)
+      return NS_ERROR_NULL_POINTER;
+    //we must CAST here to an nsIFrame. nsIFrame doesn't really follow the rules
+    //for speed reasons
+    traversedFrame = (nsIFrame *)isupports;
     traversedFrame->IsSelectable(&selectable, nsnull);
   } // while (!selectable)
 
@@ -6191,7 +6228,7 @@ nsFrame::RefreshSizeCache(nsBoxLayoutState& aState)
     metrics->mBlockMinSize.height = 0;
     // ok we need the max ascent of the items on the line. So to do this
     // ask the block for its line iterator. Get the max ascent.
-    nsAutoLineIterator lines = GetLineIterator();
+    nsCOMPtr<nsILineIterator> lines = do_QueryInterface(static_cast<nsIFrame*>(this));
     if (lines) 
     {
       metrics->mBlockMinSize.height = 0;
@@ -6232,12 +6269,6 @@ nsFrame::RefreshSizeCache(nsBoxLayoutState& aState)
   }
 
   return rv;
-}
-
-/* virtual */ nsILineIterator*
-nsFrame::GetLineIterator()
-{
-  return nsnull;
 }
 
 nsSize

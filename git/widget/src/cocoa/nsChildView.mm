@@ -71,7 +71,6 @@
 #include "nsCursorManager.h"
 #include "nsWindowMap.h"
 #include "nsCocoaUtils.h"
-#include "nsMenuUtilsX.h"
 #include "nsMenuBarX.h"
 
 #include "nsIDOMSimpleGestureEvent.h"
@@ -975,38 +974,6 @@ NS_IMETHODIMP nsChildView::Show(PRBool aState)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Reset the parent of this widget
-NS_IMETHODIMP
-nsChildView::SetParent(nsIWidget* aNewParent)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  NS_ENSURE_ARG(aNewParent);
-  NSView<mozView>* newParentView =
-   (NSView*)aNewParent->GetNativeData(NS_NATIVE_WIDGET); 
-  NS_ENSURE_TRUE(newParentView, NS_ERROR_FAILURE);
-
-  if (mOnDestroyCalled)
-    return NS_OK;
-
-  // make sure we stay alive
-  nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-  
-  // remove us from our existing parent
-  if (mParentWidget)
-    mParentWidget->RemoveChild(this);
-  // we hold a ref to mView, so this is safe
-  [mView removeFromSuperview];
-  
-  // add us to the new parent
-  aNewParent->AddChild(this);
-  mParentWidget = aNewParent;
-  mParentView   = newParentView;
-  [mParentView addSubview:mView];
-  return NS_OK;
-  
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
 
 nsIWidget*
 nsChildView::GetParent(void)
@@ -1550,18 +1517,20 @@ nsresult nsChildView::SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
-// First argument has to be an NSMenu representing the application's top-level
-// menu bar. The returned item is *not* retained.
-static NSMenuItem* NativeMenuItemWithLocation(NSMenu* menubar, NSString* locationString)
+// Used for testing native menu system structure and event handling.
+NS_IMETHODIMP nsChildView::ActivateNativeMenuItemAt(const nsAString& indexString)
 {
-  NSArray* indexes = [locationString componentsSeparatedByString:@"|"];
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  NSString* title = [NSString stringWithCharacters:indexString.BeginReading() length:indexString.Length()];
+  NSArray* indexes = [title componentsSeparatedByString:@"|"];
   unsigned int indexCount = [indexes count];
   if (indexCount == 0)
-    return nil;
-
+    return NS_OK;
+  
   NSMenu* currentSubmenu = [NSApp mainMenu];
-  for (unsigned int i = 0; i < indexCount; i++) {
+  for (unsigned int i = 0; i < (indexCount - 1); i++) {
+    NSMenu* newSubmenu = nil;
     int targetIndex;
     // We remove the application menu from consideration for the top-level menu
     if (i == 0)
@@ -1571,66 +1540,49 @@ static NSMenuItem* NativeMenuItemWithLocation(NSMenu* menubar, NSString* locatio
     int itemCount = [currentSubmenu numberOfItems];
     if (targetIndex < itemCount) {
       NSMenuItem* menuItem = [currentSubmenu itemAtIndex:targetIndex];
-      // if this is the last index just return the menu item
-      if (i == (indexCount - 1))
-        return menuItem;
-      // if this is not the last index find the submenu and keep going
       if ([menuItem hasSubmenu])
-        currentSubmenu = [menuItem submenu];
-      else
-        return nil;
+        newSubmenu = [menuItem submenu];
     }
+    
+    if (newSubmenu)
+      currentSubmenu = newSubmenu;
+    else
+      return NS_ERROR_FAILURE;
   }
 
-  return nil;
-}
-
-
-// Used for testing native menu system structure and event handling.
-NS_IMETHODIMP nsChildView::ActivateNativeMenuItemAt(const nsAString& indexString)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  NSString* locationString = [NSString stringWithCharacters:indexString.BeginReading() length:indexString.Length()];
-  NSMenuItem* item = NativeMenuItemWithLocation([NSApp mainMenu], locationString);
+  int itemCount = [currentSubmenu numberOfItems];
+  int targetIndex = [[indexes objectAtIndex:(indexCount - 1)] intValue];
   // We can't perform an action on an item with a submenu, that will raise
   // an obj-c exception.
-  if (item && ![item hasSubmenu]) {
-    NSMenu* parent = [item menu];
-    if (parent) {
+  if (targetIndex < itemCount && ![[currentSubmenu itemAtIndex:targetIndex] hasSubmenu]) {
       // NSLog(@"Performing action for native menu item titled: %@\n",
       //       [[currentSubmenu itemAtIndex:targetIndex] title]);
-      [parent performActionForItemAtIndex:[parent indexOfItem:item]];
-      return NS_OK;
-    }
+      [currentSubmenu performActionForItemAtIndex:targetIndex];      
   }
-  return NS_ERROR_FAILURE;
+  else {
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
-// Used for testing native menu system structure and event handling.
-NS_IMETHODIMP nsChildView::ForceUpdateNativeMenuAt(const nsAString& indexString)
+NS_IMETHODIMP nsChildView::ForceNativeMenuReload()
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   id windowDelegate = [[mView nativeWindow] delegate];
   if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
     nsCocoaWindow *widget = [(WindowDelegate *)windowDelegate geckoWidget];
     if (widget) {
       nsMenuBarX* mb = widget->GetMenuBar();
       if (mb) {
-        if (indexString.IsEmpty())
-          mb->ForceNativeMenuReload();
-        else
-          mb->ForceUpdateNativeMenuAt(indexString);
+        mb->ForceNativeMenuReload();
       }
     }
   }
-  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  return NS_OK;
 }
 
 
@@ -4030,12 +3982,12 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     // dispatch scroll wheel carbon event for plugins
     {
       EventRef theEvent;
-      OSStatus err = ::CreateEvent(NULL,
-                                   kEventClassMouse,
-                                   kEventMouseWheelMoved,
-                                   TicksToEventTime(TickCount()),
-                                   kEventAttributeUserEvent,
-                                   &theEvent);
+      OSStatus err = ::MacCreateEvent(NULL,
+                                      kEventClassMouse,
+                                      kEventMouseWheelMoved,
+                                      TicksToEventTime(TickCount()),
+                                      kEventAttributeUserEvent,
+                                      &theEvent);
       if (err == noErr) {
         EventMouseWheelAxis axis;
         if (inAxis & nsMouseScrollEvent::kIsVertical)

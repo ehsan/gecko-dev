@@ -92,8 +92,8 @@
     <checkbox label="&itemPasswords.label;"
               accesskey="&itemPasswords.accesskey;"
               preference="privacy.item.passwords"/>
-    <checkbox label="&itemActiveLogins.label;"
-              accesskey="&itemActiveLogins.accesskey;"
+    <checkbox label="&itemSessions.label;"
+              accesskey="&itemSessions.accesskey;"
               preference="privacy.item.sessions"/>
 
   </prefpane>

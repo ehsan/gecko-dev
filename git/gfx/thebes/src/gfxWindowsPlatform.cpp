@@ -722,32 +722,57 @@ public:
 
 class EOTFontStreamReader {
 public:
-    EOTFontStreamReader(const PRUint8 *aFontData, PRUint32 aLength, PRUint8 *aEOTHeader, 
+    EOTFontStreamReader(nsILocalFile *aFontFile, PRUint8 *aEOTHeader, 
                         PRUint32 aEOTHeaderLen)
-        : mInHeader(PR_TRUE), mHeaderOffset(0), mEOTHeader(aEOTHeader), 
-          mEOTHeaderLen(aEOTHeaderLen), mFontData(aFontData), mFontDataLen(aLength),
-          mFontDataOffset(0)
+        : mFontFile(aFontFile), mFd(nsnull), mOpenError(PR_FALSE), 
+          mInHeader(PR_TRUE), mHeaderOffset(0), mEOTHeader(aEOTHeader), 
+          mEOTHeaderLen(aEOTHeaderLen)
     {
     
     }
 
     ~EOTFontStreamReader() 
     { 
+        if (mFd) {
+            PR_Close(mFd);
+        }
 
+        mFontFile->Remove(PR_FALSE);
     }
 
+    nsCOMPtr<nsILocalFile>  mFontFile;
+    PRFileDesc              *mFd;
+    PRPackedBool            mOpenError;
     PRPackedBool            mInHeader;
     PRUint32                mHeaderOffset;
     PRUint8                 *mEOTHeader;
     PRUint32                mEOTHeaderLen;
-    const PRUint8           *mFontData;
-    PRUint32                mFontDataLen;
-    PRUint32                mFontDataOffset;
+
+    PRBool OpenFontFile()
+    {
+        nsresult rv;
+
+        rv = mFontFile->OpenNSPRFileDesc(PR_RDONLY, 0, &mFd);
+        if (NS_FAILED(rv) || !mFd)
+            return PR_FALSE;
+
+        return PR_TRUE;
+    }
 
     unsigned long Read(void *outBuffer, const unsigned long aBytesToRead)
     {
         PRUint32 bytesLeft = aBytesToRead;
         PRUint8 *out = static_cast<PRUint8*> (outBuffer);
+
+        if (mOpenError)
+            return 0;
+
+        if (!mFd) {
+            if (!OpenFontFile()) {
+                mOpenError = PR_TRUE;
+                return 0;
+            }
+        }
 
         // read from EOT header
         if (mInHeader) {
@@ -761,10 +786,7 @@ public:
         }
 
         if (bytesLeft) {
-            PRInt32 bytesRead = PR_MIN(bytesLeft, mFontDataLen - mFontDataOffset);
-            memcpy(out, mFontData, bytesRead);
-            mFontData += bytesRead;
-            mFontDataOffset += bytesRead;
+            PRInt32 bytesRead = PR_Read(mFd, out, bytesLeft);
             if (bytesRead > 0)
                 bytesLeft -= bytesRead;
         }
@@ -784,15 +806,12 @@ public:
 
 gfxFontEntry* 
 gfxWindowsPlatform::MakePlatformFont(const gfxFontEntry *aProxyEntry, 
-                                     const PRUint8 *aFontData, PRUint32 aLength)
+                                     const gfxDownloadedFontData* aFontData)
 {
     // if calls aren't available, bail
     if (!TTLoadEmbeddedFontPtr || !TTDeleteEmbeddedFontPtr)
         return nsnull;
 
-    if (!gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength))
-        return nsnull;
-        
     // create an eot header
     nsAutoTArray<PRUint8,2048> eotHeader;
     PRUint8 *buffer;
@@ -805,7 +824,11 @@ gfxWindowsPlatform::MakePlatformFont(const gfxFontEntry *aProxyEntry,
     PRInt32 ret;
 
     {
-        rv = gfxFontUtils::MakeEOTHeader(aFontData, aLength, &eotHeader, &isCFF);
+        nsCOMPtr<nsILocalFile> fontFile(do_QueryInterface(aFontData->mFontFile, &rv));
+        if (NS_FAILED(rv))
+            return nsnull;
+
+        rv = gfxFontUtils::MakeEOTHeader(fontFile, &eotHeader, &isCFF);
         if (NS_FAILED(rv))
             return nsnull;
 
@@ -815,7 +838,7 @@ gfxWindowsPlatform::MakePlatformFont(const gfxFontEntry *aProxyEntry,
         
         ULONG privStatus, pulStatus;
         MakeUniqueFontName(fontName);
-        EOTFontStreamReader eotReader(aFontData, aLength, buffer, eotlen);
+        EOTFontStreamReader eotReader(fontFile, buffer, eotlen);
 
         ret = TTLoadEmbeddedFontPtr(&fontRef, TTLOAD_PRIVATE, &privStatus, 
                                    LICENSE_PREVIEWPRINT, &pulStatus, 

@@ -67,7 +67,6 @@ XPIDLSRCS = \
 
 EXPORTS = \
 	mozStorageHelper.h \
-	mozStorage.h \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

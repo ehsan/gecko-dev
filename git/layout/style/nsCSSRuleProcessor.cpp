@@ -1047,7 +1047,7 @@ RuleProcessorData::GetNthIndex(PRBool aIsOfType, PRBool aIsFromEnd,
   nsIContent * const * stopPtr;
   if (aIsFromEnd) {
     stopPtr = curChildPtr - 1;
-    curChildPtr = stopPtr + childCount;
+    curChildPtr += childCount - 1;
     increment = -1;
   } else {
     increment = 1;

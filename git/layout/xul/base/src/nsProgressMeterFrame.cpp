@@ -129,27 +129,15 @@ nsProgressMeterFrame::AttributeChanged(PRInt32 aNameSpaceID,
     nsCOMPtr<nsIContent> remainderContent = remainderChild->GetContent();
     if (!remainderContent) return NS_OK;
 
-    nsAutoString value, maxValue;
+    nsAutoString value;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::value, value);
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxValue);
 
     PRInt32 error;
     PRInt32 flex = value.ToInteger(&error);
-    PRInt32 maxFlex = maxValue.ToInteger(&error);
-    if (NS_FAILED(error) || maxValue.IsEmpty()) {
-      maxFlex = 100;
-    }
-    if (maxFlex < 1) {
-      maxFlex = 1;
-    }
-    if (flex < 0) {
-      flex = 0;
-    }
-    if (flex > maxFlex) {
-      flex = maxFlex;
-    }
+    if (flex < 0) flex = 0;
+    if (flex > 100) flex = 100;
 
-    PRInt32 remainder = maxFlex - flex;
+    PRInt32 remainder = 100 - flex;
 
     nsAutoString leftFlex, rightFlex;
     leftFlex.AppendInt(flex);

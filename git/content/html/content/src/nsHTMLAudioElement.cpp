@@ -110,3 +110,11 @@ void nsHTMLAudioElement::UnbindFromTree(PRBool aDeep,
 
   nsHTMLMediaElement::UnbindFromTree(aDeep, aNullParent);
 }
+
+nsresult nsHTMLAudioElement::InitializeDecoder(nsAString& aChosenMediaResource)
+{
+  if (mDecoder) 
+    mDecoder->ElementAvailable(this);
+
+  return nsHTMLMediaElement::InitializeDecoder(aChosenMediaResource);
+}

@@ -42,7 +42,6 @@
 #include "nsIAccessible.h"
 #include "nsIAccessNode.h"
 #include "nsIAccessibleRole.h"
-#include "nsIAccessibleText.h"
 #include "nsARIAMap.h"
 
 #include "nsIDOMNode.h"
@@ -160,18 +159,6 @@ public:
      GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
                            nsIContent *aStartTreeItemContent,
                            nsIAccessible **aTreeItemParent);
-
-  /**
-   * Return text accessible containing focus point of the given selection.
-   * Used for normal and misspelling selection changes processing.
-   *
-   * @param aSelection  [in] the given selection
-   * @param aNode       [out, optional] the DOM node of text accessible
-   * @return            text accessible
-   */
-  static already_AddRefed<nsIAccessibleText>
-    GetTextAccessibleFromSelection(nsISelection *aSelection,
-                                   nsIDOMNode **aNode = nsnull);
 
   /**
    * Converts the given coordinates to coordinates relative screen.

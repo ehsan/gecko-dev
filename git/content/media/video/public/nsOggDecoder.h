@@ -297,33 +297,34 @@ class nsOggDecoder : public nsMediaDecoder
 
   // This method must be called by the owning object before that
   // object disposes of this decoder object.
-  virtual void Shutdown();
+  void Shutdown();
   
-  virtual float GetCurrentTime();
+  float GetCurrentTime();
 
-  virtual nsresult Load(nsIURI* aURI,
-                        nsIChannel* aChannel,
-                        nsIStreamListener **aListener);
+  // Start downloading the video at the given URI. Decode
+  // the downloaded data up to the point of the first frame
+  // of data. 
+  nsresult Load(nsIURI* aURI);
 
   // Start playback of a video. 'Load' must have previously been
   // called.
-  virtual nsresult Play();
+  nsresult Play();
 
   // Stop playback of a video, and stop download of video stream.
   virtual void Stop();
 
   // Seek to the time position in (seconds) from the start of the video.
-  virtual nsresult Seek(float time);
+  nsresult Seek(float time);
 
-  virtual nsresult PlaybackRateChanged();
+  nsresult PlaybackRateChanged();
 
-  virtual void Pause();
-  virtual float GetVolume();
-  virtual void SetVolume(float volume);
-  virtual float GetDuration();
+  void Pause();
+  float GetVolume();
+  void SetVolume(float volume);
+  float GetDuration();
 
-  virtual void GetCurrentURI(nsIURI** aURI);
-  virtual nsIPrincipal* GetCurrentPrincipal();
+  void GetCurrentURI(nsIURI** aURI);
+  nsIPrincipal* GetCurrentPrincipal();
 
   virtual void UpdateBytesDownloaded(PRUint64 aBytes);
 

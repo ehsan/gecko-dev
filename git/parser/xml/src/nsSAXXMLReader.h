@@ -72,7 +72,7 @@ public:
   nsSAXXMLReader();
 
   //nsIContentSink
-  NS_IMETHOD WillParse()
+  NS_IMETHOD WillTokenize()
   {
     return NS_OK;
   }

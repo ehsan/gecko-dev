@@ -695,6 +695,12 @@ public:
     GetScriptHandlingObject(PRBool& aHasHadScriptHandlingObject) const;
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject);
 
+  virtual void ClearScriptHandlingObject()
+  {
+    mScriptObject = nsnull;
+    mHasHadScriptHandlingObject = PR_TRUE;
+  }
+
   virtual nsIScriptGlobalObject* GetScopeObject();
 
   /**

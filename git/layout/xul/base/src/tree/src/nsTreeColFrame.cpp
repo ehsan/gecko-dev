@@ -51,7 +51,6 @@
 #include "nsITreeColumns.h"
 #include "nsIDOMXULTreeElement.h"
 #include "nsDisplayList.h"
-#include "nsTreeBodyFrame.h"
 
 //
 // NS_NewTreeColFrame
@@ -232,7 +231,8 @@ nsTreeColFrame::InvalidateColumns(PRBool aCanWalkFrameTree)
     if (aCanWalkFrameTree) {
       treeBoxObject->GetColumns(getter_AddRefs(columns));
     } else {
-      nsTreeBodyFrame* body = static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
+      nsITreeBoxObject* body =
+        static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
       if (body) {
         body->GetColumns(getter_AddRefs(columns));
       }

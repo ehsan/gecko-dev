@@ -75,7 +75,8 @@ treechildren::-moz-tree-row(alternate, selected) {
 }
 
 #buttons {
-  -moz-margin-start: 80px; /* same as #errorLongContent in netError.css */
+  width: 100%;
+  -moz-box-direction: reverse;
 }
 #buttons > button {
   margin-top: 2em;

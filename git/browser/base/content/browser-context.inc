@@ -108,11 +108,6 @@
                 accesskey="&viewImageCmd.accesskey;"
                 oncommand="gContextMenu.viewMedia(event);"
                 onclick="checkForMiddleClick(this, event);"/>
-      <menuitem id="context-viewvideo"
-                label="&viewVideoCmd.label;"
-                accesskey="&viewVideoCmd.accesskey;"
-                oncommand="gContextMenu.viewMedia(event);"
-                onclick="checkForMiddleClick(this, event);"/>
 #ifdef CONTEXT_COPY_IMAGE_CONTENTS
       <menuitem id="context-copyimage-contents"
                 label="&copyImageContentsCmd.label;"

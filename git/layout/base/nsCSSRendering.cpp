@@ -366,6 +366,31 @@ MakeBevelColor(PRIntn whichSide, PRUint8 style,
   return theColor;
 }
 
+nscolor
+nsCSSRendering::TransformColor(nscolor  aMapColor,PRBool aNoBackGround)
+{
+PRUint16  hue,sat,value;
+nscolor   newcolor;
+
+  newcolor = aMapColor;
+  if (PR_TRUE == aNoBackGround){
+    // convert the RBG to HSV so we can get the lightness (which is the v)
+    NS_RGB2HSV(newcolor,hue,sat,value);
+    // The goal here is to send white to black while letting colored
+    // stuff stay colored... So we adopt the following approach.
+    // Something with sat = 0 should end up with value = 0.  Something
+    // with a high sat can end up with a high value and it's ok.... At
+    // the same time, we don't want to make things lighter.  Do
+    // something simple, since it seems to work.
+    if (value > sat) {
+      value = sat;
+      // convert this color back into the RGB color space.
+      NS_HSV2RGB(newcolor,hue,sat,value);
+    }
+  }
+  return newcolor;
+}
+
 //----------------------------------------------------------------------
 // Thebes Border Rendering Code Start
 
@@ -1351,22 +1376,9 @@ IsSolidBorderEdge(const nsStyleBorder& aBorder, PRUint32 aSide)
   if (aBorder.GetBorderStyle(aSide) != NS_STYLE_BORDER_STYLE_SOLID)
     return PR_FALSE;
 
-  // If we're using a border image, assume it's not fully opaque,
-  // because we may not even have the image loaded at this point, and
-  // even if we did, checking whether the relevant tile is fully
-  // opaque would be too much work.
-  if (aBorder.GetBorderImage())
-    return PR_FALSE;
-
   nscolor color;
   PRBool isForeground;
   aBorder.GetBorderColor(aSide, color, isForeground);
-
-  // We don't know the foreground color here, so if it's being used
-  // we must assume it might be transparent.
-  if (isForeground)
-    return PR_FALSE;
-
   return NS_GET_A(color) == 255;
 }
 
@@ -1465,8 +1477,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // We have a background image
 
   // Lookup the image
-  imgIRequest *req = aPresContext->LoadImage(aColor.mBackgroundImage,
-                                             aForFrame);
+  imgIRequest *req = aColor.mBackgroundImage;
 
   PRUint32 status = imgIRequest::STATUS_ERROR;
   if (req)
@@ -1904,7 +1915,7 @@ DrawBorderImage(nsPresContext* aPresContext,
     borderImageSplit[NS_SIDE_BOTTOM] = aBorderStyle.mBorderImageSplit.GetBottom();
     borderImageSplit[NS_SIDE_LEFT] = aBorderStyle.mBorderImageSplit.GetLeft();
 
-    imgIRequest *req = aPresContext->LoadBorderImage(aBorderStyle.GetBorderImage(), aForFrame);
+    imgIRequest *req = aBorderStyle.GetBorderImage();
 
     nsCOMPtr<imgIContainer> image;
     req->GetImage(getter_AddRefs(image));

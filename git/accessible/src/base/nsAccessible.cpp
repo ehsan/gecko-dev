@@ -1154,16 +1154,15 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
   nsresult rv = GetDeepestChildAtPoint(aX, aY, aAccessible);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!*aAccessible || *aAccessible == this)
+  if (!*aAccessible)
     return NS_OK;
 
-  // Get direct child containing the deepest child at the given point.
   nsCOMPtr<nsIAccessible> parent, accessible(*aAccessible);
   while (PR_TRUE) {
     accessible->GetParent(getter_AddRefs(parent));
     if (!parent) {
-      NS_NOTREACHED("Obtained accessible isn't a child of this accessible.");
-
+      NS_ASSERTION(PR_FALSE,
+                   "Obtained accessible isn't a child of this accessible.");
       // Reached the top of the hierarchy. These bounds were inside an
       // accessible that is not a descendant of this one.
 
@@ -1624,16 +1623,11 @@ nsAccessible::AppendFlatStringFromSubtreeRecurse(nsIContent *aContent,
   // Append all the text into one flat string
   PRUint32 numChildren = 0;
   nsCOMPtr<nsIDOMXULSelectControlElement> selectControlEl(do_QueryInterface(aContent));
-  nsCOMPtr<nsIAtom> tag = aContent->Tag();
-
-  if (!selectControlEl && 
-      tag != nsAccessibilityAtoms::textarea && 
-      tag != nsAccessibilityAtoms::select) {
+  
+  if (!selectControlEl && aContent->Tag() != nsAccessibilityAtoms::textarea) {
     // Don't walk children of elements with options, just get label directly.
     // Don't traverse the children of a textarea, we want the value, not the
     // static text node.
-    // Don't traverse the children of a select element, we only want the
-    // current value.
     numChildren = aContent->GetChildCount();
   }
 
@@ -2187,28 +2181,13 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
   }
 
   // Expose 'display' attribute.
-  nsAutoString value;
+  nsAutoString displayValue;
   nsresult rv = GetComputedStyleValue(EmptyString(),
                                       NS_LITERAL_STRING("display"),
-                                      value);
+                                      displayValue);
   if (NS_SUCCEEDED(rv))
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::display,
-                           value);
-
-  // Expose 'text-align' attribute.
-  rv = GetComputedStyleValue(EmptyString(), NS_LITERAL_STRING("text-align"),
-                             value);
-  if (NS_SUCCEEDED(rv))
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::textAlign,
-                           value);
-
-  // Expose 'text-indent' attribute.
-  rv = GetComputedStyleValue(EmptyString(), NS_LITERAL_STRING("text-indent"),
-                             value);
-  if (NS_SUCCEEDED(rv))
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::textIndent,
-                           value);
-
+                           displayValue);
   return NS_OK;
 }
 
