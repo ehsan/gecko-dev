@@ -380,13 +380,13 @@ class MochiRemote(Mochitest):
         options.logFile = self.localLog
         return retVal
 
-    def buildTestPath(self, options, testsToFilter=None):
+    def buildTestPath(self, options):
         if options.robocopIni != "":
             # Skip over manifest building if we just want to run
             # robocop tests.
             return self.buildTestURL(options)
         else:
-            return super(MochiRemote, self).buildTestPath(options, testsToFilter)
+            return super(MochiRemote, self).buildTestPath(options)
 
     def installChromeFile(self, filename, options):
         parts = options.app.split('/')

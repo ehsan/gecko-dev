@@ -667,10 +667,6 @@ class ArenaLists
         return arenaListsToSweep[thingKind];
     }
 
-    ArenaHeader *getArenaAfterCursor(AllocKind thingKind) const {
-        return arenaLists[thingKind].arenaAfterCursor();
-    }
-
     bool arenaListsAreEmpty() const {
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i) {
             /*
@@ -782,15 +778,6 @@ class ArenaLists
             return true;
         }
         return false;
-    }
-
-    /* Check if |aheader|'s arena is in use. */
-    bool arenaIsInUse(ArenaHeader *aheader, AllocKind kind) const {
-        JS_ASSERT(aheader);
-        const FreeList &freeList = freeLists[kind];
-        if (freeList.isEmpty())
-            return false;
-        return aheader == freeList.arenaHeader();
     }
 
     MOZ_ALWAYS_INLINE void *allocateFromFreeList(AllocKind thingKind, size_t thingSize) {

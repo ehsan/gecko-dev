@@ -1339,18 +1339,24 @@ void
 MacroAssembler::assumeUnreachable(const char *output)
 {
 #ifdef DEBUG
-    if (!IsCompilingAsmJS()) {
-        RegisterSet regs = RegisterSet::Volatile();
-        PushRegsInMask(regs);
-        Register temp = regs.takeGeneral();
+    RegisterSet regs = RegisterSet::Volatile();
+    PushRegsInMask(regs);
+    Register temp = regs.takeGeneral();
 
+    // With ASLR, we can't rely on 'output' to point to the
+    // same char array after serialization/deserialization.
+    // It is not possible until we modify AsmJsImmPtr and
+    // the underlying "patching" mechanism.
+    if (IsCompilingAsmJS()) {
+        setupUnalignedABICall(0, temp);
+        callWithABINoProfiling(AsmJSImm_AssumeUnreachable);
+    } else {
         setupUnalignedABICall(1, temp);
         movePtr(ImmPtr(output), temp);
         passABIArg(temp);
         callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, AssumeUnreachable_));
-
-        PopRegsInMask(RegisterSet::Volatile());
     }
+    PopRegsInMask(RegisterSet::Volatile());
 #endif
 
     breakpoint();

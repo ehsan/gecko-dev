@@ -293,8 +293,7 @@ let DebuggerController = {
   _startDebuggingTab: function() {
     let deferred = promise.defer();
     let threadOptions = {
-      useSourceMaps: Prefs.sourceMapsEnabled,
-      autoBlackBox: Prefs.autoBlackBox
+      useSourceMaps: Prefs.sourceMapsEnabled
     };
 
     this._target.activeTab.attachThread(threadOptions, (aResponse, aThreadClient) => {
@@ -346,8 +345,7 @@ let DebuggerController = {
   _startChromeDebugging: function(aChromeDebugger) {
     let deferred = promise.defer();
     let threadOptions = {
-      useSourceMaps: Prefs.sourceMapsEnabled,
-      autoBlackBox: Prefs.autoBlackBox
+      useSourceMaps: Prefs.sourceMapsEnabled
     };
 
     this.client.attachThread(aChromeDebugger, (aResponse, aThreadClient) => {
@@ -399,11 +397,8 @@ let DebuggerController = {
    * Detach and reattach to the thread actor with useSourceMaps true, blow
    * away old sources and get them again.
    */
-  reconfigureThread: function({ useSourceMaps, autoBlackBox }) {
-    this.activeThread.reconfigure({
-      useSourceMaps: useSourceMaps,
-      autoBlackBox: autoBlackBox
-    }, aResponse => {
+  reconfigureThread: function(aUseSourceMaps) {
+    this.activeThread.reconfigure({ useSourceMaps: aUseSourceMaps }, aResponse => {
       if (aResponse.error) {
         let msg = "Couldn't reconfigure thread: " + aResponse.message;
         Cu.reportError(msg);
@@ -2246,8 +2241,7 @@ let Prefs = new ViewHelpers.Prefs("devtools", {
   prettyPrintEnabled: ["Bool", "debugger.pretty-print-enabled"],
   autoPrettyPrint: ["Bool", "debugger.auto-pretty-print"],
   tracerEnabled: ["Bool", "debugger.tracer"],
-  editorTabSize: ["Int", "editor.tabsize"],
-  autoBlackBox: ["Bool", "debugger.auto-black-box"]
+  editorTabSize: ["Int", "editor.tabsize"]
 });
 
 /**

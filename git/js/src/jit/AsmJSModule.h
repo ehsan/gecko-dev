@@ -490,8 +490,8 @@ class AsmJSModule
         uint32_t                          minHeapLength_;
         uint32_t                          numGlobalVars_;
         uint32_t                          numFFIs_;
-        uint32_t                          srcLength_;
-        uint32_t                          srcLengthWithRightBrace_;
+        uint32_t                          funcLength_;
+        uint32_t                          funcLengthWithRightBrace_;
         bool                              strict_;
         bool                              hasArrayView_;
     } pod;
@@ -499,8 +499,8 @@ class AsmJSModule
     // These two fields need to be kept out pod as they depend on the position
     // of the module within the ScriptSource and thus aren't invariant with
     // respect to caching.
-    const uint32_t                        srcStart_;
-    const uint32_t                        srcBodyStart_;
+    const uint32_t                        funcStart_;
+    const uint32_t                        offsetToEndOfUseAsm_;
 
     Vector<Global,                 0, SystemAllocPolicy> globals_;
     Vector<Exit,                   0, SystemAllocPolicy> exits_;
@@ -533,8 +533,8 @@ class AsmJSModule
     mutable bool                          codeIsProtected_;
 
   public:
-    explicit AsmJSModule(ScriptSource *scriptSource, uint32_t srcStart, uint32_t srcBodyStart,
-                         bool strict);
+    explicit AsmJSModule(ScriptSource *scriptSource, uint32_t functStart,
+                         uint32_t offsetToEndOfUseAsm, bool strict);
     void trace(JSTracer *trc);
     ~AsmJSModule();
 
@@ -559,19 +559,18 @@ class AsmJSModule
         return loadedFromCache_;
     }
 
-    // srcStart() refers to the offset in the ScriptSource to the beginning of
-    // the asm.js module function. If the function has been created with the
-    // Function constructor, this will be the first character in the function
-    // source. Otherwise, it will be the opening parenthesis of the arguments
-    // list.
-    uint32_t srcStart() const {
-        return srcStart_;
+    // funcStart() refers to the offset in the ScriptSource to the beginning
+    // of the function. If the function has been created with the Function
+    // constructor, this will be the first character in the function source.
+    // Otherwise, it will be the opening parenthesis of the arguments list.
+    uint32_t funcStart() const {
+        return funcStart_;
     }
 
-    // srcBodyStart() refers to the offset in the ScriptSource to the end
+    // offsetToEndOfUseAsm() refers to the offset in the ScriptSource to the end
     // of the 'use asm' string-literal token.
-    uint32_t srcBodyStart() const {
-        return srcBodyStart_;
+    uint32_t offsetToEndOfUseAsm() const {
+        return offsetToEndOfUseAsm_;
     }
 
     // While these functions may be accessed at any time, their values will
@@ -698,6 +697,8 @@ class AsmJSModule
     bool addFunctionCodeRange(PropertyName *name, uint32_t begin, uint32_t end) {
         JS_ASSERT(isFinishedWithModulePrologue() && !isFinishedWithFunctionBodies());
         JS_ASSERT(name->isTenured());
+        JS_ASSERT(begin <= end);
+        JS_ASSERT_IF(!codeRanges_.empty(), codeRanges_.back().end() <= begin);
         if (functionNames_.length() >= UINT32_MAX)
             return false;
         CodeRange codeRange(CodeRange::Function, begin, end, functionNames_.length());
@@ -744,11 +745,11 @@ class AsmJSModule
         return functionCounts_.append(counts);
     }
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
-    bool addProfiledFunction(PropertyName *name, unsigned codeStart, unsigned codeEnd,
+    bool addProfiledFunction(PropertyName *name, unsigned startCodeOffset, unsigned endCodeOffset,
                              unsigned line, unsigned column)
     {
         JS_ASSERT(isFinishedWithModulePrologue() && !isFinishedWithFunctionBodies());
-        ProfiledFunction func(name, codeStart, codeEnd, line, column);
+        ProfiledFunction func(name, startCodeOffset, endCodeOffset, line, column);
         return profiledFunctions_.append(func);
     }
     unsigned numProfiledFunctions() const {
@@ -761,11 +762,13 @@ class AsmJSModule
     }
 #endif
 #ifdef JS_ION_PERF
-    bool addProfiledBlocks(PropertyName *name, unsigned codeBegin, unsigned inlineEnd,
-                           unsigned codeEnd, jit::BasicBlocksVector &basicBlocks)
+    bool addPerfProfiledBlocks(PropertyName *name, unsigned startCodeOffset,
+                               unsigned endInlineCodeOffset, unsigned endCodeOffset,
+                               jit::BasicBlocksVector &basicBlocks)
     {
         JS_ASSERT(isFinishedWithModulePrologue() && !isFinishedWithFunctionBodies());
-        ProfiledBlocksFunction func(name, codeBegin, inlineEnd, codeEnd, basicBlocks);
+        ProfiledBlocksFunction func(name, startCodeOffset, endInlineCodeOffset, endCodeOffset,
+                                    basicBlocks);
         return perfProfiledBlocksFunctions_.append(mozilla::Move(func));
     }
     unsigned numPerfBlocksFunctions() const {
@@ -842,13 +845,13 @@ class AsmJSModule
         JS_ASSERT(isFinished());
         return pod.numFFIs_;
     }
-    uint32_t srcEndBeforeCurly() const {
+    uint32_t funcEndBeforeCurly() const {
         JS_ASSERT(isFinished());
-        return srcStart_ + pod.srcLength_;
+        return funcStart_ + pod.funcLength_;
     }
-    uint32_t srcEndAfterCurly() const {
+    uint32_t funcEndAfterCurly() const {
         JS_ASSERT(isFinished());
-        return srcStart_ + pod.srcLengthWithRightBrace_;
+        return funcStart_ + pod.funcLengthWithRightBrace_;
     }
     uint8_t *codeBase() const {
         JS_ASSERT(isFinished());

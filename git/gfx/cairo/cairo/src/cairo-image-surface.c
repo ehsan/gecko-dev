@@ -3565,11 +3565,9 @@ _clip_and_composite_polygon (cairo_image_surface_t *dst,
 	return status;
     }
 
-    if (_cairo_operator_bounded_by_mask(op)) {
-	_cairo_box_round_to_rectangle (&polygon->extents, &extents->mask);
-	if (! _cairo_rectangle_intersect (&extents->bounded, &extents->mask))
-	    return CAIRO_STATUS_SUCCESS;
-    }
+    _cairo_box_round_to_rectangle (&polygon->extents, &extents->mask);
+    if (! _cairo_rectangle_intersect (&extents->bounded, &extents->mask))
+	return CAIRO_STATUS_SUCCESS;
 
     if (antialias != CAIRO_ANTIALIAS_NONE) {
 	composite_spans_info_t info;

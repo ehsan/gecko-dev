@@ -123,15 +123,8 @@ PlacesViewBase.prototype = {
 
   get selectedNode() {
     if (this._contextMenuShown) {
-      let anchor = this._contextMenuShown.triggerNode;
-      if (!anchor)
-        return null;
-
-      if (anchor._placesNode)
-        return this._rootElt == anchor ? null : anchor._placesNode;
-
-      anchor = anchor.parentNode;
-      return this._rootElt == anchor ? null : (anchor._placesNode || null);
+      let popup = document.popupNode;
+      return popup._placesNode || popup.parentNode._placesNode || null;
     }
     return null;
   },
@@ -197,13 +190,13 @@ PlacesViewBase.prototype = {
   },
 
   buildContextMenu: function PVB_buildContextMenu(aPopup) {
-    this._contextMenuShown = aPopup;
+    this._contextMenuShown = true;
     window.updateCommands("places");
     return this.controller.buildContextMenu(aPopup);
   },
 
   destroyContextMenu: function PVB_destroyContextMenu(aPopup) {
-    this._contextMenuShown = null;
+    this._contextMenuShown = false;
   },
 
   _cleanPopup: function PVB_cleanPopup(aPopup, aDelay) {

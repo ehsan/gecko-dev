@@ -70,7 +70,6 @@ Tools.options = {
   icon: "chrome://browser/skin/devtools/tool-options.svg",
   invertIconForLightTheme: true,
   bgTheme: "theme-body",
-  panelLabel: l10n("options.panelLabel", toolboxStrings),
   tooltip: l10n("optionsButton.tooltip", toolboxStrings),
   inMenu: false,
   isTargetSupported: function(target) {
@@ -93,7 +92,6 @@ Tools.webConsole = {
   url: "chrome://browser/content/devtools/webconsole.xul",
   label: l10n("ToolboxTabWebconsole.label", webConsoleStrings),
   menuLabel: l10n("MenuWebconsole.label", webConsoleStrings),
-  panelLabel: l10n("ToolboxWebConsole.panelLabel", webConsoleStrings),
   tooltip: l10n("ToolboxWebconsole.tooltip", webConsoleStrings),
   inMenu: true,
   commands: "devtools/webconsole/console-commands",
@@ -125,7 +123,6 @@ Tools.inspector = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/inspector/inspector.xul",
   label: l10n("inspector.label", inspectorStrings),
-  panelLabel: l10n("inspector.panelLabel", inspectorStrings),
   tooltip: l10n("inspector.tooltip", inspectorStrings),
   inMenu: true,
   commands: [
@@ -160,7 +157,6 @@ Tools.jsdebugger = {
   highlightedicon: "chrome://browser/skin/devtools/tool-debugger-paused.svg",
   url: "chrome://browser/content/devtools/debugger.xul",
   label: l10n("ToolboxDebugger.label", debuggerStrings),
-  panelLabel: l10n("ToolboxDebugger.panelLabel", debuggerStrings),
   tooltip: l10n("ToolboxDebugger.tooltip", debuggerStrings),
   inMenu: true,
   commands: "devtools/debugger/debugger-commands",
@@ -185,7 +181,6 @@ Tools.styleEditor = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/styleeditor.xul",
   label: l10n("ToolboxStyleEditor.label", styleEditorStrings),
-  panelLabel: l10n("ToolboxStyleEditor.panelLabel", styleEditorStrings),
   tooltip: l10n("ToolboxStyleEditor.tooltip2", styleEditorStrings),
   inMenu: true,
   commands: "devtools/styleeditor/styleeditor-commands",
@@ -208,7 +203,6 @@ Tools.shaderEditor = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/shadereditor.xul",
   label: l10n("ToolboxShaderEditor.label", shaderEditorStrings),
-  panelLabel: l10n("ToolboxShaderEditor.panelLabel", shaderEditorStrings),
   tooltip: l10n("ToolboxShaderEditor.tooltip", shaderEditorStrings),
 
   isTargetSupported: function(target) {
@@ -229,7 +223,6 @@ Tools.canvasDebugger = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/canvasdebugger.xul",
   label: l10n("ToolboxCanvasDebugger.label", canvasDebuggerStrings),
-  panelLabel: l10n("ToolboxCanvasDebugger.panelLabel", canvasDebuggerStrings),
   tooltip: l10n("ToolboxCanvasDebugger.tooltip", canvasDebuggerStrings),
   isTargetSupported: function(target) {
     return !target.isAddon;
@@ -248,7 +241,6 @@ Tools.webAudioEditor = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/webaudioeditor.xul",
   label: l10n("ToolboxWebAudioEditor1.label", webAudioEditorStrings),
-  panelLabel: l10n("ToolboxWebAudioEditor1.panelLabel", webAudioEditorStrings),
   tooltip: l10n("ToolboxWebAudioEditor1.tooltip", webAudioEditorStrings),
   isTargetSupported: function(target) {
     return !target.isAddon;
@@ -270,7 +262,6 @@ Tools.jsprofiler = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/profiler.xul",
   label: l10n("profiler.label", profilerStrings),
-  panelLabel: l10n("profiler.panelLabel", profilerStrings),
   tooltip: l10n("profiler.tooltip2", profilerStrings),
   inMenu: true,
   commands: "devtools/profiler/commands",
@@ -296,7 +287,6 @@ Tools.netMonitor = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/netmonitor.xul",
   label: l10n("netmonitor.label", netMonitorStrings),
-  panelLabel: l10n("netmonitor.panelLabel", netMonitorStrings),
   tooltip: l10n("netmonitor.tooltip", netMonitorStrings),
   inMenu: true,
 
@@ -319,7 +309,6 @@ Tools.scratchpad = {
   invertIconForLightTheme: true,
   url: "chrome://browser/content/devtools/scratchpad.xul",
   label: l10n("scratchpad.label", scratchpadStrings),
-  panelLabel: l10n("scratchpad.panelLabel", scratchpadStrings),
   tooltip: l10n("scratchpad.tooltip", scratchpadStrings),
   inMenu: false,
   commands: "devtools/scratchpad/scratchpad-commands",
