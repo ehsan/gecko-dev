@@ -78,7 +78,12 @@
 #include "ScopedXREEmbed.h"
 
 #include "mozilla/plugins/PluginThreadChild.h"
+#include "mozilla/dom/ContentProcessThread.h"
+#include "mozilla/dom/ContentProcessParent.h"
+#include "mozilla/dom/ContentProcessChild.h"
 
+#include "mozilla/ipc/TestShellParent.h"
+#include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/Monitor.h"
 
 #ifdef MOZ_IPDL_TESTS
@@ -94,6 +99,12 @@ using mozilla::ipc::BrowserProcessSubThread;
 using mozilla::ipc::ScopedXREEmbed;
 
 using mozilla::plugins::PluginThreadChild;
+using mozilla::dom::ContentProcessThread;
+using mozilla::dom::ContentProcessParent;
+using mozilla::dom::ContentProcessChild;
+using mozilla::ipc::TestShellParent;
+using mozilla::ipc::TestShellCommandParent;
+using mozilla::ipc::XPCShellEnvironment;
 
 using mozilla::Monitor;
 using mozilla::MonitorAutoEnter;
@@ -298,6 +309,10 @@ XRE_InitChildProcess(int aArgc,
       mainThread = new PluginThreadChild(parentHandle);
       break;
 
+    case GeckoProcessType_Content:
+      mainThread = new ContentProcessThread(parentHandle);
+      break;
+
     case GeckoProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
       mainThread = new IPDLUnitTestThreadChild(parentHandle);
@@ -321,7 +336,7 @@ XRE_InitChildProcess(int aArgc,
   }
 
   NS_LogTerm();
-  return NS_OK;
+  return XRE_DeinitCommandLine();
 }
 
 MessageLoop*
@@ -401,7 +416,7 @@ XRE_InitParentProcess(int aArgc,
     }
   }
 
-  return NS_OK;
+  return XRE_DeinitCommandLine();
 }
 
 #ifdef MOZ_IPDL_TESTS
@@ -436,19 +451,63 @@ XRE_RunAppShell()
     return appShell->Run();
 }
 
+template<>
+struct RunnableMethodTraits<ContentProcessChild>
+{
+    static void RetainCallee(ContentProcessChild* obj) { }
+    static void ReleaseCallee(ContentProcessChild* obj) { }
+};
+
 void
 XRE_ShutdownChildProcess()
 {
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "Wrong thread!");
 
-    MessageLoop* uiLoop = MessageLoop::current();
     MessageLoop* ioLoop = XRE_GetIOMessageLoop();
-
     NS_ABORT_IF_FALSE(!!ioLoop, "Bad shutdown order");
-    ioLoop->PostTask(FROM_HERE, new MessageLoop::QuitTask());
 
-    NS_ABORT_IF_FALSE(!!uiLoop, "Bad shutdown order");
-    uiLoop->Quit();
+    ioLoop->PostTask(FROM_HERE, new MessageLoop::QuitTask());
+}
+
+namespace {
+TestShellParent* gTestShellParent = nsnull;
+}
+
+bool
+XRE_SendTestShellCommand(JSContext* aCx,
+                         JSString* aCommand,
+                         void* aCallback)
+{
+    if (!gTestShellParent) {
+        ContentProcessParent* parent = ContentProcessParent::GetSingleton();
+        NS_ENSURE_TRUE(parent, false);
+
+        gTestShellParent = parent->CreateTestShell();
+        NS_ENSURE_TRUE(gTestShellParent, false);
+    }
+
+    nsDependentString command((PRUnichar*)JS_GetStringChars(aCommand),
+                              JS_GetStringLength(aCommand));
+    if (!aCallback) {
+        return gTestShellParent->SendExecuteCommand(command);
+    }
+
+    TestShellCommandParent* callback = static_cast<TestShellCommandParent*>(
+        gTestShellParent->SendPTestShellCommandConstructor(command));
+    NS_ENSURE_TRUE(callback, false);
+
+    jsval callbackVal = *reinterpret_cast<jsval*>(aCallback);
+    NS_ENSURE_TRUE(callback->SetCallback(aCx, callbackVal), false);
+
+    return true;
+}
+
+bool
+XRE_ShutdownTestShell()
+{
+  if (!gTestShellParent)
+    return true;
+  return ContentProcessParent::GetSingleton()->DestroyTestShell(gTestShellParent);
 }
 
 #endif // MOZ_IPC
@@ -457,7 +516,7 @@ XRE_ShutdownChildProcess()
 nsresult
 XRE_InitCommandLine(int aArgc, char* aArgv[])
 {
-    nsresult rv = NS_OK;
+  nsresult rv = NS_OK;
 
 #if defined(MOZ_IPC)
 
@@ -489,12 +548,25 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
   NS_ASSERTION(!CommandLine::IsInitialized(), "Bad news!");
   CommandLine::Init(aArgc, canonArgs);
 
+  for (int i = 0; i < aArgc; ++i)
+      free(canonArgs[i]);
   delete[] canonArgs;
 #endif
 #endif
   return rv;
 }
 
+nsresult
+XRE_DeinitCommandLine()
+{
+  nsresult rv = NS_OK;
+
+#if defined(MOZ_IPC)
+  CommandLine::Terminate();
+#endif
+
+  return rv;
+}
 
 GeckoProcessType
 XRE_GetProcessType()

@@ -245,6 +245,7 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
+    NS_IMETHOD Redraw(const gfxRect&) { return NS_ERROR_NOT_IMPLEMENTED; }
 
 protected:
     GLES20Wrap *gl;
@@ -284,10 +285,12 @@ protected:
     WebGLObjectRefPtr<WebGLBuffer> mBoundElementArrayBuffer;
     WebGLObjectRefPtr<WebGLProgram> mCurrentProgram;
 
-    nsTArray<nsRefPtr<WebGLFramebuffer> > mBoundColorFramebuffers;
-    nsRefPtr<WebGLFramebuffer> mBoundDepthFramebuffer;
-    nsRefPtr<WebGLFramebuffer> mBoundStencilFramebuffer;
+    // XXX these 3 are wrong types, and aren't used atm (except for the length of the attachments)
+    nsTArray<WebGLObjectRefPtr<WebGLTexture> > mFramebufferColorAttachments;
+    nsRefPtr<WebGLFramebuffer> mFramebufferDepthAttachment;
+    nsRefPtr<WebGLFramebuffer> mFramebufferStencilAttachment;
 
+    nsRefPtr<WebGLFramebuffer> mBoundFramebuffer;
     nsRefPtr<WebGLRenderbuffer> mBoundRenderbuffer;
 
     // lookup tables for GL name -> object wrapper
