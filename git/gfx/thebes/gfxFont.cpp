@@ -1788,12 +1788,6 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
         return;
       }
 
-      bool oldSubpixelAA = dt->GetPermitSubpixelAA();
-
-      if (!AllowSubpixelAA()) {
-          dt->SetPermitSubpixelAA(false);
-      }
-
       GlyphBufferAzure glyphs;
       Glyph *glyph;
 
@@ -1956,8 +1950,6 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                    renderingOptions, aContext, passedInvMatrix, true);
 
       dt->SetTransform(oldMat);
-
-      dt->SetPermitSubpixelAA(oldSubpixelAA);
     }
 
     // Restore matrix for stroke pattern

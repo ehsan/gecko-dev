@@ -3,25 +3,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_a11y_TextLeafAccessibleWrap_h__
-#define mozilla_a11y_TextLeafAccessibleWrap_h__
+#ifndef _nsTextAccessibleWrap_H_
+#define _nsTextAccessibleWrap_H_
 
-#include "TextLeafAccessible.h"
+#include "nsTextAccessible.h"
 #include "ISimpleDOMText.h"
 #include "nsRect.h"
 
 class nsIFrame;
 class nsRenderingContext;
 
-namespace mozilla {
-namespace a11y {
- 
-class TextLeafAccessibleWrap : public TextLeafAccessible, 
-                               public ISimpleDOMText
+class nsTextAccessibleWrap : public nsTextAccessible, 
+                             public ISimpleDOMText
 {
 public:
-  TextLeafAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc);
-  virtual ~TextLeafAccessibleWrap() {}
+  nsTextAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc);
+  virtual ~nsTextAccessibleWrap() {}
 
     // IUnknown methods - see iunknown.h for documentation
     STDMETHODIMP_(ULONG) AddRef();
@@ -63,9 +60,6 @@ public:
     nsIFrame* GetPointFromOffset(nsIFrame *aContainingFrame,
                                  PRInt32 aOffset, bool aPreferNext, nsPoint& aOutPoint);
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

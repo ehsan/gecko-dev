@@ -116,7 +116,6 @@ protected:
     return !!uri;
   }
 
-  nsIURI* GetCachedURI() const { return mCachedURI; }
   bool HasCachedURI() const { return !!mCachedURI; }
 
 private:

@@ -581,11 +581,10 @@ Str(JSContext *cx, const Value &v, StringifyContext *scx)
 
 /* ES5 15.12.3. */
 JSBool
-js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space_, StringBuffer &sb)
+js_Stringify(JSContext *cx, Value *vp, JSObject *replacer_, Value space, StringBuffer &sb)
 {
     RootedVarObject replacer(cx, replacer_);
-    RootedVarValue spaceRoot(cx, space_);
-    Value &space = spaceRoot.reference();
+    RootValue spaceRoot(cx, &space);
 
     /* Step 4. */
     AutoIdVector propertyList(cx);

@@ -3,31 +3,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_a11y_TextLeafAccessible_h__
-#define mozilla_a11y_TextLeafAccessible_h__
+#ifndef _nsTextAccessible_H_
+#define _nsTextAccessible_H_
 
 #include "nsBaseWidgetAccessible.h"
 
-namespace mozilla {
-namespace a11y {
- 
 /**
  * Generic class used for text nodes.
  */
-class TextLeafAccessible : public nsLinkableAccessible
+class nsTextAccessible : public nsLinkableAccessible
 {
 public:
-  TextLeafAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
-  virtual ~TextLeafAccessible();
+  nsTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual void AppendTextTo(nsAString& aText, PRUint32 aStartOffset = 0,
                             PRUint32 aLength = PR_UINT32_MAX);
-  virtual ENameValueFlag Name(nsString& aName);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties* aAttributes);
 
-  // TextLeafAccessible
+  // nsTextAccessible
   void SetText(const nsAString& aText) { mText = aText; }
   const nsString& Text() const { return mText; }
 
@@ -39,17 +33,15 @@ protected:
   nsString mText;
 };
 
-} // namespace a11y
-} // namespace mozilla
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible downcast method
 
-inline mozilla::a11y::TextLeafAccessible*
+inline nsTextAccessible*
 nsAccessible::AsTextLeaf()
 {
   return mFlags & eTextLeafAccessible ?
-    static_cast<mozilla::a11y::TextLeafAccessible*>(this) : nsnull;
+    static_cast<nsTextAccessible*>(this) : nsnull;
 }
 
 #endif

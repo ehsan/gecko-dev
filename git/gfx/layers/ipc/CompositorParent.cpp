@@ -347,36 +347,44 @@ CompositorParent::TransformShadowTree()
   ShadowLayer* shadow = layer->AsShadowLayer();
   ContainerLayer* container = layer->AsContainerLayer();
 
-  const FrameMetrics& metrics = container->GetFrameMetrics();
+  const FrameMetrics* metrics = &container->GetFrameMetrics();
   const gfx3DMatrix& rootTransform = mLayerManager->GetRoot()->GetTransform();
   const gfx3DMatrix& currentTransform = layer->GetTransform();
 
   float rootScaleX = rootTransform.GetXScale();
   float rootScaleY = rootTransform.GetYScale();
 
-  if (mIsFirstPaint) {
-    mContentRect = metrics.mContentRect;
-    SetFirstPaintViewport(metrics.mViewportScrollOffset,
+  if (mIsFirstPaint && metrics) {
+    nsIntPoint scrollOffset = metrics->mViewportScrollOffset;
+    mContentSize = metrics->mContentSize;
+    SetFirstPaintViewport(scrollOffset.x, scrollOffset.y,
                           1/rootScaleX,
-                          mContentRect,
-                          metrics.mCSSContentRect);
+                          mContentSize.width,
+                          mContentSize.height,
+                          metrics->mCSSContentSize.width,
+                          metrics->mCSSContentSize.height);
     mIsFirstPaint = false;
-  } else if (!metrics.mContentRect.IsEqualEdges(mContentRect)) {
-    mContentRect = metrics.mContentRect;
-    SetPageRect(1/rootScaleX, mContentRect, metrics.mCSSContentRect);
+  } else if (metrics && (metrics->mContentSize != mContentSize)) {
+    mContentSize = metrics->mContentSize;
+    SetPageSize(1/rootScaleX, mContentSize.width,
+                mContentSize.height,
+                metrics->mCSSContentSize.width,
+                metrics->mCSSContentSize.height);
   }
 
   // We synchronise the viewport information with Java after sending the above
   // notifications, so that Java can take these into account in its response.
-  // Calculate the absolute display port to send to Java
-  nsIntRect displayPort = metrics.mDisplayPort;
-  nsIntPoint scrollOffset = metrics.mViewportScrollOffset;
-  displayPort.x += scrollOffset.x;
-  displayPort.y += scrollOffset.y;
+  if (metrics) {
+    // Calculate the absolute display port to send to Java
+    nsIntRect displayPort = metrics->mDisplayPort;
+    nsIntPoint scrollOffset = metrics->mViewportScrollOffset;
+    displayPort.x += scrollOffset.x;
+    displayPort.y += scrollOffset.y;
 
-  SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
-                   mScrollOffset, mXScale, mYScale);
-  mLayersUpdated = false;
+    SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
+                     mScrollOffset, mXScale, mYScale);
+    mLayersUpdated = false;
+  }
 
   // Handle transformations for asynchronous panning and zooming. We determine the
   // zoom used by Gecko from the transformation set on the root layer, and we
@@ -384,34 +392,53 @@ CompositorParent::TransformShadowTree()
   // primary scrollable layer. We compare this to the desired zoom and scroll
   // offset in the view transform we obtained from Java in order to compute the
   // transformation we need to apply.
-  float tempScaleDiffX = rootScaleX * mXScale;
-  float tempScaleDiffY = rootScaleY * mYScale;
+  if (metrics) {
+    float tempScaleDiffX = rootScaleX * mXScale;
+    float tempScaleDiffY = rootScaleY * mYScale;
 
-  nsIntPoint metricsScrollOffset(0, 0);
-  if (metrics.IsScrollable())
-    metricsScrollOffset = metrics.mViewportScrollOffset;
+    nsIntPoint metricsScrollOffset(0, 0);
+    if (metrics->IsScrollable())
+      metricsScrollOffset = metrics->mViewportScrollOffset;
 
-  nsIntPoint scrollCompensation(
-    (mScrollOffset.x / tempScaleDiffX - metricsScrollOffset.x) * mXScale,
-    (mScrollOffset.y / tempScaleDiffY - metricsScrollOffset.y) * mYScale);
-  ViewTransform treeTransform(-scrollCompensation, mXScale, mYScale);
-  shadow->SetShadowTransform(gfx3DMatrix(treeTransform) * currentTransform);
+    nsIntPoint scrollCompensation(
+      (mScrollOffset.x / tempScaleDiffX - metricsScrollOffset.x) * mXScale,
+      (mScrollOffset.y / tempScaleDiffY - metricsScrollOffset.y) * mYScale);
+    ViewTransform treeTransform(-scrollCompensation, mXScale, mYScale);
+    shadow->SetShadowTransform(gfx3DMatrix(treeTransform) * currentTransform);
+
+    // Alter the scroll offset so that fixed position layers remain within
+    // the page area.
+    int offsetX = NS_MAX(0, NS_MIN(mScrollOffset.x, mContentSize.width - mWidgetSize.width));
+    int offsetY = NS_MAX(0, NS_MIN(mScrollOffset.y, mContentSize.height - mWidgetSize.height));
+    gfxPoint reverseViewTranslation(offsetX / tempScaleDiffX - metricsScrollOffset.x,
+                                    offsetY / tempScaleDiffY - metricsScrollOffset.y);
+
+    TranslateFixedLayers(layer, reverseViewTranslation);
+  } else {
+    ViewTransform treeTransform(nsIntPoint(0,0), mXScale, mYScale);
+    shadow->SetShadowTransform(gfx3DMatrix(treeTransform) * currentTransform);
+  }
 }
 
 void
-CompositorParent::SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom,
-                                        const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
+CompositorParent::SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom,
+                                        float aPageWidth, float aPageHeight,
+                                        float aCssPageWidth, float aCssPageHeight)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->SetFirstPaintViewport(aOffset, aZoom, aPageRect, aCssPageRect);
+  mozilla::AndroidBridge::Bridge()->SetFirstPaintViewport(aOffsetX, aOffsetY,
+                                                          aZoom, aPageWidth, aPageHeight,
+                                                          aCssPageWidth, aCssPageHeight);
 #endif
 }
 
 void
-CompositorParent::SetPageRect(float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
+CompositorParent::SetPageSize(float aZoom, float aPageWidth, float aPageHeight,
+                              float aCssPageWidth, float aCssPageHeight)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->SetPageRect(aZoom, aPageRect, aCssPageRect);
+  mozilla::AndroidBridge::Bridge()->SetPageSize(aZoom, aPageWidth, aPageHeight,
+                                                aCssPageWidth, aCssPageHeight);
 #endif
 }
 

@@ -12,6 +12,7 @@
 #include "nsContentDLF.h"
 #include "nsContentUtils.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsCSSKeywords.h"
 #include "nsCSSParser.h"
 #include "nsCSSProps.h"
@@ -37,7 +38,6 @@
 #include "nsStyleSet.h"
 #include "nsTextControlFrame.h"
 #include "nsXBLWindowKeyHandler.h"
-#include "nsXBLService.h"
 #include "txMozillaXSLTProcessor.h"
 #include "nsDOMStorage.h"
 #include "nsTreeSanitizer.h"
@@ -61,6 +61,7 @@
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsXULContentUtils.h"
+#include "nsXULElement.h"
 #include "nsXULPrototypeCache.h"
 #include "nsXULTooltipListener.h"
 
@@ -128,7 +129,6 @@ nsLayoutStatics::Initialize()
 
   nsGlobalWindow::Init();
   Navigator::Init();
-  nsXBLService::Init();
 
   rv = nsContentUtils::Init();
   if (NS_FAILED(rv)) {
@@ -279,12 +279,14 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_XUL
   nsXULContentUtils::Finish();
+  nsXULElement::ReleaseGlobals();
   nsXULPrototypeCache::ReleaseGlobals();
   nsSprocketLayout::Shutdown();
 #endif
 
   nsMathMLOperators::ReleaseTable();
 
+  nsCSSFrameConstructor::ReleaseGlobals();
   nsFloatManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
@@ -303,7 +305,6 @@ nsLayoutStatics::Shutdown()
   nsDOMClassInfo::ShutDown();
   nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
-  nsXBLService::Shutdown();
   nsAutoCopyListener::Shutdown();
 
 #ifdef MOZ_SYDNEYAUDIO

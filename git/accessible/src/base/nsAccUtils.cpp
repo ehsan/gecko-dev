@@ -12,9 +12,9 @@
 #include "nsDocAccessible.h"
 #include "nsHyperTextAccessible.h"
 #include "nsIAccessibleTypes.h"
+#include "nsTextAccessible.h"
 #include "Role.h"
 #include "States.h"
-#include "TextLeafAccessible.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"
@@ -447,7 +447,7 @@ nsAccUtils::TextLength(nsAccessible *aAccessible)
   if (!IsText(aAccessible))
     return 1;
 
-  TextLeafAccessible* textLeaf = aAccessible->AsTextLeaf();
+  nsTextAccessible* textLeaf = aAccessible->AsTextLeaf();
   if (textLeaf)
     return textLeaf->Text().Length();
 

@@ -23,7 +23,6 @@
 #include "nsScreenManagerGonk.h"
 #include "nsTArray.h"
 #include "nsWindow.h"
-#include "cutils/properties.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 
@@ -38,7 +37,6 @@ using namespace mozilla::widget;
 
 nsIntRect gScreenBounds;
 static uint32_t sScreenRotation;
-static uint32_t sPhysicalScreenRotation;
 static nsIntRect sVirtualBounds;
 static gfxMatrix sRotationMatrix;
 
@@ -159,25 +157,6 @@ nsWindow::nsWindow()
                     NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
                 }
             }
-        }
-
-        char propValue[PROPERTY_VALUE_MAX];
-        property_get("ro.sf.hwrotation", propValue, "0");
-        sPhysicalScreenRotation = atoi(propValue) / 90;
-
-        // Unlike nsScreenGonk::SetRotation(), only support 0 and 180 as there
-        // are no known screens that are mounted at 90 or 270 at the moment.
-        switch (sPhysicalScreenRotation) {
-        case nsIScreen::ROTATION_0_DEG:
-            break;
-        case nsIScreen::ROTATION_180_DEG:
-            sRotationMatrix.Translate(gfxPoint(gScreenBounds.width,
-                                               gScreenBounds.height));
-            sRotationMatrix.Rotate(M_PI);
-            break;
-        default:
-            MOZ_NOT_REACHED("Unknown rotation");
-            break;
         }
         sVirtualBounds = gScreenBounds;
 
@@ -640,7 +619,7 @@ nsScreenGonk::SetRotation(PRUint32 aRotation)
 
     sScreenRotation = aRotation;
     sRotationMatrix.Reset();
-    switch ((aRotation + sPhysicalScreenRotation) % (360 / 90)) {
+    switch (aRotation) {
     case nsIScreen::ROTATION_0_DEG:
         sVirtualBounds = gScreenBounds;
         break;

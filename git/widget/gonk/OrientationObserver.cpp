@@ -10,7 +10,6 @@
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
 #include "OrientationObserver.h"
-#include "mozilla/HalSensor.h"
 
 using namespace mozilla;
 using namespace dom;
@@ -176,7 +175,7 @@ OrientationObserver::Notify(const hal::SensorData& aSensorData)
 {
   // Sensor will call us on the main thread.
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aSensorData.sensor() == hal::SensorType::SENSOR_ORIENTATION);
+  MOZ_ASSERT(aSensorData.sensor() == SensorType::SENSOR_ORIENTATION);
 
   InfallibleTArray<float> values = aSensorData.values();
   // Azimuth (values[0]): the device's horizontal orientation
@@ -238,7 +237,7 @@ OrientationObserver::Notify(const hal::SensorData& aSensorData)
 void
 OrientationObserver::EnableAutoOrientation()
 {
-  MOZ_ASSERT(NS_IsMainThread() && !mAutoOrientationEnabled);
+  MOZ_ASSERT(NS_IsMainThread() && !AutoOrientationEnabled());
 
   hal::RegisterSensorObserver(hal::SENSOR_ORIENTATION, this);
   mAutoOrientationEnabled = true;
@@ -259,8 +258,8 @@ OrientationObserver::DisableAutoOrientation()
 bool
 OrientationObserver::LockScreenOrientation(ScreenOrientation aOrientation)
 {
-  MOZ_ASSERT(eScreenOrientation_None < aOrientation &&
-             aOrientation < eScreenOrientation_EndGuard);
+  MOZ_ASSERT(eScreenOrientation_None < aOrientations &&
+             aOrientations < eScreenOrientation_EndGuard);
 
   // Enable/disable the observer depending on 1. multiple orientations
   // allowed, and 2. observer enabled.

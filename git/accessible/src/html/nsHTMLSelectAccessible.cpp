@@ -150,7 +150,7 @@ nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
       continue;
     }
 
-    nsIAtom* tag = childContent->Tag();
+    nsCOMPtr<nsIAtom> tag = childContent->Tag();
     if (tag == nsGkAtoms::option ||
         tag == nsGkAtoms::optgroup) {
 

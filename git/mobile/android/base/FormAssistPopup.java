@@ -153,7 +153,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
             addView(mValidationMessage);
             mValidationMessageText = (TextView) mValidationMessage.findViewById(R.id.validation_message_text);
 
-            DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
+            DisplayMetrics metrics = new DisplayMetrics();
+            GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
             sValidationTextMarginTop = (int) (VALIDATION_MESSAGE_MARGIN_TOP_IN_DPI * metrics.density);
 
             sValidationTextLayoutNormal = new RelativeLayout.LayoutParams(mValidationMessageText.getLayoutParams());
@@ -196,7 +197,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         // Initialize static variables based on DisplayMetrics. We delay this to
         // make sure DisplayMetrics isn't null to avoid an NPE.
         if (sAutoCompleteMinWidth == 0) {
-            DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
+            DisplayMetrics metrics = new DisplayMetrics();
+            GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
             sAutoCompleteMinWidth = (int) (AUTOCOMPLETE_MIN_WIDTH_IN_DPI * metrics.density);
             sAutoCompleteRowHeight = (int) (AUTOCOMPLETE_ROW_HEIGHT_IN_DPI * metrics.density);
             sValidationMessageHeight = (int) (VALIDATION_MESSAGE_HEIGHT_IN_DPI * metrics.density);

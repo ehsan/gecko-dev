@@ -302,9 +302,7 @@ static nsresult GenerateFlatTextContent(nsRange* aRange,
   nsAutoString tmpStr;
   for (; !iter->IsDone(); iter->Next()) {
     nsINode* node = iter->GetCurrentNode();
-    if (!node)
-      break;
-    if (!node->IsNodeOfType(nsINode::eCONTENT))
+    if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
       continue;
     nsIContent* content = static_cast<nsIContent*>(node);
 
@@ -386,9 +384,7 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
   nsCOMPtr<nsIContent> content;
   for (; !iter->IsDone(); iter->Next()) {
     nsINode* node = iter->GetCurrentNode();
-    if (!node)
-      break;
-    if (!node->IsNodeOfType(nsINode::eCONTENT))
+    if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
       continue;
     nsIContent* content = static_cast<nsIContent*>(node);
 
@@ -620,9 +616,7 @@ nsContentEventHandler::OnQueryTextRect(nsQueryContentEvent* aEvent)
       do {
         iter->Next();
         node = iter->GetCurrentNode();
-        if (!node)
-          break;
-        if (!node->IsNodeOfType(nsINode::eCONTENT))
+        if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
           continue;
         frame = static_cast<nsIContent*>(node)->GetPrimaryFrame();
       } while (!frame && !iter->IsDone());
@@ -927,9 +921,7 @@ nsContentEventHandler::GetFlatTextOffsetOfRange(nsIContent* aRootContent,
   *aNativeOffset = 0;
   for (; !iter->IsDone(); iter->Next()) {
     nsINode* node = iter->GetCurrentNode();
-    if (!node)
-      break;
-    if (!node->IsNodeOfType(nsINode::eCONTENT))
+    if (!node || !node->IsNodeOfType(nsINode::eCONTENT))
       continue;
     nsIContent* content = static_cast<nsIContent*>(node);
 

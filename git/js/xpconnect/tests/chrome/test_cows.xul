@@ -281,8 +281,7 @@ function COWTests() {
 
     // Readables with getters
     var obj = {
-        get prop() { return { __exposedProps__: {}, test: "FAIL" } },
-        __exposedProps__: {prop: 'r'}
+       get prop() { return { __exposedProps__: {}, test: "FAIL" } }
     };
     is(getCOW(obj).prop.test, undefined, "getting prop.test shouldn't return anything");
     ok(!("test" in getCOW(obj).prop), "getting prop.test shouldn't return anything");

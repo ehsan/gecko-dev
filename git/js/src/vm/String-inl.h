@@ -113,10 +113,8 @@ JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length
 }
 
 JS_ALWAYS_INLINE JSDependentString *
-JSDependentString::new_(JSContext *cx, JSLinearString *base_, const jschar *chars, size_t length)
+JSDependentString::new_(JSContext *cx, JSLinearString *base, const jschar *chars, size_t length)
 {
-    JS::RootedVar<JSLinearString*> base(cx, base_);
-
     /* Try to avoid long chains of dependent strings. */
     while (base->isDependent())
         base = base->asDependent().base();
@@ -124,6 +122,8 @@ JSDependentString::new_(JSContext *cx, JSLinearString *base_, const jschar *char
     JS_ASSERT(base->isFlat());
     JS_ASSERT(chars >= base->chars() && chars < base->chars() + base->length());
     JS_ASSERT(length <= base->length() - (chars - base->chars()));
+
+    JS::Root<JSLinearString*> baseRoot(cx, &base);
 
     /*
      * The characters may be an internal pointer to a GC thing, so prevent them

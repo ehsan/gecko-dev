@@ -427,9 +427,24 @@ class TokenStream
   public:
     typedef Vector<jschar, 32> CharBuffer;
 
-    TokenStream(JSContext *, JSPrincipals *principals, JSPrincipals *originPrincipals,
-                const jschar *base, size_t length, const char *filename, unsigned lineno,
-                JSVersion version);
+    /*
+     * To construct a TokenStream, first call the constructor, which is
+     * infallible, then call |init|, which can fail. To destroy a TokenStream,
+     * first call |close| then call the destructor. If |init| fails, do not call
+     * |close|.
+     *
+     * This class uses JSContext.tempLifoAlloc to allocate internal buffers. The
+     * caller should JS_ARENA_MARK before calling |init| and JS_ARENA_RELEASE
+     * after calling |close|.
+     */
+    TokenStream(JSContext *, JSPrincipals *principals, JSPrincipals *originPrincipals);
+
+    /*
+     * Create a new token stream from an input buffer.
+     * Return false on memory-allocation failure.
+     */
+    bool init(const jschar *base, size_t length, const char *filename, unsigned lineno,
+              JSVersion version);
     ~TokenStream();
 
     /* Accessors. */
@@ -637,8 +652,12 @@ class TokenStream
      */
     class TokenBuf {
       public:
-        TokenBuf(const jschar *buf, size_t length)
-          : base(buf), limit(buf + length), ptr(buf), ptrWhenPoisoned(NULL) { }
+        TokenBuf() : base(NULL), limit(NULL), ptr(NULL) { }
+
+        void init(const jschar *buf, size_t length) {
+            base = ptr = buf;
+            limit = base + length;
+        }
 
         bool hasRawChars() const {
             return ptr < limit;

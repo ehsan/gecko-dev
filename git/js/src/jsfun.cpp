@@ -1005,7 +1005,7 @@ Function(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Bindings bindings(cx);
-    Bindings::AutoRooter bindingsRoot(cx, &bindings);
+    Bindings::StackRoot bindingsRoot(cx, &bindings);
 
     bool hasRest = false;
 
@@ -1086,8 +1086,9 @@ Function(JSContext *cx, unsigned argc, Value *vp)
         }
 
         /* Initialize a tokenstream that reads from the given string. */
-        TokenStream ts(cx, principals, originPrincipals,
-                       collected_args, args_length, filename, lineno, cx->findVersion());
+        TokenStream ts(cx, principals, originPrincipals);
+        if (!ts.init(collected_args, args_length, filename, lineno, cx->findVersion()))
+            return false;
 
         /* The argument string may be empty or contain no tokens. */
         TokenKind tt = ts.getToken();

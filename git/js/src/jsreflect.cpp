@@ -3164,10 +3164,9 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!chars)
         return JS_FALSE;
 
-    Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
-                  chars, length, filename, lineno, cx->findVersion(), 
-                  /* cfp = */ NULL, /* foldConstants = */ false, /* compileAndGo = */ false);
-    if (!parser.init())
+    Parser parser(cx, NULL, NULL, NULL, false);
+
+    if (!parser.init(chars, length, filename, lineno, cx->findVersion()))
         return JS_FALSE;
 
     serialize.setParser(&parser);
@@ -3195,9 +3194,10 @@ static JSFunctionSpec static_methods[] = {
 JS_BEGIN_EXTERN_C
 
 JS_PUBLIC_API(JSObject *)
-JS_InitReflect(JSContext *cx, JSObject *obj_)
+JS_InitReflect(JSContext *cx, JSObject *obj)
 {
-    RootedVarObject obj(cx, obj_), Reflect(cx);
+    RootObject root(cx, &obj);
+    RootedVarObject Reflect(cx);
 
     Reflect = NewObjectWithClassProto(cx, &ObjectClass, NULL, obj);
     if (!Reflect || !Reflect->setSingletonType(cx))

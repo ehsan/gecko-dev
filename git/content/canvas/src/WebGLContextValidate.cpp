@@ -427,17 +427,17 @@ bool WebGLContext::ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint 
     }
 
     if (!(maxTextureSize >> level)) {
-        ErrorInvalidValue("%s: 2^level exceeds maximum texture size", info);
+        ErrorInvalidValue("%s: 2^level exceeds maximum texture size");
         return false;
     }
 
     if (width < 0 || height < 0) {
-        ErrorInvalidValue("%s: width and height must be >= 0", info);
+        ErrorInvalidValue("%s: width and height must be >= 0");
         return false;
     }
 
     if (width > maxTextureSize || height > maxTextureSize) {
-        ErrorInvalidValue("%s: width or height exceeds maximum texture size", info);
+        ErrorInvalidValue("%s: width or height exceeds maximum texture size");
         return false;
     }
 

@@ -310,10 +310,8 @@ Shape::getChildBinding(JSContext *cx, const StackShape &child)
 }
 
 /* static */ Shape *
-Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base, JSObject *proto, Shape *shape_)
+Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base, JSObject *proto, Shape *shape)
 {
-    RootedVarShape shape(cx, shape_);
-
     JS_ASSERT(!shape->inDictionary());
 
     if (!shape->parent) {
@@ -323,6 +321,8 @@ Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base, JSObject *
                                            base.parent, kind,
                                            base.flags & BaseShape::OBJECT_FLAG_MASK);
     }
+
+    RootShape root(cx, &shape);
 
     UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
     if (!nbase)
@@ -369,7 +369,7 @@ JSObject::getChildProperty(JSContext *cx, Shape *parent, StackShape &child)
 
     if (inDictionaryMode()) {
         JS_ASSERT(parent == lastProperty());
-        StackShape::AutoRooter childRoot(cx, &child);
+        RootStackShape childRoot(cx, &child);
         shape = js_NewGCShape(cx);
         if (!shape)
             return NULL;
@@ -499,7 +499,7 @@ JSObject::addProperty(JSContext *cx, jsid id,
 }
 
 Shape *
-JSObject::addPropertyInternal(JSContext *cx, jsid id_,
+JSObject::addPropertyInternal(JSContext *cx, jsid id,
                               PropertyOp getter, StrictPropertyOp setter,
                               uint32_t slot, unsigned attrs,
                               unsigned flags, int shortid, Shape **spp,
@@ -507,10 +507,10 @@ JSObject::addPropertyInternal(JSContext *cx, jsid id_,
 {
     JS_ASSERT_IF(!allowDictionary, !inDictionaryMode());
 
-    RootedVarId id(cx, id_);
+    RootId idRoot(cx, &id);
     RootedVarObject self(cx, this);
 
-    AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
+    RootGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
     ShapeTable *table = NULL;
     if (!inDictionaryMode()) {
@@ -608,22 +608,23 @@ CheckCanChangeAttrs(JSContext *cx, JSObject *obj, const Shape *shape, unsigned *
 }
 
 Shape *
-JSObject::putProperty(JSContext *cx, jsid id_,
+JSObject::putProperty(JSContext *cx, jsid id,
                       PropertyOp getter, StrictPropertyOp setter,
                       uint32_t slot, unsigned attrs,
                       unsigned flags, int shortid)
 {
-    RootedVarId id(cx, id_);
     JS_ASSERT(!JSID_IS_VOID(id));
+
+    RootId idRoot(cx, &id);
 
     NormalizeGetterAndSetter(cx, this, id, attrs, flags, getter, setter);
 
     RootedVarObject self(cx, this);
-    AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
+    RootGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
     /* Search for id in order to claim its entry if table has been allocated. */
     Shape **spp;
-    RootedVarShape shape(cx, Shape::search(cx, lastProperty(), id, &spp, true));
+    Shape *shape = Shape::search(cx, lastProperty(), id, &spp, true);
     if (!shape) {
         /*
          * You can't add properties to a non-extensible object, but you can change
@@ -639,6 +640,8 @@ JSObject::putProperty(JSContext *cx, jsid id_,
 
     /* Property exists: search must have returned a valid *spp. */
     JS_ASSERT_IF(spp, !SHAPE_IS_REMOVED(*spp));
+
+    RootShape shapeRoot(cx, &shape);
 
     if (!CheckCanChangeAttrs(cx, self, shape, &attrs))
         return NULL;
@@ -799,11 +802,11 @@ JSObject::changeProperty(JSContext *cx, Shape *shape, unsigned attrs, unsigned m
 }
 
 bool
-JSObject::removeProperty(JSContext *cx, jsid id_)
+JSObject::removeProperty(JSContext *cx, jsid id)
 {
-    RootedVarId id(cx, id_);
     RootedVarObject self(cx, this);
 
+    RootId idRoot(cx, &id);
     RootedVarShape shape(cx);
 
     Shape **spp;
@@ -961,24 +964,20 @@ JSObject::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *n
     JSObject *self = this;
 
     if (!inDictionaryMode()) {
-        RootedVarObject selfRoot(cx, self);
-        RootedVarShape newRoot(cx, newShape);
+        RootObject selfRoot(cx, &self);
+        RootShape newRoot(cx, &newShape);
         if (!toDictionaryMode(cx))
             return NULL;
         oldShape = self->lastProperty();
-        self = selfRoot;
-        newShape = newRoot;
     }
 
     if (!newShape) {
-        RootedVarObject selfRoot(cx, self);
-        RootedVarShape oldRoot(cx, oldShape);
+        RootObject selfRoot(cx, &self);
+        RootShape oldRoot(cx, &oldShape);
         newShape = js_NewGCShape(cx);
         if (!newShape)
             return NULL;
         new (newShape) Shape(oldShape->base()->unowned(), 0);
-        self = selfRoot;
-        oldShape = oldRoot;
     }
 
     ShapeTable &table = self->lastProperty()->table();
@@ -1138,6 +1137,24 @@ StackBaseShape::match(UnownedBaseShape *key, const StackBaseShape *lookup)
         && key->rawSetter == lookup->rawSetter;
 }
 
+/* Root for stack allocated base shapes. */
+class RootStackBaseShape
+{
+    Root<const JSObject*> parentRoot;
+    Maybe<RootObject> getterRoot;
+    Maybe<RootObject> setterRoot;
+
+  public:
+    RootStackBaseShape(JSContext *cx, const StackBaseShape *base)
+        : parentRoot(cx, &base->parent)
+    {
+        if (base->flags & BaseShape::HAS_GETTER_OBJECT)
+            getterRoot.construct(cx, (JSObject **) &base->rawGetter);
+        if (base->flags & BaseShape::HAS_SETTER_OBJECT)
+            setterRoot.construct(cx, (JSObject **) &base->rawSetter);
+    }
+};
+
 /* static */ UnownedBaseShape *
 BaseShape::getUnowned(JSContext *cx, const StackBaseShape &base)
 {
@@ -1151,7 +1168,7 @@ BaseShape::getUnowned(JSContext *cx, const StackBaseShape &base)
     if (p)
         return *p;
 
-    StackBaseShape::AutoRooter root(cx, &base);
+    RootStackBaseShape root(cx, &base);
 
     BaseShape *nbase_ = js_NewGCBaseShape(cx);
     if (!nbase_)
@@ -1212,10 +1229,8 @@ Bindings::setExtensibleParents(JSContext *cx)
 }
 
 bool
-Bindings::setParent(JSContext *cx, JSObject *obj_)
+Bindings::setParent(JSContext *cx, JSObject *obj)
 {
-    RootedVarObject obj(cx, obj_);
-
     /*
      * This may be invoked on GC heap allocated bindings, in which case this
      * is pointing to an internal value of a JSScript that can't itself be
@@ -1224,6 +1239,8 @@ Bindings::setParent(JSContext *cx, JSObject *obj_)
      */
     Bindings *self = this;
     SkipRoot root(cx, &self);
+
+    RootObject rootObj(cx, &obj);
 
     if (!ensureShape(cx))
         return false;
@@ -1290,8 +1307,8 @@ EmptyShape::getInitialShape(JSContext *cx, Class *clasp, JSObject *proto, JSObje
     if (p)
         return p->shape;
 
-    RootedVarObject protoRoot(cx, lookup.proto);
-    RootedVarObject parentRoot(cx, lookup.parent);
+    RootObject protoRoot(cx, &lookup.proto);
+    RootObject parentRoot(cx, &lookup.parent);
 
     RootedVar<UnownedBaseShape*> nbase(cx);
 
@@ -1304,9 +1321,6 @@ EmptyShape::getInitialShape(JSContext *cx, Class *clasp, JSObject *proto, JSObje
     if (!shape)
         return NULL;
     new (shape) EmptyShape(nbase, nfixed);
-
-    lookup.proto = protoRoot;
-    lookup.parent = parentRoot;
 
     if (!table.relookupOrAdd(p, lookup, InitialShapeEntry(shape, lookup.proto)))
         return NULL;

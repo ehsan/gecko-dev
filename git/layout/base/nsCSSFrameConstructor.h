@@ -15,6 +15,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsILayoutHistoryState.h"
+#include "nsIXBLService.h"
 #include "nsQuoteList.h"
 #include "nsCounterManager.h"
 #include "nsHashKeys.h"
@@ -61,6 +62,10 @@ public:
 
   struct RestyleData;
   friend struct RestyleData;
+
+  // Maintain global objects - gXBLService
+  static nsIXBLService * GetXBLService();
+  static void ReleaseGlobals() { NS_IF_RELEASE(gXBLService); }
 
   // get the alternate text for a content node
   static void GetAlternateTextFor(nsIContent*    aContent,
@@ -1827,6 +1832,8 @@ private:
 
   RestyleTracker mPendingRestyles;
   RestyleTracker mPendingAnimationRestyles;
+
+  static nsIXBLService * gXBLService;
 };
 
 #endif /* nsCSSFrameConstructor_h___ */

@@ -65,6 +65,7 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
+#include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIBoxObject.h"
 #include "nsClientRect.h"

@@ -1686,7 +1686,7 @@ nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
         bool isVisible = false;
         widget->IsVisible(isVisible);
         if (isVisible) {
-          nsIPresShell* shell = document->PresShell();
+          nsCOMPtr<nsIPresShell> shell(document->PresShell());
           nsIViewManager* vm = shell->GetViewManager();
           if (vm) {
             nsCOMPtr<nsIWidget> rootWidget;

@@ -112,10 +112,10 @@ typedef struct CapturingContentInfo {
   nsIContent* mContent;
 } CapturingContentInfo;
 
-// fcada634-fdea-45f5-b841-0a361d5f6a68
+// d2236911-9b7c-490a-a08b-2580d5f7a6de
 #define NS_IPRESSHELL_IID \
-  { 0xfcada634, 0xfdea, 0x45f5, \
-    { 0xb8, 0x41, 0x0a, 0x36, 0x1d, 0x5f, 0x6a, 0x68 } }
+  { 0xd2236911, 0x9b7c, 0x490a, \
+    { 0xa0, 0x8b, 0x25, 0x80, 0xd5, 0xf7, 0xa6, 0xde } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -681,6 +681,11 @@ public:
    * This allows any outstanding references to the frame to be cleaned up
    */
   virtual NS_HIDDEN_(void) NotifyDestroyingFrame(nsIFrame* aFrame) = 0;
+
+  /**
+   * Get link location.
+   */
+  virtual NS_HIDDEN_(nsresult) GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocation) const = 0;
 
   /**
    * Get the caret, if it exists. AddRefs it.

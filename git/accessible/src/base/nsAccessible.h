@@ -37,7 +37,6 @@ namespace a11y {
 
 class HTMLLIAccessible;
 class TableAccessible;
-class TextLeafAccessible;
 
 /**
  * Name type flags.
@@ -55,7 +54,7 @@ enum ENameValueFlag {
 
 }
 }
-
+class nsTextAccessible;
 class nsXULTreeAccessible;
 
 struct nsRect;
@@ -483,7 +482,7 @@ public:
   virtual mozilla::a11y::TableAccessible* AsTable() { return nsnull; }
 
   inline bool IsTextLeaf() const { return mFlags & eTextLeafAccessible; }
-  mozilla::a11y::TextLeafAccessible* AsTextLeaf();
+  nsTextAccessible* AsTextLeaf();
 
   //////////////////////////////////////////////////////////////////////////////
   // ActionAccessible

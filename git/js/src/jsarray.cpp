@@ -1004,7 +1004,7 @@ array_defineGeneric(JSContext *cx, HandleObject obj, HandleId id, const Value *v
         return true;
     } while (false);
 
-    AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
+    RootGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
     if (!JSObject::makeDenseArraySlow(cx, obj))
         return false;
@@ -1050,7 +1050,8 @@ array_defineElement(JSContext *cx, HandleObject obj, uint32_t index, const Value
         return true;
     } while (false);
 
-    AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
+    RootValue valueRoot(cx, value);
+    RootGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
     if (!JSObject::makeDenseArraySlow(cx, obj))
         return false;
@@ -2158,10 +2159,7 @@ JSBool
 js::array_sort(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    RootedVarValue fvalRoot(cx);
-    Value &fval = fvalRoot.reference();
-
+    Value fval;
     if (args.hasDefined(0)) {
         if (args[0].isPrimitive()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_SORT_ARG);
@@ -2171,6 +2169,8 @@ js::array_sort(JSContext *cx, unsigned argc, Value *vp)
     } else {
         fval.setNull();
     }
+
+    RootValue fvalRoot(cx, &fval);
 
     RootedVarObject obj(cx, ToObject(cx, &args.thisv()));
     if (!obj)
@@ -3727,7 +3727,7 @@ EnsureNewArrayElements(JSContext *cx, JSObject *obj, uint32_t length)
 
 template<bool allocateCapacity>
 static JS_ALWAYS_INLINE JSObject *
-NewArray(JSContext *cx, uint32_t length, JSObject *proto_)
+NewArray(JSContext *cx, uint32_t length, JSObject *proto)
 {
     gc::AllocKind kind = GuessArrayGCKind(length);
 
@@ -3736,12 +3736,12 @@ NewArray(JSContext *cx, uint32_t length, JSObject *proto_)
     kind = GetBackgroundAllocKind(kind);
 #endif
 
-    GlobalObject *parent_ = GetCurrentGlobal(cx);
+    GlobalObject *parent = GetCurrentGlobal(cx);
 
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (cache.lookupGlobal(&ArrayClass, parent_, kind, &entry)) {
+    if (cache.lookupGlobal(&ArrayClass, parent, kind, &entry)) {
         JSObject *obj = cache.newObjectFromHit(cx, entry);
         if (!obj)
             return NULL;
@@ -3753,12 +3753,12 @@ NewArray(JSContext *cx, uint32_t length, JSObject *proto_)
         return obj;
     }
 
-    RootedVar<GlobalObject*> parent(cx, parent_);
+    JS::Root<GlobalObject*> parentRoot(cx, &parent);
 
-    if (!proto_ && !FindProto(cx, &ArrayClass, parent, &proto_))
+    if (!proto && !FindProto(cx, &ArrayClass, parentRoot, &proto))
         return NULL;
 
-    RootedVarObject proto(cx, proto_);
+    RootObject protoRoot(cx, &proto);
     RootedVarTypeObject type(cx);
 
     type = proto->getNewType(cx);

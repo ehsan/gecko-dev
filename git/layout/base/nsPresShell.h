@@ -134,6 +134,8 @@ public:
   virtual NS_HIDDEN_(void) SetIgnoreFrameDestruction(bool aIgnore);
   virtual NS_HIDDEN_(void) NotifyDestroyingFrame(nsIFrame* aFrame);
 
+  virtual NS_HIDDEN_(nsresult) GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocationString) const;
+
   virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState, bool aLeavingPage);
 
   virtual NS_HIDDEN_(void) UnsuppressPainting();
