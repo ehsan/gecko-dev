@@ -38,14 +38,7 @@ describe("loop.conversation", function() {
       getLoopCharPref: sandbox.stub(),
       startAlerting: function() {},
       stopAlerting: function() {},
-      ensureRegistered: function() {},
-      get appVersionInfo() {
-        return {
-          version: "42",
-          channel: "test",
-          platform: "test"
-        };
-      }
+      ensureRegistered: function() {}
     };
 
     // XXX These stubs should be hoisted in a common file

@@ -23,8 +23,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="@dimen/search_bar_height"
-        android:layout_gravity="top"
-        android:visibility="invisible"/>
+        android:layout_gravity="top"/>
 
     <fragment
         android:id="@+id/presearch"

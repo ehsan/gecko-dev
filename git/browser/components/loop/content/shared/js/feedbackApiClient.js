@@ -5,82 +5,58 @@
 /* global loop:true */
 
 var loop = loop || {};
-loop.FeedbackAPIClient = (function($, _) {
+loop.FeedbackAPIClient = (function($) {
   "use strict";
 
   /**
    * Feedback API client. Sends feedback data to an input.mozilla.com compatible
    * API.
    *
-   * @param {String} baseUrl  Base API url (required)
-   * @param {Object} defaults Defaults field values for that client.
-   *
-   * Required defaults:
+   * Available settings:
+   * - {String} baseUrl Base API url (required)
    * - {String} product Product name (required)
    *
-   * Optional defaults:
-   * - {String} platform   Platform name, eg. "Windows 8", "Android", "Linux"
-   * - {String} version    Product version, eg. "22b2", "1.1"
-   * - {String} channel    Product channel, eg. "stable", "beta"
-   * - {String} user_agent eg. Mozilla/5.0 (Mobile; rv:18.0) Gecko/18.0 Firefox/18.0
-   *
+   * @param {Object} settings Settings.
    * @link  http://fjord.readthedocs.org/en/latest/api.html
    */
-  function FeedbackAPIClient(baseUrl, defaults) {
-    this.baseUrl = baseUrl;
-    if (!this.baseUrl) {
-      throw new Error("Missing required 'baseUrl' argument.");
+  function FeedbackAPIClient(settings) {
+    settings = settings || {};
+    if (!settings.hasOwnProperty("baseUrl")) {
+      throw new Error("Missing required baseUrl setting.");
     }
-
-    this.defaults = defaults || {};
-    // required defaults checks
-    if (!this.defaults.hasOwnProperty("product")) {
-      throw new Error("Missing required 'product' default.");
+    this._baseUrl = settings.baseUrl;
+    if (!settings.hasOwnProperty("product")) {
+      throw new Error("Missing required product setting.");
     }
+    this._product = settings.product;
   }
 
   FeedbackAPIClient.prototype = {
     /**
-     * Supported field names by the feedback API.
-     * @type {Array}
-     */
-    _supportedFields: ["happy",
-                       "category",
-                       "description",
-                       "product",
-                       "platform",
-                       "version",
-                       "channel",
-                       "user_agent"],
-
-    /**
-     * Creates a formatted payload object compliant with the Feedback API spec
-     * against validated field data.
+     * Formats Feedback data to match the API spec.
      *
-     * @param  {Object} fields Feedback initial values.
-     * @return {Object}        Formatted payload object.
-     * @throws {Error}         If provided values are invalid
+     * @param  {Object} fields Feedback form data.
+     * @return {Object}        Formatted data.
      */
-    _createPayload: function(fields) {
+    _formatData: function(fields) {
+      var formatted = {};
+
       if (typeof fields !== "object") {
         throw new Error("Invalid feedback data provided.");
       }
 
-      Object.keys(fields).forEach(function(name) {
-        if (this._supportedFields.indexOf(name) === -1) {
-          throw new Error("Unsupported field " + name);
-        }
-      }, this);
-
-      // Payload is basically defaults + fields merged in
-      var payload = _.extend({}, this.defaults, fields);
+      formatted.product = this._product;
+      formatted.happy = fields.happy;
+      formatted.category = fields.category;
 
       // Default description field value
       if (!fields.description) {
-        payload.description = (fields.happy ? "Happy" : "Sad") + " User";
+        formatted.description = (fields.happy ? "Happy" : "Sad") + " User";
+      } else {
+        formatted.description = fields.description;
       }
 
-      return payload;
+      return formatted;
     },
 
     /**
@@ -91,11 +67,11 @@ loop.FeedbackAPIClient = (function($, _) {
      */
     send: function(fields, cb) {
       var req = $.ajax({
-        url:         this.baseUrl,
+        url:         this._baseUrl,
         method:      "POST",
         contentType: "application/json",
         dataType:    "json",
-        data: JSON.stringify(this._createPayload(fields))
+        data: JSON.stringify(this._formatData(fields))
       });
 
       req.done(function(result) {
@@ -113,4 +89,4 @@ loop.FeedbackAPIClient = (function($, _) {
   };
 
   return FeedbackAPIClient;
-})(jQuery, _);
+})(jQuery);

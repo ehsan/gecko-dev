@@ -626,8 +626,6 @@ StyleSheetEditor.prototype = {
       this.saveToFile();
     };
 
-    bindings["Esc"] = false;
-
     return bindings;
   },
 
