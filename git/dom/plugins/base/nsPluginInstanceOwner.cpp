@@ -1963,7 +1963,7 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
 }
 
 #ifdef MOZ_X11
-static unsigned int XInputEventState(const WidgetInputEvent& anEvent)
+static unsigned int XInputEventState(const nsInputEvent& anEvent)
 {
   unsigned int state = 0;
   if (anEvent.IsShift()) state |= ShiftMask;
@@ -2331,8 +2331,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #endif
 
 #ifdef MOZ_WIDGET_QT
-          const WidgetKeyboardEvent& keyEvent =
-            static_cast<const WidgetKeyboardEvent&>(anEvent);
+          const nsKeyEvent& keyEvent = static_cast<const nsKeyEvent&>(anEvent);
 
           memset( &event, 0, sizeof(event) );
           event.time = anEvent.time;
@@ -2493,8 +2492,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 
     case NS_KEY_EVENT:
      {
-       const WidgetKeyboardEvent& keyEvent =
-         static_cast<const WidgetKeyboardEvent&>(anEvent);
+       const nsKeyEvent& keyEvent = static_cast<const nsKeyEvent&>(anEvent);
        LOG("Firing NS_KEY_EVENT %d %d\n", keyEvent.keyCode, keyEvent.charCode);
        // pluginEvent is initialized by nsWindow::InitKeyEvent().
        ANPEvent* pluginEvent = reinterpret_cast<ANPEvent*>(keyEvent.pluginEvent);

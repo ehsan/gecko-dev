@@ -19,7 +19,6 @@
 
 #include "mozilla/MouseEvents.h"
 
-using namespace mozilla;
 using namespace mozilla::widget;
 
 /* Define Class IDs */
@@ -156,7 +155,7 @@ void
 nsNativeDragTarget::DispatchDragDropEvent(uint32_t aEventType, POINTL aPT)
 {
   nsEventStatus status;
-  WidgetDragEvent event(true, aEventType, mWidget);
+  nsDragEvent event(true, aEventType, mWidget);
 
   nsWindow * win = static_cast<nsWindow *>(mWidget);
   win->InitEvent(event);

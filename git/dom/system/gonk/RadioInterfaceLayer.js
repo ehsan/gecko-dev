@@ -644,14 +644,11 @@ WorkerMessenger.prototype = {
    * @TODO: Bug 815526 - deprecate RILContentHelper.
    */
   sendWithIPCMessage: function sendWithIPCMessage(msg, rilMessageType, ipcType) {
-    this.send(rilMessageType, msg.json.data, (function(reply) {
+    this.send(rilMessageType, msg.json.data, function(reply) {
       ipcType = ipcType || msg.name;
-      msg.target.sendAsyncMessage(ipcType, {
-        clientId: this.radioInterface.clientId,
-        data: reply
-      });
+      msg.target.sendAsyncMessage(ipcType, reply);
       return false;
-    }).bind(this));
+    });
   }
 };
 
@@ -2310,10 +2307,7 @@ RadioInterface.prototype = {
         this._updateCallingLineIdRestrictionPref(response.clirMode);
       }
 
-      target.sendAsyncMessage("RIL:SendMMI", {
-        clientId: this.clientId,
-        data: response
-      });
+      target.sendAsyncMessage("RIL:SendMMI", response);
       return false;
     }).bind(this));
   },
@@ -2323,10 +2317,7 @@ RadioInterface.prototype = {
     message.serviceClass = RIL.ICC_SERVICE_CLASS_VOICE;
     this.workerMessenger.send("setCallForward", message, (function(response) {
       this._sendCfStateChanged(response);
-      target.sendAsyncMessage("RIL:SetCallForwardingOption", {
-        clientId: this.clientId,
-        data: response
-      });
+      target.sendAsyncMessage("RIL:SetCallForwardingOption", response);
       return false;
     }).bind(this));
   },
@@ -2340,10 +2331,7 @@ RadioInterface.prototype = {
       if (response.success) {
         this._updateCallingLineIdRestrictionPref(response.clirMode);
       }
-      target.sendAsyncMessage("RIL:SetCallingLineIdRestriction", {
-        clientId: this.clientId,
-        data: response
-      });
+      target.sendAsyncMessage("RIL:SetCallingLineIdRestriction", response);
       return false;
     }).bind(this));
   },

@@ -18,7 +18,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/TextEvents.h"
 
-using namespace mozilla;
 
 //
 // NS_NewXULButtonFrame
@@ -57,8 +56,7 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
   switch (aEvent->message) {
     case NS_KEY_DOWN:
       if (NS_KEY_EVENT == aEvent->eventStructType) {
-        WidgetKeyboardEvent* keyEvent =
-          static_cast<WidgetKeyboardEvent*>(aEvent);
+        nsKeyEvent* keyEvent = (nsKeyEvent*)aEvent;
         if (NS_VK_SPACE == keyEvent->keyCode) {
           nsEventStateManager *esm = aPresContext->EventStateManager();
           // :hover:active state
@@ -72,8 +70,7 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
 #ifndef XP_MACOSX
     case NS_KEY_PRESS:
       if (NS_KEY_EVENT == aEvent->eventStructType) {
-        WidgetKeyboardEvent* keyEvent =
-          static_cast<WidgetKeyboardEvent*>(aEvent);
+        nsKeyEvent* keyEvent = (nsKeyEvent*)aEvent;
         if (NS_VK_RETURN == keyEvent->keyCode) {
           nsCOMPtr<nsIDOMXULButtonElement> buttonEl(do_QueryInterface(mContent));
           if (buttonEl) {
@@ -87,8 +84,7 @@ nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext,
 
     case NS_KEY_UP:
       if (NS_KEY_EVENT == aEvent->eventStructType) {
-        WidgetKeyboardEvent* keyEvent =
-          static_cast<WidgetKeyboardEvent*>(aEvent);
+        nsKeyEvent* keyEvent = (nsKeyEvent*)aEvent;
         if (NS_VK_SPACE == keyEvent->keyCode) {
           // only activate on keyup if we're already in the :hover:active state
           NS_ASSERTION(mContent->IsElement(), "How do we have a non-element?");
@@ -129,10 +125,10 @@ nsButtonBoxFrame::DoMouseClick(nsGUIEvent* aEvent, bool aTrustEvent)
   bool isAlt = false;
   bool isMeta = false;
   if(aEvent) {
-    isShift = static_cast<WidgetInputEvent*>(aEvent)->IsShift();
-    isControl = static_cast<WidgetInputEvent*>(aEvent)->IsControl();
-    isAlt = static_cast<WidgetInputEvent*>(aEvent)->IsAlt();
-    isMeta = static_cast<WidgetInputEvent*>(aEvent)->IsMeta();
+    isShift = ((nsInputEvent*)(aEvent))->IsShift();
+    isControl = ((nsInputEvent*)(aEvent))->IsControl();
+    isAlt = ((nsInputEvent*)(aEvent))->IsAlt();
+    isMeta = ((nsInputEvent*)(aEvent))->IsMeta();
   }
 
   // Have the content handle the event, propagating it according to normal DOM rules.

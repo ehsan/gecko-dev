@@ -259,7 +259,7 @@ protected:
     void GetCompositionString(nsAString &aCompositionString);
 
     // Generates our text range list from current composition string.
-    void SetTextRangeList(nsTArray<mozilla::TextRange>& aTextRangeList);
+    void SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList);
 
     // Sets the offset's cursor position to IME.
     void SetCursorPosition(uint32_t aTargetOffset);

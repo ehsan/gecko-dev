@@ -689,7 +689,7 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent)
             break;
         case NS_TEXT_TEXT:
             MOZ_ASSERT(mIMEComposing);
-            mIMEComposingText = static_cast<WidgetTextEvent*>(aEvent)->theText;
+            mIMEComposingText = static_cast<nsTextEvent*>(aEvent)->theText;
             break;
         }
         return status;
@@ -1314,7 +1314,7 @@ nsWindow::DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
 
 
 void
-nsWindow::DispatchMotionEvent(WidgetInputEvent &event, AndroidGeckoEvent *ae,
+nsWindow::DispatchMotionEvent(nsInputEvent &event, AndroidGeckoEvent *ae,
                               const nsIntPoint &refPoint)
 {
     nsIntPoint offset = WidgetToScreenOffset();
@@ -1604,7 +1604,7 @@ static void InitPluginEvent(ANPEvent* pluginEvent, ANPKeyActions keyAction,
 }
 
 void
-nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
+nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
                        ANPEvent* pluginEvent)
 {
     int androidKeyCode = key.KeyCode();
@@ -1685,7 +1685,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         switch (keyCode) {
             case AKEYCODE_BACK: {
                 // XXX Where is the keydown event for this??
-                WidgetKeyboardEvent pressEvent(true, NS_KEY_PRESS, this);
+                nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
                 ANPEvent pluginEvent;
                 InitKeyEvent(pressEvent, *ae, &pluginEvent);
                 DispatchEvent(&pressEvent);
@@ -1729,7 +1729,7 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         break;
     case AKEY_EVENT_ACTION_MULTIPLE:
         {
-            WidgetTextEvent event(true, NS_TEXT_TEXT, this);
+            nsTextEvent event(true, NS_TEXT_TEXT, this);
             event.theText.Assign(ae->Characters());
             DispatchEvent(&event);
         }
@@ -1757,7 +1757,7 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
     }
 
     nsEventStatus status;
-    WidgetKeyboardEvent event(true, msg, this);
+    nsKeyEvent event(true, msg, this);
     ANPEvent pluginEvent;
     InitKeyEvent(event, *ae, &pluginEvent);
     DispatchEvent(&event, status);
@@ -1768,7 +1768,7 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         return;
     }
 
-    WidgetKeyboardEvent pressEvent(true, NS_KEY_PRESS, this);
+    nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
     InitKeyEvent(pressEvent, *ae, &pluginEvent);
 #ifdef DEBUG_ANDROID_WIDGET
     __android_log_print(ANDROID_LOG_INFO, "Gecko", "Dispatching key pressEvent with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", pressEvent.keyCode, pressEvent.charCode, pressEvent.IsShift(), pressEvent.IsAlt(), pressEvent.IsControl(), ae->MetaState());
@@ -1817,12 +1817,12 @@ nsWindow::RemoveIMEComposition()
     AutoIMEMask selMask(mIMEMaskSelectionUpdate);
     AutoIMEMask textMask(mIMEMaskTextUpdate);
 
-    WidgetTextEvent textEvent(true, NS_TEXT_TEXT, this);
+    nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
     InitEvent(textEvent, nullptr);
     textEvent.theText = mIMEComposingText;
     DispatchEvent(&textEvent);
 
-    WidgetCompositionEvent event(true, NS_COMPOSITION_END, this);
+    nsCompositionEvent event(true, NS_COMPOSITION_END, this);
     InitEvent(event, nullptr);
     DispatchEvent(&event);
 }
@@ -1904,7 +1904,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             AutoIMEMask selMask(mIMEMaskSelectionUpdate);
             RemoveIMEComposition();
             {
-                WidgetSelectionEvent event(true, NS_SELECTION_SET, this);
+                nsSelectionEvent event(true, NS_SELECTION_SET, this);
                 InitEvent(event, nullptr);
                 event.mOffset = uint32_t(ae->Start());
                 event.mLength = uint32_t(ae->End() - ae->Start());
@@ -1923,18 +1923,18 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             }
 
             {
-                WidgetCompositionEvent event(true, NS_COMPOSITION_START, this);
+                nsCompositionEvent event(true, NS_COMPOSITION_START, this);
                 InitEvent(event, nullptr);
                 DispatchEvent(&event);
             }
             {
-                WidgetTextEvent event(true, NS_TEXT_TEXT, this);
+                nsTextEvent event(true, NS_TEXT_TEXT, this);
                 InitEvent(event, nullptr);
                 event.theText = ae->Characters();
                 DispatchEvent(&event);
             }
             {
-                WidgetCompositionEvent event(true, NS_COMPOSITION_END, this);
+                nsCompositionEvent event(true, NS_COMPOSITION_END, this);
                 InitEvent(event, nullptr);
                 event.data = ae->Characters();
                 DispatchEvent(&event);
@@ -1953,14 +1953,13 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             */
             AutoIMEMask selMask(mIMEMaskSelectionUpdate);
             RemoveIMEComposition();
-            WidgetSelectionEvent selEvent(true, NS_SELECTION_SET, this);
+            nsSelectionEvent selEvent(true, NS_SELECTION_SET, this);
             InitEvent(selEvent, nullptr);
 
             int32_t start = ae->Start(), end = ae->End();
 
             if (start < 0 || end < 0) {
-                WidgetQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT,
-                                              this);
+                nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
                 InitEvent(event, nullptr);
                 DispatchEvent(&event);
                 MOZ_ASSERT(event.mSucceeded && !event.mWasAsync);
@@ -1981,7 +1980,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         break;
     case AndroidGeckoEvent::IME_ADD_COMPOSITION_RANGE:
         {
-            TextRange range;
+            nsTextRange range;
             range.mStartOffset = ae->Start();
             range.mEndOffset = ae->End();
             range.mRangeType = ae->RangeType();
@@ -2014,14 +2013,14 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             AutoIMEMask textMask(mIMEMaskTextUpdate);
             RemoveIMEComposition();
 
-            WidgetTextEvent event(true, NS_TEXT_TEXT, this);
+            nsTextEvent event(true, NS_TEXT_TEXT, this);
             InitEvent(event, nullptr);
 
             event.rangeArray = mIMERanges.Elements();
             event.rangeCount = mIMERanges.Length();
 
             {
-                WidgetSelectionEvent event(true, NS_SELECTION_SET, this);
+                nsSelectionEvent event(true, NS_SELECTION_SET, this);
                 InitEvent(event, nullptr);
                 event.mOffset = uint32_t(ae->Start());
                 event.mLength = uint32_t(ae->End() - ae->Start());
@@ -2029,25 +2028,24 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
                 DispatchEvent(&event);
             }
             {
-                WidgetQueryContentEvent queryEvent(true,
-                                                   NS_QUERY_SELECTED_TEXT,
-                                                   this);
+                nsQueryContentEvent queryEvent(true,
+                        NS_QUERY_SELECTED_TEXT, this);
                 InitEvent(queryEvent, nullptr);
                 DispatchEvent(&queryEvent);
                 MOZ_ASSERT(queryEvent.mSucceeded && !queryEvent.mWasAsync);
                 event.theText = queryEvent.mReply.mString;
             }
             {
-                WidgetCompositionEvent event(true, NS_COMPOSITION_START, this);
+                nsCompositionEvent event(true, NS_COMPOSITION_START, this);
                 InitEvent(event, nullptr);
                 DispatchEvent(&event);
             }
 
             if (mIMEComposing &&
                 event.theText != mIMEComposingText) {
-                WidgetCompositionEvent compositionUpdate(true,
-                                                         NS_COMPOSITION_UPDATE,
-                                                         this);
+                nsCompositionEvent compositionUpdate(true,
+                                                     NS_COMPOSITION_UPDATE,
+                                                     this);
                 InitEvent(compositionUpdate, nullptr);
                 compositionUpdate.data = event.theText;
                 DispatchEvent(&compositionUpdate);
@@ -2129,12 +2127,11 @@ nsWindow::NotifyIME(NotificationToIME aNotification)
             if (mIMEComposing) {
                 nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
-                WidgetTextEvent textEvent(true, NS_TEXT_TEXT, this);
+                nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
                 InitEvent(textEvent, nullptr);
                 DispatchEvent(&textEvent);
 
-                WidgetCompositionEvent compEvent(true, NS_COMPOSITION_END,
-                                                 this);
+                nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
                 InitEvent(compEvent, nullptr);
                 DispatchEvent(&compEvent);
             }
@@ -2263,7 +2260,7 @@ nsWindow::FlushIMEChanges()
     for (uint32_t i = 0; i < mIMETextChanges.Length(); i++) {
         IMEChange &change = mIMETextChanges[i];
 
-        WidgetQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
+        nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
         InitEvent(event, nullptr);
         event.InitForQueryTextContent(change.mStart,
                                       change.mNewEnd - change.mStart);
@@ -2279,7 +2276,7 @@ nsWindow::FlushIMEChanges()
     mIMETextChanges.Clear();
 
     if (mIMESelectionChanged) {
-        WidgetQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
+        nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
         InitEvent(event, nullptr);
 
         DispatchEvent(&event);

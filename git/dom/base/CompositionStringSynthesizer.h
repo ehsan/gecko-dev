@@ -32,8 +32,8 @@ public:
 private:
   nsWeakPtr mWindow; // refers an instance of nsPIDOMWindow
   nsString mString;
-  nsAutoTArray<TextRange, 10> mClauses;
-  TextRange mCaret;
+  nsAutoTArray<nsTextRange, 10> mClauses;
+  nsTextRange mCaret;
 
   nsIWidget* GetWidget();
   void ClearInternal();

@@ -51,15 +51,15 @@ public:
   NS_IMETHOD Init(NativeKeyBindingsType aType);
 
   // nsINativeKeyBindings
-  NS_IMETHOD_(bool) KeyDown(const WidgetKeyboardEvent& aEvent,
+  NS_IMETHOD_(bool) KeyDown(const nsKeyEvent& aEvent,
                             DoCommandCallback aCallback,
                             void* aCallbackData);
 
-  NS_IMETHOD_(bool) KeyPress(const WidgetKeyboardEvent& aEvent,
+  NS_IMETHOD_(bool) KeyPress(const nsKeyEvent& aEvent,
                              DoCommandCallback aCallback,
                              void* aCallbackData);
 
-  NS_IMETHOD_(bool) KeyUp(const WidgetKeyboardEvent& aEvent,
+  NS_IMETHOD_(bool) KeyUp(const nsKeyEvent& aEvent,
                           DoCommandCallback aCallback,
                           void* aCallbackData);
 

@@ -18,7 +18,7 @@ class nsDOMCompositionEvent : public nsDOMUIEvent,
 public:
   nsDOMCompositionEvent(mozilla::dom::EventTarget* aOwner,
                         nsPresContext* aPresContext,
-                        mozilla::WidgetCompositionEvent* aEvent);
+                        nsCompositionEvent* aEvent);
   virtual ~nsDOMCompositionEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

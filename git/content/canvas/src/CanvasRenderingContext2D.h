@@ -371,10 +371,6 @@ public:
 
   nsresult Redraw();
 
-#ifdef DEBUG
-    virtual int32_t GetWidth() const MOZ_OVERRIDE;
-    virtual int32_t GetHeight() const MOZ_OVERRIDE;
-#endif
   // nsICanvasRenderingContextInternal
   NS_IMETHOD SetDimensions(int32_t width, int32_t height) MOZ_OVERRIDE;
   NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, int32_t width, int32_t height) MOZ_OVERRIDE;

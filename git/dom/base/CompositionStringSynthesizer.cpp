@@ -82,7 +82,7 @@ CompositionStringSynthesizer::AppendClause(uint32_t aLength,
     case ATTR_SELECTEDRAWTEXT:
     case ATTR_CONVERTEDTEXT:
     case ATTR_SELECTEDCONVERTEDTEXT: {
-      TextRange textRange;
+      nsTextRange textRange;
       textRange.mStartOffset =
         mClauses.IsEmpty() ? 0 : mClauses[mClauses.Length() - 1].mEndOffset;
       textRange.mEndOffset = textRange.mStartOffset + aLength;
@@ -134,7 +134,7 @@ CompositionStringSynthesizer::DispatchEvent(bool* aDefaultPrevented)
     mClauses.AppendElement(mCaret);
   }
 
-  WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+  nsTextEvent textEvent(true, NS_TEXT_TEXT, widget);
   textEvent.time = PR_IntervalNow();
   textEvent.theText = mString;
   textEvent.rangeCount = mClauses.Length();

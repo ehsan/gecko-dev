@@ -18,14 +18,36 @@ using namespace mozilla::dom;
 static nsSVGAttrTearoffTable<nsSVGInteger, nsSVGInteger::DOMAnimatedInteger>
   sSVGAnimatedIntegerTearoffTable;
 
+static nsresult
+GetValueFromString(const nsAString &aValueAsString,
+                   int32_t *aValue)
+{
+  NS_ConvertUTF16toUTF8 value(aValueAsString);
+  const char *str = value.get();
+
+  if (IsSVGWhitespace(*str))
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  
+  char *rest;
+  *aValue = strtol(str, &rest, 10);
+  if (rest == str || *rest != '\0') {
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  }
+  if (*rest == '\0') {
+    return NS_OK;
+  }
+  return NS_ERROR_DOM_SYNTAX_ERR;
+}
+
 nsresult
 nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
                                  nsSVGElement *aSVGElement)
 {
   int32_t value;
 
-  if (!SVGContentUtils::ParseInteger(aValueAsString, value)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aValueAsString, &value);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   mIsBaseSet = true;
@@ -111,8 +133,9 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
 {
   int32_t val;
 
-  if (!SVGContentUtils::ParseInteger(aStr, val)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aStr, &val);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   nsSMILValue smilVal(SMILIntegerType::Singleton());

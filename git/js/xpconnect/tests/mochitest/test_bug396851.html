@@ -19,7 +19,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=396851
       ok(e.toString().match("Permission denied") != null, "Weird exception thrown");
     }
 
-    doc = SpecialPowers.wrap(win).document;
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    doc = win.document;
     ok(doc != null, "Able to access the cross-origin document");
     SimpleTest.finish();
   }

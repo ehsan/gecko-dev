@@ -1859,9 +1859,9 @@ TabChild::RecvRealTouchMoveEvent(const WidgetTouchEvent& aEvent)
 }
 
 bool
-TabChild::RecvRealKeyEvent(const WidgetKeyboardEvent& event)
+TabChild::RecvRealKeyEvent(const nsKeyEvent& event)
 {
-  WidgetKeyboardEvent localEvent(event);
+  nsKeyEvent localEvent(event);
   DispatchWidgetEvent(localEvent);
   return true;
 }
@@ -1882,26 +1882,26 @@ TabChild::RecvKeyEvent(const nsString& aType,
 }
 
 bool
-TabChild::RecvCompositionEvent(const WidgetCompositionEvent& event)
+TabChild::RecvCompositionEvent(const nsCompositionEvent& event)
 {
-  WidgetCompositionEvent localEvent(event);
+  nsCompositionEvent localEvent(event);
   DispatchWidgetEvent(localEvent);
   return true;
 }
 
 bool
-TabChild::RecvTextEvent(const WidgetTextEvent& event)
+TabChild::RecvTextEvent(const nsTextEvent& event)
 {
-  WidgetTextEvent localEvent(event);
+  nsTextEvent localEvent(event);
   DispatchWidgetEvent(localEvent);
-  IPC::ParamTraits<WidgetTextEvent>::Free(event);
+  IPC::ParamTraits<nsTextEvent>::Free(event);
   return true;
 }
 
 bool
-TabChild::RecvSelectionEvent(const WidgetSelectionEvent& event)
+TabChild::RecvSelectionEvent(const nsSelectionEvent& event)
 {
-  WidgetSelectionEvent localEvent(event);
+  nsSelectionEvent localEvent(event);
   DispatchWidgetEvent(localEvent);
   return true;
 }

@@ -19,7 +19,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=392338
 
 /** Test for Bug 392338 **/
 function obs () {
-  SpecialPowers.addObserver(this, "http-on-modify-request", false);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  this.observerService = SpecialPowers.Cc["@mozilla.org/observer-service;1"]
+                                      .getService(SpecialPowers.Ci.nsIObserverService);
+  this.observerService.addObserver(this,"http-on-modify-request", false);
   this.window = window;
 }
 
@@ -36,7 +39,8 @@ obs.prototype = {
       }
       this.window.ok(true, "No exception thrown");
 
-      this.window.is(ir.toString().indexOf(this.window.SpecialPowers.Ci.nsIInterfaceRequestor) != -1,
+      this.window.is(ir instanceof
+                       this.window.SpecialPowers.Ci.nsIInterfaceRequestor,
                      true, "Must be an interface requestor");
 
       if (ir instanceof this.window.SpecialPowers.Ci.nsIClassInfo) {
@@ -63,7 +67,8 @@ obs.prototype = {
 
   remove: function obs_remove()
   {
-    SpecialPowers.removeObserver(this, "http-on-modify-request");
+    this.observerService.removeObserver(this,"http-on-modify-request");
+    this.observerService = null;
   }
 }
 

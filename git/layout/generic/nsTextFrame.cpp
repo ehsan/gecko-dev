@@ -5020,7 +5020,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
     SelectionType aType,
     nsTextFrame* aFrame,
     nsTextPaintStyle& aTextPaintStyle,
-    const TextRangeStyle &aRangeStyle,
+    const nsTextRangeStyle &aRangeStyle,
     const gfxPoint& aPt, gfxFloat aXInFrame, gfxFloat aWidth,
     gfxFloat aAscent, const gfxFont::Metrics& aFontMetrics,
     nsTextFrame::DrawPathCallbacks* aCallbacks)
@@ -5065,7 +5065,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
       if (aRangeStyle.IsDefined()) {
         // If IME defines the style, that should override our definition.
         if (aRangeStyle.IsLineStyleDefined()) {
-          if (aRangeStyle.mLineStyle == TextRangeStyle::LINESTYLE_NONE) {
+          if (aRangeStyle.mLineStyle == nsTextRangeStyle::LINESTYLE_NONE) {
             return;
           }
           style = aRangeStyle.mLineStyle;
@@ -5115,7 +5115,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
  */
 static bool GetSelectionTextColors(SelectionType aType,
                                      nsTextPaintStyle& aTextPaintStyle,
-                                     const TextRangeStyle &aRangeStyle,
+                                     const nsTextRangeStyle &aRangeStyle,
                                      nscolor* aForeground, nscolor* aBackground)
 {
   switch (aType) {
@@ -5216,7 +5216,7 @@ public:
    */
   bool GetNextSegment(gfxFloat* aXOffset, uint32_t* aOffset, uint32_t* aLength,
                         gfxFloat* aHyphenWidth, SelectionType* aType,
-                        TextRangeStyle* aStyle);
+                        nsTextRangeStyle* aStyle);
   void UpdateWithAdvance(gfxFloat aAdvance) {
     mXOffset += aAdvance*mTextRun->GetDirection();
   }
@@ -5244,7 +5244,7 @@ SelectionIterator::SelectionIterator(SelectionDetails** aSelectionDetails,
 
 bool SelectionIterator::GetNextSegment(gfxFloat* aXOffset,
     uint32_t* aOffset, uint32_t* aLength, gfxFloat* aHyphenWidth,
-    SelectionType* aType, TextRangeStyle* aStyle)
+    SelectionType* aType, nsTextRangeStyle* aStyle)
 {
   if (mIterator.GetOriginalOffset() >= mOriginalEnd)
     return false;
@@ -5256,7 +5256,7 @@ bool SelectionIterator::GetNextSegment(gfxFloat* aXOffset,
   SelectionDetails* sdptr = mSelectionDetails[index];
   SelectionType type =
     sdptr ? sdptr->mType : nsISelectionController::SELECTION_NONE;
-  TextRangeStyle style;
+  nsTextRangeStyle style;
   if (sdptr) {
     style = sdptr->mTextRangeStyle;
   }
@@ -5430,7 +5430,7 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   gfxFloat xOffset, hyphenWidth;
   uint32_t offset, length; // in transformed string
   SelectionType type;
-  TextRangeStyle rangeStyle;
+  nsTextRangeStyle rangeStyle;
   // Draw background colors
   if (anyBackgrounds) {
     SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
@@ -5562,7 +5562,7 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   gfxRect dirtyRect(aDirtyRect.x / app, aDirtyRect.y / app,
                     aDirtyRect.width / app, aDirtyRect.height / app);
   SelectionType type;
-  TextRangeStyle selectedStyle;
+  nsTextRangeStyle selectedStyle;
   while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                  &type, &selectedStyle)) {
     gfxFloat advance = hyphenWidth +
@@ -6250,10 +6250,10 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
       }
     } else {
       // IME selections
-      TextRangeStyle& rangeStyle = sd->mTextRangeStyle;
+      nsTextRangeStyle& rangeStyle = sd->mTextRangeStyle;
       if (rangeStyle.IsDefined()) {
         if (!rangeStyle.IsLineStyleDefined() ||
-            rangeStyle.mLineStyle == TextRangeStyle::LINESTYLE_NONE) {
+            rangeStyle.mLineStyle == nsTextRangeStyle::LINESTYLE_NONE) {
           continue;
         }
         style = rangeStyle.mLineStyle;

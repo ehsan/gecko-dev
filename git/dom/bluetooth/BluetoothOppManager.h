@@ -219,7 +219,7 @@ private:
   nsCOMPtr<nsIInputStream> mInputStream;
   nsCOMPtr<nsIVolumeMountLock> mMountLock;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
-  nsRefPtr<BluetoothProfileController> mController;
+  BluetoothProfileController* mController;
   nsRefPtr<DeviceStorageFile> mDsFile;
 
   // If a connection has been established, mSocket will be the socket

@@ -3298,8 +3298,7 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       !IsSingleLineTextControl(true) &&
       aVisitor.mEvent->IsLeftClickEvent() &&
       !ShouldPreventDOMActivateDispatch(aVisitor.mEvent->originalTarget)) {
-    InternalUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted,
-                             NS_UI_ACTIVATE, 1);
+    nsUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted, NS_UI_ACTIVATE, 1);
 
     nsCOMPtr<nsIPresShell> shell = aVisitor.mPresContext->GetPresShell();
     if (shell) {
@@ -3417,8 +3416,7 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         {
           // For backwards compat, trigger checks/radios/buttons with
           // space or enter (bug 25300)
-          WidgetKeyboardEvent* keyEvent =
-            static_cast<WidgetKeyboardEvent*>(aVisitor.mEvent);
+          nsKeyEvent* keyEvent = (nsKeyEvent*)aVisitor.mEvent;
 
           if ((aVisitor.mEvent->message == NS_KEY_PRESS &&
                keyEvent->keyCode == NS_VK_RETURN) ||
@@ -3696,8 +3694,7 @@ HTMLInputElement::PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor
       if (nsIPresShell::GetCapturingContent()) {
         break; // don't start drag if someone else is already capturing
       }
-      WidgetInputEvent* inputEvent =
-        static_cast<WidgetInputEvent*>(aVisitor.mEvent);
+      nsInputEvent* inputEvent = static_cast<nsInputEvent*>(aVisitor.mEvent);
       if (inputEvent->IsShift() || inputEvent->IsControl() ||
           inputEvent->IsAlt() || inputEvent->IsMeta() ||
           inputEvent->IsAltGraph() || inputEvent->IsFn() ||
@@ -3733,9 +3730,8 @@ HTMLInputElement::PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor
         CancelRangeThumbDrag();
         break;
       }
-      SetValueOfRangeForUserEvent(
-        rangeFrame->GetValueAtEventPoint(
-          static_cast<WidgetInputEvent*>(aVisitor.mEvent)));
+      SetValueOfRangeForUserEvent(rangeFrame->GetValueAtEventPoint(
+                                    static_cast<nsInputEvent*>(aVisitor.mEvent)));
       aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
       break;
 
@@ -3748,14 +3744,13 @@ HTMLInputElement::PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor
       // call CancelRangeThumbDrag() if that is the case. We just finish off
       // the drag and set our final value (unless someone has called
       // preventDefault() and prevents us getting here).
-      FinishRangeThumbDrag(static_cast<WidgetInputEvent*>(aVisitor.mEvent));
+      FinishRangeThumbDrag(static_cast<nsInputEvent*>(aVisitor.mEvent));
       aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
       break;
 
     case NS_KEY_PRESS:
       if (mIsDraggingRange &&
-          static_cast<WidgetKeyboardEvent*>(aVisitor.mEvent)->keyCode ==
-            NS_VK_ESCAPE) {
+          static_cast<nsKeyEvent*>(aVisitor.mEvent)->keyCode == NS_VK_ESCAPE) {
         CancelRangeThumbDrag();
       }
       break;

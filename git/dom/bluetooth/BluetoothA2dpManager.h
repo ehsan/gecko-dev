@@ -8,7 +8,6 @@
 #define mozilla_dom_bluetooth_bluetootha2dpmanager_h__
 
 #include "BluetoothCommon.h"
-#include "BluetoothProfileController.h"
 #include "BluetoothProfileManagerBase.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -80,7 +79,7 @@ private:
   void NotifyConnectionStatusChanged();
 
   nsString mDeviceAddress;
-  nsRefPtr<BluetoothProfileController> mController;
+  BluetoothProfileController* mController;
 
   // A2DP data member
   bool mA2dpConnected;

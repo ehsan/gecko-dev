@@ -430,7 +430,7 @@ nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSEvent* aNativeEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -446,7 +446,7 @@ nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers)
 {
   aInputEvent.modifiers = 0;

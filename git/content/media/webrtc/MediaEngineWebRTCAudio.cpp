@@ -103,20 +103,15 @@ MediaEngineWebRTCAudioSource::Config(bool aEchoOn, uint32_t aEcho,
 nsresult
 MediaEngineWebRTCAudioSource::Allocate(const MediaEnginePrefs &aPrefs)
 {
-  if (mState == kReleased) {
-    if (mInitDone) {
-      webrtc::VoEHardware* ptrVoEHw = webrtc::VoEHardware::GetInterface(mVoiceEngine);
-      int res = ptrVoEHw->SetRecordingDevice(mCapIndex);
-      ptrVoEHw->Release();
-      if (res) {
-        return NS_ERROR_FAILURE;
-      }
-      mState = kAllocated;
-      LOG(("Audio device %d allocated", mCapIndex));
-    } else {
-      LOG(("Audio device is not initalized"));
+  if (mState == kReleased && mInitDone) {
+    webrtc::VoEHardware* ptrVoEHw = webrtc::VoEHardware::GetInterface(mVoiceEngine);
+    int res = ptrVoEHw->SetRecordingDevice(mCapIndex);
+    ptrVoEHw->Release();
+    if (res) {
       return NS_ERROR_FAILURE;
     }
+    mState = kAllocated;
+    LOG(("Audio device %d allocated", mCapIndex));
   } else if (mSources.IsEmpty()) {
     LOG(("Audio device %d reallocated", mCapIndex));
   } else {

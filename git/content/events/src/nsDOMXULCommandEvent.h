@@ -18,8 +18,7 @@ class nsDOMXULCommandEvent : public nsDOMUIEvent,
 {
 public:
   nsDOMXULCommandEvent(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext,
-                       mozilla::WidgetInputEvent* aEvent);
+                       nsPresContext* aPresContext, nsInputEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
@@ -77,8 +76,8 @@ public:
 
 protected:
   // Convenience accessor for the event
-  mozilla::WidgetInputEvent* Event() {
-    return static_cast<mozilla::WidgetInputEvent*>(mEvent);
+  nsInputEvent* Event() {
+    return static_cast<nsInputEvent*>(mEvent);
   }
 
   nsCOMPtr<nsIDOMEvent> mSourceEvent;

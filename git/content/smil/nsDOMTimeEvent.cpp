@@ -8,12 +8,9 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "mozilla/BasicEvents.h"
 
-using namespace mozilla;
-
 nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext, nsEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent : new InternalUIEvent(false, 0, 0)),
+  : nsDOMEvent(aOwner, aPresContext, aEvent ? aEvent : new nsUIEvent(false, 0, 0)),
     mDetail(0)
 {
   SetIsDOMBinding();
@@ -25,7 +22,7 @@ nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
   }
 
   if (mEvent->eventStructType == NS_SMIL_TIME_EVENT) {
-    InternalUIEvent* event = static_cast<InternalUIEvent*>(mEvent);
+    nsUIEvent* event = static_cast<nsUIEvent*>(mEvent);
     mDetail = event->detail;
   }
 
