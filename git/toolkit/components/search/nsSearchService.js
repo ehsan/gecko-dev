@@ -4172,44 +4172,14 @@ SearchService.prototype = {
     Services.prefs.addObserver(BROWSER_SEARCH_PREF + "defaultenginename", this, false);
     Services.prefs.addObserver(BROWSER_SEARCH_PREF + "selectedEngine", this, false);
 
-    // The current stage of shutdown. Used to help analyze crash
-    // signatures in case of shutdown timeout.
-    let shutdownState = {
-      step: "Not started",
-      latestError: {
-        message: undefined,
-        stack: undefined
-      }
-    };
-    OS.File.profileBeforeChange.addBlocker(
+    AsyncShutdown.profileBeforeChange.addBlocker(
       "Search service: shutting down",
-      () => Task.spawn(function* () {
+      () => Task.spawn(function () {
         if (this._batchTask) {
-          shutdownState.step = "Finalizing batched task";
-          try {
-            yield this._batchTask.finalize();
-            shutdownState.step = "Batched task finalized";
-          } catch (ex) {
-            shutdownState.step = "Batched task failed to finalize";
-
-            shutdownState.latestError.message = "" + ex;
-            if (ex && typeof ex == "object") {
-              shutdownState.latestError.stack = ex.stack || undefined;
-            }
-
-            // Ensure that error is reported and that it causes tests
-            // to fail.
-            Promise.reject(ex);
-          }
+          yield this._batchTask.finalize().then(null, Cu.reportError);
         }
-
-        shutdownState.step = "Finalizing engine metadata service";
         yield engineMetadataService.finalize();
-        shutdownState.step = "Engine metadata service finalized";
-
-      }.bind(this)),
-
-      () => shutdownState
+      }.bind(this))
     );
   },
 

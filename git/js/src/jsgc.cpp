@@ -656,33 +656,12 @@ ChunkPool::put(Chunk *chunk)
     emptyCount++;
 }
 
-inline Chunk *
-ChunkPool::Enum::front()
-{
-    Chunk *chunk = *chunkp;
-    JS_ASSERT_IF(chunk, pool.getEmptyCount() != 0);
-    return chunk;
-}
-
-inline void
-ChunkPool::Enum::popFront()
-{
-    JS_ASSERT(!empty());
-    chunkp = &front()->info.next;
-}
-
-inline void
-ChunkPool::Enum::removeAndPopFront()
-{
-    JS_ASSERT(!empty());
-    *chunkp = front()->info.next;
-    --pool.emptyCount;
-}
-
 /* Must be called either during the GC or with the GC lock taken. */
 Chunk *
-GCRuntime::expireChunkPool(bool releaseAll)
+ChunkPool::expire(JSRuntime *rt, bool releaseAll)
 {
+    JS_ASSERT(this == &rt->gc.chunkPool);
+
     /*
      * Return old empty chunks to the system while preserving the order of
      * other chunks in the list. This way, if the GC runs several times
@@ -691,30 +670,32 @@ GCRuntime::expireChunkPool(bool releaseAll)
      */
     Chunk *freeList = nullptr;
     int freeChunkCount = 0;
-    for (ChunkPool::Enum e(chunkPool); !e.empty(); ) {
-        Chunk *chunk = e.front();
+    for (Chunk **chunkp = &emptyChunkListHead; *chunkp; ) {
+        JS_ASSERT(emptyCount);
+        Chunk *chunk = *chunkp;
         JS_ASSERT(chunk->unused());
-        JS_ASSERT(!chunkSet.has(chunk));
+        JS_ASSERT(!rt->gc.chunkSet.has(chunk));
         JS_ASSERT(chunk->info.age <= MAX_EMPTY_CHUNK_AGE);
         if (releaseAll || chunk->info.age == MAX_EMPTY_CHUNK_AGE ||
             freeChunkCount++ > MAX_EMPTY_CHUNK_COUNT)
         {
-            e.removeAndPopFront();
-            prepareToFreeChunk(chunk->info);
+            *chunkp = chunk->info.next;
+            --emptyCount;
+            chunk->prepareToBeFreed(rt);
             chunk->info.next = freeList;
             freeList = chunk;
         } else {
             /* Keep the chunk but increase its age. */
             ++chunk->info.age;
-            e.popFront();
+            chunkp = &chunk->info.next;
         }
     }
-    JS_ASSERT_IF(releaseAll, chunkPool.getEmptyCount() == 0);
+    JS_ASSERT_IF(releaseAll, !emptyCount);
     return freeList;
 }
 
-void
-GCRuntime::freeChunkList(Chunk *chunkListHead)
+static void
+FreeChunkList(JSRuntime *rt, Chunk *chunkListHead)
 {
     while (Chunk *chunk = chunkListHead) {
         JS_ASSERT(!chunk->info.numArenasFreeCommitted);
@@ -724,9 +705,9 @@ GCRuntime::freeChunkList(Chunk *chunkListHead)
 }
 
 void
-GCRuntime::expireAndFreeChunkPool(bool releaseAll)
+ChunkPool::expireAndFree(JSRuntime *rt, bool releaseAll)
 {
-    freeChunkList(expireChunkPool(releaseAll));
+    FreeChunkList(rt, expire(rt, releaseAll));
 }
 
 /* static */ Chunk *
@@ -741,23 +722,29 @@ Chunk::allocate(JSRuntime *rt)
 }
 
 /* Must be called with the GC lock taken. */
-inline void
-GCRuntime::releaseChunk(Chunk *chunk)
+/* static */ inline void
+Chunk::release(JSRuntime *rt, Chunk *chunk)
 {
     JS_ASSERT(chunk);
-    prepareToFreeChunk(chunk->info);
+    chunk->prepareToBeFreed(rt);
     FreeChunk(rt, chunk);
 }
 
 inline void
-GCRuntime::prepareToFreeChunk(ChunkInfo &info)
+GCRuntime::updateOnChunkFree(const ChunkInfo &info)
 {
     JS_ASSERT(numArenasFreeCommitted >= info.numArenasFreeCommitted);
     numArenasFreeCommitted -= info.numArenasFreeCommitted;
     stats.count(gcstats::STAT_DESTROY_CHUNK);
+}
+
+inline void
+Chunk::prepareToBeFreed(JSRuntime *rt)
+{
+    rt->gc.updateOnChunkFree(info);
 #ifdef DEBUG
     /*
-     * Let FreeChunkList detect a missing prepareToFreeChunk call before it
+     * Let FreeChunkList detect a missing prepareToBeFreed call before it
      * frees chunk.
      */
     info.numArenasFreeCommitted = 0;
@@ -801,19 +788,19 @@ Chunk::init(JSRuntime *rt)
     /* The rest of info fields are initialized in pickChunk. */
 }
 
-inline Chunk **
-GCRuntime::getAvailableChunkList(Zone *zone)
+static inline Chunk **
+GetAvailableChunkList(Zone *zone)
 {
+    JSRuntime *rt = zone->runtimeFromAnyThread();
     return zone->isSystem
-           ? &systemAvailableChunkListHead
-           : &userAvailableChunkListHead;
+           ? &rt->gc.systemAvailableChunkListHead
+           : &rt->gc.userAvailableChunkListHead;
 }
 
 inline void
 Chunk::addToAvailableList(Zone *zone)
 {
-    JSRuntime *rt = zone->runtimeFromAnyThread();
-    insertToAvailableList(rt->gc.getAvailableChunkList(zone));
+    insertToAvailableList(GetAvailableChunkList(zone));
 }
 
 inline void
@@ -904,20 +891,13 @@ Chunk::fetchNextFreeArena(JSRuntime *rt)
     return aheader;
 }
 
-void
-GCRuntime::updateBytesAllocated(ptrdiff_t size)
-{
-    JS_ASSERT_IF(size < 0, bytes >= size_t(-size));
-    bytes += size;
-}
-
 ArenaHeader *
 Chunk::allocateArena(Zone *zone, AllocKind thingKind)
 {
     JS_ASSERT(hasAvailableArenas());
 
     JSRuntime *rt = zone->runtimeFromAnyThread();
-    if (!rt->isHeapMinorCollecting() && rt->gc.bytesAllocated() >= rt->gc.maxBytesAllocated()) {
+    if (!rt->isHeapMinorCollecting() && rt->gc.bytes >= rt->gc.maxBytes) {
 #ifdef JSGC_FJGENERATIONAL
         // This is an approximation to the best test, which would check that
         // this thread is currently promoting into the tenured area.  I doubt
@@ -936,7 +916,7 @@ Chunk::allocateArena(Zone *zone, AllocKind thingKind)
     if (MOZ_UNLIKELY(!hasAvailableArenas()))
         removeFromAvailableList();
 
-    rt->gc.updateBytesAllocated(ArenaSize);
+    rt->gc.bytes += ArenaSize;
     zone->gcBytes += ArenaSize;
 
     if (zone->gcBytes >= zone->gcTriggerBytes) {
@@ -982,11 +962,11 @@ Chunk::releaseArena(ArenaHeader *aheader)
     if (rt->gc.isBackgroundSweeping())
         maybeLock.lock(rt);
 
-    JS_ASSERT(rt->gc.bytesAllocated() >= ArenaSize);
+    JS_ASSERT(rt->gc.bytes >= ArenaSize);
     JS_ASSERT(zone->gcBytes >= ArenaSize);
     if (rt->gc.isBackgroundSweeping())
         zone->gcBytesAfterGC -= ArenaSize;
-    rt->gc.updateBytesAllocated(-ArenaSize);
+    rt->gc.bytes -= ArenaSize;
     zone->gcBytes -= ArenaSize;
 
     aheader->setAsNotAllocated();
@@ -999,20 +979,12 @@ Chunk::releaseArena(ArenaHeader *aheader)
     } else if (!unused()) {
         JS_ASSERT(info.prevp);
     } else {
-        JS_ASSERT(unused());
+        rt->gc.chunkSet.remove(this);
         removeFromAvailableList();
+        JS_ASSERT(info.numArenasFree == ArenasPerChunk);
         decommitAllArenas(rt);
-        rt->gc.moveChunkToFreePool(this);
+        rt->gc.chunkPool.put(this);
     }
-}
-
-void
-GCRuntime::moveChunkToFreePool(Chunk *chunk)
-{
-    JS_ASSERT(chunk->unused());
-    JS_ASSERT(chunkSet.has(chunk));
-    chunkSet.remove(chunk);
-    chunkPool.put(chunk);
 }
 
 inline bool
@@ -1058,7 +1030,7 @@ class js::gc::AutoMaybeStartBackgroundAllocation
 Chunk *
 GCRuntime::pickChunk(Zone *zone, AutoMaybeStartBackgroundAllocation &maybeStartBackgroundAllocation)
 {
-    Chunk **listHeadp = getAvailableChunkList(zone);
+    Chunk **listHeadp = GetAvailableChunkList(zone);
     Chunk *chunk = *listHeadp;
     if (chunk)
         return chunk;
@@ -1086,7 +1058,7 @@ GCRuntime::pickChunk(Zone *zone, AutoMaybeStartBackgroundAllocation &maybeStartB
     GCChunkSet::AddPtr p = chunkSet.lookupForAdd(chunk);
     JS_ASSERT(!p);
     if (!chunkSet.add(p, chunk)) {
-        releaseChunk(chunk);
+        Chunk::release(rt, chunk);
         return nullptr;
     }
 
@@ -1100,14 +1072,14 @@ GCRuntime::pickChunk(Zone *zone, AutoMaybeStartBackgroundAllocation &maybeStartB
 GCRuntime::GCRuntime(JSRuntime *rt) :
     rt(rt),
     systemZone(nullptr),
+    systemAvailableChunkListHead(nullptr),
+    userAvailableChunkListHead(nullptr),
 #ifdef JSGC_GENERATIONAL
     nursery(rt),
     storeBuffer(rt, nursery),
 #endif
     stats(rt),
     marker(rt),
-    systemAvailableChunkListHead(nullptr),
-    userAvailableChunkListHead(nullptr),
     bytes(0),
     maxBytes(0),
     maxMallocBytes(0),
@@ -1126,7 +1098,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     highFrequencyHeapGrowthMax(3.0),
     highFrequencyHeapGrowthMin(1.5),
     lowFrequencyHeapGrowth(1.5),
-    dynamicHeapGrowth(false),
+    dynamicHeapGrowth(true),
     dynamicMarkSlice(false),
     decommitThreshold(32 * 1024 * 1024),
     cleanUpEverything(false),
@@ -1356,11 +1328,11 @@ GCRuntime::finish()
     userAvailableChunkListHead = nullptr;
     if (chunkSet.initialized()) {
         for (GCChunkSet::Range r(chunkSet.all()); !r.empty(); r.popFront())
-            releaseChunk(r.front());
+            Chunk::release(rt, r.front());
         chunkSet.clear();
     }
 
-    expireAndFreeChunkPool(true);
+    chunkPool.expireAndFree(rt, true);
 
     if (rootsHash.initialized())
         rootsHash.clear();
@@ -1412,9 +1384,13 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
         break;
       case JSGC_HIGH_FREQUENCY_LOW_LIMIT:
         highFrequencyLowLimitBytes = value * 1024 * 1024;
+        if (highFrequencyLowLimitBytes >= highFrequencyHighLimitBytes)
+            highFrequencyHighLimitBytes = highFrequencyLowLimitBytes + 1;
         break;
       case JSGC_HIGH_FREQUENCY_HIGH_LIMIT:
         highFrequencyHighLimitBytes = value * 1024 * 1024;
+        if (highFrequencyLowLimitBytes >= highFrequencyHighLimitBytes)
+            highFrequencyLowLimitBytes = highFrequencyHighLimitBytes - 1;
         break;
       case JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX:
         highFrequencyHeapGrowthMax = value / 100.0;
@@ -2552,9 +2528,9 @@ GCRuntime::expireChunksAndArenas(bool shouldShrink)
     rt->threadPool.pruneChunkCache();
 #endif
 
-    if (Chunk *toFree = expireChunkPool(shouldShrink)) {
+    if (Chunk *toFree = chunkPool.expire(rt, shouldShrink)) {
         AutoUnlockGC unlock(rt);
-        freeChunkList(toFree);
+        FreeChunkList(rt, toFree);
     }
 
     if (shouldShrink)

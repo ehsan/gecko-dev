@@ -64,8 +64,6 @@ AudioOutputObserver::AudioOutputObserver()
 AudioOutputObserver::~AudioOutputObserver()
 {
   Clear();
-  moz_free(mSaved);
-  mSaved = nullptr;
 }
 
 void
@@ -74,7 +72,8 @@ AudioOutputObserver::Clear()
   while (mPlayoutFifo->size() > 0) {
     moz_free(mPlayoutFifo->Pop());
   }
-  // we'd like to touch mSaved here, but we can't if we might still be getting callbacks
+  moz_free(mSaved);
+  mSaved = nullptr;
 }
 
 FarEndAudioChunk *

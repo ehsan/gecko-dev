@@ -6493,7 +6493,13 @@ gfxShapedText::AllocateDetailedGlyphs(uint32_t aIndex, uint32_t aCount)
         mDetailedGlyphs = new DetailedGlyphStore();
     }
 
-    return mDetailedGlyphs->Allocate(aIndex, aCount);
+    DetailedGlyph *details = mDetailedGlyphs->Allocate(aIndex, aCount);
+    if (!details) {
+        GetCharacterGlyphs()[aIndex].SetMissing(0);
+        return nullptr;
+    }
+
+    return details;
 }
 
 void
@@ -6507,6 +6513,9 @@ gfxShapedText::SetGlyphs(uint32_t aIndex, CompressedGlyph aGlyph,
     uint32_t glyphCount = aGlyph.GetGlyphCount();
     if (glyphCount > 0) {
         DetailedGlyph *details = AllocateDetailedGlyphs(aIndex, glyphCount);
+        if (!details) {
+            return;
+        }
         memcpy(details, aGlyphs, sizeof(DetailedGlyph)*glyphCount);
     }
     GetCharacterGlyphs()[aIndex] = aGlyph;
@@ -6535,6 +6544,9 @@ gfxShapedText::SetMissingGlyph(uint32_t aIndex, uint32_t aChar, gfxFont *aFont)
     }
 
     DetailedGlyph *details = AllocateDetailedGlyphs(aIndex, 1);
+    if (!details) {
+        return;
+    }
 
     details->mGlyphID = aChar;
     if (IsDefaultIgnorable(aChar)) {
@@ -6557,12 +6569,14 @@ gfxShapedText::FilterIfIgnorable(uint32_t aIndex, uint32_t aCh)
 {
     if (IsDefaultIgnorable(aCh)) {
         DetailedGlyph *details = AllocateDetailedGlyphs(aIndex, 1);
-        details->mGlyphID = aCh;
-        details->mAdvance = 0;
-        details->mXOffset = 0;
-        details->mYOffset = 0;
-        GetCharacterGlyphs()[aIndex].SetMissing(1);
-        return true;
+        if (details) {
+            details->mGlyphID = aCh;
+            details->mAdvance = 0;
+            details->mXOffset = 0;
+            details->mYOffset = 0;
+            GetCharacterGlyphs()[aIndex].SetMissing(1);
+            return true;
+        }
     }
     return false;
 }
@@ -7640,6 +7654,24 @@ gfxTextRun::CountMissingGlyphs()
         }
     }
     return count;
+}
+
+gfxTextRun::DetailedGlyph *
+gfxTextRun::AllocateDetailedGlyphs(uint32_t aIndex, uint32_t aCount)
+{
+    NS_ASSERTION(aIndex < GetLength(), "Index out of range");
+
+    if (!mDetailedGlyphs) {
+        mDetailedGlyphs = new DetailedGlyphStore();
+    }
+
+    DetailedGlyph *details = mDetailedGlyphs->Allocate(aIndex, aCount);
+    if (!details) {
+        mCharacterGlyphs[aIndex].SetMissing(0);
+        return nullptr;
+    }
+
+    return details;
 }
 
 void

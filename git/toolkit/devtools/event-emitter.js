@@ -24,7 +24,6 @@ module.exports = EventEmitter;
 
 const { Cu, components } = require("chrome");
 const Services = require("Services");
-const promise = require("promise");
 
 /**
  * Decorate an object with event emitter functionality.

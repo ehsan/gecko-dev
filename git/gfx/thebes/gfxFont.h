@@ -2625,16 +2625,23 @@ protected:
         DetailedGlyph* Allocate(uint32_t aOffset, uint32_t aCount) {
             uint32_t detailIndex = mDetails.Length();
             DetailedGlyph *details = mDetails.AppendElements(aCount);
+            if (!details) {
+                return nullptr;
+            }
             // We normally set up glyph records sequentially, so the common case
             // here is to append new records to the mOffsetToIndex array;
             // test for that before falling back to the InsertElementSorted
             // method.
             if (mOffsetToIndex.Length() == 0 ||
                 aOffset > mOffsetToIndex[mOffsetToIndex.Length() - 1].mOffset) {
-                mOffsetToIndex.AppendElement(DGRec(aOffset, detailIndex));
+                if (!mOffsetToIndex.AppendElement(DGRec(aOffset, detailIndex))) {
+                    return nullptr;
+                }
             } else {
-                mOffsetToIndex.InsertElementSorted(DGRec(aOffset, detailIndex),
-                                                   CompareRecordOffsets());
+                if (!mOffsetToIndex.InsertElementSorted(DGRec(aOffset, detailIndex),
+                                                        CompareRecordOffsets())) {
+                    return nullptr;
+                }
             }
             return details;
         }
@@ -3449,6 +3456,9 @@ protected:
 
 private:
     // **** general helpers **** 
+
+    // Allocate aCount DetailedGlyphs for the given index
+    DetailedGlyph *AllocateDetailedGlyphs(uint32_t aCharIndex, uint32_t aCount);
 
     // Get the total advance for a range of glyphs.
     int32_t GetAdvanceForGlyphs(uint32_t aStart, uint32_t aEnd);
