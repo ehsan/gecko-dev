@@ -115,15 +115,6 @@ public:
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
-  // D3D10 guarantees textures can be at least this size
-  enum {
-    MAX_TEXTURE_SIZE = 8192
-  };
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
-  {
-    return aSize <= gfxIntSize(MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE);
-  }
-
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();

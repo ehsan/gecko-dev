@@ -349,11 +349,10 @@ public:
 
     NS_IMETHOD SetIsOpaque(PRBool isOpaque);
     NS_IMETHOD Reset();
-    virtual already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
-                                                         CanvasLayer *aOldLayer,
-                                                         LayerManager *aManager);
-    virtual PRBool ShouldForceInactiveLayer(LayerManager *aManager);
-    virtual void MarkContextClean();
+    already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
+                                                 CanvasLayer *aOldLayer,
+                                                 LayerManager *aManager);
+    void MarkContextClean();
     NS_IMETHOD SetIsIPC(PRBool isIPC);
     // this rect is in canvas device space
     NS_IMETHOD Redraw(const gfxRect &r);
@@ -1072,7 +1071,9 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 
         gfxASurface::gfxImageFormat format = GetImageFormat();
 
-        if (!PR_GetEnv("MOZ_CANVAS_IMAGE_SURFACE")) {
+        if (PR_GetEnv("MOZ_CANVAS_IMAGE_SURFACE")) {
+            surface = new gfxImageSurface(gfxIntSize(width, height), format);
+        } else {
             nsCOMPtr<nsIContent> content =
                 do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
             nsIDocument* ownerDoc = nsnull;
@@ -1092,15 +1093,8 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
             }
         }
 
-        if (!surface || surface->CairoStatus()) {
-            // If we couldn't create a surface of the type we want, fall back
-            // to an image surface. This lets us handle surface sizes that
-            // the underlying cairo backend might not handle.
-            surface = new gfxImageSurface(gfxIntSize(width, height), format);
-            if (!surface || surface->CairoStatus()) {
-                surface = nsnull;
-            }
-        }
+        if (surface && surface->CairoStatus() != 0)
+            surface = NULL;
     }
     if (surface) {
         if (gCanvasMemoryReporter == nsnull) {
@@ -4021,12 +4015,6 @@ nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     mResetLayer = PR_FALSE;
 
     return canvasLayer.forget();
-}
-
-PRBool
-nsCanvasRenderingContext2D::ShouldForceInactiveLayer(LayerManager *aManager)
-{
-    return !aManager->CanUseCanvasLayerForSize(gfxIntSize(mWidth, mHeight));
 }
 
 void

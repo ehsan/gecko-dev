@@ -208,12 +208,6 @@ SpecialPowers.prototype = {
              .createInstance(Ci.nsIXMLHttpRequest);
   },
 
-  loadURI: function(window, uri, referrer, charset, x, y) {
-    var webNav = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIWebNavigation);
-    webNav.loadURI(uri, referrer, charset, x, y);
-  },
-
   gc: function() {
     this.DOMWindowUtils.garbageCollect();
   },
@@ -348,9 +342,12 @@ SpecialPowersManager.prototype = {
   handleEvent: function handleEvent(aEvent) {
     var window = aEvent.target.defaultView;
 
-    // only add SpecialPowers to data pages, not about:*
+    // Need to make sure we are called on what we care about -
+    // content windows. DOMWindowCreated is called on *all* HTMLDocuments,
+    // some of which belong to chrome windows or other special content.
+    //
     var uri = window.document.documentURIObject;
-    if (uri.spec.split(":")[0] == "about") {
+    if (uri.scheme === "chrome" || uri.spec.split(":")[0] == "about") {
       return;
     }
 
