@@ -15,6 +15,10 @@ include $(DEPTH)/config/autoconf.mk
 # browser_589246.js is disabled for leaking browser windows (bug 752467)
 # browser_580512.js is disabled for leaking browser windows (bug 752467)
 
+DISABLED_XPCSHELL_TESTS = \
+	unit \
+	$(NULL)
+
 MOCHITEST_BROWSER_FILES = \
 	head.js \
 	browser_capabilities.js \

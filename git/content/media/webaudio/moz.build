@@ -36,6 +36,5 @@ EXPORTS.mozilla.dom += [
     'GainNode.h',
     'PannerNode.h',
     'ScriptProcessorNode.h',
-    'WaveShaperNode.h',
 ]
 

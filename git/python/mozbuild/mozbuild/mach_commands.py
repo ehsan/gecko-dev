@@ -466,18 +466,14 @@ class RunProgram(MachCommandBase):
         description='Run the compiled program.')
     @CommandArgument('params', default=None, nargs='...',
         help='Command-line arguments to pass to the program.')
-    @CommandArgument('+remote', '+r', action='store_true',
-        help='Do not pass the -no-remote argument by default.')
-    def run(self, params, remote):
+    def run(self, params):
         try:
-            args = [self.get_binary_path('app')]
+            args = [self.get_binary_path('app'), '-no-remote']
         except Exception as e:
             print("It looks like your program isn't built.",
                 "You can run |mach build| to build it.")
             print(e)
             return 1
-        if not remote:
-            args.append('-no-remote')
         if params:
             args.extend(params)
         return self.run_process(args=args, ensure_exit_code=False,
@@ -491,9 +487,7 @@ class DebugProgram(MachCommandBase):
         description='Debug the compiled program.')
     @CommandArgument('params', default=None, nargs='...',
         help='Command-line arguments to pass to the program.')
-    @CommandArgument('+remote', '+r', action='store_true',
-        help='Do not pass the -no-remote argument by default')
-    def debug(self, params, remote):
+    def debug(self, params):
         import which
         try:
             debugger = which.which('gdb')
@@ -502,14 +496,12 @@ class DebugProgram(MachCommandBase):
             print(e)
             return 1
         try:
-            args = [debugger, '--args', self.get_binary_path('app')]
+            args = [debugger, '--args', self.get_binary_path('app'), '-no-remote']
         except Exception as e:
             print("It looks like your program isn't built.",
                 "You can run |mach build| to build it.")
             print(e)
             return 1
-        if not remote:
-            args.append('-no-remote')
         if params:
             args.extend(params)
         return self.run_process(args=args, ensure_exit_code=False,

@@ -15,15 +15,11 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceActivity;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationCompat.Builder;
-import android.text.Spannable;
-import android.text.SpannableString;
-import android.text.style.StyleSpan;
 import android.util.Log;
 
 public class DataReportingNotification {
@@ -67,16 +63,10 @@ public class DataReportingNotification {
               notificationSummary = context.getResources().getString(R.string.datareporting_notification_action);
             } else {
               // Display partial version of Big Style notification for supporting devices.
-              notificationSummary = context.getResources().getString(R.string.datareporting_notification_summary);
+              notificationSummary = context.getResources().getString(R.string.datareporting_notification_summary_short);
             }
             String notificationAction = context.getResources().getString(R.string.datareporting_notification_action);
             String notificationBigSummary = context.getResources().getString(R.string.datareporting_notification_summary);
-
-            // Make styled ticker text for display in notification bar.
-            String tickerString = context.getResources().getString(R.string.datareporting_notification_ticker_text);
-            SpannableString tickerText = new SpannableString(tickerString);
-            // Bold the notification title of the ticker text, which is the same string as notificationTitle.
-            tickerText.setSpan(new StyleSpan(Typeface.BOLD), 0, notificationTitle.length(), Spannable.SPAN_INCLUSIVE_EXCLUSIVE);
 
             Notification notification = new NotificationCompat.Builder(context)
                                         .setContentTitle(notificationTitle)
@@ -87,7 +77,6 @@ public class DataReportingNotification {
                                         .setStyle(new NotificationCompat.BigTextStyle()
                                                                         .bigText(notificationBigSummary))
                                         .addAction(R.drawable.ic_menu_settings, notificationAction, contentIntent)
-                                        .setTicker(tickerText)
                                         .build();
 
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);

@@ -983,10 +983,8 @@ final class GeckoEditable
             }
             Log.w(LOGTAG, "Exception in GeckoEditable." + method.getName(), e.getCause());
             Class<?> retClass = method.getReturnType();
-            if (retClass == Character.TYPE) {
-                ret = '\0';
-            } else if (retClass == Integer.TYPE) {
-                ret = 0;
+            if (retClass != Void.TYPE && retClass.isPrimitive()) {
+                ret = retClass.newInstance();
             } else if (retClass == String.class) {
                 ret = "";
             } else {

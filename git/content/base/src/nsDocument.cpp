@@ -7977,17 +7977,6 @@ NotifyPageHide(nsIDocument* aDocument, void* aData)
   return true;
 }
 
-static void
-DispatchFullScreenChange(nsIDocument* aTarget)
-{
-  nsRefPtr<nsAsyncDOMEvent> e =
-    new nsAsyncDOMEvent(aTarget,
-                        NS_LITERAL_STRING("mozfullscreenchange"),
-                        true,
-                        false);
-  e->PostDOMEvent();
-}
-
 void
 nsDocument::OnPageHide(bool aPersisted,
                        EventTarget* aDispatchStartTarget)
@@ -8061,10 +8050,6 @@ nsDocument::OnPageHide(bool aPersisted,
     // so calling CleanupFullscreenState() here will ensure all hidden
     // documents have their fullscreen state reset.
     CleanupFullscreenState();
-
-    // If anyone was listening to this document's state, advertizing the state
-    // change would be the least of the politeness.
-    DispatchFullScreenChange(this);
   }
 }
 
@@ -9496,6 +9481,17 @@ void
 nsDocument::SetFullscreenRoot(nsIDocument* aRoot)
 {
   mFullscreenRoot = do_GetWeakReference(aRoot);
+}
+
+static void
+DispatchFullScreenChange(nsIDocument* aTarget)
+{
+  nsRefPtr<nsAsyncDOMEvent> e =
+    new nsAsyncDOMEvent(aTarget,
+                        NS_LITERAL_STRING("mozfullscreenchange"),
+                        true,
+                        false);
+  e->PostDOMEvent();
 }
 
 NS_IMETHODIMP

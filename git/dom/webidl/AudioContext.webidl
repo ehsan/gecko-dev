@@ -49,8 +49,6 @@ interface AudioContext : EventTarget {
     [Creator]
     BiquadFilterNode createBiquadFilter();
     [Creator]
-    WaveShaperNode createWaveShaper();
-    [Creator]
     PannerNode createPanner();
 
     [Creator, Throws]

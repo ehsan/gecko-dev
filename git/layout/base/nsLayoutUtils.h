@@ -1728,15 +1728,6 @@ public:
     return sFontSizeInflationMappingIntercept;
   }
 
-  /**
-   * Returns true if the nglayout.debug.invalidation pref is set to true.
-   * Note that sInvalidationDebuggingIsEnabled is declared outside this function to
-   * allow it to be accessed an manipulated from breakpoint conditions.
-   */
-  static bool InvalidationDebuggingIsEnabled() {
-    return sInvalidationDebuggingIsEnabled;
-  }
-
   static void Initialize();
   static void Shutdown();
 
@@ -1864,7 +1855,6 @@ private:
   static uint32_t sFontSizeInflationMaxRatio;
   static bool sFontSizeInflationForceEnabled;
   static bool sFontSizeInflationDisabledInMasterProcess;
-  static bool sInvalidationDebuggingIsEnabled;
 };
 
 // Helper-functions for nsLayoutUtils::SortFrameList()
