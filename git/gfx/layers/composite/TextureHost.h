@@ -60,11 +60,11 @@ class TextureParent;
  * device texture, which forces us to split it in smaller parts.
  * Tiled Compositable is a different thing.
  */
-class BigImageIterator
+class TileIterator
 {
 public:
-  virtual void BeginBigImageIteration() = 0;
-  virtual void EndBigImageIteration() {};
+  virtual void BeginTileIteration() = 0;
+  virtual void EndTileIteration() {};
   virtual nsIntRect GetTileRect() = 0;
   virtual size_t GetTileCount() = 0;
   virtual bool NextTile() = 0;
@@ -123,7 +123,7 @@ public:
    * Overload this if the TextureSource supports big textures that don't fit in
    * one device texture and must be tiled internally.
    */
-  virtual BigImageIterator* AsBigImageIterator() { return nullptr; }
+  virtual TileIterator* AsTileIterator() { return nullptr; }
 
   virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData);
 

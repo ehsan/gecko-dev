@@ -557,9 +557,6 @@ MConstant::printOpcode(FILE *fp) const
       case MIRType_MagicIsConstructing:
         fprintf(fp, "magic is-constructing");
         break;
-      case MIRType_MagicOptimizedOut:
-        fprintf(fp, "magic optimized-out");
-        break;
       default:
         MOZ_ASSUME_UNREACHABLE("unexpected type");
     }

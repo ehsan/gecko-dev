@@ -3994,12 +3994,20 @@ Parser<ParseHandler>::doWhileStatement()
         return null();
     PopStatementPC(tokenStream, pc);
 
-    // The semicolon after do-while is even more optional than most
-    // semicolons in JS.  Web compat required this by 2004:
-    //   http://bugzilla.mozilla.org/show_bug.cgi?id=238945
-    // ES3 and ES5 disagreed, but ES6 conforms to Web reality:
-    //   https://bugs.ecmascript.org/show_bug.cgi?id=157
-    tokenStream.matchToken(TOK_SEMI);
+    if (versionNumber() == JSVERSION_ECMA_3) {
+        // Pedantically require a semicolon or line break, following ES3.
+        // Bug 880329 proposes removing this case.
+        if (!MatchOrInsertSemicolon(tokenStream))
+            return null();
+    } else {
+        // The semicolon after do-while is even more optional than most
+        // semicolons in JS.  Web compat required this by 2004:
+        //   http://bugzilla.mozilla.org/show_bug.cgi?id=238945
+        // ES3 and ES5 disagreed, but ES6 conforms to Web reality:
+        //   https://bugs.ecmascript.org/show_bug.cgi?id=157
+        (void) tokenStream.matchToken(TOK_SEMI);
+    }
+
     return handler.newDoWhileStatement(body, cond, TokenPos(begin, pos().end));
 }
 
@@ -6910,11 +6918,11 @@ Parser<ParseHandler>::newRegExp()
     RegExpFlag flags = tokenStream.currentToken().regExpFlags();
 
     Rooted<RegExpObject*> reobj(context);
-    RegExpStatics *res = context->global()->getRegExpStatics(context);
-    if (!res)
-        return null();
+    if (RegExpStatics *res = context->global()->getRegExpStatics())
+        reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream);
+    else
+        reobj = RegExpObject::createNoStatics(context, chars, length, flags, &tokenStream);
 
-    reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream);
     if (!reobj)
         return null();
 

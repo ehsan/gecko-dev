@@ -6,9 +6,8 @@
 
 #include "jit/IonOptimizationLevels.h"
 
+#include "jsanalyze.h"
 #include "jsscript.h"
-
-#include "jit/Ion.h"
 
 using namespace js;
 using namespace js::jit;
@@ -78,7 +77,7 @@ OptimizationInfo::usesBeforeCompile(JSScript *script, jsbytecode *pc) const
     if (script->length() > MAX_MAIN_THREAD_SCRIPT_SIZE)
         minUses = minUses * (script->length() / (double) MAX_MAIN_THREAD_SCRIPT_SIZE);
 
-    uint32_t numLocalsAndArgs = NumLocalsAndArgs(script);
+    uint32_t numLocalsAndArgs = analyze::TotalSlots(script);
     if (numLocalsAndArgs > MAX_MAIN_THREAD_LOCALS_AND_ARGS)
         minUses = minUses * (numLocalsAndArgs / (double) MAX_MAIN_THREAD_LOCALS_AND_ARGS);
 

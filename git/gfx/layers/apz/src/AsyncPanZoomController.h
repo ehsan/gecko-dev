@@ -948,14 +948,14 @@ public:
                       const TimeDuration& aDelta) = 0;
 
   /**
-   * Get the deferred tasks in |mDeferredTasks|. See |mDeferredTasks|
+   * Execute the tasks in |mDeferredTasks| in order. See |mDeferredTasks|
    * for more information.
-   * Clears |mDeferredTasks|.
    */
-  Vector<Task*> TakeDeferredTasks() {
-    Vector<Task*> result;
-    mDeferredTasks.swap(result);
-    return result;
+  void ExecuteDeferredTasks() {
+    for (uint32_t i = 0; i < mDeferredTasks.length(); ++i) {
+      mDeferredTasks[i]->Run();
+    }
+    mDeferredTasks.clear();
   }
 
   /**

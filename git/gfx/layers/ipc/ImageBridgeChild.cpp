@@ -173,6 +173,7 @@ static void StopImageBridgeSync(ReentrantMonitor *aBarrier, bool *aDone)
   NS_ABORT_IF_FALSE(InImageBridgeChildThread(),
                     "Should be in ImageBridgeChild thread.");
   if (sImageBridgeChildSingleton) {
+
     sImageBridgeChildSingleton->SendStop();
   }
   *aDone = true;
@@ -570,13 +571,14 @@ bool ImageBridgeChild::StartUpOnThread(Thread* aThread)
 
 void ImageBridgeChild::DestroyBridge()
 {
-  if (!IsCreated()) {
-    return;
-  }
   NS_ABORT_IF_FALSE(!InImageBridgeChildThread(),
                     "This method must not be called in this thread.");
   // ...because we are about to dispatch synchronous messages to the
   // ImageBridgeChild thread.
+
+  if (!IsCreated()) {
+    return;
+  }
 
   ReentrantMonitor barrier("ImageBridgeDestroyTask lock");
   ReentrantMonitorAutoEnter autoMon(barrier);
@@ -599,8 +601,7 @@ void ImageBridgeChild::DestroyBridge()
 
 bool InImageBridgeChildThread()
 {
-  return ImageBridgeChild::IsCreated() &&
-    sImageBridgeChildThread->thread_id() == PlatformThread::CurrentId();
+  return sImageBridgeChildThread->thread_id() == PlatformThread::CurrentId();
 }
 
 MessageLoop * ImageBridgeChild::GetMessageLoop() const
@@ -647,7 +648,7 @@ TemporaryRef<ImageClient>
 ImageBridgeChild::CreateImageClientNow(CompositableType aType)
 {
   RefPtr<ImageClient> client
-    = ImageClient::CreateImageClient(aType, this, TextureFlags::NO_FLAGS);
+    = ImageClient::CreateImageClient(aType, this, 0);
   MOZ_ASSERT(client, "failed to create ImageClient");
   if (client) {
     client->Connect();
@@ -917,7 +918,7 @@ void
 ImageBridgeChild::RemoveTextureFromCompositable(CompositableClient* aCompositable,
                                                 TextureClient* aTexture)
 {
-  if (aTexture->GetFlags() & TextureFlags::DEALLOCATE_CLIENT) {
+  if (aTexture->GetFlags() & TEXTURE_DEALLOCATE_CLIENT) {
     mTxn->AddEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
                                   nullptr, aTexture->GetIPDLActor()));
   } else {

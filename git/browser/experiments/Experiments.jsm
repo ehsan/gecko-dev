@@ -1123,9 +1123,7 @@ Experiments.Experiments.prototype = {
           let desc = TELEMETRY_LOG.ACTIVATION;
           let data = [TELEMETRY_LOG.ACTIVATION.REJECTED, id];
           data = data.concat(reason);
-          const key = TELEMETRY_LOG.ACTIVATION_KEY;
-          TelemetryLog.log(key, data);
-          this._log.trace("evaluateExperiments() - added " + key + " to TelemetryLog: " + JSON.stringify(data));
+          TelemetryLog.log(TELEMETRY_LOG.ACTIVATION_KEY, data);
         }
 
         if (!applicable) {
