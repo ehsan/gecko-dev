@@ -16,24 +16,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 const NOTIFICATIONSTORAGE_CID = "{37f819b0-0b5c-11e3-8ffd-0800200c9a66}";
 const NOTIFICATIONSTORAGE_CONTRACTID = "@mozilla.org/notificationStorage;1";
 
-XPCOMUtils.defineLazyModuleGetter(this, "Services",
-                                  "resource://gre/modules/Services.jsm");
-
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
 
-const kMessageNotificationGetAllOk = "Notification:GetAll:Return:OK";
-const kMessageNotificationGetAllKo = "Notification:GetAll:Return:KO";
-const kMessageNotificationSaveKo   = "Notification:Save:Return:KO";
-const kMessageNotificationDeleteKo = "Notification:Delete:Return:KO";
-
-const kMessages = [
-  kMessageNotificationGetAllOk,
-  kMessageNotificationGetAllKo,
-  kMessageNotificationSaveKo,
-  kMessageNotificationDeleteKo
-];
 
 function NotificationStorage() {
   // cache objects
@@ -44,32 +30,11 @@ function NotificationStorage() {
   this._requests = {};
   this._requestCount = 0;
 
-  Services.obs.addObserver(this, "xpcom-shutdown", false);
   // Register for message listeners.
-  this.registerListeners();
+  cpmm.addMessageListener("Notification:GetAll:Return:OK", this);
 }
 
 NotificationStorage.prototype = {
-
-  registerListeners: function() {
-    for (let message of kMessages) {
-      cpmm.addMessageListener(message, this);
-    }
-  },
-
-  unregisterListeners: function() {
-    for (let message of kMessages) {
-      cpmm.removeMessageListener(message, this);
-    }
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    if (DEBUG) debug("Topic: " + aTopic);
-    if (aTopic == "xpcom-shutdown") {
-      Services.obs.removeObserver(this, "xpcom-shutdown");
-      this.unregisterListeners();
-    }
-  },
 
   put: function(origin, id, title, dir, lang, body, tag, icon, alertName) {
     if (DEBUG) { debug("PUT: " + id + ": " + title); }
@@ -134,25 +99,12 @@ NotificationStorage.prototype = {
   },
 
   receiveMessage: function(message) {
-    var request = this._requests[message.data.requestID];
-
     switch (message.name) {
-      case kMessageNotificationGetAllOk:
+      case "Notification:GetAll:Return:OK":
+        var request = this._requests[message.data.requestID];
         delete this._requests[message.data.requestID];
         this._populateCache(message.data.notifications);
         this._fetchFromCache(request.origin, request.tag, request.callback);
-        break;
-
-      case kMessageNotificationGetAllKo:
-        delete this._requests[message.data.requestID];
-        try {
-          request.callback.done();
-        } catch (e) {
-          debug("Error calling callback done: " + e);
-        }
-      case kMessageNotificationSaveOk:
-      case kMessageNotificationDeleteOk:
-	debug("Error received when treating: '" + message.name + "': " + message.data.errorMsg);
         break;
 
       default:

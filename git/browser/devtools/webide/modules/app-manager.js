@@ -377,8 +377,7 @@ exports.AppManager = AppManager = {
                                           project.manifest);
       }
 
-      let manifest = self.getProjectManifestURL(project);
-      if (!self._runningApps.has(manifest)) {
+      function waitUntilProjectRuns() {
         let deferred = promise.defer();
         self.on("app-manager-update", function onUpdate(event, what) {
           if (what == "project-is-running") {
@@ -386,8 +385,13 @@ exports.AppManager = AppManager = {
             deferred.resolve();
           }
         });
+        return deferred.promise;
+      }
+
+      let manifest = self.getProjectManifestURL(project);
+      if (!self._runningApps.has(manifest)) {
         yield AppActorFront.launchApp(client, actor, manifest);
-        yield deferred.promise;
+        yield waitUntilProjectRuns();
 
       } else {
         yield AppActorFront.reloadApp(client, actor, manifest);

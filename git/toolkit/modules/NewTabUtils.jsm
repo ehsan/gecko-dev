@@ -917,55 +917,58 @@ let Links = {
       return;
 
     let { sortedLinks, linkMap } = links;
-    let existingLink = linkMap.get(aLink.url);
-    let insertionLink = null;
+
+    // Nothing to do if the list is full and the link isn't in it and shouldn't
+    // be in it.
+    if (!linkMap.has(aLink.url) &&
+        sortedLinks.length &&
+        sortedLinks.length == aProvider.maxNumLinks) {
+      let lastLink = sortedLinks[sortedLinks.length - 1];
+      if (this.compareLinks(lastLink, aLink) < 0)
+        return;
+    }
+
     let updatePages = false;
 
-    if (existingLink) {
-      // Update our copy's position in O(lg n) by first removing it from its
-      // list.  It's important to do this before modifying its properties.
-      if (this._sortProperties.some(prop => prop in aLink)) {
-        let idx = this._indexOf(sortedLinks, existingLink);
-        if (idx < 0) {
-          throw new Error("Link should be in _sortedLinks if in _linkMap");
-        }
-        sortedLinks.splice(idx, 1);
-        // Update our copy's properties.
-        for (let prop of this._sortProperties) {
-          if (prop in aLink) {
-            existingLink[prop] = aLink[prop];
-          }
-        }
-        // Finally, reinsert our copy below.
-        insertionLink = existingLink;
-      }
-      // Update our copy's title in O(1).
-      if ("title" in aLink && aLink.title != existingLink.title) {
-        existingLink.title = aLink.title;
+    // Update the title in O(1).
+    if ("title" in aLink) {
+      let link = linkMap.get(aLink.url);
+      if (link && link.title != aLink.title) {
+        link.title = aLink.title;
         updatePages = true;
       }
     }
-    else if (this._sortProperties.every(prop => prop in aLink)) {
-      // Before doing the O(lg n) insertion below, do an O(1) check for the
-      // common case where the new link is too low-ranked to be in the list.
-      if (sortedLinks.length && sortedLinks.length == aProvider.maxNumLinks) {
-        let lastLink = sortedLinks[sortedLinks.length - 1];
-        if (this.compareLinks(lastLink, aLink) < 0) {
-          return;
+
+    // Update the link's position in O(lg n).
+    if (this._sortProperties.some((prop) => prop in aLink)) {
+      let link = linkMap.get(aLink.url);
+      if (link) {
+        // The link is already in the list.
+        let idx = this._indexOf(sortedLinks, link);
+        if (idx < 0)
+          throw new Error("Link should be in _sortedLinks if in _linkMap");
+        sortedLinks.splice(idx, 1);
+        for (let prop of this._sortProperties) {
+          if (prop in aLink)
+            link[prop] = aLink[prop];
         }
       }
-      // Copy the link object so that changes later made to it by the caller
-      // don't affect our copy.
-      insertionLink = {};
-      for (let prop in aLink) {
-        insertionLink[prop] = aLink[prop];
+      else {
+        // The link is new.
+        for (let prop of this._sortProperties) {
+          if (!(prop in aLink))
+            throw new Error("New link missing required sort property: " + prop);
+        }
+        // Copy the link object so that if the caller changes it, it doesn't
+        // screw up our bookkeeping.
+        link = {};
+        for (let [prop, val] of Iterator(aLink)) {
+          link[prop] = val;
+        }
+        linkMap.set(link.url, link);
       }
-      linkMap.set(aLink.url, insertionLink);
-    }
-
-    if (insertionLink) {
-      let idx = this._insertionIndexOf(sortedLinks, insertionLink);
-      sortedLinks.splice(idx, 0, insertionLink);
+      let idx = this._insertionIndexOf(sortedLinks, link);
+      sortedLinks.splice(idx, 0, link);
       if (sortedLinks.length > aProvider.maxNumLinks) {
         let lastLink = sortedLinks.pop();
         linkMap.delete(lastLink.url);

@@ -7,8 +7,7 @@ MARIONETTE_HEAD_JS = "head.js";
 let url = "http://www.mozilla.org";
 
 // TODO : Get this from emulator console command.
-const T1T_RE_INDEX = 2;
-const T2T_RE_INDEX = 3;
+const T2T_RE_INDEX = 2;
 
 function activateRE(re) {
   let deferred = Promise.defer();
@@ -36,7 +35,7 @@ function setTagData(re, flag, tnf, type, payload) {
   return deferred.promise;
 }
 
-function testUrlTagDiscover(re) {
+function testUrlTagDiscover() {
   log("Running \'testUrlTagDiscover\'");
   // TODO : Make flag value readable.
   let flag = 0xd0;
@@ -61,21 +60,12 @@ function testUrlTagDiscover(re) {
   });
 
   toggleNFC(true)
-  .then(() => setTagData(re, flag, tnf, btoa(type), btoa(payload)))
-  .then(() => activateRE(re));
-}
-
-function testUrlT1TDiscover() {
-  testUrlTagDiscover(T1T_RE_INDEX);
-}
-
-function testUrlT2TDiscover() {
-  testUrlTagDiscover(T2T_RE_INDEX);
+  .then(() => setTagData(T2T_RE_INDEX, flag, tnf, btoa(type), btoa(payload)))
+  .then(() => activateRE(T2T_RE_INDEX));
 }
 
 let tests = [
-  testUrlT1TDiscover,
-  testUrlT2TDiscover
+  testUrlTagDiscover
 ];
 
 SpecialPowers.pushPermissions(
