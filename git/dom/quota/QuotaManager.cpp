@@ -188,10 +188,8 @@ class OriginClearRunnable MOZ_FINAL : public nsRunnable,
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  OriginClearRunnable(const OriginOrPatternString& aOriginOrPattern,
-                      Nullable<PersistenceType> aPersistenceType)
+  OriginClearRunnable(const OriginOrPatternString& aOriginOrPattern)
   : mOriginOrPattern(aOriginOrPattern),
-    mPersistenceType(aPersistenceType),
     mCallbackState(Pending)
   { }
 
@@ -230,7 +228,6 @@ public:
 
 private:
   OriginOrPatternString mOriginOrPattern;
-  Nullable<PersistenceType> mPersistenceType;
   CallbackState mCallbackState;
 };
 
@@ -2283,7 +2280,6 @@ NS_IMETHODIMP
 QuotaManager::ClearStoragesForURI(nsIURI* aURI,
                                   uint32_t aAppId,
                                   bool aInMozBrowserOnly,
-                                  const nsACString& aPersistenceType,
                                   uint8_t aOptionalArgCount)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -2306,23 +2302,19 @@ QuotaManager::ClearStoragesForURI(nsIURI* aURI,
   nsAutoCString pattern;
   GetOriginPatternString(aAppId, aInMozBrowserOnly, origin, pattern);
 
-  Nullable<PersistenceType> persistenceType;
-  rv = NullablePersistenceTypeFromText(aPersistenceType, &persistenceType);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // If there is a pending or running clear operation for this origin, return
   // immediately.
-  if (IsClearOriginPending(pattern, persistenceType)) {
+  if (IsClearOriginPending(pattern)) {
     return NS_OK;
   }
 
   OriginOrPatternString oops = OriginOrPatternString::FromPattern(pattern);
 
   // Queue up the origin clear runnable.
-  nsRefPtr<OriginClearRunnable> runnable =
-    new OriginClearRunnable(oops, persistenceType);
+  nsRefPtr<OriginClearRunnable> runnable = new OriginClearRunnable(oops);
 
-  rv = WaitForOpenAllowed(oops, persistenceType, EmptyCString(), runnable);
+  rv = WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
+                          runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -2332,13 +2324,10 @@ QuotaManager::ClearStoragesForURI(nsIURI* aURI,
   matches.Find(mLiveStorages, pattern);
 
   for (uint32_t index = 0; index < matches.Length(); index++) {
-    if (persistenceType.IsNull() ||
-        matches[index]->Type() == persistenceType.Value()) {
-      // We need to grab references to any live storages here to prevent them
-      // from dying while we invalidate them.
-      nsCOMPtr<nsIOfflineStorage> storage = matches[index];
-      storage->Invalidate();
-    }
+    // We need to grab references to any live storages here to prevent them
+    // from dying while we invalidate them.
+    nsCOMPtr<nsIOfflineStorage> storage = matches[index];
+    storage->Invalidate();
   }
 
   // After everything has been invalidated the helper should be dispatched to
@@ -2651,7 +2640,6 @@ QuotaManager::LockedRemoveQuotaForOrigin(PersistenceType aPersistenceType,
 
 nsresult
 QuotaManager::AcquireExclusiveAccess(const nsACString& aPattern,
-                                     Nullable<PersistenceType> aPersistenceType,
                                      nsIOfflineStorage* aStorage,
                                      AcquireListener* aListener,
                                      WaitingOnStoragesCallback aCallback,
@@ -2661,9 +2649,16 @@ QuotaManager::AcquireExclusiveAccess(const nsACString& aPattern,
   NS_ASSERTION(aListener, "Need a listener!");
 
   // Find the right SynchronizedOp.
-  SynchronizedOp* op =
-    FindSynchronizedOp(aPattern, aPersistenceType,
-                       aStorage ? aStorage->Id() : EmptyCString());
+  SynchronizedOp* op;
+  if (aStorage) {
+    op = FindSynchronizedOp(aPattern,
+                            Nullable<PersistenceType>(aStorage->Type()),
+                            aStorage->Id());
+  }
+  else {
+    op = FindSynchronizedOp(aPattern, Nullable<PersistenceType>(),
+                            EmptyCString());
+  }
 
   NS_ASSERTION(op, "We didn't find a SynchronizedOp?");
   NS_ASSERTION(!op->mListener, "SynchronizedOp already has a listener?!?");
@@ -2845,23 +2840,20 @@ QuotaManager::ClearStoragesForApp(uint32_t aAppId, bool aBrowserOnly)
   nsAutoCString pattern;
   GetOriginPatternStringMaybeIgnoreBrowser(aAppId, aBrowserOnly, pattern);
 
-  // Clear both temporary and persistent storages.
-  Nullable<PersistenceType> persistenceType;
-
   // If there is a pending or running clear operation for this app, return
   // immediately.
-  if (IsClearOriginPending(pattern, persistenceType)) {
+  if (IsClearOriginPending(pattern)) {
     return NS_OK;
   }
 
   OriginOrPatternString oops = OriginOrPatternString::FromPattern(pattern);
 
   // Queue up the origin clear runnable.
-  nsRefPtr<OriginClearRunnable> runnable =
-    new OriginClearRunnable(oops, persistenceType);
+  nsRefPtr<OriginClearRunnable> runnable = new OriginClearRunnable(oops);
 
   nsresult rv =
-    WaitForOpenAllowed(oops, persistenceType, EmptyCString(), runnable);
+    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
+                       runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -3515,9 +3507,8 @@ OriginClearRunnable::Run()
       // Now we have to wait until the thread pool is done with all of the
       // storages we care about.
       nsresult rv =
-        quotaManager->AcquireExclusiveAccess(mOriginOrPattern, mPersistenceType,
-                                             this, InvalidateOpenedStorages,
-                                             nullptr);
+        quotaManager->AcquireExclusiveAccess(mOriginOrPattern, this,
+                                             InvalidateOpenedStorages, nullptr);
       NS_ENSURE_SUCCESS(rv, rv);
 
       return NS_OK;
@@ -3528,12 +3519,9 @@ OriginClearRunnable::Run()
 
       AdvanceState();
 
-      if (mPersistenceType.IsNull()) {
-        DeleteFiles(quotaManager, PERSISTENCE_TYPE_PERSISTENT);
-        DeleteFiles(quotaManager, PERSISTENCE_TYPE_TEMPORARY);
-      } else {
-        DeleteFiles(quotaManager, mPersistenceType.Value());
-      }
+      DeleteFiles(quotaManager, PERSISTENCE_TYPE_PERSISTENT);
+
+      DeleteFiles(quotaManager, PERSISTENCE_TYPE_TEMPORARY);
 
       // Now dispatch back to the main thread.
       if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
@@ -3548,7 +3536,8 @@ OriginClearRunnable::Run()
       NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
       // Tell the QuotaManager that we're done.
-      quotaManager->AllowNextSynchronizedOp(mOriginOrPattern, mPersistenceType,
+      quotaManager->AllowNextSynchronizedOp(mOriginOrPattern,
+                                            Nullable<PersistenceType>(),
                                             EmptyCString());
 
       return NS_OK;
@@ -3874,8 +3863,7 @@ ResetOrClearRunnable::Run()
       // Now we have to wait until the thread pool is done with all of the
       // storages we care about.
       nsresult rv =
-        quotaManager->AcquireExclusiveAccess(NullCString(),
-                                             Nullable<PersistenceType>(), this,
+        quotaManager->AcquireExclusiveAccess(NullCString(), this,
                                              InvalidateOpenedStorages, nullptr);
       NS_ENSURE_SUCCESS(rv, rv);
 

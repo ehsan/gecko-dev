@@ -294,13 +294,15 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
     if (p.type == BT_PROPERTY_BDADDR) {
       BdAddressTypeToString((bt_bdaddr_t*)p.val, sAdapterBdAddress);
       propertyValue = sAdapterBdAddress;
-      BT_APPEND_NAMED_VALUE(props, "Address", propertyValue);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Address"), propertyValue));
     } else if (p.type == BT_PROPERTY_BDNAME) {
       // Construct nsCString here because Bd name returned from bluedroid
       // is missing a null terminated character after SetProperty.
       propertyValue = sAdapterBdName = NS_ConvertUTF8toUTF16(
         nsCString((char*)p.val, p.len));
-      BT_APPEND_NAMED_VALUE(props, "Name", propertyValue);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Name"), propertyValue));
     } else if (p.type == BT_PROPERTY_ADAPTER_SCAN_MODE) {
       bt_scan_mode_t newMode = *(bt_scan_mode_t*)p.val;
 
@@ -310,10 +312,13 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
         propertyValue = sAdapterDiscoverable = false;
       }
 
-      BT_APPEND_NAMED_VALUE(props, "Discoverable", propertyValue);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Discoverable"), propertyValue));
     } else if (p.type == BT_PROPERTY_ADAPTER_DISCOVERY_TIMEOUT) {
       propertyValue = sAdapterDiscoverableTimeout = *(uint32_t*)p.val;
-      BT_APPEND_NAMED_VALUE(props, "DiscoverableTimeout", propertyValue);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("DiscoverableTimeout"),
+                            propertyValue));
     } else if (p.type == BT_PROPERTY_ADAPTER_BONDED_DEVICES) {
       // We have to cache addresses of bonded devices. Unlike BlueZ,
       // bluedroid would not send an another BT_PROPERTY_ADAPTER_BONDED_DEVICES
@@ -332,7 +337,8 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
       }
 
       propertyValue = sAdapterBondedAddressArray;
-      BT_APPEND_NAMED_VALUE(props, "Devices", propertyValue);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Devices"), propertyValue));
     } else if (p.type == BT_PROPERTY_UUIDS) {
       //FIXME: This will be implemented in the later patchset
       continue;
@@ -383,21 +389,25 @@ RemoteDevicePropertiesCallback(bt_status_t aStatus, bt_bdaddr_t *aBdAddress,
 
   nsString remoteDeviceBdAddress;
   BdAddressTypeToString(aBdAddress, remoteDeviceBdAddress);
-  BT_APPEND_NAMED_VALUE(props, "Address", remoteDeviceBdAddress);
+  props.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("Address"), remoteDeviceBdAddress));
 
   for (int i = 0; i < aNumProperties; ++i) {
     bt_property_t p = aProperties[i];
 
     if (p.type == BT_PROPERTY_BDNAME) {
       BluetoothValue propertyValue = NS_ConvertUTF8toUTF16((char*)p.val);
-      BT_APPEND_NAMED_VALUE(props, "Name", propertyValue);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Name"), propertyValue));
     } else if (p.type == BT_PROPERTY_CLASS_OF_DEVICE) {
       uint32_t cod = *(uint32_t*)p.val;
-      BT_APPEND_NAMED_VALUE(props, "Class", cod);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Class"), BluetoothValue(cod)));
 
       nsString icon;
       ClassToIcon(cod, icon);
-      BT_APPEND_NAMED_VALUE(props, "Icon", icon);
+      props.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Icon"), BluetoothValue(icon)));
     } else {
       BT_LOGD("Other non-handled device properties. Type: %d", p.type);
     }
@@ -450,20 +460,22 @@ DeviceFoundCallback(int aNumProperties, bt_property_t *aProperties)
       nsString remoteDeviceBdAddress;
       BdAddressTypeToString((bt_bdaddr_t*)p.val, remoteDeviceBdAddress);
       propertyValue = remoteDeviceBdAddress;
-
-      BT_APPEND_NAMED_VALUE(propertiesArray, "Address", propertyValue);
+      propertiesArray.AppendElement(
+          BluetoothNamedValue(NS_LITERAL_STRING("Address"), propertyValue));
     } else if (p.type == BT_PROPERTY_BDNAME) {
       propertyValue = NS_ConvertUTF8toUTF16((char*)p.val);
-      BT_APPEND_NAMED_VALUE(propertiesArray, "Name", propertyValue);
+      propertiesArray.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Name"), propertyValue));
     } else if (p.type == BT_PROPERTY_CLASS_OF_DEVICE) {
       uint32_t cod = *(uint32_t*)p.val;
       propertyValue = cod;
-      BT_APPEND_NAMED_VALUE(propertiesArray, "Class", propertyValue);
-
+      propertiesArray.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Class"), propertyValue));
       nsString icon;
       ClassToIcon(cod, icon);
       propertyValue = icon;
-      BT_APPEND_NAMED_VALUE(propertiesArray, "Icon", propertyValue);
+      propertiesArray.AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Icon"), propertyValue));
     } else {
       BT_LOGD("Not handled remote device property: %d", p.type);
     }
@@ -503,12 +515,15 @@ PinRequestCallback(bt_bdaddr_t* aRemoteBdAddress,
   nsAutoString remoteAddress;
   BdAddressTypeToString(aRemoteBdAddress, remoteAddress);
 
-  BT_APPEND_NAMED_VALUE(propertiesArray, "address", remoteAddress);
-  BT_APPEND_NAMED_VALUE(propertiesArray, "method",
-                        NS_LITERAL_STRING("pincode"));
-  BT_APPEND_NAMED_VALUE(propertiesArray, "name",
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("address"), remoteAddress));
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("method"),
+                        NS_LITERAL_STRING("pincode")));
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("name"),
                         NS_ConvertUTF8toUTF16(
-                          (const char*)aRemoteBdName->name));
+                          (const char*)aRemoteBdName->name)));
 
   BluetoothValue value = propertiesArray;
   BluetoothSignal signal(NS_LITERAL_STRING("RequestPinCode"),
@@ -531,13 +546,17 @@ SspRequestCallback(bt_bdaddr_t* aRemoteBdAddress, bt_bdname_t* aRemoteBdName,
   nsAutoString remoteAddress;
   BdAddressTypeToString(aRemoteBdAddress, remoteAddress);
 
-  BT_APPEND_NAMED_VALUE(propertiesArray, "address", remoteAddress);
-  BT_APPEND_NAMED_VALUE(propertiesArray, "method",
-                        NS_LITERAL_STRING("confirmation"));
-  BT_APPEND_NAMED_VALUE(propertiesArray, "name",
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("address"), remoteAddress));
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("method"),
+                        NS_LITERAL_STRING("confirmation")));
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("name"),
                         NS_ConvertUTF8toUTF16(
-                          (const char*)aRemoteBdName->name));
-  BT_APPEND_NAMED_VALUE(propertiesArray, "passkey", aPasskey);
+                          (const char*)aRemoteBdName->name)));
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("passkey"), aPasskey));
 
   BluetoothValue value = propertiesArray;
   BluetoothSignal signal(NS_LITERAL_STRING("RequestConfirmation"),
@@ -573,9 +592,9 @@ BondStateChangedCallback(bt_status_t aStatus, bt_bdaddr_t* aRemoteBdAddress,
 
   // Update bonded address list to BluetoothAdapter
   InfallibleTArray<BluetoothNamedValue> propertiesChangeArray;
-  BT_APPEND_NAMED_VALUE(propertiesChangeArray, "Devices",
-                        sAdapterBondedAddressArray);
-
+  propertiesChangeArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("Devices"),
+                        sAdapterBondedAddressArray));
   BluetoothValue value(propertiesChangeArray);
   BluetoothSignal signal(NS_LITERAL_STRING("PropertyChanged"),
                          NS_LITERAL_STRING(KEY_ADAPTER),
@@ -584,9 +603,10 @@ BondStateChangedCallback(bt_status_t aStatus, bt_bdaddr_t* aRemoteBdAddress,
 
   // Update bonding status to gaia
   InfallibleTArray<BluetoothNamedValue> propertiesArray;
-  BT_APPEND_NAMED_VALUE(propertiesArray, "address", remoteAddress);
-  BT_APPEND_NAMED_VALUE(propertiesArray, "status", bonded);
-
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("address"), remoteAddress));
+  propertiesArray.AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("status"), bonded));
   BluetoothSignal newSignal(NS_LITERAL_STRING(PAIRED_STATUS_CHANGED_ID),
                             NS_LITERAL_STRING(KEY_ADAPTER),
                             BluetoothValue(propertiesArray));
@@ -776,20 +796,23 @@ BluetoothServiceBluedroid::GetDefaultAdapterPathInternal(
 
   BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
 
-  BT_APPEND_NAMED_VALUE(v.get_ArrayOfBluetoothNamedValue(),
-                        "Address", sAdapterBdAddress);
+  v.get_ArrayOfBluetoothNamedValue().AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("Address"), sAdapterBdAddress));
 
-  BT_APPEND_NAMED_VALUE(v.get_ArrayOfBluetoothNamedValue(),
-                        "Name", sAdapterBdName);
+  v.get_ArrayOfBluetoothNamedValue().AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("Name"), sAdapterBdName));
 
-  BT_APPEND_NAMED_VALUE(v.get_ArrayOfBluetoothNamedValue(),
-                        "Discoverable", sAdapterDiscoverable);
+  v.get_ArrayOfBluetoothNamedValue().AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("Discoverable"),
+                        sAdapterDiscoverable));
 
-  BT_APPEND_NAMED_VALUE(v.get_ArrayOfBluetoothNamedValue(),
-                        "DiscoverableTimeout", sAdapterDiscoverableTimeout);
+  v.get_ArrayOfBluetoothNamedValue().AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("DiscoverableTimeout"),
+                        sAdapterDiscoverableTimeout));
 
-  BT_APPEND_NAMED_VALUE(v.get_ArrayOfBluetoothNamedValue(),
-                        "Devices", sAdapterBondedAddressArray);
+  v.get_ArrayOfBluetoothNamedValue().AppendElement(
+    BluetoothNamedValue(NS_LITERAL_STRING("Devices"),
+                        sAdapterBondedAddressArray));
 
   nsAutoString replyError;
   DispatchBluetoothReply(runnable.get(), v, replyError);

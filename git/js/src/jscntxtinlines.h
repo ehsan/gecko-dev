@@ -408,13 +408,6 @@ js::ExclusiveContext::enterCompartment(JSCompartment *c)
 }
 
 inline void
-js::ExclusiveContext::enterNullCompartment()
-{
-    enterCompartmentDepth_++;
-    setCompartment(nullptr);
-}
-
-inline void
 js::ExclusiveContext::leaveCompartment(JSCompartment *oldCompartment)
 {
     JS_ASSERT(hasEnteredCompartment());
@@ -424,8 +417,7 @@ js::ExclusiveContext::leaveCompartment(JSCompartment *oldCompartment)
     // compartment.
     JSCompartment *startingCompartment = compartment_;
     setCompartment(oldCompartment);
-    if (startingCompartment)
-        startingCompartment->leave();
+    startingCompartment->leave();
 }
 
 inline void

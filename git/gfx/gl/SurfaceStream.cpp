@@ -22,7 +22,7 @@ SurfaceStream::ChooseGLStreamType(SurfaceStream::OMTC omtc,
         if (preserveBuffer)
             return SurfaceStreamType::TripleBuffer_Copy;
         else
-            return SurfaceStreamType::TripleBuffer_Async;
+            return SurfaceStreamType::TripleBuffer;
     } else {
         if (preserveBuffer)
             return SurfaceStreamType::SingleBuffer;
@@ -42,9 +42,6 @@ SurfaceStream::CreateForType(SurfaceStreamType type, mozilla::gl::GLContext* glC
             break;
         case SurfaceStreamType::TripleBuffer_Copy:
             result = new SurfaceStream_TripleBuffer_Copy(prevStream);
-            break;
-        case SurfaceStreamType::TripleBuffer_Async:
-            result = new SurfaceStream_TripleBuffer_Async(prevStream);
             break;
         case SurfaceStreamType::TripleBuffer:
             result = new SurfaceStream_TripleBuffer(prevStream);
@@ -432,9 +429,7 @@ SurfaceStream_TripleBuffer::SwapProducer(SurfaceFactory* factory,
     if (mProducer) {
         RecycleScraps(factory);
 
-        // If WaitForCompositor succeeds, mStaging has moved to mConsumer.
-        // If it failed, we might have to scrap it.
-        if (mStaging && !WaitForCompositor())
+        if (mStaging)
             Scrap(mStaging);
 
         MOZ_ASSERT(!mStaging);
@@ -459,30 +454,6 @@ SurfaceStream_TripleBuffer::SwapConsumer_NoWait()
     }
 
     return mConsumer;
-}
-
-SurfaceStream_TripleBuffer_Async::SurfaceStream_TripleBuffer_Async(SurfaceStream* prevStream)
-    : SurfaceStream_TripleBuffer(SurfaceStreamType::TripleBuffer_Async, prevStream)
-{
-}
-
-SurfaceStream_TripleBuffer_Async::~SurfaceStream_TripleBuffer_Async()
-{
-}
-
-bool
-SurfaceStream_TripleBuffer_Async::WaitForCompositor()
-{
-    PROFILER_LABEL("SurfaceStream_TripleBuffer_Async", "WaitForCompositor");
-
-    // We are assumed to be locked
-    while (mStaging) {
-        if (!NS_SUCCEEDED(mMonitor.Wait(PR_MillisecondsToInterval(100)))) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 } /* namespace gfx */

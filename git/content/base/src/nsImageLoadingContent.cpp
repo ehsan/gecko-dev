@@ -466,26 +466,20 @@ nsImageLoadingContent::FrameDestroyed(nsIFrame* aFrame)
   mFrameCreateCalled = false;
 
   // We need to make sure that our image request is deregistered.
-  nsPresContext* presContext = GetFramePresContext();
   if (mCurrentRequest) {
-    nsLayoutUtils::DeregisterImageRequest(presContext,
+    nsLayoutUtils::DeregisterImageRequest(GetFramePresContext(),
                                           mCurrentRequest,
                                           &mCurrentRequestRegistered);
   }
 
   if (mPendingRequest) {
-    nsLayoutUtils::DeregisterImageRequest(presContext,
+    nsLayoutUtils::DeregisterImageRequest(GetFramePresContext(),
                                           mPendingRequest,
                                           &mPendingRequestRegistered);
   }
 
   UntrackImage(mCurrentRequest);
   UntrackImage(mPendingRequest);
-
-  nsIPresShell* presShell = presContext ? presContext->GetPresShell() : nullptr;
-  if (presShell) {
-    presShell->RemoveImageFromVisibleList(this);
-  }
 
   if (aFrame->HasAnyStateBits(NS_FRAME_IN_POPUP)) {
     // We assume all images in popups are visible, so this decrement balances

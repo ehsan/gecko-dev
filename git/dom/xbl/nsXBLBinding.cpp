@@ -957,8 +957,6 @@ GetOrCreateMapEntryForPrototype(JSContext *cx, JS::Handle<JSObject*> proto)
   }
   JS::Rooted<JS::Value> entryVal(cx, JS::ObjectValue(*entry));
   if (!JS::SetWeakMapEntry(cx, map, wrappedProto, entryVal)) {
-    NS_WARNING("SetWeakMapEntry failed, probably due to non-preservable WeakMap "
-               "key. XBL binding will fail for this element.");
     return nullptr;
   }
   return entry;
@@ -998,9 +996,6 @@ nsXBLBinding::DoInitJSClass(JSContext *cx,
   } else {
     JSAutoCompartment innerAC(cx, xblScope);
     holder = GetOrCreateClassObjectMap(cx, xblScope, "__ContentClassObjectMap__");
-  }
-  if (NS_WARN_IF(!holder)) {
-    return NS_ERROR_FAILURE;
   }
   js::AssertSameCompartment(holder, xblScope);
   JSAutoCompartment ac(cx, holder);

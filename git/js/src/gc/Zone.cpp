@@ -105,7 +105,7 @@ Zone::onTooMuchMalloc()
 }
 
 void
-Zone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
+Zone::sweep(FreeOp *fop, bool releaseTypes)
 {
     /*
      * Periodically release observed types for all scripts. This is safe to
@@ -116,7 +116,7 @@ Zone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
 
     {
         gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
-        types.sweep(fop, releaseTypes, oom);
+        types.sweep(fop, releaseTypes);
     }
 
     if (!fop->runtime()->debuggerList.isEmpty())
