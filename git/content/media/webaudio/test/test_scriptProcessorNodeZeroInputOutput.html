@@ -12,6 +12,8 @@
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
+
   var context = new AudioContext();
 
   var sp = context.createScriptProcessor(2048, 0, 2);
@@ -26,6 +28,7 @@ addLoadEvent(function() {
       is(e.outputBuffer.numberOfChannels, 0, "Should have 0 output channels");
       sp.onaudioprocess = null;
 
+      SpecialPowers.clearUserPref("media.webaudio.enabled");
       SimpleTest.finish();
     };
   };

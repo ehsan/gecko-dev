@@ -16,6 +16,8 @@
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
+
   var context = new AudioContext();
   var buffer = context.createBuffer(4, 2048, context.sampleRate);
   var expectedBuffer = context.createBuffer(4, 2048, context.sampleRate);
@@ -55,6 +57,7 @@ addLoadEvent(function() {
       ++channelsSeen;
 
       if (channelsSeen == 6) {
+        SpecialPowers.clearUserPref("media.webaudio.enabled");
         SimpleTest.finish();
       }
     };

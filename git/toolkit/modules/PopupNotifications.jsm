@@ -59,6 +59,8 @@ Notification.prototype = {
 
   get anchorElement() {
     let iconBox = this.owner.iconBox;
+    if (!iconBox)
+      return null;
 
     let anchorElement = null;
     let anchor = this.browser.getAttribute("popupnotificationanchor") ||
@@ -67,12 +69,9 @@ Notification.prototype = {
       if (anchor instanceof Ci.nsIDOMXULElement) {
         anchorElement = anchor;
       } else {
-        anchorElement = this.browser.ownerDocument.getElementById(anchor);
+        anchorElement = iconBox.ownerDocument.getElementById(anchor);
       }
     }
-
-    if (!iconBox)
-      return anchorElement;
 
     if (!anchorElement && this.anchorID)
       anchorElement = iconBox.querySelector("#"+this.anchorID);
@@ -124,8 +123,7 @@ this.PopupNotifications = function PopupNotifications(tabbrowser, panel, iconBox
   this.panel.addEventListener("popuphidden", this, true);
 
   this.window.addEventListener("activate", this, true);
-  if (this.tabbrowser.tabContainer)
-    this.tabbrowser.tabContainer.addEventListener("TabSelect", this, true);
+  this.tabbrowser.tabContainer.addEventListener("TabSelect", this, true);
 }
 
 PopupNotifications.prototype = {
@@ -394,7 +392,7 @@ PopupNotifications.prototype = {
    * Gets notifications for the currently selected browser.
    */
   get _currentNotifications() {
-    return this.tabbrowser.selectedBrowser ? this._getNotificationsForBrowser(this.tabbrowser.selectedBrowser) : [];
+    return this._getNotificationsForBrowser(this.tabbrowser.selectedBrowser);
   },
 
   _remove: function PopupNotifications_removeHelper(notification) {

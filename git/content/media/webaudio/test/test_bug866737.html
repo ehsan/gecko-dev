@@ -9,6 +9,8 @@
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
+SpecialPowers.setBoolPref("media.webaudio.enabled", true);
+
 var context = new AudioContext();
 
 (function() {
@@ -29,6 +31,8 @@ gain.connect(context.destination);
 gain.disconnect(0);
 
 ok(true, "No crashes should happen!");
+
+SpecialPowers.clearUserPref("media.webaudio.enabled");
 
 </script>
 </pre>
