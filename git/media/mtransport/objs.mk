@@ -79,7 +79,7 @@ MTRANSPORT_LCPPSRCS = \
   transportlayerprsock.cpp \
   $(NULL)
 
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+ifdef MOZ_B2G_RIL
 MTRANSPORT_LCPPSRCS += \
   gonk_addrs.cpp \
   $(NULL)

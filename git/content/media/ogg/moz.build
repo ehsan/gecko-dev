@@ -10,13 +10,11 @@ EXPORTS += [
     'OggCodecState.h',
     'OggDecoder.h',
     'OggReader.h',
-    'OggWriter.h',
 ]
 
 CPP_SOURCES += [
     'OggCodecState.cpp',
     'OggDecoder.cpp',
     'OggReader.cpp',
-    'OggWriter.cpp',
 ]
 

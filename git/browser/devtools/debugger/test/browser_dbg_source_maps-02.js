@@ -80,7 +80,6 @@ function testToggleGeneratedSource() {
   gDebugger.DebuggerView.Options._showOriginalSourceItem.setAttribute("checked",
                                                                       "false");
   gDebugger.DebuggerView.Options._toggleShowOriginalSource();
-  gDebugger.DebuggerView.Options._onPopupHidden();
 }
 
 function testSetBreakpoint() {
@@ -158,7 +157,6 @@ function testToggleOnPause() {
   gDebugger.DebuggerView.Options._showOriginalSourceItem.setAttribute("checked",
                                                                       "true");
   gDebugger.DebuggerView.Options._toggleShowOriginalSource();
-  gDebugger.DebuggerView.Options._onPopupHidden();
 }
 
 function resumeAndFinish()
