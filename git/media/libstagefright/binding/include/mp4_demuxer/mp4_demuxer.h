@@ -10,14 +10,12 @@
 #include "mp4_demuxer/DecoderData.h"
 #include "mp4_demuxer/Interval.h"
 #include "nsISupportsImpl.h"
-#include "mozilla/Monitor.h"
 
 namespace mozilla { class MediaByteRange; }
 
 namespace mp4_demuxer
 {
 
-using mozilla::Monitor;
 struct StageFrightPrivate;
 typedef int64_t Microseconds;
 
@@ -43,7 +41,7 @@ enum TrackType { kVideo = 1, kAudio };
 class MP4Demuxer
 {
 public:
-  explicit MP4Demuxer(Stream* aSource, Monitor* aMonitor);
+  explicit MP4Demuxer(Stream* aSource);
   ~MP4Demuxer();
 
   bool Init();
@@ -82,7 +80,6 @@ private:
   nsRefPtr<Stream> mSource;
   nsTArray<mozilla::MediaByteRange> mCachedByteRanges;
   nsTArray<Interval<Microseconds>> mCachedTimeRanges;
-  Monitor* mMonitor;
 };
 
 } // namespace mozilla

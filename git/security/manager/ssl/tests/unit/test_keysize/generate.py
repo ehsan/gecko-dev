@@ -15,6 +15,8 @@ import CertUtils
 
 srcdir = os.getcwd()
 db_dir = tempfile.mkdtemp()
+dsaNotOK_param_filename = 'dsaNotOK_param.pem'
+dsaOK_param_filename = 'dsaOK_param.pem'
 
 ca_ext_text = ('basicConstraints = critical, CA:TRUE\n' +
                'keyUsage = keyCertSign, cRLSign\n')
@@ -33,13 +35,14 @@ generated_ev_root_filenames = []
 
 def generate_and_maybe_import_cert(key_type, cert_name_prefix, cert_name_suffix,
                                    base_ext_text, signer_key_filename,
-                                   signer_cert_filename, key_size, generate_ev):
+                                   signer_cert_filename, dsa_param_filename,
+                                   key_size, generate_ev):
     """
     Generates a certificate and imports it into the NSS DB if appropriate.
 
     Arguments:
-      key_type -- the type of key generated: potential values: 'rsa', or any of
-                  the curves found by 'openssl ecparam -list_curves'
+      key_type -- the type of key generated: potential values: 'rsa', 'dsa',
+                  or any of the curves found by 'openssl ecparam -list_curves'
       cert_name_prefix -- prefix of the generated cert name
       cert_name_suffix -- suffix of the generated cert name
       base_ext_text -- the base text for the x509 extensions to be added to the
@@ -52,6 +55,7 @@ def generate_and_maybe_import_cert(key_type, cert_name_prefix, cert_name_suffix,
                               certificate being generated. Ignored if an empty
                               string is passed in for signer_key_filename.
                               Must be in DER format.
+      dsa_param_filename -- the filename for the DSA param file
       key_size -- public key size for RSA certs
       generate_ev -- whether an EV cert should be generated
 
@@ -88,6 +92,7 @@ def generate_and_maybe_import_cert(key_type, cert_name_prefix, cert_name_suffix,
         signer_key_filename,
         signer_cert_filename,
         subject_string,
+        dsa_param_filename,
         key_size)
 
     if generate_ev:
@@ -109,7 +114,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
     Generates the various certificates used by the key size tests.
 
     Arguments:
-      key_type -- the type of key generated: potential values: 'rsa',
+      key_type -- the type of key generated: potential values: 'rsa', 'dsa',
                   or any of the curves found by 'openssl ecparam -list_curves'
       inadequate_key_size -- a string defining the inadequate public key size
                              for the generated certs
@@ -117,6 +122,10 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
                            the generated certs
       generate_ev -- whether an EV cert should be generated
     """
+    if key_type == 'dsa':
+        CertUtils.init_dsa(db_dir, dsaNotOK_param_filename, inadequate_key_size)
+        CertUtils.init_dsa(db_dir, dsaOK_param_filename, adequate_key_size)
+
     # Generate chain with certs that have adequate sizes
     if generate_ev and key_type == 'rsa':
         # Reuse the existing RSA EV root
@@ -134,6 +143,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
             ca_ext_text,
             '',
             '',
+            dsaOK_param_filename,
             adequate_key_size,
             generate_ev)
 
@@ -144,6 +154,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ca_ext_text,
         caOK_key,
         caOK_cert,
+        dsaOK_param_filename,
         adequate_key_size,
         generate_ev)
 
@@ -154,6 +165,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ee_ext_text,
         intOK_key,
         intOK_cert,
+        dsaOK_param_filename,
         adequate_key_size,
         generate_ev)
 
@@ -165,6 +177,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ca_ext_text,
         '',
         '',
+        dsaNotOK_param_filename,
         inadequate_key_size,
         generate_ev)
 
@@ -175,6 +188,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ca_ext_text,
         rootNotOK_key,
         rootNotOK_cert,
+        dsaOK_param_filename,
         adequate_key_size,
         generate_ev)
 
@@ -185,6 +199,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ee_ext_text,
         int_key,
         int_cert,
+        dsaOK_param_filename,
         adequate_key_size,
         generate_ev)
 
@@ -196,6 +211,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ca_ext_text,
         caOK_key,
         caOK_cert,
+        dsaNotOK_param_filename,
         inadequate_key_size,
         generate_ev)
 
@@ -206,6 +222,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ee_ext_text,
         intNotOK_key,
         intNotOK_cert,
+        dsaOK_param_filename,
         adequate_key_size,
         generate_ev)
 
@@ -217,6 +234,7 @@ def generate_certs(key_type, inadequate_key_size, adequate_key_size, generate_ev
         ee_ext_text,
         intOK_key,
         intOK_cert,
+        dsaNotOK_param_filename,
         inadequate_key_size,
         generate_ev)
 
@@ -228,6 +246,8 @@ CertUtils.init_nss_db(srcdir)
 # that can be tested is 1016, less than 2048 is 2040 and so on.
 generate_certs('rsa', '1016', '1024', False)
 generate_certs('rsa', '2040', '2048', True)
+
+generate_certs('dsa', '960', '1024', False)
 
 # Print a blank line and the information needed to enable EV for any roots
 # generated by this script.

@@ -795,7 +795,6 @@ private:
     bool mCalledClose;
     bool mCalledCloseWithError;
     bool mCalledKillHard;
-    bool mCreatedPairedMinidumps;
 
     friend class CrashReporterParent;
 

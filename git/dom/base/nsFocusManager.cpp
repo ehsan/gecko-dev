@@ -1614,6 +1614,11 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
     return true;
   }
 
+  nsRefPtr<SelectionCarets> selectionCarets = presShell->GetSelectionCarets();
+  if (selectionCarets) {
+    selectionCarets->NotifyBlur();
+  }
+
   bool clearFirstBlurEvent = false;
   if (!mFirstBlurEvent) {
     mFirstBlurEvent = content;
@@ -1683,14 +1688,8 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
 
   // if we are leaving the document or the window was lowered, make the caret
   // invisible.
-  if (aIsLeavingDocument || !mActiveWindow) {
+  if (aIsLeavingDocument || !mActiveWindow)
     SetCaretVisible(presShell, false, nullptr);
-    nsRefPtr<SelectionCarets> selectionCarets = presShell->GetSelectionCarets();
-    if (selectionCarets) {
-      selectionCarets->NotifyBlur();
-    }
-  }
-
 
   // at this point, it is expected that this window will be still be
   // focused, but the focused content will be null, as it was cleared before

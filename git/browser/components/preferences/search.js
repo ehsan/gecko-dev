@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 
 const ENGINE_FLAVOR = "text/x-moz-search-engine";
 
@@ -46,10 +45,8 @@ var gSearchPane = {
     gEngineView._engineStore._engines.forEach(e => {
       let item = list.appendItem(e.name);
       item.setAttribute("class", "menuitem-iconic searchengine-menuitem menuitem-with-favicon");
-      if (e.iconURI) {
-        let uri = PlacesUtils.getImageURLForResolution(window, e.iconURI.spec);
-        item.setAttribute("image", uri);
-      }
+      if (e.iconURI)
+        item.setAttribute("image", e.iconURI.spec);
       item.engine = e;
       if (e.name == currentEngine)
         list.selectedItem = item;
@@ -436,10 +433,8 @@ EngineView.prototype = {
   },
 
   getImageSrc: function(index, column) {
-    if (column.id == "engineName" && this._engineStore.engines[index].iconURI) {
-      let uri = this._engineStore.engines[index].iconURI.spec;
-      return PlacesUtils.getImageURLForResolution(window, uri);
-    }
+    if (column.id == "engineName" && this._engineStore.engines[index].iconURI)
+      return this._engineStore.engines[index].iconURI.spec;
     return "";
   },
 

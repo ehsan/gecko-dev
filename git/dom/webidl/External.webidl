@@ -7,12 +7,12 @@
 [JSImplementation="@mozilla.org/sidebar;1"]
 interface External
 {
-  [UnsafeInPrerendering] void AddSearchProvider(DOMString aDescriptionURL);
+  void AddSearchProvider(DOMString aDescriptionURL);
   unsigned long IsSearchProviderInstalled(DOMString aSearchURL);
 };
 
 // Mozilla extension
 partial interface External {
-  [UnsafeInPrerendering] void addSearchEngine(DOMString engineURL, DOMString iconURL,
-                                              DOMString suggestedTitle, DOMString suggestedCategory);
+  void addSearchEngine(DOMString engineURL, DOMString iconURL,
+                       DOMString suggestedTitle, DOMString suggestedCategory);
 };

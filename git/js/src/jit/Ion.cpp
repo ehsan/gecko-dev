@@ -2015,11 +2015,7 @@ IonCompile(JSContext *cx, JSScript *script,
 
     bool success = codegen->link(cx, builder->constraints());
 
-    if (success)
-        return AbortReason_NoAbort;
-    if (cx->isExceptionPending())
-        return AbortReason_Error;
-    return AbortReason_Disable;
+    return success ? AbortReason_NoAbort : AbortReason_Disable;
 }
 
 static bool

@@ -7397,7 +7397,7 @@ PendingPlayerTracker*
 nsDocument::GetOrCreatePendingPlayerTracker()
 {
   if (!mPendingPlayerTracker) {
-    mPendingPlayerTracker = new PendingPlayerTracker(this);
+    mPendingPlayerTracker = new PendingPlayerTracker();
   }
 
   return mPendingPlayerTracker;
