@@ -113,7 +113,6 @@
 #include "nsTArray.h"
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
-#include "nsWrapperCache.h"
 
 #include "nsIXPCScriptNotify.h"  // used to notify: ScriptEvaluated
 
@@ -714,7 +713,7 @@ public:
     }
 
     static void TraceJS(JSTracer* trc, void* data);
-    void TraceXPConnectRoots(JSTracer *trc, JSBool rootGlobals = JS_FALSE);
+    void TraceXPConnectRoots(JSTracer *trc);
     void AddXPConnectRoots(JSContext* cx,
                            nsCycleCollectionTraversalCallback& cb);
 
@@ -727,7 +726,9 @@ public:
     nsresult AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
     nsresult RemoveJSHolder(void* aHolder);
 
-    void UnrootContextGlobals();
+    void UnsetContextGlobals();
+    void RestoreContextGlobals();
+    JSObject* GetUnsetContextGlobal(JSContext* cx);
 
     void DebugDump(PRInt16 depth);
 
@@ -784,7 +785,7 @@ private:
     XPCRootSetElem *mWrappedJSRoots;
     XPCRootSetElem *mObjectHolderRoots;
     JSDHashTable mJSHolders;
-    uintN mUnrootedGlobalCount;
+    JSDHashTable mClearedGlobalObjects;
 };
 
 /***************************************************************************/
@@ -2760,12 +2761,9 @@ public:
      * @param pErr [out] relevant error code, if any.
      */
     static JSBool NativeInterface2JSObject(XPCCallContext& ccx,
-                                           jsval* d,
                                            nsIXPConnectJSObjectHolder** dest,
                                            nsISupports* src,
                                            const nsID* iid,
-                                           XPCNativeInterface* Interface,
-                                           nsWrapperCache *cache,
                                            JSObject* scope,
                                            PRBool allowNativeWrapper,
                                            PRBool isGlobal,

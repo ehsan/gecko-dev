@@ -294,14 +294,10 @@ PlacesTreeView.prototype = {
       var min = { }, max = { };
       selection.getRangeAt(rangeIndex, min, max);
       var lastIndex = Math.min(max.value, startReplacement + replaceCount -1);
-      // if this range does not overlap the replaced chunk we don't need to
-      // persist the selection.
-      if (max.value < startReplacement || min.value > lastIndex)
+      if (min.value < startReplacement || min.value > lastIndex)
         continue;
-      // if this range starts before the replaced chunk we should persist from
-      // startReplacement to lastIndex
-      var firstIndex = Math.max(min.value, startReplacement);
-      for (var nodeIndex = firstIndex; nodeIndex <= lastIndex; nodeIndex++)
+
+      for (var nodeIndex = min.value; nodeIndex <= lastIndex; nodeIndex++)
         previouslySelectedNodes.push(
           { node: this._visibleElements[nodeIndex].node, oldIndex: nodeIndex });
     }
@@ -313,8 +309,7 @@ PlacesTreeView.prototype = {
     // Building the new list will set the new elements' visible indices.
     var newElements = [];
     var toOpenElements = [];
-    this._buildVisibleSection(aContainer,
-                              newElements, toOpenElements, startReplacement);
+    this._buildVisibleSection(aContainer, newElements, toOpenElements, startReplacement);
 
     // actually update the visible list
     this._visibleElements =
@@ -325,7 +320,7 @@ PlacesTreeView.prototype = {
     // If the new area has a different size, we'll have to renumber the
     // elements following the area.
     if (replaceCount != newElements.length) {
-      for (var i = startReplacement + newElements.length;
+      for (i = startReplacement + newElements.length;
            i < this._visibleElements.length; i ++) {
         this._visibleElements[i].node.viewIndex = i;
       }

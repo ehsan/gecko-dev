@@ -102,10 +102,10 @@ class gfxContext;
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// b5bc1dd3-9fd3-4fe7-8311-5dfca55ea371
+// 5c103bc2-788e-4bbe-b82e-635bea34e78f
 #define NS_IPRESSHELL_IID \
-{ 0xb5bc1dd3, 0x9fd3, 0x4fe7, \
-  { 0x83, 0x11, 0x5d, 0xfc, 0xa5, 0x5e, 0xa3, 0x71 } }
+{ 0x5c103bc2, 0x788e, 0x4bbe, \
+  { 0xb8, 0x2e, 0x63, 0x5b, 0xea, 0x34, 0xe7, 0x8f } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -123,7 +123,8 @@ typedef PRUint32 nsFrameState;
 #define VERIFY_REFLOW_DUMP_COMMANDS   0x08
 #define VERIFY_REFLOW_NOISY_RC        0x10
 #define VERIFY_REFLOW_REALLY_NOISY_RC 0x20
-#define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x40
+#define VERIFY_REFLOW_INCLUDE_SPACE_MANAGER 0x40
+#define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x80
 
 /**
  * Presentation shell interface. Presentation shells are the
@@ -269,9 +270,11 @@ public:
   NS_IMETHOD EndObservingDocument() = 0;
 
   /**
-   * Return whether InitialReflow() was previously called.
+   * Determine if InitialReflow() was previously called.
+   * @param aDidInitialReflow PR_TRUE if InitalReflow() was previously called,
+   * PR_FALSE otherwise.
    */
-  PRBool DidInitialReflow() const { return mDidInitialReflow; }
+  NS_IMETHOD GetDidInitialReflow(PRBool *aDidInitialReflow) = 0;
 
   /**
    * Perform the initial reflow. Constructs the frame for the root content
@@ -713,26 +716,19 @@ public:
    * root frame's coordinate system (if aIgnoreViewportScrolling is false)
    * or in the root scrolled frame's coordinate system
    * (if aIgnoreViewportScrolling is true). The coordinates are in appunits.
-   * @param aFlags see below;
-   *   set RENDER_IS_UNTRUSTED if the contents may be passed to malicious
+   * @param aUntrusted set to PR_TRUE if the contents may be passed to malicious
    * agents. E.g. we might choose not to paint the contents of sensitive widgets
    * such as the file name in a file upload widget, and we might choose not
    * to paint themes.
-   *   set RENDER_IGNORE_VIEWPORT_SCROLLING to ignore
-   * clipping/scrolling/scrollbar painting due to scrolling in the viewport
-   *   set RENDER_CARET to draw the caret if one would be visible
-   * (by default the caret is never drawn)
+   * @param aIgnoreViewportScrolling ignore clipping/scrolling/scrollbar painting
+   * due to scrolling in the viewport
    * @param aBackgroundColor a background color to render onto
    * @param aRenderedContext the gfxContext to render to. We render so that
    * one CSS pixel in the source document is rendered to one unit in the current
    * transform.
    */
-  enum {
-    RENDER_IS_UNTRUSTED = 0x01,
-    RENDER_IGNORE_VIEWPORT_SCROLLING = 0x02,
-    RENDER_CARET = 0x04
-  };
-  NS_IMETHOD RenderDocument(const nsRect& aRect, PRUint32 aFlags,
+  NS_IMETHOD RenderDocument(const nsRect& aRect, PRBool aUntrusted,
+                            PRBool aIgnoreViewportScrolling,
                             nscolor aBackgroundColor,
                             gfxContext* aRenderedContext) = 0;
 

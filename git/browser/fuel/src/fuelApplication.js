@@ -233,7 +233,7 @@ BrowserTab.prototype = {
    */
   _event : function bt_event(aEvent) {
     if (aEvent.type == "load") {
-      if (!(aEvent.originalTarget instanceof Ci.nsIDOMDocument))
+      if (!(aEvent.originalTarget instanceof Ci.nsIDOMHTMLDocument))
         return;
 
       if (aEvent.originalTarget.defaultView instanceof Ci.nsIDOMWindowInternal &&

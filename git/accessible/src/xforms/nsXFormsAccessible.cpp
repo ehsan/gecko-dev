@@ -176,14 +176,12 @@ nsXFormsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
   *aState = 0;
-
-  if (IsDefunct()) {
-    if (aExtraState)
+  if (!mDOMNode) {
+    if (aExtraState) {
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
+    }
+    return NS_OK;
   }
-
   if (aExtraState)
     *aExtraState = 0;
 
@@ -312,9 +310,8 @@ nsXFormsEditableAccessible::GetStateInternal(PRUint32 *aState,
   NS_ENSURE_ARG_POINTER(aState);
 
   nsresult rv = nsXFormsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
-
-  if (!aExtraState)
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode || !aExtraState)
     return NS_OK;
 
   PRBool isReadonly = PR_FALSE;

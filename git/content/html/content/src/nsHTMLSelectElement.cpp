@@ -69,8 +69,7 @@
 #include "nsRuleData.h"
 #include "nsEventDispatcher.h"
 
-NS_IMPL_ISUPPORTS1(nsSelectState, nsSelectState)
-NS_DEFINE_STATIC_IID_ACCESSOR(nsSelectState, NS_SELECT_STATE_IID)
+NS_IMPL_ISUPPORTS0(nsSelectState)
 
 //----------------------------------------------------------------------
 //
@@ -926,13 +925,6 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
   nsPresContext *presContext = GetPresContext();
 
   if (aIsSelected) {
-    // Setting selectedIndex to an out-of-bounds index means -1. (HTML5)
-    if (aStartIndex >= (PRInt32)numItems || aStartIndex < 0 ||
-        aEndIndex >= (PRInt32)numItems || aEndIndex < 0) {
-      aStartIndex = -1;
-      aEndIndex = -1;
-    }
-
     // Only select the first value if it's not multiple
     if (!isMultiple) {
       aEndIndex = aStartIndex;
@@ -954,6 +946,12 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
     //
     // If index is -1, everything will be deselected (bug 28143)
     if (aStartIndex != -1) {
+      // Verify that the indices are within bounds
+      if (aStartIndex >= (PRInt32)numItems || aStartIndex < 0
+         || aEndIndex >= (PRInt32)numItems || aEndIndex < 0) {
+        return NS_ERROR_FAILURE;
+      }
+
       // Loop through the options and select them (if they are not disabled and
       // if they are not already selected).
       for (PRInt32 optIndex = aStartIndex; optIndex <= aEndIndex; optIndex++) {
@@ -1076,6 +1074,9 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
   if (optionsSelected || optionsDeselected) {
     if (aChangedSomething)
       *aChangedSomething = PR_TRUE;
+
+    // Dispatch an event to notify the subcontent that the selected item has changed
+    DispatchDOMEvent(NS_LITERAL_STRING("selectedItemChanged"));
   }
 
   return NS_OK;
@@ -1493,12 +1494,21 @@ nsHTMLSelectElement::SaveState()
   nsPresState *presState = nsnull;
   nsresult rv = GetPrimaryPresState(this, &presState);
   if (presState) {
-    presState->SetStateProperty(state);
+    rv = presState->SetStatePropertyAsSupports(NS_LITERAL_STRING("selecteditems"),
+                                           state);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "selecteditems set failed!");
 
     if (mDisabledChanged) {
       PRBool disabled;
       GetDisabled(&disabled);
-      presState->SetDisabled(disabled);
+      if (disabled) {
+        rv |= presState->SetStateProperty(NS_LITERAL_STRING("disabled"),
+                                          NS_LITERAL_STRING("t"));
+      } else {
+        rv |= presState->SetStateProperty(NS_LITERAL_STRING("disabled"),
+                                          NS_LITERAL_STRING("f"));
+      }
+      NS_ASSERTION(NS_SUCCEEDED(rv), "disabled save failed!");
     }
   }
 
@@ -1509,19 +1519,22 @@ PRBool
 nsHTMLSelectElement::RestoreState(nsPresState* aState)
 {
   // Get the presentation state object to retrieve our stuff out of.
-  nsCOMPtr<nsSelectState> state(
-    do_QueryInterface(aState->GetStateProperty()));
-
-  if (state) {
-    RestoreStateTo(state);
+  nsCOMPtr<nsISupports> state;
+  nsresult rv = aState->GetStatePropertyAsSupports(NS_LITERAL_STRING("selecteditems"),
+                                                   getter_AddRefs(state));
+  if (NS_SUCCEEDED(rv)) {
+    RestoreStateTo((nsSelectState*)(nsISupports*)state);
 
     // Don't flush, if the frame doesn't exist yet it doesn't care if
     // we're reset or not.
     DispatchContentReset();
   }
 
-  if (aState->IsDisabledSet()) {
-    SetDisabled(aState->GetDisabled());
+  nsAutoString disabled;
+  rv = aState->GetStateProperty(NS_LITERAL_STRING("disabled"), disabled);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "disabled restore failed!");
+  if (rv == NS_STATE_PROPERTY_EXISTS) {
+    SetDisabled(disabled.EqualsLiteral("t"));
   }
 
   return PR_FALSE;
@@ -1559,8 +1572,8 @@ nsHTMLSelectElement::RestoreStateTo(nsSelectState* aNewSelected)
     nsIDOMHTMLOptionElement *option = mOptions->ItemAsOption(i);
     if (option) {
       nsAutoString value;
-      nsresult rv = option->GetValue(value);
-      if (NS_SUCCEEDED(rv) && aNewSelected->ContainsOption(i, value)) {
+      option->GetValue(value);
+      if (aNewSelected->ContainsOption(i, value)) {
         SetOptionsSelectedByIndex(i, i, PR_TRUE, PR_FALSE, PR_TRUE, PR_TRUE, nsnull);
       }
     }

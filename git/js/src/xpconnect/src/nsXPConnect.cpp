@@ -373,13 +373,8 @@ static JSBool
 XPCCycleCollectGCCallback(JSContext *cx, JSGCStatus status)
 {
     // Launch the cycle collector.
-    switch(status)
+    if(status == JSGC_MARK_END)
     {
-      case JSGC_BEGIN:
-        nsXPConnect::GetRuntimeInstance()->UnrootContextGlobals();
-        break;
-
-      case JSGC_MARK_END:
         // This is the hook between marking and sweeping in the JS GC. Do cycle
         // collection.
         if(!gDidCollection)
@@ -393,22 +388,24 @@ XPCCycleCollectGCCallback(JSContext *cx, JSGCStatus status)
         // Mark JS objects that are held by XPCOM objects that are in cycles
         // that will not be collected.
         nsXPConnect::GetRuntimeInstance()->
-            TraceXPConnectRoots(cx->runtime->gcMarkingTracer, JS_TRUE);
-        break;
-
-      case JSGC_END:
+            TraceXPConnectRoots(cx->runtime->gcMarkingTracer);
+    }
+    else if(status == JSGC_END)
+    {
         if(gInCollection)
         {
             gInCollection = PR_FALSE;
             gCollected = nsCycleCollector_finishCollection();
         }
-        break;
-
-      default:
-        break;
+        nsXPConnect::GetRuntimeInstance()->RestoreContextGlobals();
     }
 
-    return gOldJSGCCallback ? gOldJSGCCallback(cx, status) : JS_TRUE;
+    PRBool ok = gOldJSGCCallback ? gOldJSGCCallback(cx, status) : JS_TRUE;
+
+    if(status == JSGC_BEGIN)
+        nsXPConnect::GetRuntimeInstance()->UnsetContextGlobals();
+
+    return ok;
 }
 
 PRBool
@@ -909,7 +906,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     {
         nsISupports *principal = nsnull;
         mScopes.Get(obj, &principal);
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "scope principal");
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "scope prinicpal");
         cb.NoteXPCOMChild(principal);
     }
 #endif
@@ -963,8 +960,13 @@ public:
 #else
         cb.DescribeNode(RefCounted, refCount);
 #endif
-        cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
-                           cx->globalObject);
+
+        void* globalObject = (cx->globalObject)
+                             ? cx->globalObject
+                             : nsXPConnect::GetRuntimeInstance()->
+                                 GetUnsetContextGlobal(cx);
+
+        cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, globalObject);
 
         return NS_OK;
     }
@@ -1099,7 +1101,6 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
        !JS_SetPrototype(aJSContext, tempGlobal, nsnull))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    jsval v;
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     {
         // Scope for our auto-marker; it just needs to keep tempGlobal alive
@@ -1110,18 +1111,16 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
             return UnexpectedFailure(NS_ERROR_FAILURE);
 
         nsresult rv;
-        if(!XPCConvert::NativeInterface2JSObject(ccx, &v,
-                                                 getter_AddRefs(holder),
-                                                 aCOMObj, &aIID, nsnull,
-                                                 nsnull, tempGlobal,
+        if(!XPCConvert::NativeInterface2JSObject(ccx, getter_AddRefs(holder),
+                                                 aCOMObj, &aIID, tempGlobal,
                                                  PR_FALSE, OBJ_IS_GLOBAL, &rv))
             return UnexpectedFailure(rv);
 
         NS_ASSERTION(NS_SUCCEEDED(rv) && holder, "Didn't wrap properly");
     }
 
-    JSObject* globalJSObj = JSVAL_TO_OBJECT(v);
-    if(!globalJSObj)
+    JSObject* globalJSObj;
+    if(NS_FAILED(holder->GetJSObject(&globalJSObj)) || !globalJSObj)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     if(aFlags & nsIXPConnect::FLAG_SYSTEM_GLOBAL_OBJECT)
@@ -1160,17 +1159,15 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         JS_SetPrototype(aJSContext, protoJSObject, scope->GetPrototypeJSObject());
     }
 
-    if(!(aFlags & nsIXPConnect::OMIT_COMPONENTS_OBJECT)) {
-        SaveFrame sf(ccx);
-        if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, globalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
+    SaveFrame sf(ccx);
+    if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        if(!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
+    if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        if(!XPC_SJOW_AttachNewConstructorObject(ccx, globalJSObj))
-            return UnexpectedFailure(NS_ERROR_FAILURE);
-    }
+    if (!XPC_SJOW_AttachNewConstructorObject(ccx, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
     NS_ADDREF(*_retval = holder);
 
@@ -1183,42 +1180,29 @@ nsXPConnect::WrapNative(JSContext * aJSContext,
                         JSObject * aScope,
                         nsISupports *aCOMObj,
                         const nsIID & aIID,
-                        nsIXPConnectJSObjectHolder **aHolder)
-{
-    NS_ASSERTION(aHolder, "bad param");
-
-    jsval v;
-    return WrapNativeToJSVal(aJSContext, aScope, aCOMObj, &aIID, &v, aHolder);
-}
-
-/* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out JSVal aVal, out nsIXPConnectJSObjectHolder aHolder); */
-NS_IMETHODIMP
-nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
-                               JSObject * aScope,
-                               nsISupports *aCOMObj,
-                               const nsIID * aIID,
-                               jsval *aVal,
-                               nsIXPConnectJSObjectHolder **aHolder)
+                        nsIXPConnectJSObjectHolder **_retval)
 {
     NS_ASSERTION(aJSContext, "bad param");
     NS_ASSERTION(aScope, "bad param");
     NS_ASSERTION(aCOMObj, "bad param");
+    NS_ASSERTION(_retval, "bad param");
 
-    if(aHolder)
-        *aHolder = nsnull;
+    *_retval = nsnull;
 
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     nsresult rv;
-    if(!XPCConvert::NativeInterface2JSObject(ccx, aVal, aHolder, aCOMObj, aIID,
-                                             nsnull, nsnull, aScope, PR_FALSE,
+    if(!XPCConvert::NativeInterface2JSObject(ccx, _retval, aCOMObj, &aIID,
+                                             aScope, PR_FALSE,
                                              OBJ_IS_NOT_GLOBAL, &rv))
         return rv;
 
 #ifdef DEBUG
-    NS_ASSERTION(!XPCNativeWrapper::IsNativeWrapper(JSVAL_TO_OBJECT(*aVal)),
+    JSObject* returnObj;
+    (*_retval)->GetJSObject(&returnObj);
+    NS_ASSERTION(!XPCNativeWrapper::IsNativeWrapper(returnObj),
                  "Shouldn't be returning a native wrapper here");
 #endif
     

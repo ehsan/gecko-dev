@@ -97,7 +97,6 @@ enum nsCSSUnit {
                                   //       only in temporary values
   eCSSUnit_DummyInherit = 8,      // (n/a) a fake but specified value, used
                                   //       only in temporary values
-  eCSSUnit_RectIsAuto   = 9,      // (n/a) 'auto' for an entire rect()
   eCSSUnit_String       = 10,     // (PRUnichar*) a string value
   eCSSUnit_Attr         = 11,     // (PRUnichar*) a attr(string) value
   eCSSUnit_Local_Font   = 12,     // (PRUnichar*) a local font name
@@ -140,8 +139,10 @@ enum nsCSSUnit {
   // Length units - relative
   // Font relative measure
   eCSSUnit_EM           = 800,    // (float) == current font size
-  eCSSUnit_XHeight      = 801,    // (float) distance from top of lower case x to baseline
-  eCSSUnit_Char         = 802,    // (float) number of characters, used for width with monospace font
+  eCSSUnit_EN           = 801,    // (float) .5 em
+  eCSSUnit_XHeight      = 802,    // (float) distance from top of lower case x to baseline
+  eCSSUnit_CapHeight    = 803,    // (float) distance from top of uppercase case H to baseline
+  eCSSUnit_Char         = 804,    // (float) number of characters, used for width with monospace font
 
   // Screen relative measure
   eCSSUnit_Pixel        = 900,    // (float) CSS pixel unit
@@ -175,7 +176,7 @@ public:
   explicit nsCSSValue(nsCSSUnit aUnit = eCSSUnit_Null)
     : mUnit(aUnit)
   {
-    NS_ASSERTION(aUnit <= eCSSUnit_RectIsAuto, "not a valueless unit");
+    NS_ASSERTION(aUnit <= eCSSUnit_DummyInherit, "not a valueless unit");
   }
 
   nsCSSValue(PRInt32 aValue, nsCSSUnit aUnit) NS_HIDDEN;
@@ -318,7 +319,6 @@ public:
   NS_HIDDEN_(void)  SetSystemFontValue();
   NS_HIDDEN_(void)  SetDummyValue();
   NS_HIDDEN_(void)  SetDummyInheritValue();
-  NS_HIDDEN_(void)  SetRectIsAutoValue();
   NS_HIDDEN_(void)  StartImageLoad(nsIDocument* aDocument)
                                    const;  // Not really const, but pretending
 
@@ -450,21 +450,8 @@ public:
     nsCOMPtr<nsIURI> mReferrer;
     nsCOMPtr<nsIPrincipal> mOriginPrincipal;
 
-    void AddRef() {
-      if (mRefCnt == PR_UINT32_MAX) {
-        NS_WARNING("refcount overflow, leaking nsCSSValue::URL");
-        return;
-      }
-      ++mRefCnt;
-    }
-    void Release() {
-      if (mRefCnt == PR_UINT32_MAX) {
-        NS_WARNING("refcount overflow, leaking nsCSSValue::URL");
-        return;
-      }
-      if (--mRefCnt == 0)
-        delete this;
-    }
+    void AddRef() { ++mRefCnt; }
+    void Release() { if (--mRefCnt == 0) delete this; }
   protected:
     nsrefcnt mRefCnt;
   };
@@ -482,15 +469,9 @@ public:
 
     nsCOMPtr<imgIRequest> mRequest; // null == image load blocked or somehow failed
 
-    // Override Release so we delete correctly without a virtual destructor
-    void Release() {
-      if (mRefCnt == PR_UINT32_MAX) {
-        NS_WARNING("refcount overflow, leaking nsCSSValue::Image");
-        return;
-      }
-      if (--mRefCnt == 0)
-        delete this;
-    }
+    // Override AddRef/Release so we delete ourselves via the right pointer.
+    void AddRef() { ++mRefCnt; }
+    void Release() { if (--mRefCnt == 0) delete this; }
   };
 
 private:

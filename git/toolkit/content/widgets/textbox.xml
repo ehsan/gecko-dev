@@ -164,7 +164,6 @@
       <method name="_updateVisibleText">
         <body><![CDATA[
           if (!this.hasAttribute("focused") &&
-              !this.hasAttribute("empty") &&
               !this.value &&
               this.emptyText) {
             // This section is a wee bit hacky; without the timeout, the CSS
@@ -282,7 +281,6 @@
       <handler event="click">
         <![CDATA[
           if (!this.mIgnoreClick && this.clickSelectsAll &&
-              document.activeElement == this.inputField &&
               this.inputField.selectionStart == this.inputField.selectionEnd)
             this.editor.selectAll();
         ]]>

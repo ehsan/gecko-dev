@@ -267,10 +267,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
   }
 
 #ifdef MOZ_MEDIA
-  const char** supportedCodecs;
-  const char** maybeSupportedCodecs;
-  if (nsHTMLMediaElement::CanHandleMediaType(aContentType,
-          &supportedCodecs, &maybeSupportedCodecs)) {
+  if (nsHTMLMediaElement::CanHandleMediaType(aContentType)) {
     return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kVideoDocumentCID,

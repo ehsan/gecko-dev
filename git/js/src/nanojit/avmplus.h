@@ -253,24 +253,10 @@ namespace avmplus {
         static GCHeap heap;
         
     public:
-		/**
-		* flags to be passed as second argument to alloc
-		*/
-		enum AllocFlags
-		{
-			kZero=1,
-			kContainsPointers=2,
-			kFinalize=4,
-			kRCObject=8
-		};
-
         static inline void*
-        Alloc(uint32_t bytes, int flags=kZero)
+        Alloc(uint32_t bytes)
         {
-          if (flags & kZero)
             return calloc(1, bytes);
-          else
-            return malloc(bytes);
         }
     
         static inline void
@@ -325,21 +311,17 @@ namespace avmplus {
 
     typedef String* Stringp;
 
-    class Config
+    class AvmConfiguration
     {
     public:
-        Config() {
-            memset(this, 0, sizeof(Config));
+        AvmConfiguration() {
+            memset(this, 0, sizeof(AvmConfiguration));
 #ifdef DEBUG
             verbose = getenv("TRACEMONKEY") && strstr(getenv("TRACEMONKEY"), "verbose");
             verbose_addrs = 1;
             verbose_exits = 1;
             verbose_live = 1;
             show_stats = 1;
-#endif
-#if defined (AVMPLUS_AMD64)
-            sse2 = true;
-            use_cmov = true;
 #endif
             tree_opt = 0;
         }
@@ -351,11 +333,6 @@ namespace avmplus {
         uint32_t verbose_live:1;
         uint32_t verbose_exits:1;
         uint32_t show_stats:1;
-
-        #if defined (AVMPLUS_IA32) || defined(AVMPLUS_AMD64)
-		bool sse2;
-		bool use_cmov;
-		#endif
     };
 
     static const int kstrconst_emptyString = 0;
@@ -398,24 +375,24 @@ namespace avmplus {
     public:
         AvmInterpreter interp;
         AvmConsole console;
-        
-        static Config config;
+
+        static AvmConfiguration config;
         static GC* gc;
         static String* k_str[];
+        static bool sse2_available;
+        static bool cmov_available;
 
-#if defined (AVMPLUS_IA32) || defined(AVMPLUS_AMD64)
         static inline bool
         use_sse2()
         {
-            return config.sse2;
+            return sse2_available;
         }
         
         static inline bool
         use_cmov()
         {
-            return config.use_cmov;
+            return cmov_available;
         }
-#endif
 
         static inline bool
         quiet_opt()
@@ -467,11 +444,7 @@ namespace avmplus {
      * array use the [] operators.  
      */
 
-    enum ListElementType {
-        LIST_NonGCObjects = 0,
-        LIST_GCObjects = 1,
-        LIST_RCObjects = 2
-    };
+    enum ListElementType { LIST_NonGCObjects, LIST_GCObjects };
 
     template <typename T, ListElementType kElementType>
     class List
@@ -497,8 +470,6 @@ namespace avmplus {
             if (data)
                 free(data);
         }
-
-        const T *getData() const { return data; }
         
         // 'this' steals the guts of 'that' and 'that' gets reset.
         void FASTCALL become(List& that)
@@ -549,15 +520,6 @@ namespace avmplus {
             wb(index, value);
         }
         
-        void add(const List<T, kElementType>& l)
-        {
-            ensureCapacity(len+l.size());
-            // FIXME: make RCObject version
-            AvmAssert(kElementType != LIST_RCObjects);
-            arraycopy(l.getData(), 0, data, len, l.size());
-            len += l.size();
-        }
-
         inline void clear()
         {
             zero_range(0, len);
@@ -580,7 +542,7 @@ namespace avmplus {
             return -1;
         }   
         
-        inline T last() const
+        inline T last()
         {
             return get(len-1);
         }
@@ -650,21 +612,6 @@ namespace avmplus {
             ensureCapacity(newMax);
         }
         
-        void arraycopy(const T* src, int srcStart, T* dst, int dstStart, int nbr)
-        {
-            // we have 2 cases, either closing a gap or opening it.
-            if ((src == dst) && (srcStart > dstStart) )
-            {
-                for(int i=0; i<nbr; i++)
-                    dst[i+dstStart] = src[i+srcStart];  
-            }
-            else
-            {
-                for(int i=nbr-1; i>=0; i--)
-                    dst[i+dstStart] = src[i+srcStart];
-            }
-        }
-
         inline void do_wb_nongc(T* slot, T value)
         {   
             *slot = value;

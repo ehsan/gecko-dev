@@ -345,7 +345,7 @@ public:
   // nsINode interface methods
   virtual PRUint32 GetChildCount() const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
@@ -470,7 +470,11 @@ public:
   NS_IMETHOD GetNodeValue(nsAString& aNodeValue);
   NS_IMETHOD SetNodeValue(const nsAString& aNodeValue);
   NS_IMETHOD GetNodeType(PRUint16* aNodeType);
+  NS_IMETHOD GetParentNode(nsIDOMNode** aParentNode);
   NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
+  NS_IMETHOD GetPreviousSibling(nsIDOMNode** aPreviousSibling);
+  NS_IMETHOD GetNextSibling(nsIDOMNode** aNextSibling);
+  NS_IMETHOD GetOwnerDocument(nsIDOMDocument** aOwnerDocument);
   NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI);
   NS_IMETHOD GetPrefix(nsAString& aPrefix);
   NS_IMETHOD SetPrefix(const nsAString& aPrefix);
@@ -478,7 +482,10 @@ public:
   NS_IMETHOD IsSupported(const nsAString& aFeature,
                          const nsAString& aVersion, PRBool* aReturn);
   NS_IMETHOD HasAttributes(PRBool* aHasAttributes);
+  NS_IMETHOD GetChildNodes(nsIDOMNodeList** aChildNodes);
   NS_IMETHOD HasChildNodes(PRBool* aHasChildNodes);
+  NS_IMETHOD GetFirstChild(nsIDOMNode** aFirstChild);
+  NS_IMETHOD GetLastChild(nsIDOMNode** aLastChild);
   NS_IMETHOD InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
                           nsIDOMNode** aReturn);
   NS_IMETHOD ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
@@ -764,8 +771,6 @@ protected:
    *                      needed if aFireMutation or aNotify is true.
    * @param aFireMutation should mutation-events be fired?
    * @param aNotify       should we notify document-observers?
-   * @param aValueForAfterSetAttr If not null, AfterSetAttr will be called
-   *                      with the value pointed by this parameter.
    */
   nsresult SetAttrAndNotify(PRInt32 aNamespaceID,
                             nsIAtom* aName,
@@ -774,8 +779,7 @@ protected:
                             nsAttrValue& aParsedValue,
                             PRBool aModification,
                             PRBool aFireMutation,
-                            PRBool aNotify,
-                            const nsAString* aValueForAfterSetAttr);
+                            PRBool aNotify);
 
   /**
    * Convert an attribute string value to attribute type based on the type of

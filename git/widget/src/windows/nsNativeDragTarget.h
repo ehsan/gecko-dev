@@ -114,7 +114,6 @@ protected:
   HWND             mHWnd;
   PRBool           mCanMove;
   PRBool           mMovePreferred;
-  PRBool           mTookOwnRef;
 
   // Gecko Stuff
   nsIWidget      * mWindow;

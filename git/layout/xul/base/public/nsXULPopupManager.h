@@ -41,8 +41,6 @@
 #ifndef nsXULPopupManager_h__
 #define nsXULPopupManager_h__
 
-#include "prlog.h"
-#include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIWidget.h"
 #include "nsIRollupListener.h"
@@ -53,7 +51,6 @@
 #include "nsTArray.h"
 #include "nsITimer.h"
 #include "nsThreadUtils.h"
-#include "nsStyleConsts.h"
 
 /**
  * There are two types that are used:
@@ -62,10 +59,11 @@
  *     above should also be closed.
  *   - panels, which stay open until a request is made to close them. This
  *     type is used by tooltips.
+ *   XXXndeakin note that panels don't work too well currently due to widget
+ *              changes needed to handle activation events properly.
  *
  * When a new popup is opened, it is appended to the popup chain, stored in a
- * linked list in mPopups for dismissable menus and panels or mNoHidePanels
- * for tooltips and panels with noautohide="true".
+ * linked list in mCurrentMenu for dismissable menus or mPanels for panels.
  * Popups are stored in this list linked from newest to oldest. When a click
  * occurs outside one of the open dismissable popups, the chain is closed by
  * calling Rollup.
@@ -75,7 +73,7 @@ class nsIPresShell;
 class nsMenuFrame;
 class nsMenuPopupFrame;
 class nsMenuBarFrame;
-class nsMenuParent;
+class nsIMenuParent;
 class nsIDOMKeyEvent;
 class nsIDocShellTreeItem;
 
@@ -129,23 +127,33 @@ enum nsNavigationDirection {
 #define NS_DIRECTION_IS_BLOCK_TO_EDGE(dir) (dir == eNavigationDirection_First ||    \
                                             dir == eNavigationDirection_Last)
 
-PR_STATIC_ASSERT(NS_STYLE_DIRECTION_LTR == 0 && NS_STYLE_DIRECTION_RTL == 1);
-PR_STATIC_ASSERT((NS_VK_HOME == NS_VK_END + 1) &&
-                 (NS_VK_LEFT == NS_VK_END + 2) &&
-                 (NS_VK_UP == NS_VK_END + 3) &&
-                 (NS_VK_RIGHT == NS_VK_END + 4) &&
-                 (NS_VK_DOWN == NS_VK_END + 5));
+/**
+ * DirectionFromKeyCode_lr_tb: an array that maps keycodes to values of
+ * nsNavigationDirection for left-to-right and top-to-bottom flow orientation
+ * This is defined in nsXULPopupManager.cpp.
+ */
+extern nsNavigationDirection DirectionFromKeyCode_lr_tb [6];
 
 /**
- * DirectionFromKeyCodeTable: two arrays, the first for left-to-right and the
- * other for right-to-left, that map keycodes to values of
- * nsNavigationDirection.
+ * DirectionFromKeyCode_rl_tb: an array that maps keycodes to values of
+ * nsNavigationDirection for right-to-left and top-to-bottom flow orientation
+ * This is defined in nsXULPopupManager.cpp.
  */
-extern const nsNavigationDirection DirectionFromKeyCodeTable[2][6];
+extern nsNavigationDirection DirectionFromKeyCode_rl_tb [6];
 
-#define NS_DIRECTION_FROM_KEY_CODE(frame, keycode)                     \
-  (DirectionFromKeyCodeTable[frame->GetStyleVisibility()->mDirection]  \
-                            [keycode - NS_VK_END])
+#define NS_DIRECTION_FROM_KEY_CODE(frame, direction, keycode)    \
+  NS_ASSERTION(NS_VK_HOME == NS_VK_END + 1, "Broken ordering");  \
+  NS_ASSERTION(NS_VK_LEFT == NS_VK_END + 2, "Broken ordering");  \
+  NS_ASSERTION(NS_VK_UP == NS_VK_END + 3, "Broken ordering");    \
+  NS_ASSERTION(NS_VK_RIGHT == NS_VK_END + 4, "Broken ordering"); \
+  NS_ASSERTION(NS_VK_DOWN == NS_VK_END + 5, "Broken ordering");  \
+  NS_ASSERTION(keycode >= NS_VK_END && keycode <= NS_VK_DOWN,    \
+               "Illegal key code");                              \
+  const nsStyleVisibility* vis = frame->GetStyleVisibility();    \
+  if (vis->mDirection == NS_STYLE_DIRECTION_RTL)                 \
+    direction = DirectionFromKeyCode_rl_tb[keycode - NS_VK_END]; \
+  else                                                           \
+    direction = DirectionFromKeyCode_lr_tb[keycode - NS_VK_END];
 
 // nsMenuChainItem holds info about an open popup. Items are stored in a
 // doubly linked list. Note that the linked list is stored beginning from
@@ -485,12 +493,12 @@ public:
   /**
    * Return true if the popup for the supplied menu parent is open.
    */
-  PRBool IsPopupOpenForMenuParent(nsMenuParent* aMenuParent);
+  PRBool IsPopupOpenForMenuParent(nsIMenuParent* aMenuParent);
 
   /**
    * Return the frame for the topmost open popup of a given type, or null if
    * no popup of that type is open. If aType is ePopupTypeAny, a menu of any
-   * type is returned, except for popups in the mNoHidePanels list.
+   * type is returned, except for popups in the mPanels list.
    */
   nsIFrame* GetTopPopup(nsPopupType aType);
 
@@ -544,7 +552,7 @@ public:
    * submenu before the timer fires, we should instead cancel the timer. This
    * ensures that the user can move the mouse diagonally over a menu.
    */
-  void CancelMenuTimer(nsMenuParent* aMenuParent);
+  void CancelMenuTimer(nsIMenuParent* aMenuParent);
 
   /**
    * Handles navigation for menu accelkeys. Returns true if the key has
@@ -721,11 +729,11 @@ protected:
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;
 
-  // linked list of normal menus and panels.
-  nsMenuChainItem* mPopups;
+  // linked list of dismissable menus.
+  nsMenuChainItem* mCurrentMenu;
 
-  // linked list of noautohide panels and tooltips.
-  nsMenuChainItem* mNoHidePanels;
+  // linked list of panels
+  nsMenuChainItem* mPanels;
 
   // timer used for HidePopupAfterDelay
   nsCOMPtr<nsITimer> mCloseTimer;

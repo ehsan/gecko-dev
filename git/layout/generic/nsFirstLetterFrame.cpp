@@ -224,26 +224,23 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     ll.BeginLineReflow(bp.left, bp.top, availSize.width, NS_UNCONSTRAINEDSIZE,
                        PR_FALSE, PR_TRUE);
     rs.mLineLayout = &ll;
-    ll.SetInFirstLetter(PR_TRUE);
     ll.SetFirstLetterStyleOK(PR_TRUE);
 
     kid->WillReflow(aPresContext);
     kid->Reflow(aPresContext, aMetrics, rs, aReflowStatus);
 
     ll.EndLineReflow();
-    ll.SetInFirstLetter(PR_FALSE);
   }
   else {
     // Pretend we are a span and reflow the child frame
     nsLineLayout* ll = aReflowState.mLineLayout;
     PRBool        pushedFrame;
 
-    ll->SetInFirstLetter(
-      mStyleContext->GetPseudoType() == nsCSSPseudoElements::firstLetter);
+    NS_ASSERTION(ll->GetFirstLetterStyleOK() || GetPrevContinuation(),
+                 "First-continuation first-letter should have first-letter style enabled in nsLineLayout!");
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);
-    ll->SetInFirstLetter(PR_FALSE);
   }
 
   // Place and size the child and update the output metrics
@@ -273,7 +270,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     if (kidNextInFlow) {
       // Remove all of the childs next-in-flows
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow);
     }
   }
   else {

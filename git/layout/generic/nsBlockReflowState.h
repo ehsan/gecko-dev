@@ -43,7 +43,7 @@
 #ifndef nsBlockReflowState_h__
 #define nsBlockReflowState_h__
 
-#include "nsFloatManager.h"
+#include "nsBlockBandData.h"
 #include "nsLineBox.h"
 #include "nsFrameList.h"
 #include "nsBlockFrame.h"
@@ -56,11 +56,8 @@
 #define BRS_ISFIRSTINFLOW         0x00000010
 // Set when mLineAdjacentToTop is valid
 #define BRS_HAVELINEADJACENTTOTOP 0x00000020
-// Set when the block has the equivalent of NS_BLOCK_FLOAT_MGR
-#define BRS_FLOAT_MGR             0x00000040
-// Set when nsLineLayout::LineIsEmpty was true at the end of reflowing
-// the current line
-#define BRS_LINE_LAYOUT_EMPTY     0x00000080
+// Set when the block has the equivalent of NS_BLOCK_SPACE_MGR
+#define BRS_SPACE_MGR             0x00000040
 #define BRS_ISOVERFLOWCONTAINER   0x00000100
 #define BRS_LASTFLAG              BRS_ISOVERFLOWCONTAINER
 
@@ -71,7 +68,7 @@ public:
                      nsBlockFrame* aFrame,
                      const nsHTMLReflowMetrics& aMetrics,
                      PRBool aTopMarginRoot, PRBool aBottomMarginRoot,
-                     PRBool aBlockNeedsFloatManager);
+                     PRBool aBlockNeedsSpaceManager);
 
   ~nsBlockReflowState();
 
@@ -167,11 +164,7 @@ public:
   void RecoverStateFrom(nsLineList::iterator aLine, nscoord aDeltaY);
 
   void AdvanceToNextLine() {
-    if (GetFlag(BRS_LINE_LAYOUT_EMPTY)) {
-      SetFlag(BRS_LINE_LAYOUT_EMPTY, PR_FALSE);
-    } else {
-      mLineNumber++;
-    }
+    mLineNumber++;
   }
 
   PRBool IsImpactedByFloat() const;
@@ -192,14 +185,14 @@ public:
 
   const nsHTMLReflowState& mReflowState;
 
-  nsFloatManager* mFloatManager;
+  nsSpaceManager* mSpaceManager;
 
-  // The coordinates within the float manager where the block is being
+  // The coordinates within the spacemanager where the block is being
   // placed <b>after</b> taking into account the blocks border and
   // padding. This, therefore, represents the inner "content area" (in
   // spacemanager coordinates) where child frames will be placed,
   // including child blocks and floats.
-  nscoord mFloatManagerX, mFloatManagerY;
+  nscoord mSpaceManagerX, mSpaceManagerY;
 
   // XXX get rid of this
   nsReflowStatus mReflowStatus;
@@ -272,6 +265,9 @@ public:
   // this to the next next-in-flow.
   nsBlockFrame* mNextInFlow;
 
+  // The current band data for the current Y coordinate
+  nsBlockBandData mBand;
+
   //----------------------------------------
 
   // Temporary line-reflow state. This state is used during the reflow
@@ -295,11 +291,6 @@ public:
   PRInt16 mFlags;
  
   PRUint8 mFloatBreakType;
-
-  // The number of floats on the sides of mAvailSpaceRect, including
-  // floats that do not reduce mAvailSpaceRect because they are in the
-  // margins.
-  PRPackedBool mBandHasFloats;
 
   void SetFlag(PRUint32 aFlag, PRBool aValue)
   {

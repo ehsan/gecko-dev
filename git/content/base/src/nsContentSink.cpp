@@ -344,10 +344,6 @@ nsContentSink::ScriptAvailable(nsresult aResult,
                                PRInt32 aLineNo)
 {
   PRUint32 count = mScriptElements.Count();
-  if (mParser && NS_SUCCEEDED(aResult)) {
-    // Only notify the parser about scripts that are actually going to run.
-    mParser->ScriptExecuting();
-  }
 
   if (count == 0) {
     return NS_OK;
@@ -399,13 +395,13 @@ nsContentSink::ScriptEvaluated(nsresult aResult,
                                nsIScriptElement *aElement,
                                PRBool aIsInline)
 {
-  if (mParser) {
-    mParser->ScriptDidExecute();
-  }
-
   // Check if this is the element we were waiting for
   PRInt32 count = mScriptElements.Count();
-  if (count == 0 || aElement != mScriptElements[count - 1]) {
+  if (count == 0) {
+    return NS_OK;
+  }
+  
+  if (aElement != mScriptElements[count - 1]) {
     return NS_OK;
   }
 
@@ -873,9 +869,10 @@ nsContentSink::PrefetchDNS(const nsAString &aHref)
   }
   else
     nsGenericHTMLElement::GetHostnameFromHrefString(aHref, hostname);
-
-  if (nsHTMLDNSPrefetch::IsAllowed(mDocument)) {
-    nsHTMLDNSPrefetch::PrefetchLow(hostname);
+      
+  nsRefPtr<nsHTMLDNSPrefetch> prefetch = new nsHTMLDNSPrefetch(hostname, mDocument);
+  if (prefetch) {
+    prefetch->PrefetchLow();
   }
 }
 
@@ -1266,7 +1263,9 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
     // docshell in the iframe, and the content sink's call to OpenBody().
     // (Bug 153815)
 
-    if (shell->DidInitialReflow()) {
+    PRBool didInitialReflow = PR_FALSE;
+    shell->GetDidInitialReflow(&didInitialReflow);
+    if (didInitialReflow) {
       // XXX: The assumption here is that if something already
       // called InitialReflow() on this shell, it also did some of
       // the setup below, so we do nothing and just move on to the
@@ -1730,6 +1729,14 @@ nsContentSink::WillBuildModelImpl()
   }
 
   mScrolledToRefAlready = PR_FALSE;
+}
+
+void
+nsContentSink::ContinueInterruptedParsing()
+{
+  if (mParser) {
+    mParser->ContinueInterruptedParsing();
+  }
 }
 
 void

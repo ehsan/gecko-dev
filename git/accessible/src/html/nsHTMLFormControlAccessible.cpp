@@ -107,7 +107,9 @@ nsHTMLCheckboxAccessible::GetStateInternal(PRUint32 *aState,
                                            PRUint32 *aExtraState)
 {
   nsresult rv = nsFormControlAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
 
@@ -135,7 +137,9 @@ nsHTMLRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
                                               PRUint32 *aExtraState)
 {
   nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   *aState |= nsIAccessibleStates::STATE_CHECKABLE;
   
@@ -255,7 +259,9 @@ nsHTMLButtonAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
   NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
@@ -354,7 +360,9 @@ nsHTML4ButtonAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
   NS_ASSERTION(element, "No element for button's dom node!");
@@ -367,6 +375,12 @@ nsHTML4ButtonAccessible::GetStateInternal(PRUint32 *aState,
     *aState |= nsIAccessibleStates::STATE_DEFAULT;
 
   return NS_OK;
+}
+
+nsresult
+nsHTML4ButtonAccessible::GetNameInternal(nsAString& aName)
+{
+  return GetHTMLName(aName, PR_TRUE);
 }
 
 // --- textfield -----
@@ -441,7 +455,9 @@ nsHTMLTextFieldAccessible::GetStateInternal(PRUint32 *aState,
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   // can be focusable, focused, protected. readonly, unavailable, selected
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));

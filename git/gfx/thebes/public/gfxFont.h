@@ -78,8 +78,7 @@ struct THEBES_API gfxFontStyle {
     gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
                  const nsACString& aLangGroup,
                  float aSizeAdjust, PRPackedBool aSystemFont,
-                 PRPackedBool aFamilyNameQuirks,
-                 PRPackedBool aPrinterFont);
+                 PRPackedBool aFamilyNameQuirks);
     gfxFontStyle(const gfxFontStyle& aStyle);
 
     // The style of font (normal, italic, oblique)
@@ -89,9 +88,6 @@ struct THEBES_API gfxFontStyle {
     // require certain fixup that we do for fonts from untrusted
     // sources.
     PRPackedBool systemFont : 1;
-
-    // Say that this font is used for print or print preview.
-    PRPackedBool printerFont : 1;
 
     // True if the character set quirks (for treatment of "Symbol",
     // "Wingdings", etc.) should be applied.
@@ -137,7 +133,6 @@ struct THEBES_API gfxFontStyle {
         return (size == other.size) &&
             (style == other.style) &&
             (systemFont == other.systemFont) &&
-            (printerFont == other.printerFont) &&
             (familyNameQuirks == other.familyNameQuirks) &&
             (weight == other.weight) &&
             (langGroup.Equals(other.langGroup)) &&
@@ -1418,9 +1413,6 @@ public:
 #ifdef DEBUG
     // number of entries referencing this textrun in the gfxTextRunWordCache
     PRUint32 mCachedWords;
-    // generation of gfxTextRunWordCache that refers to this textrun;
-    // if the cache gets cleared, then mCachedWords is no longer meaningful
-    PRUint32 mCacheGeneration;
     
     void Dump(FILE* aOutput);
 #endif
@@ -1531,14 +1523,6 @@ public:
     virtual ~gfxFontGroup();
 
     virtual gfxFont *GetFontAt(PRInt32 i) {
-        // If it turns out to be hard for all clients that cache font
-        // groups to call UpdateFontList at appropriate times, we could
-        // instead consider just calling UpdateFontList from someplace
-        // more central (such as here).
-        NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
-                     "Whoever was caching this font group should have "
-                     "called UpdateFontList on it");
-
         return static_cast<gfxFont*>(mFonts[i]);
     }
     virtual PRUint32 FontListLength() const {
@@ -1608,7 +1592,7 @@ public:
     // The value should be lower value of first font's metrics and the bad font's metrics.
     // Otherwise, this returns from first font's metrics.
     enum { UNDERLINE_OFFSET_NOT_SET = PR_INT16_MAX };
-    virtual gfxFloat GetUnderlineOffset() {
+    gfxFloat GetUnderlineOffset() {
         if (mUnderlineOffset == UNDERLINE_OFFSET_NOT_SET)
             mUnderlineOffset = GetFontAt(0)->GetMetrics().underlineOffset;
         return mUnderlineOffset;
@@ -1623,6 +1607,7 @@ public:
     void ComputeRanges(nsTArray<gfxTextRange>& mRanges, const PRUnichar *aString, PRUint32 begin, PRUint32 end);
 
     gfxUserFontSet* GetUserFontSet();
+    void SetUserFontSet(gfxUserFontSet *aUserFontSet);
 
     // With downloadable fonts, the composition of the font group can change as fonts are downloaded
     // for each change in state of the user font set, the generation value is bumped to avoid picking up
@@ -1630,8 +1615,6 @@ public:
     // with no @font-face rule, this always returns 0.
     PRUint64 GetGeneration();
 
-    // If there is a user font set, check to see whether the font list or any
-    // caches need updating.
     virtual void UpdateFontList() { }
 
 protected:
@@ -1642,10 +1625,6 @@ protected:
 
     gfxUserFontSet* mUserFontSet;
     PRUint64 mCurrGeneration;  // track the current user font set generation, rebuild font list if needed
-
-    // Used for construction/destruction.  Not intended to change the font set
-    // as invalidation of font lists and caches is not considered.
-    void SetUserFontSet(gfxUserFontSet *aUserFontSet);
 
     // Init this font group's font metrics. If there no bad fonts, you don't need to call this.
     // But if there are one or more bad fonts which have bad underline offset,

@@ -61,7 +61,6 @@ class gfxFontGroup;
 struct gfxFontStyle;
 class gfxUserFontSet;
 class gfxFontEntry;
-class gfxProxyFontEntry;
 class nsIURI;
 
 // pref lang id's for font prefs
@@ -193,26 +192,15 @@ public:
                                           
                                           
     /**
-     * Look up a local platform font using the full font face name.
-     * (Needed to support @font-face src local().)
-     * Ownership of the returned gfxFontEntry is passed to the caller,
-     * who must either AddRef() or delete.
+     * Look up a local platform font using the full font face name (needed to support @font-face src local() )
      */
-    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                          const nsAString& aFontName)
-    { return nsnull; }
+    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName) { return nsnull; }
 
     /**
-     * Activate a platform font.  (Needed to support @font-face src url().)
-     * aFontData must persist as long as a reference is held to aLoader.
-     * Ownership of the returned gfxFontEntry is passed to the caller,
-     * who must either AddRef() or delete.
+     * Activate a platform font (needed to support @font-face src url() )
+     *
      */
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           nsISupports *aLoader,
-                                           const PRUint8 *aFontData,
-                                           PRUint32 aLength)
-    { return nsnull; }
+    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength) { return nsnull; }
 
     /**
      * Whether to allow downloadable fonts via @font-face rules

@@ -167,7 +167,7 @@ enum { XKeyPress = KeyPress };
 #undef KeyPress
 #endif
 #ifdef MOZ_WIDGET_GTK2
-#include <gdk/gdk.h>
+#include <gdk/gdkwindow.h>
 #include <gdk/gdkx.h>
 #endif
 #endif
@@ -458,20 +458,6 @@ public:
     return "";
   }
 
-  PRBool SendNativeEvents()
-  {
-#ifdef XP_WIN
-    return MatchPluginName("Shockwave Flash");
-#else
-    return PR_FALSE;
-#endif
-  }
-
-  PRBool MatchPluginName(const char *aPluginName)
-  {
-    return strncmp(GetPluginName(), aPluginName, strlen(aPluginName)) == 0;
-  }
-
 private:
   void FixUpURLS(const nsString &name, nsAString &value);
 
@@ -501,7 +487,6 @@ private:
   // If true, destroy the widget on destruction. Used when plugin stop
   // is being delayed to a safer point in time.
   PRPackedBool                mDestroyWidget;
-  PRPackedBool                mTimerCanceled;
   PRUint16          mNumCachedAttrs;
   PRUint16          mNumCachedParams;
   char              **mCachedAttrParamNames;
@@ -1694,11 +1679,6 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
     }
   }
 
-  if (mInstanceOwner->SendNativeEvents() && NS_IS_PLUGIN_EVENT(anEvent)) {
-    *anEventStatus = mInstanceOwner->ProcessEvent(*anEvent);
-    return rv;
-  }
-
 #ifdef XP_WIN
   rv = nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
   return rv;
@@ -1907,19 +1887,27 @@ GetMIMEType(nsIPluginInstance *aPluginInstance)
 #endif
 
 static PRBool
+MatchPluginName(nsPluginInstanceOwner *aInstanceOwner, const char *aPluginName)
+{
+  return strncmp(aInstanceOwner->GetPluginName(),
+                 aPluginName,
+                 strlen(aPluginName)) == 0;
+}
+
+static PRBool
 DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 {
   // Don't delay stopping QuickTime (bug 425157), Flip4Mac (bug 426524),
   // XStandard (bug 430219), CMISS Zinc (bug 429604). ARM Flash (454756)
   if (aDelayedStop
 #ifndef XP_WIN
-      && !aInstanceOwner->MatchPluginName("QuickTime")
-      && !aInstanceOwner->MatchPluginName("Flip4Mac")
-      && !aInstanceOwner->MatchPluginName("XStandard plugin")
-      && !aInstanceOwner->MatchPluginName("CMISS Zinc Plugin")
+      && !::MatchPluginName(aInstanceOwner, "QuickTime")
+      && !::MatchPluginName(aInstanceOwner, "Flip4Mac")
+      && !::MatchPluginName(aInstanceOwner, "XStandard plugin")
+      && !::MatchPluginName(aInstanceOwner, "CMISS Zinc Plugin")
 #endif
 #if defined(XP_UNIX) && defined(__arm__)
-      && !aInstanceOwner->MatchPluginName("Shockwave Flash")
+      && !::MatchPluginName(aInstanceOwner, "Shockwave Flash")
 #endif
       ) {
     nsCOMPtr<nsIRunnable> evt = new nsStopPluginRunnable(aInstanceOwner);
@@ -2254,7 +2242,6 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mCachedAttrParamNames = nsnull;
   mCachedAttrParamValues = nsnull;
   mDestroyWidget = PR_FALSE;
-  mTimerCanceled = PR_TRUE;
 
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
          ("nsPluginInstanceOwner %p created\n", this));
@@ -2268,7 +2255,9 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
          ("nsPluginInstanceOwner %p deleted\n", this));
 
   // shut off the timer.
-  CancelTimer();
+  if (mPluginTimer != nsnull) {
+    CancelTimer();
+  }
 
   mOwner = nsnull;
 
@@ -3397,6 +3386,11 @@ nsresult nsPluginInstanceOwner::ScrollPositionDidChange(nsIScrollableView* aScro
         }
         pluginWidget->EndDrawPlugin();
       }
+
+      // FIXME - Only invalidate the newly revealed amount.
+      // XXX necessary?
+      if (mWidget)
+        mWidget->Invalidate(PR_FALSE);
     }
 #endif
 
@@ -3491,10 +3485,6 @@ nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
   sInKeyDispatch = PR_FALSE;
   return rv;
 #else
-
-  if (SendNativeEvents())
-    return DispatchKeyToPlugin(aKeyEvent);
-
   if (mInstance) {
     // If this event is going to the plugin, we want to kill it.
     // Not actually sending keypress to the plugin, since we didn't before.
@@ -3752,8 +3742,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         NS_ASSERTION(anEvent.message == NS_MOUSE_BUTTON_DOWN ||
                      anEvent.message == NS_MOUSE_BUTTON_UP ||
                      anEvent.message == NS_MOUSE_DOUBLECLICK ||
-                     anEvent.message == NS_MOUSE_ENTER_SYNTH ||
-                     anEvent.message == NS_MOUSE_EXIT_SYNTH ||
                      anEvent.message == NS_MOUSE_MOVE,
                      "Incorrect event type for coordinate translation");
         nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mOwner);
@@ -4426,17 +4414,14 @@ NS_IMETHODIMP nsPluginInstanceOwner::Notify(nsITimer* /* timer */)
 void nsPluginInstanceOwner::StartTimer(unsigned int aDelay)
 {
 #ifdef XP_MACOSX
-  if (!mTimerCanceled)
-    return;
+    nsresult rv;
 
-  // start a periodic timer to provide null events to the plugin instance.
-  if (!mPluginTimer) {
-    mPluginTimer = do_CreateInstance("@mozilla.org/timer;1");
-  }
-  if (mPluginTimer) {
-    mTimerCanceled = PR_FALSE;
-    mPluginTimer->InitWithCallback(this, aDelay, nsITimer::TYPE_REPEATING_SLACK);
-  }
+    // start a periodic timer to provide null events to the plugin instance.
+    if (!mPluginTimer) {
+      mPluginTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
+      if (NS_SUCCEEDED(rv))
+        mPluginTimer->InitWithCallback(this, aDelay, nsITimer::TYPE_REPEATING_SLACK);
+    }
 #endif
 }
 
@@ -4444,8 +4429,8 @@ void nsPluginInstanceOwner::CancelTimer()
 {
   if (mPluginTimer) {
     mPluginTimer->Cancel();
+    mPluginTimer = nsnull;
   }
-  mTimerCanceled = PR_TRUE;
 }
 
 nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,

@@ -87,7 +87,7 @@ const LoginTest = {
    *
    * Reinitialize a storage module with the specified input.
    */
-  reloadStorage : function (aInputPathName, aInputFileName, aExpectedError) {
+  reloadStorage : function (aInputPathName, aInputFileName) {
     var err = null;
     var newStorage = this.newStorage();
 
@@ -113,10 +113,7 @@ const LoginTest = {
         err = e;
     }
 
-    if (aExpectedError)
-        this.checkExpectedError(aExpectedError, err);
-    else
-        do_check_true(err == null);
+    do_check_true(err == null);
 
     return newStorage;
   },

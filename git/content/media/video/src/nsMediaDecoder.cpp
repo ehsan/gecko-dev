@@ -63,9 +63,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mRGBHeight(-1),
   mSizeChanged(PR_FALSE),
   mVideoUpdateLock(nsnull),
-  mFramerate(0.0),
-  mShuttingDown(PR_FALSE),
-  mStopping(PR_FALSE)
+  mFramerate(0.0)
 {
   MOZ_COUNT_CTOR(nsMediaDecoder);
 }
@@ -205,9 +203,6 @@ void nsMediaDecoder::Paint(gfxContext* aContext, const gfxRect& aRect)
 
   // Make the source image fill the rectangle completely
   pat->SetMatrix(gfxMatrix().Scale(mRGBWidth/aRect.Width(), mRGBHeight/aRect.Height()));
-  // Set PAD mode so that when the video is being scaled, we do not sample
-  // outside the bounds of the video image.
-  pat->SetExtend(gfxPattern::EXTEND_PAD);
 
   /* Draw RGB surface onto frame */
   aContext->NewPath();

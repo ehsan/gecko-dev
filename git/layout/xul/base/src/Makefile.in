@@ -78,6 +78,8 @@ ifdef MOZ_XUL
 PARALLEL_DIRS = tree/public tree/src grid
 endif
 
+EXPORTS		= nsIMenuParent.h
+
 CPPSRCS		= \
 		nsScrollBoxFrame.cpp \
 		nsRootBoxFrame.cpp \
@@ -123,7 +125,6 @@ CPPSRCS		+= \
 		nsListBoxBodyFrame.cpp \
 		nsListItemFrame.cpp \
 		nsListBoxLayout.cpp \
-		nsXULLabelFrame.cpp \
 		nsXULPopupManager.cpp \
 		$(NULL)
 

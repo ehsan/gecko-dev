@@ -97,7 +97,6 @@ typedef struct JSGSNCache {
 namespace nanojit {
     class Fragment;
     class Fragmento;
-    class LirBuffer;
 }
 class TraceRecorder;
 extern "C++" { template<typename T> class Queue; }
@@ -122,7 +121,6 @@ typedef struct JSTraceMonitor {
      * JS_ReportOutOfMemory when failing due to runtime limits.
      */
     JSBool                  onTrace;
-    CLS(nanojit::LirBuffer) lirbuf;
     CLS(nanojit::Fragmento) fragmento;
     CLS(TraceRecorder)      recorder;
     uint32                  globalShape;
@@ -134,7 +132,6 @@ typedef struct JSTraceMonitor {
     /* Fragmento for the regular expression compiler. This is logically
      * a distinct compiler but needs to be managed in exactly the same
      * way as the real tracing Fragmento. */
-    CLS(nanojit::LirBuffer) reLirBuf;
     CLS(nanojit::Fragmento) reFragmento;
 
     /* Keep a list of recorders we need to abort on cache flush. */
@@ -142,11 +139,9 @@ typedef struct JSTraceMonitor {
 } JSTraceMonitor;
 
 #ifdef JS_TRACER
-# define JS_ON_TRACE(cx)            (JS_TRACE_MONITOR(cx).onTrace)
-# define JS_EXECUTING_TRACE(cx)     (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).recorder)
+# define JS_ON_TRACE(cx)   (JS_TRACE_MONITOR(cx).onTrace)
 #else
-# define JS_ON_TRACE(cx)            JS_FALSE
-# define JS_EXECUTING_TRACE(cx)     JS_FALSE
+# define JS_ON_TRACE(cx)   JS_FALSE
 #endif
 
 #ifdef JS_THREADSAFE
@@ -737,14 +732,14 @@ JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(void *));
 #define JSRESOLVE_INFER         0xffff  /* infer bits from current bytecode */
 
 struct JSContext {
+    /* JSRuntime contextList linkage. */
+    JSCList             links;
+
     /*
-     * Operation count. It is declared as the first field in the struct to
-     * ensure the fastest possible access.
+     * Operation count. It is declared early in the structure as a frequently
+     * accessed field.
      */
     int32               operationCount;
-
-    /* JSRuntime contextList linkage. */
-    JSCList             link;
 
 #if JS_HAS_XML_SUPPORT
     /*
@@ -819,8 +814,6 @@ struct JSContext {
 
     /* Stack arena pool and frame pointer register. */
     JSArenaPool         stackPool;
-
-    JS_REQUIRES_STACK
     JSStackFrame        *fp;
 
     /* Temporary arena pool used while compiling and decompiling. */
@@ -1011,15 +1004,6 @@ extern JSBool
 js_InitThreadPrivateIndex(void (*ptr)(void *));
 
 /*
- * Clean up thread-private data on the current thread. NSPR automatically
- * cleans up thread-private data for every thread except the main thread
- * (see bug 383977) on shutdown. Thus, this function should be called for 
- * exactly those threads that survive JS_ShutDown, including the main thread.
- */
-extern JSBool
-js_CleanupThreadPrivateData();
-
-/*
  * Common subroutine of JS_SetVersion and js_SetVersion, to update per-context
  * data that depends on version.
  */
@@ -1049,13 +1033,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode);
  */
 extern JSBool
 js_ValidContextPointer(JSRuntime *rt, JSContext *cx);
-
-static JS_INLINE JSContext *
-js_ContextFromLinkField(JSCList *link)
-{
-    JS_ASSERT(link);
-    return (JSContext *) ((uint8 *) link - offsetof(JSContext, link));
-}
 
 /*
  * If unlocked, acquire and release rt->gcLock around *iterp update; otherwise
@@ -1264,18 +1241,6 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
  */
 extern JSBool
 js_ResetOperationCount(JSContext *cx);
-
-/*
- * Get the current cx->fp, first lazily instantiating stack frames if needed.
- * (Do not access cx->fp directly except in JS_REQUIRES_STACK code.)
- *
- * Defined in jstracer.cpp if JS_TRACER is defined.
- */
-extern JS_FORCES_STACK JSStackFrame *
-js_GetTopStackFrame(JSContext *cx);
-
-extern JSStackFrame *
-js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp);
 
 JS_END_EXTERN_C
 

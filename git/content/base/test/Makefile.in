@@ -49,10 +49,7 @@ DIRS += \
 
 MODULE = content
 
-CPP_UNIT_TESTS = \
-                 TestNativeXMLHttpRequest.cpp \
-                 TestPlainTextSerializer.cpp \
-                 $(NULL)
+CPP_UNIT_TESTS += TestNativeXMLHttpRequest.cpp TestPlainTextSerializer.cpp
 
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/tests
 
@@ -66,6 +63,15 @@ REQUIRES += \
   xpcom \
   xpconnect \
   htmlparser \
+  $(NULL)
+
+CPPSRCS += $(CPP_UNIT_TESTS)
+
+SIMPLE_PROGRAMS += $(CPP_UNIT_TESTS:.cpp=$(BIN_SUFFIX))
+
+LIBS += \
+  $(XPCOM_GLUE_LDOPTS) \
+  $(NSPR_LIBS) \
   $(NULL)
 
 XPCSHELL_TESTS = \
@@ -98,8 +104,6 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug339494.xhtml \
 		test_bug339494.xul \
 		test_bug343596.html \
-		test_bug345339.html \
-		345339_iframe.html \
 		test_bug352728.html \
 		test_bug352728.xhtml \
 		test_bug353334.html \
@@ -186,7 +190,6 @@ _TEST_FILES = 	test_bug5141.html \
 		file_htmlserializer_1_no_body.html \
 		test_bug424359-2.html \
 		file_htmlserializer_2.html \
-		test_bug431082.html \
 		file_htmlserializer_2_basic.html \
 		file_htmlserializer_2_enthtml.html \
 		file_htmlserializer_2_entw3c.html \
@@ -238,7 +241,6 @@ _TEST_FILES = 	test_bug5141.html \
 		file_bug391728_2.html \
 		test_bug456262.html \
 		test_bug368972.html \
-		test_bug448993.html \
 		test_bug450160.html \
 		test_bug454326.html \
 		test_bug457746.html \
@@ -259,19 +261,7 @@ _TEST_FILES = 	test_bug5141.html \
 		bug461735-post-redirect.js \
 		test_bug461735.html \
 		test_bug380418.html \
-		test_bug465767.html \
 		test_bug380418.html^headers^ \
-		test_elementTraversal.html \
-		test_w3element_traversal.html \
-		test_w3element_traversal.xhtml \
-		test_bug469020.html \
-		test_w3element_traversal_svg.html \
-		w3element_traversal.svg \
-		test_bug444322.html \
-		bug444322.txt \
-		bug444322.js \
-		test_bug455629.html \
-		bug455629-helper.svg \
 		$(NULL)
 
 # Disabled for now. Mochitest isn't reliable enough for these.
@@ -280,3 +270,9 @@ _TEST_FILES = 	test_bug5141.html \
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+check::
+	@$(EXIT_ON_ERROR) \
+	for f in $(subst .cpp,,$(CPP_UNIT_TESTS)); do \
+	  XPCOM_DEBUG_BREAK=stack-and-abort $(RUN_TEST_PROGRAM) $(DIST)/bin/$$f; \
+	done

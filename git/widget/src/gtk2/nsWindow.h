@@ -54,7 +54,7 @@
 
 #include "nsBaseWidget.h"
 #include "nsGUIEvent.h"
-#include <gdk/gdk.h>
+#include <gdk/gdkevents.h>
 #include <gtk/gtk.h>
 
 #ifdef MOZ_DFB
@@ -64,6 +64,7 @@
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #endif /* MOZ_X11 */
+#include <gtk/gtkwindow.h>
 
 #ifdef ACCESSIBILITY
 #include "nsIAccessNode.h"
@@ -71,6 +72,7 @@
 #endif
 
 #ifdef USE_XIM
+#include <gtk/gtkimmulticontext.h>
 #include "pldhash.h"
 #endif
 
@@ -548,7 +550,6 @@ private:
     guint              mDragMotionTime;
     guint              mDragMotionTimerID;
     nsCOMPtr<nsITimer> mDragLeaveTimer;
-    float              mLastMotionPressure;
 
     static PRBool      sIsDraggingOutOf;
     // drag in progress

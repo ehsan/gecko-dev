@@ -89,6 +89,10 @@ tier_gecko_dirs     += widget/src/gtkxtbin
 endif
 endif
 
+ifdef MOZ_IPCD
+tier_gecko_dirs += ipc/ipcd
+endif
+
 tier_gecko_dirs	+= \
 		modules/libutil \
 		modules/libjar \
@@ -271,8 +275,4 @@ endif
 
 ifdef ENABLE_TESTS
 tier_toolkit_dirs	+= testing/mochitest
-endif
-
-ifdef MOZ_TREE_FREETYPE
-tier_external_dirs	+= modules/freetype2
 endif

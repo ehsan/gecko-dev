@@ -115,16 +115,13 @@ nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
     NSString* currentKey = [outputKeys objectAtIndex:i];
     id currentValue = [pasteboardOutputDict valueForKey:currentKey];
     if (currentKey == NSStringPboardType ||
+        currentKey == NSHTMLPboardType ||
         currentKey == kCorePboardType_url ||
         currentKey == kCorePboardType_urld ||
-        currentKey == kCorePboardType_urln) {
+        currentKey == kCorePboardType_urln)
       [generalPBoard setString:currentValue forType:currentKey];
-    } else if (currentKey == NSHTMLPboardType) {
-      [generalPBoard setString:(nsClipboard::WrapHtmlForSystemPasteboard(currentValue))
-                       forType:currentKey];
-    } else {
+    else
       [generalPBoard setData:currentValue forType:currentKey];
-    }
   }
 
   mChangeCount = [generalPBoard changeCount];
@@ -542,7 +539,6 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-
 PRBool nsClipboard::IsStringType(const nsCString& aMIMEType, const NSString** aPasteboardType)
 {
   if (aMIMEType.EqualsLiteral(kUnicodeMime) ||
@@ -555,20 +551,4 @@ PRBool nsClipboard::IsStringType(const nsCString& aMIMEType, const NSString** aP
   } else {
     return PR_FALSE;
   }
-}
-
-
-NSString* nsClipboard::WrapHtmlForSystemPasteboard(NSString* aString)
-{
-  NSString* wrapped =
-    [NSString stringWithFormat:
-      @"<html>"
-         "<head>"
-           "<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">"
-         "</head>"
-         "<body>"
-           "%@"
-         "</body>"
-       "</html>", aString];
-  return wrapped;
 }

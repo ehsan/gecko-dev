@@ -138,8 +138,6 @@ endif
 endif
 DEFINES += -DMOZ_WINCONSOLE=$(MOZ_WINCONSOLE)
 
-# This switches $(INSTALL) to copy mode, like $(SYSINSTALL), so things that
-# shouldn't get 755 perms need $(IFLAGS1) for either way of calling nsinstall.
 NSDISTMODE = copy
 
 include $(topsrcdir)/config/config.mk
@@ -208,10 +206,10 @@ endif
 
 ifneq (,$(filter-out OS2 WINCE WINNT Darwin BeOS,$(OS_ARCH)))
 
-xulrunner:: $(topsrcdir)/build/unix/mozilla.in $(GLOBAL_DEPS)
-	cat $< | sed -e "s|%MOZAPPDIR%|$(installdir)|" \
+xulrunner:: mozilla.in Makefile.in Makefile $(DEPTH)/config/autoconf.mk
+	cat $< | sed -e "s|%MOZAPPDIR%|$(mozappdir)|" \
                 -e "s|%MOZ_USER_DIR%|.mozilla/xulrunner|" \
-                -e "s|%MOZ_APP_DISPLAYNAME%|$(MOZ_APP_DISPLAYNAME)|" > $@
+		-e "s|%MREDIR%|$(mredir)|" > $@
 	chmod +x $@
 
 libs:: xulrunner
@@ -232,7 +230,7 @@ ICON_FILES	= \
 		$(NULL)
 
 libs:: $(ICON_FILES)
-	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/icons
+	$(SYSINSTALL) $^ $(DIST)/bin/icons
 
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(ICON_FILES) $(DESTDIR)$(mozappdir)/icons
@@ -240,9 +238,9 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default48.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default48.png $(DIST)/bin/chrome/icons/default
 endif
 
 # XXX applications would need to supply this file
@@ -301,5 +299,5 @@ endif
 README_FILE = $(topsrcdir)/README.txt
 
 libs::
-	$(INSTALL) $(IFLAGS1) $(README_FILE) $(DIST)/bin
-	$(INSTALL) $(IFLAGS1) $(topsrcdir)/LICENSE	$(DIST)/bin
+	$(SYSINSTALL) $(README_FILE) $(DIST)/bin
+	$(SYSINSTALL) $(topsrcdir)/LICENSE	$(DIST)/bin

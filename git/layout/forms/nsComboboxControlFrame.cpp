@@ -264,7 +264,7 @@ static PRInt32 gReflowInx = -1;
 //------------------------------------------------------
 
 nsComboboxControlFrame::nsComboboxControlFrame(nsStyleContext* aContext)
-  : nsBlockFrame(aContext),
+  : nsAreaFrame(aContext),
     mDisplayWidth(0)
 {
   mListControlFrame            = nsnull;
@@ -316,7 +316,7 @@ nsComboboxControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
     return NS_OK;
   } 
   
-  return nsBlockFrame::QueryInterface(aIID, aInstancePtr);
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
 }
 
 #ifdef ACCESSIBILITY
@@ -689,7 +689,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
 
   mDisplayWidth = aReflowState.ComputedWidth() - buttonWidth;
 
-  nsresult rv = nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
+  nsresult rv = nsAreaFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
                                     aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -968,7 +968,7 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
   // nsFrame::HandleEvent so that selection takes place when appropriate.
   const nsStyleUserInterface* uiStyle = GetStyleUserInterface();
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE || uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
-    return nsBlockFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
+    return nsAreaFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
     
   return NS_OK;
 }
@@ -1245,7 +1245,7 @@ nsComboboxControlFrame::Destroy()
   mPopupFrames.DestroyFrames();
   nsContentUtils::DestroyAnonymousContent(&mDisplayContent);
   nsContentUtils::DestroyAnonymousContent(&mButtonContent);
-  nsBlockFrame::Destroy();
+  nsAreaFrame::Destroy();
 }
 
 
@@ -1255,7 +1255,7 @@ nsComboboxControlFrame::GetFirstChild(nsIAtom* aListName) const
   if (nsGkAtoms::selectPopupList == aListName) {
     return mPopupFrames.FirstChild();
   }
-  return nsBlockFrame::GetFirstChild(aListName);
+  return nsAreaFrame::GetFirstChild(aListName);
 }
 
 NS_IMETHODIMP
@@ -1266,7 +1266,7 @@ nsComboboxControlFrame::SetInitialChildList(nsIAtom*        aListName,
   if (nsGkAtoms::selectPopupList == aListName) {
     mPopupFrames.SetFrames(aChildList);
   } else {
-    rv = nsBlockFrame::SetInitialChildList(aListName, aChildList);
+    rv = nsAreaFrame::SetInitialChildList(aListName, aChildList);
 
     for (nsIFrame * child = aChildList; child;
          child = child->GetNextSibling()) {
@@ -1291,7 +1291,7 @@ nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
    // of the combox's children because it would take up space, when it is suppose to
    // be floating above the display.
   if (aIndex < NS_BLOCK_LIST_COUNT) {
-    return nsBlockFrame::GetAdditionalChildListName(aIndex);
+    return nsAreaFrame::GetAdditionalChildListName(aIndex);
   }
   
   if (NS_COMBO_FRAME_POPUP_LIST_INDEX == aIndex) {
@@ -1380,7 +1380,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   } else {
     // REVIEW: Our in-flow child frames are inline-level so they will paint in our
     // content list, so we don't need to mess with layers.
-    nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+    nsresult rv = nsAreaFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

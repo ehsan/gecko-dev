@@ -1343,8 +1343,6 @@ match_or_replace(JSContext *cx,
                 destroy(cx, data);
         }
     } else {
-        jsval savedObject = JSVAL_NULL;
-
         if (GET_MODE(data->flags) == MODE_REPLACE) {
             test = JS_TRUE;
         } else {
@@ -1352,10 +1350,7 @@ match_or_replace(JSContext *cx,
              * MODE_MATCH implies str_match is being called from a script or a
              * scripted function.  If the caller cares only about testing null
              * vs. non-null return value, optimize away the array object that
-             * would normally be returned in *vp.  Instead return an arbitrary
-             * object (not JSVAL_TRUE, for type map integrity; see bug 453564).
-             * The caller provides the object in *vp and is responsible for
-             * rooting it elsewhere.
+             * would normally be returned in *vp.
              *
              * Assume a full array result is required, then prove otherwise.
              */
@@ -1369,16 +1364,12 @@ match_or_replace(JSContext *cx,
                   case JSOP_IFEQX:
                   case JSOP_IFNEX:
                     test = JS_TRUE;
-                    savedObject = *vp;
-                    JS_ASSERT(!JSVAL_IS_PRIMITIVE(savedObject));
                     break;
                   default:;
                 }
             }
         }
         ok = js_ExecuteRegExp(cx, re, str, &index, test, vp);
-        if (ok && !JSVAL_IS_NULL(savedObject) && *vp == JSVAL_TRUE)
-            *vp = savedObject;
     }
 
     DROP_REGEXP(cx, re);
@@ -1411,7 +1402,7 @@ match_glob(JSContext *cx, jsint count, GlobData *data)
     mdata = (MatchData *)data;
     arrayobj = JSVAL_TO_OBJECT(*mdata->arrayval);
     if (!arrayobj) {
-        arrayobj = js_NewArrayObject(cx, 0, NULL);
+        arrayobj = js_ConstructObject(cx, &js_ArrayClass, NULL, NULL, 0, NULL);
         if (!arrayobj)
             return JS_FALSE;
         *mdata->arrayval = OBJECT_TO_JSVAL(arrayobj);
@@ -1427,8 +1418,8 @@ match_glob(JSContext *cx, jsint count, GlobData *data)
     return OBJ_SET_PROPERTY(cx, arrayobj, INT_TO_JSID(count), &v);
 }
 
-static JSBool
-StringMatchHelper(JSContext *cx, uintN argc, jsval *vp, jsbytecode *pc)
+JSBool
+js_StringMatchHelper(JSContext *cx, uintN argc, jsval *vp, jsbytecode *pc)
 {
     JSTempValueRooter tvr;
     MatchData mdata;
@@ -1451,35 +1442,32 @@ str_match(JSContext *cx, uintN argc, jsval *vp)
 {
     JSStackFrame *fp;
 
-    for (fp = js_GetTopStackFrame(cx); fp && !fp->regs; fp = fp->down)
+    for (fp = cx->fp; fp && !fp->regs; fp = fp->down)
         JS_ASSERT(!fp->script);
-
-    /* Root the object in vp[0].  See comment in match_or_replace. */
-    JSAutoTempValueRooter tvr(cx, vp[0]);
-    return StringMatchHelper(cx, argc, vp, fp ? fp->regs->pc : NULL);
+    return js_StringMatchHelper(cx, argc, vp, fp ? fp->regs->pc : NULL);
 }
 
 #ifdef JS_TRACER
-static jsval FASTCALL
+static JSObject* FASTCALL
 String_p_match(JSContext* cx, JSString* str, jsbytecode *pc, JSObject* regexp)
 {
-    /* arbitrary object in vp[0] */
-    jsval vp[3] = { OBJECT_TO_JSVAL(regexp), STRING_TO_JSVAL(str), OBJECT_TO_JSVAL(regexp) };
-    if (!StringMatchHelper(cx, 1, vp, pc))
-        return JSVAL_ERROR_COOKIE;
-    JS_ASSERT(JSVAL_IS_OBJECT(vp[0]));
-    return vp[0];
+    jsval vp[3] = { JSVAL_NULL, STRING_TO_JSVAL(str), OBJECT_TO_JSVAL(regexp) };
+    if (!js_StringMatchHelper(cx, 1, vp, pc))
+        return (JSObject*) JSVAL_TO_BOOLEAN(JSVAL_VOID);
+    JS_ASSERT(JSVAL_IS_NULL(vp[0]) ||
+              (!JSVAL_IS_PRIMITIVE(vp[0]) && OBJ_IS_ARRAY(cx, JSVAL_TO_OBJECT(vp[0]))));
+    return JSVAL_TO_OBJECT(vp[0]);
 }
 
-static jsval FASTCALL
+static JSObject* FASTCALL
 String_p_match_obj(JSContext* cx, JSObject* str, jsbytecode *pc, JSObject* regexp)
 {
-    /* arbitrary object in vp[0] */
-    jsval vp[3] = { OBJECT_TO_JSVAL(regexp), OBJECT_TO_JSVAL(str), OBJECT_TO_JSVAL(regexp) };
-    if (!StringMatchHelper(cx, 1, vp, pc))
-        return JSVAL_ERROR_COOKIE;
-    JS_ASSERT(JSVAL_IS_OBJECT(vp[0]));
-    return vp[0];
+    jsval vp[3] = { JSVAL_NULL, OBJECT_TO_JSVAL(str), OBJECT_TO_JSVAL(regexp) };
+    if (!js_StringMatchHelper(cx, 1, vp, pc))
+        return (JSObject*) JSVAL_TO_BOOLEAN(JSVAL_VOID);
+    JS_ASSERT(JSVAL_IS_NULL(vp[0]) ||
+              (!JSVAL_IS_PRIMITIVE(vp[0]) && OBJ_IS_ARRAY(cx, JSVAL_TO_OBJECT(vp[0]))));
+    return JSVAL_TO_OBJECT(vp[0]);
 }
 #endif
 
@@ -2037,7 +2025,7 @@ str_split(JSContext *cx, uintN argc, jsval *vp)
 
     NORMALIZE_THIS(cx, vp, str);
 
-    arrayobj = js_NewArrayObject(cx, 0, NULL);
+    arrayobj = js_ConstructObject(cx, &js_ArrayClass, NULL, NULL, 0, NULL);
     if (!arrayobj)
         return JS_FALSE;
     *vp = OBJECT_TO_JSVAL(arrayobj);
@@ -2508,8 +2496,8 @@ JS_DEFINE_TRCINFO_4(str_concat,
     (4, (static, STRING_FAIL,      String_p_concat_2str, CONTEXT, THIS_STRING, STRING, STRING, 1, 1)),
     (5, (static, STRING_FAIL,      String_p_concat_3str, CONTEXT, THIS_STRING, STRING, STRING, STRING, 1, 1)))
 JS_DEFINE_TRCINFO_2(str_match,
-    (4, (static, JSVAL_FAIL,       String_p_match, CONTEXT, THIS_STRING, PC, REGEXP,         1, 1)),
-    (4, (static, JSVAL_FAIL,       String_p_match_obj, CONTEXT, THIS, PC, REGEXP,            1, 1)))
+    (4, (static, OBJECT_FAIL_VOID, String_p_match, CONTEXT, THIS_STRING, PC, REGEXP,         1, 1)),
+    (4, (static, OBJECT_FAIL_VOID, String_p_match_obj, CONTEXT, THIS, PC, REGEXP,            1, 1)))
 JS_DEFINE_TRCINFO_3(str_replace,
     (4, (static, STRING_FAIL,      String_p_replace_str, CONTEXT, THIS_STRING, REGEXP, STRING, 1, 1)),
     (4, (static, STRING_FAIL,      String_p_replace_str2, CONTEXT, THIS_STRING, STRING, STRING, 1, 1)),
@@ -2595,7 +2583,7 @@ String(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     } else {
         str = cx->runtime->emptyString;
     }
-    if (!JS_IsConstructing(cx)) {
+    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
         *rval = STRING_TO_JSVAL(str);
         return JS_TRUE;
     }

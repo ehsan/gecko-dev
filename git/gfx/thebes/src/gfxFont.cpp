@@ -1017,7 +1017,7 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
             NS_LossyConvertUTF16toASCII gf(genericFamily);
             if (aResolveFontName) {
                 ResolveData data(fc, gf, closure);
-                PRBool aborted = PR_FALSE, needsBold;
+                PRBool aborted, needsBold;
                 nsresult rv;
 
                 if (mUserFontSet && mUserFontSet->FindFontEntry(family, mStyle, needsBold)) {
@@ -1120,6 +1120,10 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh, PRUint32 aNextCh, 
         if (font->HasCharacter(aCh))
             return font.forget();
     }
+
+    // if match, return
+    if (selectedFont)
+        return selectedFont.forget();
 
     // if character is in Private Use Area, don't do matching against pref or system fonts
     if ((aCh >= 0xE000  && aCh <= 0xF8FF) || (aCh >= 0xF0000 && aCh <= 0x10FFFD))
@@ -1227,8 +1231,8 @@ gfxFontGroup::GetGeneration()
 #define DEFAULT_PIXEL_FONT_SIZE 16.0f
 
 gfxFontStyle::gfxFontStyle() :
-    style(FONT_STYLE_NORMAL), systemFont(PR_TRUE), printerFont(PR_FALSE), 
-    familyNameQuirks(PR_FALSE), weight(FONT_WEIGHT_NORMAL), size(DEFAULT_PIXEL_FONT_SIZE),
+    style(FONT_STYLE_NORMAL), systemFont(PR_TRUE), familyNameQuirks(PR_FALSE),
+    weight(FONT_WEIGHT_NORMAL), size(DEFAULT_PIXEL_FONT_SIZE),
     langGroup(NS_LITERAL_CSTRING("x-western")), sizeAdjust(0.0f)
 {
 }
@@ -1236,9 +1240,8 @@ gfxFontStyle::gfxFontStyle() :
 gfxFontStyle::gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
                            const nsACString& aLangGroup,
                            float aSizeAdjust, PRPackedBool aSystemFont,
-                           PRPackedBool aFamilyNameQuirks,
-                           PRPackedBool aPrinterFont):
-    style(aStyle), systemFont(aSystemFont), printerFont(aPrinterFont),
+                           PRPackedBool aFamilyNameQuirks) :
+    style(aStyle), systemFont(aSystemFont),
     familyNameQuirks(aFamilyNameQuirks), weight(aWeight),
     size(aSize), langGroup(aLangGroup), sizeAdjust(aSizeAdjust)
 {
@@ -1262,7 +1265,7 @@ gfxFontStyle::gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
 }
 
 gfxFontStyle::gfxFontStyle(const gfxFontStyle& aStyle) :
-    style(aStyle.style), systemFont(aStyle.systemFont), printerFont(aStyle.printerFont),
+    style(aStyle.style), systemFont(aStyle.systemFont),
     familyNameQuirks(aStyle.familyNameQuirks), weight(aStyle.weight),
     size(aStyle.size), langGroup(aStyle.langGroup),
     sizeAdjust(aStyle.sizeAdjust)

@@ -43,7 +43,6 @@
 #include "nsNetUtil.h"
 #include "nsCOMPtr.h"
 #include "nsIURL.h"
-#include "nsString.h"
 
 #import <Cocoa/Cocoa.h>
 

@@ -64,18 +64,15 @@ _TEST_FILES =\
 		test_bug420863.html \
 		test_cssattrs.html \
 		test_events_caretmove.html \
-		test_groupattrs.xul \
-		test_groupattrs.html \
+		$(warning test_groupattrs.xul temporarily disabled) \
 	$(warning test_table_indexes.html temporarily disabled) \
 		test_nsIAccessible_actions.html \
 		$(warning test_nsIAccessible_actions.xul temporarily disabled) \
 		test_nsIAccessible_applicationAccessible.html \
-		test_nsIAccessible_comboboxes.xul \
 		test_nsIAccessible_editablebody.html \
 		test_nsIAccessible_editabledoc.html \
 		test_nsIAccessible_name.html \
 		test_nsIAccessible_name_button.html \
-		test_nsIAccessible_name_link.html \
 		$(warning test_nsIAccessible_name.xul temporarily disabled) \
  		test_nsIAccessible_selects.html \
 		test_nsIAccessible_states.html \

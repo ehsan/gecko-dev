@@ -488,59 +488,32 @@ SyncFrameViewGeometryDependentProperties(nsPresContext*  aPresContext,
                                          nsIView*         aView,
                                          PRUint32         aFlags)
 {
-#ifdef MOZ_XUL
   nsIViewManager* vm = aView->GetViewManager();
 
   PRBool isCanvas;
   const nsStyleBackground* bg;
   nsCSSRendering::FindBackground(aPresContext, aFrame, &bg, &isCanvas);
 
-  if (!isCanvas)
-    return;
+  if (isCanvas) {
+    nsIView* rootView;
+    vm->GetRootView(rootView);
 
-  nsIView* rootView;
-  vm->GetRootView(rootView);
-
-  if (!aView->HasWidget() || aView != rootView ||
-      !IsTopLevelWidget(aPresContext))
-    return;
-
-  nsIContent* rootContent = aPresContext->Document()->GetRootContent();
-  if (!rootContent || !rootContent->IsNodeOfType(nsINode::eXUL)) {
-    // Scrollframes use native widgets which don't work well with
-    // translucent windows, at least in Windows XP. So if the document
-    // has a root scrollrame it's useless to try to make it transparent,
-    // we'll just get something broken.
-    // nsCSSFrameConstructor::ConstructRootFrame constructs root
-    // scrollframes whenever the root element is not a XUL element, so
-    // we test for that here. We can't just call
-    // presShell->GetRootScrollFrame() since that might not have
-    // been constructed yet.
-    // We can change this to allow translucent toplevel HTML documents
-    // (e.g. to do something like Dashboard widgets), once we
-    // have broad support for translucent scrolled documents, but be
-    // careful because apparently some Firefox extensions expect
-    // openDialog("something.html") to produce an opaque window
-    // even if the HTML doesn't have a background-color set.
-    return;
+    if (aView->HasWidget() && aView == rootView &&
+        IsTopLevelWidget(aPresContext)) {
+      // The issue here is that the CSS 'background' propagates from the root
+      // element's frame (rootFrame) to the real root frame (nsViewportFrame),
+      // so we need to call GetFrameTransparency on that. But -moz-appearance
+      // does not propagate so we need to check that directly on rootFrame.
+      nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame);
+      nsIFrame *rootFrame = aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
+      if(rootFrame && NS_THEME_WIN_GLASS == rootFrame->GetStyleDisplay()->mAppearance)
+        mode = eTransparencyGlass;
+      nsIWidget* widget = aView->GetWidget();
+      widget->SetTransparencyMode(mode);
+      if (rootFrame)
+        widget->SetWindowShadowStyle(rootFrame->GetStyleUIReset()->mWindowShadow);
+    }
   }
-
-  // The issue here is that the CSS 'background' propagates from the root
-  // element's frame (rootFrame) to the real root frame (nsViewportFrame),
-  // so we need to call GetFrameTransparency on that. But -moz-appearance
-  // does not propagate so we need to check that directly on rootFrame.
-  nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame);
-  nsIFrame *rootFrame = aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
-  if (rootFrame &&
-      NS_THEME_WIN_GLASS == rootFrame->GetStyleDisplay()->mAppearance) {
-    mode = eTransparencyGlass;
-  }
-  nsIWidget* widget = aView->GetWidget();
-  widget->SetTransparencyMode(mode);
-  if (rootFrame) {
-    widget->SetWindowShadowStyle(rootFrame->GetStyleUIReset()->mWindowShadow);
-  }
-#endif
 }
 
 void
@@ -829,7 +802,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
       // parent is not this because we are executing pullup code)
       if (aTracker) aTracker->Finish(aKidFrame);
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow);
     }
   }
   return result;
@@ -1133,8 +1106,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
  */
 void
 nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
-                                        nsIFrame*      aNextInFlow,
-                                        PRBool         aDeletingEmptyFrames)
+                                        nsIFrame*      aNextInFlow)
 {
 #ifdef DEBUG
   nsIFrame* prevInFlow = aNextInFlow->GetPrevInFlow();
@@ -1154,11 +1126,14 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     for (PRInt32 i = frames.Count() - 1; i >= 0; --i) {
       nsIFrame* delFrame = static_cast<nsIFrame*>(frames.ElementAt(i));
       static_cast<nsContainerFrame*>(delFrame->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, delFrame, aDeletingEmptyFrames);
+        ->DeleteNextInFlowChild(aPresContext, delFrame);
     }
   }
 
   aNextInFlow->Invalidate(aNextInFlow->GetOverflowRect());
+
+  // Disconnect the next-in-flow from the flow list
+  nsSplittableFrame::BreakFromPrevFlow(aNextInFlow);
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG
@@ -1167,8 +1142,7 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
 
-  // Delete the next-in-flow frame and its descendants. This will also
-  // remove it from its next-in-flow/prev-in-flow chain.
+  // Delete the next-in-flow frame and its descendants.
   aNextInFlow->Destroy();
 
   NS_POSTCONDITION(!prevInFlow->GetNextInFlow(), "non null next-in-flow");

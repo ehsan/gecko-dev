@@ -96,15 +96,12 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_bug405818.html \
 		test_bug412901.html \
 		test_bug437915.html \
-		test_bug450191.html \
 		test_bug453896_deck.html \
-		test_bug470769.html \
 		test_cascade.html \
 		test_compute_data_with_start_struct.html \
 		test_css_eof_handling.html \
 		test_dont_use_document_colors.html \
 		test_font_face_parser.html \
-		test_hover.html \
 		test_inherit_computation.html \
 		test_inherit_storage.html \
 		test_initial_computation.html \
@@ -118,7 +115,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_property_syntax_errors.html \
 		test_selectors.html \
 		test_selectors_on_anonymous_content.html \
-		test_shorthand_property_getters.html \
 		test_style_struct_copy_constructors.html \
 		test_value_computation.html \
 		test_value_storage.html \

@@ -41,11 +41,8 @@
 
 // Interfaces
 #include "nsIComponentManager.h"
-#include "nsIConsoleService.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMNavigator.h"
-#include "nsIDOMWindowInternal.h"
 #include "nsIEventTarget.h"
 #include "nsIGenericFactory.h"
 #include "nsIJSContextStack.h"
@@ -65,6 +62,7 @@
 #include "nsContentUtils.h"
 #include "nsDeque.h"
 #include "nsIClassInfoImpl.h"
+#include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 #include "nsXPCOMCID.h"
@@ -160,100 +158,21 @@ class nsReportErrorRunnable : public nsIRunnable
 public:
   NS_DECL_ISUPPORTS
 
-  nsReportErrorRunnable(nsDOMWorker* aWorker,
-                        nsIScriptError* aScriptError)
-  : mWorker(aWorker), mWorkerWN(aWorker->GetWrappedNative()),
-    mScriptError(aScriptError) {
-      NS_ASSERTION(aScriptError, "Null pointer!");
-    }
+  nsReportErrorRunnable(nsDOMWorker* aWorker, nsIWorkerMessageEvent* aEvent)
+  : mWorker(aWorker), mWorkerWN(aWorker->GetWrappedNative()), mEvent(aEvent) { }
 
   NS_IMETHOD Run() {
     if (mWorker->IsCanceled()) {
       return NS_OK;
     }
 
-#ifdef DEBUG
-    {
-      nsRefPtr<nsDOMWorker> parent = mWorker->GetParent();
-      if (NS_IsMainThread()) {
-        NS_ASSERTION(!parent, "Shouldn't have a parent on the main thread!");
-      }
-      else {
-        NS_ASSERTION(parent, "Should have a parent!");
-
-        JSContext* cx = nsDOMThreadService::get()->GetCurrentContext();
-        NS_ASSERTION(cx, "No context!");
-
-        nsDOMWorker* currentWorker = (nsDOMWorker*)JS_GetContextPrivate(cx);
-        NS_ASSERTION(currentWorker == parent, "Wrong worker!");
-      }
-    }
-#endif
-
-    NS_NAMED_LITERAL_STRING(errorStr, "error");
-
-    nsresult rv;
-
-    if (mWorker->mOuterHandler->HasListeners(errorStr)) {
-      // Construct the error event.
-      nsString message;
-      rv = mScriptError->GetErrorMessage(message);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsString filename;
-      rv = mScriptError->GetSourceName(filename);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      PRUint32 lineno;
-      rv = mScriptError->GetLineNumber(&lineno);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsRefPtr<nsDOMWorkerErrorEvent> event(new nsDOMWorkerErrorEvent());
-      NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
-
-      rv = event->InitErrorEvent(errorStr, PR_FALSE, PR_TRUE, message,
-                                 filename, lineno);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      event->SetTarget(mWorker);
-
-      PRBool stopPropagation = PR_FALSE;
-      rv = mWorker->DispatchEvent(static_cast<nsDOMWorkerEvent*>(event),
-                                  &stopPropagation);
-      if (NS_SUCCEEDED(rv) && stopPropagation) {
-        return NS_OK;
-      }
-    }
-
-    nsRefPtr<nsDOMWorker> parent = mWorker->GetParent();
-    if (!parent) {
-      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-      nsCOMPtr<nsIConsoleService> consoleService =
-        do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      if (consoleService) {
-        rv = consoleService->LogMessage(mScriptError);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-      return NS_OK;
-    }
-
-    nsRefPtr<nsReportErrorRunnable> runnable =
-      new nsReportErrorRunnable(parent, mScriptError);
-    if (runnable) {
-      nsRefPtr<nsDOMWorker> grandparent = parent->GetParent();
-      rv = grandparent ?
-           nsDOMThreadService::get()->Dispatch(grandparent, runnable) :
-           NS_DispatchToMainThread(runnable, NS_DISPATCH_NORMAL);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    return NS_OK;
+    return mWorker->DispatchEvent(mEvent, nsnull);
   }
 
 private:
   nsRefPtr<nsDOMWorker> mWorker;
   nsCOMPtr<nsIXPConnectWrappedNative> mWorkerWN;
-  nsCOMPtr<nsIScriptError> mScriptError;
+  nsCOMPtr<nsIWorkerMessageEvent> mEvent;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsReportErrorRunnable, nsIRunnable)
@@ -374,7 +293,11 @@ protected:
       // Clear out any old cruft hanging around in the regexp statics.
       JS_ClearRegExpStatics(cx);
 
+#ifdef DEBUG
+      nsresult rv =
+#endif
       runnable->Run();
+      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Runnable failed!");
     }
   }
 
@@ -489,7 +412,7 @@ DOMWorkerErrorReporter(JSContext* aCx,
   }
 
   nsresult rv;
-  nsCOMPtr<nsIScriptError> scriptError =
+  nsCOMPtr<nsIScriptError> errorObject =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv,);
 
@@ -504,37 +427,25 @@ DOMWorkerErrorReporter(JSContext* aCx,
 
   PRUint32 column = aReport->uctokenptr - aReport->uclinebuf;
 
-  rv = scriptError->Init(message, filename.get(), line, aReport->lineno,
-                         column, aReport->flags, "DOM Worker javascript");
+  rv = errorObject->Init(message, filename.get(), line, aReport->lineno,
+                        column, aReport->flags, "DOM Worker javascript");
   NS_ENSURE_SUCCESS(rv,);
 
-  // Try the onerror handler for the worker's scope.
-  nsCOMPtr<nsIDOMEventListener> handler =
-    worker->mInnerHandler->GetOnXListener(NS_LITERAL_STRING("error"));
+  nsCString finalMessage;
+  rv = errorObject->ToString(finalMessage);
+  NS_ENSURE_SUCCESS(rv,);
 
-  if (handler) {
-    nsRefPtr<nsDOMWorkerErrorEvent> event(new nsDOMWorkerErrorEvent());
-    NS_ENSURE_TRUE(event,);
+  nsRefPtr<nsDOMWorkerMessageEvent> event(new nsDOMWorkerMessageEvent());
+  NS_ENSURE_TRUE(event,);
 
-    rv = event->InitErrorEvent(NS_LITERAL_STRING("error"), PR_FALSE, PR_TRUE,
-                               nsDependentString(message), filename,
-                               aReport->lineno);
-    NS_ENSURE_SUCCESS(rv,);
+  rv = event->InitMessageEvent(NS_LITERAL_STRING("error"), PR_FALSE, PR_FALSE,
+                               NS_ConvertUTF8toUTF16(finalMessage),
+                               EmptyString(), nsnull);
+  NS_ENSURE_SUCCESS(rv,);
 
-    NS_ASSERTION(worker->GetInnerScope(), "Null scope!");
-    event->SetTarget(worker->GetInnerScope());
+  event->SetTarget(worker);
 
-    rv = handler->HandleEvent(static_cast<nsDOMWorkerEvent*>(event));
-    NS_ENSURE_SUCCESS(rv,);
-
-    if (event->PreventDefaultCalled()) {
-      return;
-    }
-  }
-
-  // Still unhandled, fire at the onerror handler on the worker.
-  nsCOMPtr<nsIRunnable> runnable =
-    new nsReportErrorRunnable(worker, scriptError);
+  nsCOMPtr<nsIRunnable> runnable(new nsReportErrorRunnable(worker, event));
   NS_ENSURE_TRUE(runnable,);
 
   nsRefPtr<nsDOMWorker> parent = worker->GetParent();
@@ -552,8 +463,7 @@ DOMWorkerErrorReporter(JSContext* aCx,
  */
 
 nsDOMThreadService::nsDOMThreadService()
-: mMonitor(nsnull),
-  mNavigatorStringsLoaded(PR_FALSE)
+: mMonitor(nsnull)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 #ifdef PR_LOGGING
@@ -1104,29 +1014,6 @@ nsDOMThreadService::RegisterWorker(nsDOMWorker* aWorker,
   if (!pool) {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-    if (!mNavigatorStringsLoaded) {
-      nsCOMPtr<nsIDOMWindowInternal> internal(do_QueryInterface(aGlobalObject));
-      NS_ENSURE_TRUE(internal, NS_ERROR_NO_INTERFACE);
-
-      nsCOMPtr<nsIDOMNavigator> navigator;
-      rv = internal->GetNavigator(getter_AddRefs(navigator));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = navigator->GetAppName(mAppName);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = navigator->GetAppVersion(mAppVersion);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = navigator->GetPlatform(mPlatform);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = navigator->GetUserAgent(mUserAgent);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      mNavigatorStringsLoaded = PR_TRUE;
-    }
-
     nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(aGlobalObject));
     NS_ENSURE_TRUE(domWindow, NS_ERROR_NO_INTERFACE);
 
@@ -1153,36 +1040,4 @@ nsDOMThreadService::RegisterWorker(nsDOMWorker* aWorker,
 
   aWorker->SetPool(pool);
   return NS_OK;
-}
-
-void
-nsDOMThreadService::GetAppName(nsAString& aAppName)
-{
-  NS_ASSERTION(mNavigatorStringsLoaded,
-               "Shouldn't call this before we have loaded strings!");
-  aAppName.Assign(mAppName);
-}
-
-void
-nsDOMThreadService::GetAppVersion(nsAString& aAppVersion)
-{
-  NS_ASSERTION(mNavigatorStringsLoaded,
-               "Shouldn't call this before we have loaded strings!");
-  aAppVersion.Assign(mAppVersion);
-}
-
-void
-nsDOMThreadService::GetPlatform(nsAString& aPlatform)
-{
-  NS_ASSERTION(mNavigatorStringsLoaded,
-               "Shouldn't call this before we have loaded strings!");
-  aPlatform.Assign(mPlatform);
-}
-
-void
-nsDOMThreadService::GetUserAgent(nsAString& aUserAgent)
-{
-  NS_ASSERTION(mNavigatorStringsLoaded,
-               "Shouldn't call this before we have loaded strings!");
-  aUserAgent.Assign(mUserAgent);
 }

@@ -123,40 +123,22 @@ nsVideoFrame::IsLeaf() const
   return PR_TRUE;
 }
 
-// Return the largest rectangle that fits in aRect and has the
-// same aspect ratio as aRatio, centered at the center of aRect
-static gfxRect
-CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
-{
-  NS_ASSERTION(aRatio.width > 0 && aRatio.height > 0 && !aRect.IsEmpty(),
-               "Nothing to draw");
-  // Choose scale factor that scales aRatio to just fit into aRect
-  gfxFloat scale =
-    PR_MIN(aRect.Width()/aRatio.width, aRect.Height()/aRatio.height);
-  gfxSize scaledRatio(scale*aRatio.width, scale*aRatio.height);
-  gfxPoint topLeft((aRect.Width() - scaledRatio.width)/2,
-                   (aRect.Height() - scaledRatio.height)/2);
-  return gfxRect(aRect.TopLeft() + topLeft, scaledRatio);
-}
-
 void
 nsVideoFrame::PaintVideo(nsIRenderingContext& aRenderingContext,
                          const nsRect& aDirtyRect, nsPoint aPt) 
 {
-  nsRect area = GetContentRect() - GetPosition() + aPt;
-  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
-  nsIntSize videoSize = element->GetVideoSize(nsIntSize(0, 0));
-  if (videoSize.width <= 0 || videoSize.height <= 0 || area.IsEmpty())
-    return;
-
   gfxContext* ctx = static_cast<gfxContext*>(aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT));
+  // TODO: handle the situation where the frame size is not the same as the
+  // video size, by drawing to the largest rectangle that fits in the frame
+  // whose aspect ratio equals the video's aspect ratio
+  nsRect area = GetContentRect() - GetPosition() + aPt;
   nsPresContext* presContext = PresContext();
   gfxRect r = gfxRect(presContext->AppUnitsToGfxUnits(area.x), 
                       presContext->AppUnitsToGfxUnits(area.y), 
                       presContext->AppUnitsToGfxUnits(area.width), 
                       presContext->AppUnitsToGfxUnits(area.height));
 
-  r = CorrectForAspectRatio(r, videoSize);
+  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   element->Paint(ctx, r);
 }
 
@@ -191,7 +173,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
                  "What is this child doing here?");
     nsBoxLayoutState boxState(PresContext(), aReflowState.rendContext);
     nsBoxFrame::LayoutChildAt(boxState, child,
-                              nsRect(mBorderPadding.left, mBorderPadding.top,
+                              nsRect(mBorderPadding.left, mBorderPadding.right,
                                      aReflowState.ComputedWidth(), aReflowState.ComputedHeight()));
   }
 
@@ -239,14 +221,11 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (HasVideoData()) {
-    rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIFrame *kid = mFrames.FirstChild();
-  if (kid) {
-    rv = kid->BuildDisplayListForStackingContext(aBuilder, aDirtyRect - kid->GetOffsetTo(this), aLists.Content());
+  if (mFrames.FirstChild()) {
+    rv = mFrames.FirstChild()->BuildDisplayListForStackingContext(aBuilder, aDirtyRect, aLists.Content());
   }
   return rv;
 }
@@ -281,7 +260,7 @@ nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aPadding,
                                      PRBool aShrinkWrap)
 {
-  nsSize size = GetIntrinsicSize(aRenderingContext);
+  nsSize size = GetVideoSize();
 
   IntrinsicSize intrinsicSize;
   intrinsicSize.width.SetCoordValue(size.width);
@@ -301,41 +280,31 @@ nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
 
 nscoord nsVideoFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
-  nscoord result = GetIntrinsicSize(aRenderingContext).width;
+  // XXX The caller doesn't account for constraints of the height,
+  // min-height, and max-height properties.
+  nscoord result = GetVideoSize().width;
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
 
 nscoord nsVideoFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
-  nscoord result = GetIntrinsicSize(aRenderingContext).width;
+  // XXX The caller doesn't account for constraints of the height,
+  // min-height, and max-height properties.
+  nscoord result = GetVideoSize().width;
   DISPLAY_PREF_WIDTH(this, result);
   return result;
 }
 
 nsSize nsVideoFrame::GetIntrinsicRatio()
 {
-  return GetIntrinsicSize(nsnull);
+  return GetVideoSize();
 }
 
-nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
+nsSize nsVideoFrame::GetVideoSize()
 {
   // Defaulting size to 300x150 if no size given.
   nsIntSize size(300,150);
-
-  if (!HasVideoData()) {
-    if (!aRenderingContext || !mFrames.FirstChild()) {
-      // We just want our intrinsic ratio, but audio elements need no
-      // intrinsic ratio, so just return "no ratio". Also, if there's
-      // no controls frame, we prefer to be zero-sized.
-      return nsSize(0, 0);
-    }
-
-    // Ask the controls frame what its preferred height is
-    nsBoxLayoutState boxState(PresContext(), aRenderingContext, 0);
-    nscoord prefHeight = mFrames.FirstChild()->GetPrefSize(boxState).height;
-    return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), prefHeight);
-  }
 
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   if (element) {
@@ -360,10 +329,4 @@ nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
 
   return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), 
                 nsPresContext::CSSPixelsToAppUnits(size.height));
-}
-
-PRBool nsVideoFrame::HasVideoData()
-{
-  nsCOMPtr<nsIDOMHTMLVideoElement> videoElem = do_QueryInterface(mContent);
-  return videoElem != nsnull;
 }

@@ -300,6 +300,7 @@ protected:
 
   void ContinueInterruptedParsingAsync();
   void ContinueInterruptedParsingIfEnabled();
+  void ContinueInterruptedParsing();
 
   nsCOMPtr<nsIDocument>         mDocument;
   nsCOMPtr<nsIParser>           mParser;

@@ -49,8 +49,6 @@
 class nsIContent;
 class nsIDocument;
 class nsIDOMEvent;
-class nsIDOMNode;
-class nsIDOMNodeList;
 class nsIPresShell;
 class nsPresContext;
 class nsEventChainVisitor;
@@ -153,9 +151,9 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x0dc8fad3, 0xcb3f, 0x4f14, \
- { 0x8e, 0x7e, 0x4f, 0x62, 0xab, 0x74, 0xb8, 0x1e } }
- 
+{ 0x0f7b2557, 0xa09d, 0x468f, \
+  { 0x93, 0x92, 0xf1, 0xf1, 0xd1, 0xfa, 0x31, 0x78 } }
+
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
  * nsIContent and nsIDocument share.  An instance of this interface has a list
@@ -246,10 +244,9 @@ public:
    * mutates (no attribute changes, not DOM tree changes, no script execution,
    * NOTHING), and will never ever peform an out-of-bounds access here.  This
    * method may return null if there are no children, or it may return a
-   * garbage pointer.  In all cases the out param will be set to the number of
-   * children.
+   * garbage pointer..
    */
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const = 0;
+  virtual nsIContent * const * GetChildArray() const = 0;
 
   /**
    * Get the index of a child within this content
@@ -690,30 +687,6 @@ public:
    */
   nsIContent* GetSelectionRootContent(nsIPresShell* aPresShell);
 
-  virtual nsIDOMNodeList* GetChildNodesList();
-  nsIContent* GetSibling(PRInt32 aOffset)
-  {
-    nsINode *parent = GetNodeParent();
-    if (!parent) {
-      return nsnull;
-    }
-
-    return parent->GetChildAt(parent->IndexOf(this) + aOffset);
-  }
-  nsIContent* GetLastChild() const
-  {
-    PRUint32 count;
-    nsIContent* const* children = GetChildArray(&count);
-
-    return count > 0 ? children[count - 1] : nsnull;
-  }
-
-  /**
-   * Implementation is in nsIDocument.h, because it needs to cast from
-   * nsIDocument* to nsINode*.
-   */
-  nsIDocument* GetOwnerDocument() const;
-
 protected:
 
   // Override this function to create a custom slots class.
@@ -760,14 +733,6 @@ protected:
     return IsEditableInternal();
   }
 
-  nsresult GetParentNode(nsIDOMNode** aParentNode);
-  nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);
-  nsresult GetFirstChild(nsIDOMNode** aFirstChild);
-  nsresult GetLastChild(nsIDOMNode** aLastChild);
-  nsresult GetPreviousSibling(nsIDOMNode** aPrevSibling);
-  nsresult GetNextSibling(nsIDOMNode** aNextSibling);
-  nsresult GetOwnerDocument(nsIDOMDocument** aOwnerDocument);
-
   nsCOMPtr<nsINodeInfo> mNodeInfo;
 
   enum { PARENT_BIT_INDOCUMENT = 1 << 0, PARENT_BIT_PARENT_IS_CONTENT = 1 << 1 };
@@ -811,8 +776,7 @@ extern const nsIID kThisPtrOffsetsSID;
 // nsINode, so if you change the nsISupports line  below, make sure
 // nsNodeSH::PreCreate() still does the right thing!
 #define NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                      \
-  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, nsINode)              \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsINode)                       
+  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, nsINode)
 
 #define NS_NODE_INTERFACE_TABLE2(_class, _i1, _i2)                            \
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \

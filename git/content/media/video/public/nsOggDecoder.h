@@ -339,10 +339,6 @@ class nsOggDecoder : public nsMediaDecoder
   // seeking in the media resource.
   virtual PRBool IsSeeking() const;
 
-  // Return PR_TRUE if the decoder has reached the end of playback.
-  // Call on the main thread only.
-  virtual PRBool IsEnded() const;
-
   // Get the size of the media file in bytes. Called on the main thread only.
   virtual void SetTotalBytes(PRInt64 aBytes);
 
@@ -512,6 +508,11 @@ private:
   // when writing to the state, or when reading from a non-main thread.
   // Any change to the state must call NotifyAll on the monitor.
   PlayState mNextState;	
+
+  // Flags if we've called Stop(). Prevents multiple events being
+  // sent to call Shutdown(). Accessed on the main thread
+  // only.
+  PRPackedBool mIsStopping;
 };
 
 #endif

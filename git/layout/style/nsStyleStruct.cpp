@@ -1741,10 +1741,6 @@ nsChangeHint nsStyleTextReset::MaxDifference()
 nsrefcnt
 nsCSSShadowArray::Release()
 {
-  if (mRefCnt == PR_UINT32_MAX) {
-    NS_WARNING("refcount overflow, leaking object");
-    return mRefCnt;
-  }
   mRefCnt--;
   if (mRefCnt == 0) {
     delete this;
@@ -1786,7 +1782,7 @@ nsStyleText::nsStyleText(void)
   mLetterSpacing.SetNormalValue();
   mLineHeight.SetNormalValue();
   mTextIndent.SetCoordValue(0);
-  mWordSpacing = 0;
+  mWordSpacing.SetNormalValue();
 
   mTextShadow = nsnull;
 }

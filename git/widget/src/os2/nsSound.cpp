@@ -59,7 +59,6 @@
 #include "nsSound.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
-#include "nsString.h"
 
 #include "nsDirectoryServiceDefs.h"
 
@@ -481,16 +480,10 @@ NS_IMETHODIMP nsSound::Init()
 
 NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 {
-  // Just beep if MMPM isn't installed.
-  if (!sMMPMInstalled) {
+  // We don't have a default mail sound on OS/2, so just beep.
+  // Also just beep if MMPM isn't installed.
+  if (aSoundAlias.EqualsLiteral("_moz_mailbeep") || (!sMMPMInstalled)) {
     Beep();
-    return NS_OK;
-  }
-
-  if (NS_IsMozAliasSound(aSoundAlias)) {
-    // We don't have a default mail sound on OS/2, so just beep.
-    if (aSoundAlias.Equals(NS_SYSSOUND_MAIL_BEEP))
-      Beep();
     return NS_OK;
   }
   nsCAutoString nativeSoundAlias;

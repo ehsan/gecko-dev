@@ -38,26 +38,21 @@
 #ifndef nsTransactionItem_h__
 #define nsTransactionItem_h__
 
-#include "nsITransaction.h"
-#include "nsCOMPtr.h"
-
+class nsITransaction;
 class nsTransactionStack;
 class nsTransactionRedoStack;
 class nsTransactionManager;
 
 class nsTransactionItem
 {
-  nsCOMPtr<nsITransaction> mTransaction;
-  nsTransactionStack      *mUndoStack;
-  nsTransactionRedoStack  *mRedoStack;
-  nsAutoRefCnt             mRefCnt;
+  nsITransaction         *mTransaction;
+  nsTransactionStack     *mUndoStack;
+  nsTransactionRedoStack *mRedoStack;
 
 public:
 
   nsTransactionItem(nsITransaction *aTransaction);
   virtual ~nsTransactionItem();
-  nsrefcnt AddRef();
-  nsrefcnt Release();
 
   virtual nsresult AddChild(nsTransactionItem *aTransactionItem);
   virtual nsresult GetTransaction(nsITransaction **aTransaction);

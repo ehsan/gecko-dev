@@ -109,7 +109,7 @@ js_GenerateShape(JSContext *cx, JSBool gcLocked, JSScopeProperty *sprop)
     return shape;
 }
 
-JS_REQUIRES_STACK void
+void
 js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                      uintN scopeIndex, uintN protoIndex,
                      JSObject *pobj, JSScopeProperty *sprop,
@@ -231,8 +231,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
 #endif
                         SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
                         SCOPE_SET_BRANDED(scope);
-                        if (OBJ_SCOPE(obj) == scope)
-                            kshape = scope->shape;
+                        kshape = scope->shape;
                     }
                     vword = JSVAL_OBJECT_TO_PCVAL(v);
                     break;
@@ -242,8 +241,6 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
 
         /* If getting a value via a stub getter, we can cache the slot. */
         if (!(cs->format & JOF_SET) &&
-            !((cs->format & (JOF_INCDEC | JOF_FOR)) &&
-              (sprop->attrs & JSPROP_READONLY)) &&
             SPROP_HAS_STUB_GETTER(sprop) &&
             SPROP_HAS_VALID_SLOT(sprop, scope)) {
             /* Great, let's cache sprop's slot and use it on cache hit. */
@@ -304,7 +301,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
     PCMETER(cache->fills++);
 }
 
-JS_REQUIRES_STACK JSAtom *
+JSAtom *
 js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
                          JSObject **objp, JSObject **pobjp,
                          JSPropCacheEntry **entryp)
@@ -805,7 +802,7 @@ js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv)
          * imposes a performance penalty on all js_ComputeGlobalThis calls,
          * and it represents a maintenance hazard.
          */
-        fp = js_GetTopStackFrame(cx);    /* quell GCC overwarning */
+        fp = cx->fp;    /* quell GCC overwarning */
         if (lazy) {
             JS_ASSERT(fp->argv == argv);
             fp->dormantNext = cx->dormantFrameChain;
@@ -852,10 +849,8 @@ ComputeThis(JSContext *cx, JSBool lazy, jsval *argv)
         thisp = JSVAL_TO_OBJECT(argv[-1]);
     } else {
         thisp = JSVAL_TO_OBJECT(argv[-1]);
-        if (OBJ_GET_CLASS(cx, thisp) == &js_CallClass ||
-            OBJ_GET_CLASS(cx, thisp) == &js_BlockClass) {
+        if (OBJ_GET_CLASS(cx, thisp) == &js_CallClass)
             return js_ComputeGlobalThis(cx, lazy, argv);
-        }
 
         if (thisp->map->ops->thisObject) {
             /* Some objects (e.g., With) delegate 'this' to another object. */
@@ -1267,7 +1262,7 @@ have_fun:
 
     /* Default return value for a constructor is the new object. */
     frame.rval = (flags & JSINVOKE_CONSTRUCT) ? vp[1] : JSVAL_VOID;
-    frame.down = js_GetTopStackFrame(cx);
+    frame.down = cx->fp;
     frame.annotation = NULL;
     frame.scopeChain = NULL;    /* set below for real, after cx->fp is set */
     frame.regs = NULL;
@@ -1471,7 +1466,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
 
     hook = cx->debugHooks->executeHook;
     hookData = mark = NULL;
-    oldfp = js_GetTopStackFrame(cx);
+    oldfp = cx->fp;
     frame.script = script;
     if (down) {
         /* Propagate arg state for eval and the debugger API. */
@@ -1838,7 +1833,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, jsval idval, jsid *idp)
  * Enter the new with scope using an object at sp[-1] and associate the depth
  * of the with block with sp + stackIndex.
  */
-JS_STATIC_INTERPRET JS_REQUIRES_STACK JSBool
+JS_STATIC_INTERPRET JSBool
 js_EnterWith(JSContext *cx, jsint stackIndex)
 {
     JSStackFrame *fp;
@@ -1877,7 +1872,7 @@ js_EnterWith(JSContext *cx, jsint stackIndex)
     return JS_TRUE;
 }
 
-JS_STATIC_INTERPRET JS_REQUIRES_STACK void
+JS_STATIC_INTERPRET void
 js_LeaveWith(JSContext *cx)
 {
     JSObject *withobj;
@@ -1891,7 +1886,7 @@ js_LeaveWith(JSContext *cx)
     js_EnablePropertyCache(cx);
 }
 
-JS_REQUIRES_STACK JSClass *
+JSClass *
 js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
 {
     JSClass *clasp;
@@ -1905,7 +1900,7 @@ js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
     return NULL;
 }
 
-JS_STATIC_INTERPRET JS_REQUIRES_STACK jsint
+JS_STATIC_INTERPRET jsint
 js_CountWithBlocks(JSContext *cx, JSStackFrame *fp)
 {
     jsint n;
@@ -1926,7 +1921,7 @@ js_CountWithBlocks(JSContext *cx, JSStackFrame *fp)
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-JS_REQUIRES_STACK JSBool
+JSBool
 js_UnwindScope(JSContext *cx, JSStackFrame *fp, jsint stackDepth,
                JSBool normalUnwind)
 {
@@ -1996,7 +1991,7 @@ js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2)
 
 #ifdef DEBUG
 
-JS_STATIC_INTERPRET JS_REQUIRES_STACK void
+JS_STATIC_INTERPRET void
 js_TraceOpcode(JSContext *cx, jsint len)
 {
     FILE *tracefp;
@@ -2416,6 +2411,12 @@ JS_STATIC_ASSERT(!CAN_DO_FAST_INC_DEC(INT_TO_JSVAL(JSVAL_INT_MAX)));
 #endif
 
 /*
+ * Interpreter assumes the following to implement condition-free interrupt
+ * implementation when !JS_THREADED_INTERP.
+ */
+JS_STATIC_ASSERT(JSOP_INTERRUPT == 0);
+
+/*
  * Ensure that the intrepreter switch can close call-bytecode cases in the
  * same way as non-call bytecodes.
  */
@@ -2442,7 +2443,7 @@ JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_DECNAME_LENGTH);
 JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_NAMEINC_LENGTH);
 JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_NAMEDEC_LENGTH);
 
-JS_REQUIRES_STACK JSBool
+JSBool
 js_Interpret(JSContext *cx)
 {
     JSRuntime *rt;
@@ -2471,6 +2472,12 @@ js_Interpret(JSContext *cx)
     JSClass *clasp;
     JSFunction *fun;
     JSType type;
+#if JS_THREADED_INTERP
+    register void * const *jumpTable;
+#else
+    register uint32 switchMask;
+    uintN switchOp;
+#endif
     jsint low, high, off, npairs;
     JSBool match;
 #if JS_HAS_GETTER_SETTER
@@ -2494,22 +2501,29 @@ js_Interpret(JSContext *cx)
 # undef OPDEF
     };
 
+#ifdef JS_TRACER
+    static void *const recordingJumpTable[] = {
+# define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format) \
+        JS_EXTENSION &&R_##op,
+# include "jsopcode.tbl"
+# undef OPDEF
+    };
+#endif /* JS_TRACER */
+
     static void *const interruptJumpTable[] = {
 # define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)              \
-        JS_EXTENSION &&interrupt,
+        JS_EXTENSION &&L_JSOP_INTERRUPT,
 # include "jsopcode.tbl"
 # undef OPDEF
     };
 
-    register void * const *jumpTable = normalJumpTable;
-
     METER_OP_INIT(op);      /* to nullify first METER_OP_PAIR */
 
-# define ENABLE_INTERRUPTS() ((void) (jumpTable = interruptJumpTable))
-
 # ifdef JS_TRACER
-#  define CHECK_RECORDER()                                                    \
-    JS_ASSERT_IF(TRACE_RECORDER(cx), jumpTable == interruptJumpTable)
+#  define CHECK_RECORDER()  JS_BEGIN_MACRO                                    \
+                                JS_ASSERT(!TRACE_RECORDER(cx) ^               \
+                                          (jumpTable == recordingJumpTable)); \
+                            JS_END_MACRO
 # else
 #  define CHECK_RECORDER()  ((void)0)
 # endif
@@ -2524,7 +2538,8 @@ js_Interpret(JSContext *cx)
                                 DO_OP();                                      \
                             JS_END_MACRO
 
-# define BEGIN_CASE(OP)     L_##OP: CHECK_RECORDER();
+# define BEGIN_CASE(OP)     L_##OP:                                           \
+                                CHECK_RECORDER();
 # define END_CASE(OP)       DO_NEXT_OP(OP##_LENGTH);
 # define END_VARLEN_CASE    DO_NEXT_OP(len);
 # define ADD_EMPTY_CASE(OP) BEGIN_CASE(OP)                                    \
@@ -2536,25 +2551,13 @@ js_Interpret(JSContext *cx)
 
 #else /* !JS_THREADED_INTERP */
 
-    register intN switchMask = 0;
-    intN switchOp;
-
-# define ENABLE_INTERRUPTS() ((void) (switchMask = -1))
-
-# ifdef JS_TRACER
-#  define CHECK_RECORDER()                                                    \
-    JS_ASSERT_IF(TRACE_RECORDER(cx), switchMask == -1)
-# else
-#  define CHECK_RECORDER()  ((void)0)
-# endif
-
 # define DO_OP()            goto do_op
 # define DO_NEXT_OP(n)      JS_BEGIN_MACRO                                    \
                                 JS_ASSERT((n) == len);                        \
                                 goto advance_pc;                              \
                             JS_END_MACRO
 
-# define BEGIN_CASE(OP)     case OP: CHECK_RECORDER();
+# define BEGIN_CASE(OP)     case OP:
 # define END_CASE(OP)       END_CASE_LEN(OP##_LENGTH)
 # define END_CASE_LEN(n)    END_CASE_LENX(n)
 # define END_CASE_LENX(n)   END_CASE_LEN##n
@@ -2641,15 +2644,10 @@ js_Interpret(JSContext *cx)
 #define MONITOR_BRANCH()                                                      \
     JS_BEGIN_MACRO                                                            \
         if (TRACING_ENABLED(cx)) {                                            \
-            if (js_MonitorLoopEdge(cx, inlineCallCount)) {                    \
-                JS_ASSERT(TRACE_RECORDER(cx));                                \
-                ENABLE_INTERRUPTS();                                          \
-            }                                                                 \
+            ENABLE_TRACER(js_MonitorLoopEdge(cx, inlineCallCount));           \
             fp = cx->fp;                                                      \
             script = fp->script;                                              \
-            atoms = fp->imacpc                                                \
-                    ? COMMON_ATOMS_START(&rt->atomState)                      \
-                    : script->atomMap.vector;                                 \
+            atoms = script->atomMap.vector;                                   \
             currentVersion = (JSVersion) script->version;                     \
             JS_ASSERT(fp->regs == &regs);                                     \
             if (cx->throwing)                                                 \
@@ -2713,19 +2711,53 @@ js_Interpret(JSContext *cx)
     fp->pcDisabledSave = JS_PROPERTY_CACHE(cx).disabled;
 #endif
 
-# define CHECK_INTERRUPT_HANDLER()                                            \
-    JS_BEGIN_MACRO                                                            \
-        if (cx->debugHooks->interruptHandler)                                 \
-            ENABLE_INTERRUPTS();                                              \
-    JS_END_MACRO
-
     /*
      * Load the debugger's interrupt hook here and after calling out to native
      * functions (but not to getters, setters, or other native hooks), so we do
      * not have to reload it each time through the interpreter loop -- we hope
      * the compiler can keep it in a register when it is non-null.
      */
-    CHECK_INTERRUPT_HANDLER();
+#if JS_THREADED_INTERP
+#ifdef JS_TRACER
+# define LOAD_INTERRUPT_HANDLER(cx)                                           \
+    ((void) (jumpTable = (cx)->debugHooks->interruptHandler                   \
+                         ? interruptJumpTable                                 \
+                         : TRACE_RECORDER(cx)                                 \
+                         ? recordingJumpTable                                 \
+                         : normalJumpTable))
+# define ENABLE_TRACER(flag)                                                  \
+    JS_BEGIN_MACRO                                                            \
+        bool flag_ = (flag);                                                  \
+        JS_ASSERT(flag_ == !!TRACE_RECORDER(cx));                             \
+        jumpTable = flag_ ? recordingJumpTable : normalJumpTable;             \
+    JS_END_MACRO
+#else /* !JS_TRACER */
+# define LOAD_INTERRUPT_HANDLER(cx)                                           \
+    ((void) (jumpTable = (cx)->debugHooks->interruptHandler                   \
+                         ? interruptJumpTable                                 \
+                         : normalJumpTable))
+# define ENABLE_TRACER(flag) ((void)0)
+#endif /* !JS_TRACER */
+#else /* !JS_THREADED_INTERP */
+#ifdef JS_TRACER
+# define LOAD_INTERRUPT_HANDLER(cx)                                           \
+    ((void) (switchMask = ((cx)->debugHooks->interruptHandler ||              \
+                           TRACE_RECORDER(cx)) ? 0 : 255))
+# define ENABLE_TRACER(flag)                                                  \
+    JS_BEGIN_MACRO                                                            \
+        bool flag_ = (flag);                                                  \
+        JS_ASSERT(flag_ == !!TRACE_RECORDER(cx));                             \
+        switchMask = flag_ ? 0 : 255;                                         \
+    JS_END_MACRO
+#else /* !JS_TRACER */
+# define LOAD_INTERRUPT_HANDLER(cx)                                           \
+    ((void) (switchMask = ((cx)->debugHooks->interruptHandler                 \
+                           ? 0 : 255)))
+# define ENABLE_TRACER(flag) ((void)0)
+#endif /* !JS_TRACER */
+#endif /* !JS_THREADED_INTERP */
+
+    LOAD_INTERRUPT_HANDLER(cx);
 
 #if !JS_HAS_GENERATORS
     JS_ASSERT(!fp->regs);
@@ -2781,12 +2813,11 @@ js_Interpret(JSContext *cx)
      * This is a loop, but it does not look like a loop. The loop-closing
      * jump is distributed throughout goto *jumpTable[op] inside of DO_OP.
      * When interrupts are enabled, jumpTable is set to interruptJumpTable
-     * where all jumps point to the interrupt label. The latter, after
+     * where all jumps point to the JSOP_INTERRUPT case. The latter, after
      * calling the interrupt handler, dispatches through normalJumpTable to
      * continue the normal bytecode processing.
      */
-  interrupt:
-#else /* !JS_THREADED_INTERP */
+#else
     for (;;) {
       advance_pc_by_one:
         JS_ASSERT(js_CodeSpec[op].length == 1);
@@ -2794,27 +2825,23 @@ js_Interpret(JSContext *cx)
       advance_pc:
         regs.pc += len;
         op = (JSOp) *regs.pc;
-# ifdef DEBUG
+#ifdef DEBUG
         if (cx->tracefp)
             js_TraceOpcode(cx, len);
-# endif
+#endif
 
       do_op:
-        CHECK_RECORDER();
-        switchOp = intN(op) | switchMask;
+        switchOp = op & switchMask;
       do_switch:
         switch (switchOp) {
-          case -1:
-            JS_ASSERT(switchMask == -1);
 #endif /* !JS_THREADED_INTERP */
+
+          BEGIN_CASE(JSOP_INTERRUPT)
           {
-            bool moreInterrupts = false;
-            JSTrapHandler handler = cx->debugHooks->interruptHandler;
+            JSTrapHandler handler;
+
+            handler = cx->debugHooks->interruptHandler;
             if (handler) {
-#ifdef JS_TRACER
-                if (TRACE_RECORDER(cx))
-                    js_AbortRecording(cx, "interrupt handler");
-#endif
                 switch (handler(cx, script, regs.pc, &rval,
                                 cx->debugHooks->interruptHandlerData)) {
                   case JSTRAP_ERROR:
@@ -2831,31 +2858,20 @@ js_Interpret(JSContext *cx)
                     goto error;
                   default:;
                 }
-                moreInterrupts = true;
+#if !JS_THREADED_INTERP
+            } else {
+                /* this was not a real interrupt, the tracer is trying to
+                   record a trace */
+                switchOp = op + 256;
+                goto do_switch;
+#endif
             }
-
-#ifdef JS_TRACER
-            TraceRecorder* tr = TRACE_RECORDER(cx);
-            if (tr) {
-                JSMonitorRecordingStatus status = tr->monitorRecording(op);
-                if (status == JSMRS_CONTINUE) {
-                    moreInterrupts = true;
-                } else if (status == JSMRS_IMACRO) {
-                    atoms = COMMON_ATOMS_START(&rt->atomState);
-                    op = JSOp(*regs.pc);
-                    DO_OP();    /* keep interrupting for op. */
-                } else {
-                    JS_ASSERT(status == JSMRS_STOP);
-                }
-            }
-#endif /* !JS_TRACER */
+            LOAD_INTERRUPT_HANDLER(cx);
 
 #if JS_THREADED_INTERP
-            jumpTable = moreInterrupts ? interruptJumpTable : normalJumpTable;
             JS_EXTENSION_(goto *normalJumpTable[op]);
 #else
-            switchMask = moreInterrupts ? -1 : 0;
-            switchOp = intN(op);
+            switchOp = op;
             goto do_switch;
 #endif
           }
@@ -3001,7 +3017,7 @@ js_Interpret(JSContext *cx)
                         status = ok;
                         hook(cx, fp, JS_FALSE, &status, hookData);
                         ok = status;
-                        CHECK_INTERRUPT_HANDLER();
+                        LOAD_INTERRUPT_HANDLER(cx);
                     }
                 }
 
@@ -3058,9 +3074,7 @@ js_Interpret(JSContext *cx)
 
                 /* Restore the calling script's interpreter registers. */
                 script = fp->script;
-                atoms = fp->imacpc
-                        ? COMMON_ATOMS_START(&rt->atomState)
-                        : script->atomMap.vector;
+                atoms = script->atomMap.vector;
 
                 /* Resume execution in the calling frame. */
                 inlineCallCount--;
@@ -3216,7 +3230,7 @@ js_Interpret(JSContext *cx)
             flags = regs.pc[1];
             if (!js_ValueToIterator(cx, flags, &regs.sp[-1]))
                 goto error;
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
             JS_ASSERT(!JSVAL_IS_PRIMITIVE(regs.sp[-1]));
             PUSH(JSVAL_VOID);
           END_CASE(JSOP_ITER)
@@ -3226,7 +3240,7 @@ js_Interpret(JSContext *cx)
             JS_ASSERT(!JSVAL_IS_PRIMITIVE(regs.sp[-2]));
             if (!js_CallIteratorNext(cx, JSVAL_TO_OBJECT(regs.sp[-2]), &regs.sp[-1]))
                 goto error;
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
             rval = BOOLEAN_TO_JSVAL(regs.sp[-1] != JSVAL_HOLE);
             PUSH(rval);
             TRACE_0(IteratorNextComplete);
@@ -3317,14 +3331,6 @@ js_Interpret(JSContext *cx)
             STORE_OPND(-1, lval);
             STORE_OPND(-2, rval);
           END_CASE(JSOP_SWAP)
-          
-          BEGIN_CASE(JSOP_PICK)
-            i = regs.pc[1];
-            JS_ASSERT(regs.sp - (i+1) >= StackBase(fp));
-            lval = regs.sp[-(i+1)];
-            memmove(regs.sp - (i+1), regs.sp - i, sizeof(jsval)*i);
-            regs.sp[-1] = lval;
-          END_CASE(JSOP_PICK)
 
 #define PROPERTY_OP(n, call)                                                  \
     JS_BEGIN_MACRO                                                            \
@@ -4632,8 +4638,10 @@ js_Interpret(JSContext *cx)
                         goto error;
                 }
 #ifdef JS_TRACER
-                if (!entry && TRACE_RECORDER(cx))
+                if (!entry && TRACE_RECORDER(cx)) {
                     js_AbortRecording(cx, "SetPropUncached");
+                    ENABLE_TRACER(0);
+                }
 #endif
             } while (0);
           END_SET_CASE_STORE_RVAL(JSOP_SETPROP, 2);
@@ -4783,15 +4791,129 @@ js_Interpret(JSContext *cx)
             if (!js_InvokeConstructor(cx, argc, JS_FALSE, vp))
                 goto error;
             regs.sp = vp + 1;
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
           END_CASE(JSOP_NEW)
+
+          BEGIN_CASE(JSOP_APPLY)
+          {
+            argc = GET_ARGC(regs.pc);
+            vp = regs.sp - (argc + 2);
+            lval = *vp;
+            if (!VALUE_IS_FUNCTION(cx, lval))
+                goto do_call;
+            obj = JSVAL_TO_OBJECT(lval);
+            fun = GET_FUNCTION_PRIVATE(cx, obj);
+            if (FUN_INTERPRETED(fun))
+                goto do_call;
+
+            bool apply = (JSFastNative)fun->u.n.native == js_fun_apply;
+            if (!apply && (JSFastNative)fun->u.n.native != js_fun_call)
+                goto do_call;
+
+            /* 
+             * If the second arg to apply is null or void, treat it as an empty
+             * array.
+             */
+            jsuint applylen = 0;
+            if (apply && argc >= 2 &&
+                !JSVAL_IS_VOID(vp[3]) && !JSVAL_IS_NULL(vp[3])) {
+                /* 
+                 * Fall back on js_Invoke when the array argument has a wrong
+                 * type or when it has too many elements to fit into the
+                 * current stack chunk.
+                 */
+                if (!JSVAL_IS_OBJECT(vp[3]))
+                    goto do_call;
+
+                JSBool arraylike;
+                JSObject* aobj = JSVAL_TO_OBJECT(vp[3]);
+                if (!js_IsArrayLike(cx, aobj, &arraylike, &applylen))
+                    goto error;
+                if (!arraylike || applylen > ARGC_LIMIT)
+                    goto do_call;
+
+                JSArena *a = cx->stackPool.current;
+                JS_ASSERT(jsuword(vp + 2) <= a->limit);
+
+                /*
+                 * We need space for applylen elements plus an extra slot to
+                 * temporary root the array object when we unpack its elements
+                 * using OBJ_GET_PROPERTY below.
+                 */
+                if (a->limit - jsuword(vp + 2) < (applylen + 1) * sizeof(jsval))
+                    goto do_call;
+            }
+
+            if (!VALUE_IS_FUNCTION(cx, vp[1]))
+                goto do_call;
+            vp[0] = vp[1];
+
+            if (argc == 0) {
+                /* 
+                 * Call fun with its global object as the 'this' param if 
+                 * no args. 
+                 */
+                obj = NULL;
+            } else {
+                /* Convert the first arg to 'this'. */
+                if (!JSVAL_IS_PRIMITIVE(vp[2]))
+                    obj = JSVAL_TO_OBJECT(vp[2]);
+                else if (!js_ValueToObject(cx, vp[2], &obj))
+                    goto error;
+            }
+            vp[1] = OBJECT_TO_JSVAL(obj);
+
+            if (!apply) {
+                if (argc != 0) {
+                    --argc;
+                    memmove(vp + 2, vp + 3, argc * sizeof *vp);
+                }
+            } else if (applylen == 0) {
+                argc = 0;
+            } else {
+                /* 
+                 * Make room for missing arguments to the right including the
+                 * temporary root nulling any extra stack slots for GC safety.
+                 */
+                jsval* newsp = vp + 2 + applylen + 1;
+                if (newsp > regs.sp) {
+                    JSArena *a = cx->stackPool.current;
+                    JS_ASSERT(jsuword(newsp) <= a->limit); /* see above */
+                    if ((jsuword) newsp > a->avail)
+                        a->avail = (jsuword) newsp;
+                    memset(vp + 2 + argc, 0, (applylen - argc) * sizeof(jsval));
+                }
+
+                JSObject *aobj = JSVAL_TO_OBJECT(vp[3]);
+                newsp[-1] = vp[3];
+                regs.sp = newsp;
+
+                /* Expand array content onto the stack. */
+                for (i = 0; i < jsint(applylen); i++) {
+                    id = INT_TO_JSID(i);
+                    if (!OBJ_GET_PROPERTY(cx, aobj, id, &vp[2 + i])) {
+                        /* 
+                         * There is no good way to restore the original stack
+                         * state here, but it is in a reasonable  state with
+                         * either original elements or nulls for all arguments
+                         * we didn't unpack yet, so we leave it at that.
+                         */
+                        goto error;
+                    }
+                }
+                argc = applylen;
+            }
+            regs.sp = vp + 2 + argc;
+            goto do_call_with_specified_vp_and_argc;
+          }
           
           BEGIN_CASE(JSOP_CALL)
           BEGIN_CASE(JSOP_EVAL)
-          BEGIN_CASE(JSOP_APPLY)
+          do_call:
             argc = GET_ARGC(regs.pc);
             vp = regs.sp - (argc + 2);
             
+          do_call_with_specified_vp_and_argc:
             lval = *vp;
             if (VALUE_IS_FUNCTION(cx, lval)) {
                 obj = JSVAL_TO_OBJECT(lval);
@@ -4923,7 +5045,7 @@ js_Interpret(JSContext *cx)
                     if (hook) {
                         newifp->hookData = hook(cx, &newifp->frame, JS_TRUE, 0,
                                                 cx->debugHooks->callHookData);
-                        CHECK_INTERRUPT_HANDLER();
+                        LOAD_INTERRUPT_HANDLER(cx);
                     } else {
                         newifp->hookData = NULL;
                     }
@@ -5021,7 +5143,7 @@ js_Interpret(JSContext *cx)
             }
 #endif
             regs.sp = vp + 1;
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
             if (!ok)
                 goto error;
             JS_RUNTIME_METER(rt, nonInlineCalls);
@@ -5059,7 +5181,7 @@ js_Interpret(JSContext *cx)
             vp = regs.sp - argc - 2;
             ok = js_Invoke(cx, argc, vp, 0);
             regs.sp = vp + 1;
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
             if (!ok)
                 goto error;
             if (!cx->rval2set) {
@@ -5497,7 +5619,7 @@ js_Interpret(JSContext *cx)
                 break;
             }
             JS_ASSERT(status == JSTRAP_CONTINUE);
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
             JS_ASSERT(JSVAL_IS_INT(rval));
             op = (JSOp) JSVAL_TO_INT(rval);
             JS_ASSERT((uintN)op < (uintN)JSOP_LIMIT);
@@ -5829,7 +5951,7 @@ js_Interpret(JSContext *cx)
             }
 
             TRACE_2(DefLocalFunSetSlot, slot, obj);
-
+            
             fp->slots[slot] = OBJECT_TO_JSVAL(obj);
           END_CASE(JSOP_DEFLOCALFUN)
 
@@ -6054,7 +6176,7 @@ js_Interpret(JSContext *cx)
                 goto error;
             PUSH_OPND(OBJECT_TO_JSVAL(obj));
             fp->sharpDepth++;
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
           END_CASE(JSOP_NEWINIT)
 
           BEGIN_CASE(JSOP_ENDINIT)
@@ -6359,30 +6481,6 @@ js_Interpret(JSContext *cx)
             fp->slots[slot] = POP_OPND();
           END_CASE(JSOP_SETLOCALPOP)
 
-          BEGIN_CASE(JSOP_IFPRIMTOP)
-            /*
-             * If the top of stack is of primitive type, jump to our target.
-             * Otherwise advance to the next opcode.
-             */
-            JS_ASSERT(regs.sp > StackBase(fp));
-            rval = FETCH_OPND(-1);
-            if (JSVAL_IS_PRIMITIVE(rval)) {
-                len = GET_JUMP_OFFSET(regs.pc);
-                BRANCH(len);
-            }
-          END_CASE(JSOP_IFPRIMTOP)
-
-          BEGIN_CASE(JSOP_PRIMTOP)
-            JS_ASSERT(regs.sp > StackBase(fp));
-            lval = FETCH_OPND(-1);
-            if (!JSVAL_IS_PRIMITIVE(lval)) {
-                js_ReportValueError2(cx, JSMSG_CANT_CONVERT_TO,
-                                    JSDVG_SEARCH_STACK, lval, NULL,
-                                    "primitive type");
-                goto error;
-            }
-          END_CASE(JSOP_PRIMTOP)
-
           BEGIN_CASE(JSOP_INSTANCEOF)
             rval = FETCH_OPND(-1);
             if (JSVAL_IS_PRIMITIVE(rval) ||
@@ -6420,7 +6518,7 @@ js_Interpret(JSContext *cx)
                     goto error;
                   default:;
                 }
-                CHECK_INTERRUPT_HANDLER();
+                LOAD_INTERRUPT_HANDLER(cx);
             }
           }
           END_CASE(JSOP_DEBUGGER)
@@ -6834,7 +6932,9 @@ js_Interpret(JSContext *cx)
           L_JSOP_DEFXMLNS:
 # endif
 
-          L_JSOP_UNUSED135:
+          L_JSOP_UNUSED131:
+          L_JSOP_UNUSED201:
+          L_JSOP_UNUSED202:
           L_JSOP_UNUSED203:
           L_JSOP_UNUSED204:
           L_JSOP_UNUSED205:
@@ -6856,9 +6956,24 @@ js_Interpret(JSContext *cx)
             goto error;
           }
 
+#ifdef JS_TRACER
+
+#if JS_THREADED_INTERP
+# define OPDEF(x,val,name,token,length,nuses,ndefs,prec,format)               \
+    R_##x: RECORD(x); goto L_##x;
+#else
+# define OPDEF(x,val,name,token,length,nuses,ndefs,prec,format)               \
+    case 256 + x: RECORD(x); op = x; switchOp = x; goto do_switch;
+#endif
+#include "jsopcode.tbl"
+#undef OPDEF
+
+#endif /* JS_TRACER */
+
 #if !JS_THREADED_INTERP
+
         } /* switch (op) */
-    } /* for (;;) */
+    }
 #endif /* !JS_THREADED_INTERP */
 
   error:
@@ -6908,7 +7023,7 @@ js_Interpret(JSContext *cx)
               case JSTRAP_CONTINUE:
               default:;
             }
-            CHECK_INTERRUPT_HANDLER();
+            LOAD_INTERRUPT_HANDLER(cx);
         }
 
         /*

@@ -123,16 +123,13 @@ gfxPlatformMac::CreateFontGroup(const nsAString &aFamilies,
 }
 
 gfxFontEntry* 
-gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                const nsAString& aFontName)
+gfxPlatformMac::LookupLocalFont(const nsAString& aFontName)
 {
     return gfxQuartzFontCache::SharedFontCache()->LookupLocalFont(aFontName);
 }
 
 gfxFontEntry* 
-gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                 nsISupports *aLoader,
-                                 const PRUint8 *aFontData, PRUint32 aLength)
+gfxPlatformMac::MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength)
 {
     return gfxQuartzFontCache::SharedFontCache()->MakePlatformFont(aProxyEntry, aFontData, aLength);
 }

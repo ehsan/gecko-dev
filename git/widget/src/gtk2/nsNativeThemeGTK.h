@@ -42,7 +42,7 @@
 #include "nsIObserver.h"
 #include "nsNativeTheme.h"
 
-#include <gtk/gtk.h>
+#include <gtk/gtkwidget.h>
 #include "gtkdrawing.h"
 
 class nsNativeThemeGTK: private nsNativeTheme,
@@ -91,8 +91,6 @@ public:
                                                nsIFrame* aFrame, PRUint8 aWidgetType);
 
   PRBool ThemeNeedsComboboxDropmarker();
-
-  virtual nsTransparencyMode GetWidgetTransparency(PRUint8 aWidgetType);
 
   nsNativeThemeGTK();
   virtual ~nsNativeThemeGTK();

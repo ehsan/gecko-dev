@@ -44,7 +44,8 @@
 
 #include "xembed.h"
 #include "gtk2xtbin.h"
-#include <gtk/gtk.h>
+#include <gtk/gtkmain.h>
+#include <gtk/gtkprivate.h>
 #include <gdk/gdkx.h>
 #include <glib.h>
 #include <assert.h>

@@ -64,12 +64,7 @@ mandir		= @mandir@
 installdir	= $(libdir)/$(MOZ_APP_NAME)-$(MOZ_APP_VERSION)
 sdkdir		= $(libdir)/$(MOZ_APP_NAME)-devel-$(MOZ_APP_VERSION)
 
-TOP_DIST	= @TOP_DIST@
-ifneq (,$(filter /%,$(TOP_DIST)))
-DIST		= $(TOP_DIST)
-else
-DIST		= $(DEPTH)/$(TOP_DIST)
-endif
+DIST		= $(DEPTH)/dist
 
 MOZ_JS_LIBS		   = @MOZ_JS_LIBS@
 

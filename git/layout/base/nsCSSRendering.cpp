@@ -1054,8 +1054,7 @@ void
 nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
                                nsIRenderingContext& aRenderingContext,
                                nsIFrame* aForFrame,
-                               const nsPoint& aForFramePt,
-                               const nsRect& aDirtyRect)
+                               const nsPoint& aForFramePt)
 {
   nsMargin      borderValues;
   PRIntn        sidesToSkip;
@@ -1077,9 +1076,6 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
                     twipsPerPixel, &borderRadii);
 
   gfxRect frameGfxRect = RectToGfxRect(frameRect, twipsPerPixel);
-  frameGfxRect.Round();
-  gfxRect dirtyGfxRect = RectToGfxRect(aDirtyRect, twipsPerPixel);
-
   for (PRUint32 i = styleBorder->mBoxShadow->Length(); i > 0; --i) {
     nsCSSShadowItem* shadowItem = styleBorder->mBoxShadow->ShadowAt(i - 1);
     gfxRect shadowRect(frameRect.x, frameRect.y, frameRect.width, frameRect.height);
@@ -1088,7 +1084,7 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
 
     gfxRect shadowRectPlusBlur = shadowRect;
     shadowRect.ScaleInverse(twipsPerPixel);
-    shadowRect.Round();
+    shadowRect.RoundOut();
 
     // shadowRect won't include the blur, so make an extra rect here that includes the blur
     // for use in the even-odd rule below.
@@ -1101,9 +1097,9 @@ nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
     nsRefPtr<gfxContext> shadowContext;
     nsContextBoxBlur blurringArea;
 
-    // shadowRect is already in device pixels, pass 1 as the appunits/pixel value
+    // shadowRect has already been converted to device pixels, pass 1 as the appunits/pixel value
     blurRadius /= twipsPerPixel;
-    shadowContext = blurringArea.Init(shadowRect, blurRadius, 1, renderContext, dirtyGfxRect);
+    shadowContext = blurringArea.Init(shadowRect, blurRadius, 1, renderContext);
     if (!shadowContext)
       continue;
 
@@ -1522,7 +1518,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   }
 
   nsRect destArea(imageTopLeft + aBorderArea.TopLeft(), imageSize);
-  nsRect fillArea = destArea;
+  nsRect fillArea;
+  fillArea.IntersectRect(destArea, bgClipArea);
   if (repeat & NS_STYLE_BG_REPEAT_X) {
     fillArea.x = bgClipArea.x;
     fillArea.width = bgClipArea.width;
@@ -1531,7 +1528,6 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     fillArea.y = bgClipArea.y;
     fillArea.height = bgClipArea.height;
   }
-  fillArea.IntersectRect(fillArea, bgClipArea);
 
   nsLayoutUtils::DrawImage(&aRenderingContext, image,
       destArea, fillArea, anchor + aBorderArea.TopLeft(), dirtyRect);
@@ -2544,8 +2540,7 @@ GetTextDecorationRectInternal(const gfxPoint& aPt,
 gfxContext*
 nsContextBoxBlur::Init(const gfxRect& aRect, nscoord aBlurRadius,
                        PRInt32 aAppUnitsPerDevPixel,
-                       gfxContext* aDestinationCtx,
-                       const gfxRect& aDirtyRect)
+                       gfxContext* aDestinationCtx)
 {
   mDestinationCtx = aDestinationCtx;
 
@@ -2566,13 +2561,9 @@ nsContextBoxBlur::Init(const gfxRect& aRect, nscoord aBlurRadius,
     return mContext;
   }
 
-  gfxRect dirtyRect = aDirtyRect;
-  dirtyRect.ScaleInverse(aAppUnitsPerDevPixel);
-
   mDestinationCtx = aDestinationCtx;
 
-  // Create the temporary surface for blurring
-  mContext = blur.Init(rect, gfxIntSize(blurRadius, blurRadius), &dirtyRect);
+  mContext = blur.Init(rect, gfxIntSize(blurRadius, blurRadius));
   return mContext;
 }
 
@@ -2590,4 +2581,3 @@ nsContextBoxBlur::GetContext()
 {
   return mContext;
 }
-

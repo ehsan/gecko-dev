@@ -334,7 +334,7 @@ public:
   nsresult OpenContainer(const nsIParserNode& aNode);
   nsresult CloseContainer(const nsHTMLTag aTag, PRBool aMalformed);
   nsresult AddLeaf(const nsIParserNode& aNode);
-  nsresult AddLeaf(nsIContent* aContent);
+  nsresult AddLeaf(nsGenericHTMLElement* aContent);
   nsresult AddComment(const nsIParserNode& aNode);
   nsresult End();
 
@@ -898,7 +898,6 @@ SinkContext::HaveNotifiedForCurrentContent() const
 nsIContent *
 SinkContext::Node::Add(nsIContent *child)
 {
-  NS_ASSERTION(mContent, "No parent to insert/append into!");
   if (mInsertionPoint != -1) {
     NS_ASSERTION(mNumFlushed == mContent->GetChildCount(),
                  "Inserting multiple children without flushing.");
@@ -1154,7 +1153,7 @@ SinkContext::AddLeaf(const nsIParserNode& aNode)
 }
 
 nsresult
-SinkContext::AddLeaf(nsIContent* aContent)
+SinkContext::AddLeaf(nsGenericHTMLElement* aContent)
 {
   NS_ASSERTION(mStackPos > 0, "leaf w/o container");
   if (mStackPos <= 0) {
@@ -1471,8 +1470,13 @@ SinkContext::FlushText(PRBool* aDidFlush, PRBool aReleaseLast)
       mLastTextNodeSize += mTextLength;
       mTextLength = 0;
 
-      rv = AddLeaf(mLastTextNode);
-      NS_ENSURE_SUCCESS(rv, rv);
+      // Add text to its parent
+      NS_ASSERTION(mStackPos > 0, "leaf w/o container");
+      if (mStackPos <= 0) {
+        return NS_ERROR_FAILURE;
+      }
+
+      DidAddContent(mStack[mStackPos - 1].Add(mLastTextNode));
 
       didFlush = PR_TRUE;
     }
@@ -2885,8 +2889,13 @@ nsresult
 HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
 {
   nsresult  result = NS_OK;
+  nsGenericHTMLElement* parent = nsnull;
 
   if (mCurrentContext) {
+    parent = mCurrentContext->mStack[mCurrentContext->mStackPos - 1].mContent;
+  }
+
+  if (parent) {
     // Create content object
     nsCOMPtr<nsIContent> element;
     nsCOMPtr<nsINodeInfo> nodeInfo;
@@ -2914,8 +2923,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     if (NS_FAILED(result)) {
       return result;
     }
-
-    mCurrentContext->AddLeaf(element); // <link>s are leaves
+    parent->AppendChildTo(element, PR_FALSE);
 
     if (ssle) {
       ssle->SetEnableUpdates(PR_TRUE);

@@ -55,13 +55,6 @@ vpath crashreporter%.ini $(LOCALE_SRCDIR)/crashreporter
 ifdef LOCALE_MERGEDIR
 vpath crashreporter%.ini @srcdir@/en-US/crashreporter
 endif
-ifdef LOCALE_MERGEDIR
-vpath book%.inc $(LOCALE_MERGEDIR)/browser/profile
-endif
-vpath book%.inc $(LOCALE_SRCDIR)/profile
-ifdef LOCALE_MERGEDIR
-vpath book%.inc @srcdir@/en-US/profile
-endif
 
 
 run_for_effects := $(shell if ! test -d $(DIST); then $(NSINSTALL) -D $(DIST); fi; if ! test -d $(DIST)/branding; then $(NSINSTALL) -D $(DIST)/branding; fi)
@@ -84,12 +77,11 @@ APP_VERSION := $(shell cat $(srcdir)/../config/version.txt)
 PWD := $(shell pwd)
 core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(PWD)/$(1)))
 
-# These are defaulted to be compatible with the files the wget-en-US target
-# pulls. You may override them if you provide your own files. You _must_
-# override them when MOZ_PKG_PRETTYNAMES is defined - the defaults will not
+# ZIP_IN is defaulted to be compatible with the files the wget-en-US target
+# pulls. You may override ZIP_IN if you provide your own files. You also _must_
+# override ZIP_IN when MOZ_PKG_PRETTYNAMES is defined - the default will not
 # work in that case.
 ZIP_IN ?= $(_ABS_DIST)/$(PACKAGE)
-WIN32_INSTALLER_IN ?= $(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
 
 DEFINES += \
 	-DAB_CD=$(AB_CD) \
@@ -123,14 +115,30 @@ install::
 	    $(LOCALE_SRCDIR)/existing-profile-defaults.js > $(DESTDIR)$(mozappdir)/defaults/existing-profile-defaults.js; \
 	fi
 
+ifeq ($(OS_ARCH),OS2)
+README_FILES = \
+	os2/README.txt \
+	$(NULL)
+else
 README_FILES = \
 	README.txt \
 	$(NULL)
+endif
 
 PROFILE_FILES = \
+	bookmarks.html \
 	localstore.rdf \
-	mimeTypes.rdf \
 	$(NULL)
+
+ifeq ($(OS_ARCH),WINNT)
+PROFILE_FILES += win/mimeTypes.rdf
+else
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+PROFILE_FILES += mac/mimeTypes.rdf
+else
+PROFILE_FILES += unix/mimeTypes.rdf
+endif
+endif
 
 PROFILE_CHROME = userChrome-example.css userContent-example.css
 
@@ -141,32 +149,16 @@ ifeq ($(OS_ARCH),WINNT)
 	  $(PERL) -pe 's/(?<!\r)\n/\r\n/g;' < $$file > $(FINAL_TARGET)/`basename $$file`; \
 	done
 else
-ifneq ($(OS_ARCH),OS2)
 	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)
 endif
-endif
 
-NO_JA_JP_MAC_AB_CD := $(if $(filter ja-JP-mac, $(AB_CD)),ja,$(AB_CD))
-
-%/defaults/profile/bookmarks.html: bookmarks.inc generic/profile/bookmarks.html.in
-	$(SYSINSTALL) -D $(dir $@)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-	  -I $< \
-	  -DAB_CD=$(NO_JA_JP_MAC_AB_CD) \
-	  $(srcdir)/generic/profile/bookmarks.html.in \
-	  > $@
-
-libs:: $(FINAL_TARGET)/defaults/profile/bookmarks.html ;
-
-libs:: $(addprefix generic/profile/,$(PROFILE_FILES))
+libs:: $(addprefix $(LOCALE_SRCDIR)/profile/,$(PROFILE_FILES))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/defaults/profile
 
 libs:: $(addprefix $(LOCALE_SRCDIR)/profile/chrome/,$(PROFILE_CHROME))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/defaults/profile/chrome
 
-install:: $(DESTDIR)$(mozappdir)/defaults/profile/bookmarks.html ;
-
-install:: $(addprefix generic/profile/,$(PROFILE_FILES))
+install:: $(addprefix $(LOCALE_SRCDIR)/profile/,$(PROFILE_FILES))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/defaults/profile
 
 install:: $(addprefix $(LOCALE_SRCDIR)/profile/chrome/,$(PROFILE_CHROME))
@@ -179,6 +171,21 @@ libs:: $(addsuffix .xml,$(SEARCH_PLUGINS))
 
 install:: $(addsuffix .xml,$(SEARCH_PLUGINS))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/searchplugins
+
+MICROSUMMARY_GENERATORS = $(shell cat $(LOCALE_SRCDIR)/microsummary-generators/list.txt)
+MICROSUMMARY_GENERATOR_PREFIX = $(addprefix $(LOCALE_SRCDIR)/microsummary-generators/,$(MICROSUMMARY_GENERATORS))
+
+libs::
+ifneq (,$(strip $(MICROSUMMARY_GENERATORS)))
+        $(addsuffix .xml,$(MICROSUMMARY_GENERATOR_PREFIX))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/microsummary-generators
+endif
+
+install::
+ifneq (,$(strip $(MICROSUMMARY_GENERATORS)))
+        $(addsuffix .xml,$(MICROSUMMARY_GENERATOR_PREFIX))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/microsummary-generators
+endif
 
 tests:
 ifneq (en-US, $(AB_CD))
@@ -241,6 +248,7 @@ endif
 	chmod 0755 $(WIN32_INSTALLER_OUT)
 
 ifeq (WINNT,$(OS_ARCH))
+repackage-win32-installer-%: WIN32_INSTALLER_IN=$(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
 repackage-win32-installer-%: $(WIN32_INSTALLER_IN) libs-%
 	@$(MAKE) repackage-win32-installer AB_CD=$* WIN32_INSTALLER_IN=$(WIN32_INSTALLER_IN)
 else
@@ -250,7 +258,7 @@ endif
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/MacOS
 else
-STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_DIR)
+STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)
 endif
 
 $(STAGEDIST): AB_CD:=en-US
@@ -270,13 +278,25 @@ endif
 	$(NSINSTALL) -D $(DIST)/l10n-stage
 	cd $(DIST)/l10n-stage && \
 	  $(UNMAKE_PACKAGE)
+ifdef MOZ_PKG_PRETTYNAMES
+ifneq (,$(filter WINNT Linux,$(OS_ARCH)))
+# Linux and Windows unpack to a directory named after the MOZ_APP_NAME
+# they were built with. This is fine when when MOZ_PKG_PRETTYNAMES
+# isn't defined, because MOZ_PKG_APPNAME will be the same as MOZ_APP_NAME.
+# However, when MOZ_PKG_PRETTYNAMES is passed MOZ_PKG_APPNAME inherits
+# from MOZ_PKG_DISPLAYNAME, which is not always the same as MOZ_APP_NAME.
+	cd $(DIST)/l10n-stage && \
+      mv $(MOZ_APP_NAME) $(MOZ_PKG_APPNAME)
+endif
+endif
 	make clobber-zip AB_CD=en-US
 
 clobber-zip:
 	$(RM) $(STAGEDIST)/chrome/$(AB_CD).jar \
 	  $(STAGEDIST)/chrome/$(AB_CD).manifest \
 	  $(STAGEDIST)/defaults/pref/firefox-l10n.js
-	$(RM) -rf  $(STAGEDIST)/searchplugins \
+	$(RM) -r $(STAGEDIST)/microsummary-generators \
+	  $(STAGEDIST)/searchplugins \
 	  $(STAGEDIST)/dictionaries \
 	  $(STAGEDIST)/defaults/profile \
 	  $(STAGEDIST)/chrome/$(AB_CD)
@@ -305,6 +325,7 @@ endif
 ifdef MOZ_MAKE_COMPLETE_MAR
 	$(MAKE) -C $(DEPTH)/tools/update-packaging full-update AB_CD=$(AB_CD) \
 	  MOZ_PKG_PRETTYNAMES=$(MOZ_PKG_PRETTYNAMES) \
+	  STAGEDIST="$(_ABS_DIST)/install" \
 	  PACKAGE_BASE_DIR="$(_ABS_DIST)/l10n-stage" \
 	  DIST="$(_ABS_DIST)"
 endif
@@ -318,6 +339,7 @@ endif
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	mv -f "$(DIST)/l10n-stage/$(PACKAGE)" "$(DIST)/$(PACKAGE)"
 
+repackage-zip-%: ZIP_IN=$(_ABS_DIST)/$(PACKAGE)
 repackage-zip-%: $(ZIP_IN) $(STAGEDIST) libs-%
 	@$(MAKE) repackage-zip AB_CD=$* ZIP_IN=$(ZIP_IN)
 
@@ -329,7 +351,7 @@ langpack-%: libs-%
 	$(NSINSTALL) -D $(DIST)/$(PKG_LANGPACK_PATH)
 	$(PERL) $(topsrcdir)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) -I$(call EXPAND_LOCALE_SRCDIR,toolkit/locales)/defines.inc -I$(LOCALE_SRCDIR)/defines.inc $(srcdir)/generic/install.rdf > $(FINAL_TARGET)/install.rdf
 	cd $(DIST)/xpi-stage/locale-$(AB_CD) && \
-	  $(ZIP) -r9D $(LANGPACK_FILE) install.rdf chrome chrome.manifest -x chrome/$(AB_CD).manifest
+	  $(ZIP) -r9D $(LANGPACK_FILE) install.rdf chrome/$(AB_CD).jar chrome.manifest
 
 # This is a generic target that will make a langpack, repack ZIP (+tarball)
 # builds, and repack an installer if applicable. It is called from the
@@ -423,17 +445,6 @@ ifeq (WINNT, $(OS_ARCH))
 endif
 # Set the permissions that the folders will have in ftp once uploaded
 	chmod -vR 775 $(UPLOAD_DIR)
-
-l10n-upload-%: AB_CD=$*
-l10n-upload-%:
-	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) "$(DIST)/$(PACKAGE)" $(DIST)/$(LANGPACK)
-ifdef MOZ_MAKE_COMPLETE_MAR
-	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) $(DIST)/$(COMPLETE_MAR)
-endif
-ifeq (WINNT, $(OS_ARCH))
-	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) "$(INSTALLER_PACKAGE)"
-endif
-
 
 merge-%:
 ifdef LOCALE_MERGEDIR

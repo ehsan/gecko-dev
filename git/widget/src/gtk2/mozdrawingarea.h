@@ -39,8 +39,7 @@
 #ifndef __MOZ_DRAWINGAREA_H__
 #define __MOZ_DRAWINGAREA_H__
 
-#include <gdk/gdk.h>
-#include <gtk/gtk.h>
+#include <gdk/gdkwindow.h>
 #include "mozcontainer.h"
 
 #ifdef __cplusplus
@@ -53,11 +52,6 @@ extern "C" {
 #define IS_MOZ_DRAWINGAREA(obj)         (GTK_CHECK_TYPE((obj), MOZ_DRAWINGAREA_TYPE))
 #define IS_MOZ_DRAWINGAREA_CLASS(klass) (GTK_CHECK_CLASS_TYPE((klass), MOZ_DRAWINGAREA_TYPE))
 #define MOZ_DRAWINGAREA_GET_CLASS(obj)  (GTK_CHECK_GET_CLASS((obj), MOZ_DRAWINGAREA_TYPE, MozDrawingareaClass))
-
-#if (GTK_CHECK_VERSION(2, 12, 0) || \
-    (GTK_CHECK_VERSION(2, 10, 0) && defined(MOZ_PLATFORM_HILDON)))
-#define HAVE_GTK_MOTION_HINTS
-#endif
 
 typedef struct _MozDrawingarea      MozDrawingarea;
 typedef struct _MozDrawingareaClass MozDrawingareaClass;

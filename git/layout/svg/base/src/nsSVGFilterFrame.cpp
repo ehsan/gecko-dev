@@ -122,8 +122,6 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
 
   PRUint16 units =
     filter->mEnumAttributes[nsSVGFilterElement::FILTERUNITS].GetAnimValue();
-  PRUint16 primitiveUnits =
-    filter->mEnumAttributes[nsSVGFilterElement::PRIMITIVEUNITS].GetAnimValue();
   nsCOMPtr<nsIDOMSVGRect> bbox;
   if (aOverrideSourceBBox) {
     NS_NewSVGRect(getter_AddRefs(bbox),
@@ -132,8 +130,7 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
   } else {
     bbox = nsSVGUtils::GetBBox(aTarget);
   }
-  if (!bbox && (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX ||
-                primitiveUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX))
+  if (!bbox && units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX)
     return;
 
   gfxRect filterArea = nsSVGUtils::GetRelativeRect(units,
@@ -185,6 +182,8 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
     MapDeviceRectToFilterSpace(finiM, filterRes, aDirtyInputRect);
 
   // Setup instance data
+  PRUint16 primitiveUnits =
+    filter->mEnumAttributes[nsSVGFilterElement::PRIMITIVEUNITS].GetAnimValue();
   mInstance = new nsSVGFilterInstance(aTarget, aPaint, filter, bbox, filterArea,
                                       nsIntSize(filterRes.width, filterRes.height),
                                       fini,

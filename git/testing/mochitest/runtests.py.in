@@ -333,8 +333,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
 
   # allow relative paths for logFile
   if options.logFile:
-    logpath = os.path.join(oldcwd, os.path.expanduser(options.logFile))
-    options.logFile = os.path.normpath(logpath)
+    options.logFile = os.path.normpath(os.path.join(oldcwd, options.logFile))
   if options.browserChrome:
     makeTestConfig(options)
   else:
@@ -462,9 +461,6 @@ def maybeForceLeakThreshold(options):
       # We still leak a nondeterministic amount running browser-chrome tests.
       # But we are close to 0 (bug), so start to prevent/detect regressions. (Bug 460548)
       options.leakThreshold = 75000
-    elif options.a11y:
-      # We don't leak running the --a11y tests.
-      options.leakThreshold = 0
     else:
       # Normal Mochitests: no leaks.
       options.leakThreshold = 0

@@ -25,7 +25,7 @@
  *   Håkan Waara <hwaara@gmail.com>
  *   Stuart Morgan <stuart.morgan@alumni.case.edu>
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Thomas K. Dyas <tdyas@zecador.org>
+ *   Thomas K. Dyas <tdyas@zecador.org> (simple gestures support)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or 
@@ -109,13 +109,11 @@ extern "C" {
 struct __TISInputSource;
 typedef __TISInputSource* TISInputSourceRef;
 #endif
-TISInputSourceRef (*Leopard_TISCopyCurrentKeyboardInputSource)() = NULL;
 TISInputSourceRef (*Leopard_TISCopyCurrentKeyboardLayoutInputSource)() = NULL;
 void* (*Leopard_TISGetInputSourceProperty)(TISInputSourceRef inputSource, CFStringRef propertyKey) = NULL;
 CFArrayRef (*Leopard_TISCreateInputSourceList)(CFDictionaryRef properties, Boolean includeAllInstalled) = NULL;
 CFStringRef kOurTISPropertyUnicodeKeyLayoutData = NULL;
 CFStringRef kOurTISPropertyInputSourceID = NULL;
-CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
 
 extern PRBool gCocoaWindowMethodsSwizzled; // Defined in nsCocoaWindow.mm
 
@@ -137,8 +135,6 @@ static void blinkRgn(RgnHandle rgn);
 
 nsIRollupListener * gRollupListener = nsnull;
 nsIWidget         * gRollupWidget   = nsnull;
-
-PRUint32 gLastModifierState = 0;
 
 
 @interface ChildView(Private)
@@ -516,13 +512,11 @@ nsChildView::nsChildView() : nsBaseWidget()
     // and should be avoided."
     void* hitoolboxHandle = dlopen("/System/Library/Frameworks/Carbon.framework/Frameworks/HIToolbox.framework/Versions/A/HIToolbox", RTLD_LAZY);
     if (hitoolboxHandle) {
-      *(void **)(&Leopard_TISCopyCurrentKeyboardInputSource) = dlsym(hitoolboxHandle, "TISCopyCurrentKeyboardInputSource");
       *(void **)(&Leopard_TISCopyCurrentKeyboardLayoutInputSource) = dlsym(hitoolboxHandle, "TISCopyCurrentKeyboardLayoutInputSource");
       *(void **)(&Leopard_TISGetInputSourceProperty) = dlsym(hitoolboxHandle, "TISGetInputSourceProperty");
       *(void **)(&Leopard_TISCreateInputSourceList) = dlsym(hitoolboxHandle, "TISCreateInputSourceList");
       kOurTISPropertyUnicodeKeyLayoutData = *static_cast<CFStringRef*>(dlsym(hitoolboxHandle, "kTISPropertyUnicodeKeyLayoutData"));
       kOurTISPropertyInputSourceID = *static_cast<CFStringRef*>(dlsym(hitoolboxHandle, "kTISPropertyInputSourceID"));
-      kOurTISPropertyInputSourceLanguages = *static_cast<CFStringRef*>(dlsym(hitoolboxHandle, "kTISPropertyInputSourceLanguages"));
     }
   }
 }
@@ -1801,13 +1795,17 @@ nsChildView::OnPaint(nsPaintEvent &event)
 }
 
 
-// The OS manages repaints well enough on its own, so we don't have to
-// flush them out here.  In other words, the OS will automatically call
-// displayIfNeeded at the appropriate times, so we don't need to do it
-// ourselves.  See bmo bug 459319.
+// this is handled for us by UpdateWidget
 NS_IMETHODIMP nsChildView::Update()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Update means "Flush any pending changes right now."  It does *not* mean
+  // repaint the world. :) -- dwh
+  [mView displayIfNeeded];
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -1960,9 +1958,6 @@ NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStat
 #ifdef DEBUG
   debug_DumpEvent(stdout, event->widget, event, nsCAutoString("something"), 0);
 #endif
-
-  NS_ASSERTION(!(nsTSMManager::IsComposing() && NS_IS_KEY_EVENT(event)),
-    "Any key events should not be fired during IME composing");
 
   aStatus = nsEventStatus_eIgnore;
 
@@ -2226,7 +2221,6 @@ NS_IMETHODIMP nsChildView::SetIMEEnabled(PRUint32 aState)
 
   switch (aState) {
     case nsIWidget::IME_STATUS_ENABLED:
-    case nsIWidget::IME_STATUS_PLUGIN:
       nsTSMManager::SetRomanKeyboardsOnly(PR_FALSE);
       nsTSMManager::EnableIME(PR_TRUE);
       break;
@@ -2391,22 +2385,6 @@ NSPasteboard* globalDragPboard = nil;
 // is on the stack.
 NSView* gLastDragView = nil;
 NSEvent* gLastDragEvent = nil;
-
-
-+ (void)initialize
-{
-  static BOOL initialized = NO;
-
-  if (!initialized) {
-    // Inform the OS about the types of services (from the "Services" menu)
-    // that we can handle.
-    NSArray *sendTypes = [NSArray arrayWithObject:NSStringPboardType];
-    NSArray *returnTypes = [NSArray array];
-    [NSApp registerServicesMenuSendTypes:sendTypes returnTypes:returnTypes];
-
-    initialized = YES;
-  }
-}
 
 
 // initWithFrame:geckoChild:
@@ -2892,22 +2870,6 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
-// Needed to deal with the consequences of calling [NSCell
-// drawWithFrame:inView:] with a ChildView object as the inView parameter
-// (this can happen in nsNativeThemeCocoa.mm):  drawWithFrame:inView:
-// expects an NSControl as its inView parameter, and may call [NSControl
-// currentEditor] on it.  But since a ChildView object (like an NSView object)
-// isn't a control, it doesn't have a "current editor", or a currentEditor
-// method.  So calling currentEditor on it will trigger a Objective-C
-// "unrecognized selector" exception.  To prevent this, ChildView needs its
-// own currentEditor method.  Since a ChildView object never has a "current
-// editor", it should always return nil.
-- (NSText*)currentEditor
-{
-  return nil;
-}
-
-
 - (void)scrollRect:(NSRect)aRect by:(NSSize)offset
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -2952,7 +2914,7 @@ NSEvent* gLastDragEvent = nil;
 static const PRInt32 sShadowInvalidationInterval = 100;
 - (void)maybeInvalidateShadow
 {
-  if ([mWindow isOpaque] || ![mWindow hasShadow])
+  if (!mIsTransparent || ![mWindow hasShadow])
     return;
 
   PRIntervalTime now = PR_IntervalNow();
@@ -3327,7 +3289,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   // Setup the "swipe" event.
   nsSimpleGestureEvent geckoEvent(PR_TRUE, NS_SIMPLE_GESTURE_SWIPE, mGeckoChild, 0, 0.0);
-  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+  [self convertGenericCocoaEvent:anEvent toGeckoEvent:&geckoEvent];
 
   // Record the left/right direction.
   if (deltaX > 0.0)
@@ -3391,7 +3353,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   // Setup the event.
   nsSimpleGestureEvent geckoEvent(PR_TRUE, msg, mGeckoChild, 0, deltaZ);
-  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+  [self convertGenericCocoaEvent:anEvent toGeckoEvent:&geckoEvent];
 
   // Send the event.
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3433,7 +3395,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   // Setup the event.
   nsSimpleGestureEvent geckoEvent(PR_TRUE, msg, mGeckoChild, 0, 0.0);
-  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+  [self convertGenericCocoaEvent:anEvent toGeckoEvent:&geckoEvent];
   geckoEvent.delta = -rotation;
   if (rotation > 0.0) {
     geckoEvent.direction = nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
@@ -3471,7 +3433,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
       // Setup the "magnify" event.
       nsSimpleGestureEvent geckoEvent(PR_TRUE, NS_SIMPLE_GESTURE_MAGNIFY,
                                       mGeckoChild, 0, mCumulativeMagnification);
-      [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+      [self convertGenericCocoaEvent:anEvent toGeckoEvent:&geckoEvent];
 
       // Send the event.
       mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3482,7 +3444,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     {
       // Setup the "rotate" event.
       nsSimpleGestureEvent geckoEvent(PR_TRUE, NS_SIMPLE_GESTURE_ROTATE, mGeckoChild, 0, 0.0);
-      [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+      [self convertGenericCocoaEvent:anEvent toGeckoEvent:&geckoEvent];
       geckoEvent.delta = -mCumulativeRotation;
       if (mCumulativeRotation > 0.0) {
         geckoEvent.direction = nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
@@ -5597,7 +5559,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   mCurKeyEvent = theEvent;
 
   BOOL nonDeadKeyPress = [[theEvent characters] length] > 0;
-  if (nonDeadKeyPress && !nsTSMManager::IsComposing()) {
+  if (nonDeadKeyPress) {
     if (![theEvent isARepeat]) {
       NSResponder* firstResponder = [[self window] firstResponder];
 
@@ -5850,7 +5812,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   }
 
   // if we don't have any characters we can't generate a keyUp event
-  if ([[theEvent characters] length] == 0 || nsTSMManager::IsComposing())
+  if ([[theEvent characters] length] == 0)
     return;
 
   // Cocoa doesn't send an NSKeyDown event for control-tab on 10.4, so if this
@@ -5889,20 +5851,22 @@ static BOOL keyUpAlreadySentKeyDown = NO;
     }
 
     // now send a key press event if we should
-    nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
-    [self convertCocoaKeyEvent:nativeKeyDownEvent toGeckoEvent:&geckoEvent];
+    if (!nsTSMManager::IsComposing()) {
+      nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
+      [self convertCocoaKeyEvent:nativeKeyDownEvent toGeckoEvent:&geckoEvent];
 
-    if (keyDownHandled)
-      geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
+      if (keyDownHandled)
+        geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
-    // create native EventRecord for use by plugins
-    EventRecord macEvent;
-    ConvertCocoaKeyEventToMacEvent(nativeKeyDownEvent, macEvent);
-    geckoEvent.nativeMsg = &macEvent;
+      // create native EventRecord for use by plugins
+      EventRecord macEvent;
+      ConvertCocoaKeyEventToMacEvent(nativeKeyDownEvent, macEvent);
+      geckoEvent.nativeMsg = &macEvent;
 
-    mGeckoChild->DispatchWindowEvent(geckoEvent);
-    if (!mGeckoChild)
-      return;
+      mGeckoChild->DispatchWindowEvent(geckoEvent);
+      if (!mGeckoChild)
+        return;
+    }
   }
 
   nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_UP, nsnull);
@@ -6023,7 +5987,10 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // CapsLock state and other modifier states are different:
   // CapsLock state does not revert when the CapsLock key goes up, as the
-  // modifier state does for other modifier keys on key up.
+  // modifier state does for other modifier keys on key up. Also,
+  // mLastModifierState is set only when this view is the first responder. We
+  // cannot trust mLastModifierState to accurately reflect the state of CapsLock
+  // since CapsLock maybe have been toggled when another window was active.
   if ([theEvent keyCode] == kCapsLockKeyCode) {
     // Fire key down event for caps lock.
     [self fireKeyEventForFlagsChanged:theEvent keyDown:YES];
@@ -6042,7 +6009,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
     for (PRUint32 i = 0; i < kModifierCount; i++) {
       PRUint32 modifierBit = kModifierMaskTable[i];
-      if ((modifiers & modifierBit) != (gLastModifierState & modifierBit)) {
+      if ((modifiers & modifierBit) != (mLastModifierState & modifierBit)) {
         BOOL isKeyDown = (modifiers & modifierBit) != 0 ? YES : NO;
 
         [self fireKeyEventForFlagsChanged:theEvent keyDown:isKeyDown];
@@ -6057,7 +6024,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       }
     }
 
-    gLastModifierState = modifiers;
+    mLastModifierState = modifiers;
   }
 
   // check if the hand scroll cursor needs to be set/unset
@@ -6080,8 +6047,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (!mGeckoChild || [theEvent type] != NSFlagsChanged ||
-      nsTSMManager::IsComposing())
+  if (!mGeckoChild || [theEvent type] != NSFlagsChanged)
     return;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
@@ -6419,89 +6385,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-
-#pragma mark -
-
-// Support for the "Services" menu. We currently only support sending strings
-// to services.
-
-- (id)validRequestorForSendType:(NSString *)sendType
-                     returnType:(NSString *)returnType
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  // sendType contains the type of data that the service would like this
-  // application to send to it.  sendType is nil if the service is not
-  // requesting any data.
-  //
-  // returnType contains the type of data the the service would like to
-  // return to this application (e.g., to overwrite the selection).
-  // returnType is nil if the service will not return any data.
-  //
-  // The following condition thus triggers when the service expects a string
-  // from us or no data at all AND when the service will not send back any
-  // data to us.
-
-  if ((!sendType || [sendType isEqual:NSStringPboardType]) && !returnType) {
-    // Query Gecko window to determine if there is a current selection.
-    bool hasSelection = false;
-    if (mGeckoChild) {
-      nsAutoRetainCocoaObject kungFuDeathGrip(self);
-      nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT,
-                                    mGeckoChild);
-      mGeckoChild->DispatchWindowEvent(selection);
-      if (selection.mSucceeded && !selection.mReply.mString.IsEmpty())
-        hasSelection = true;
-    }
-
-    // Return this object if it can handle the request.
-    if ((!sendType || hasSelection) && !returnType)
-      return self;
-  }
-
-  return [super validRequestorForSendType:sendType returnType:returnType];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
-}
-
-
-- (BOOL)writeSelectionToPasteboard:(NSPasteboard *)pboard
-                             types:(NSArray *)types
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  nsAutoRetainCocoaObject kungFuDeathGrip(self);
- 
-  // Ensure that the service will accept strings. (We only support strings.)
-  if ([types containsObject:NSStringPboardType] == NO)
-    return NO;
-
-  // Obtain the current selection.
-  if (!mGeckoChild)
-    return NO;
-  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, mGeckoChild);
-  mGeckoChild->DispatchWindowEvent(selection);
-  if (!selection.mSucceeded || selection.mReply.mString.IsEmpty())
-    return NO;
-
-  // Copy the current selection to the pasteboard.
-  NSArray *typesDeclared = [NSArray arrayWithObject:NSStringPboardType];
-  [pboard declareTypes:typesDeclared owner:nil];
-  return [pboard setString:ToNSString(selection.mReply.mString)
-                   forType:NSStringPboardType];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
-}
-
-
-// Called if the service wants us to replace the current selection. We do
-// not currently support replacing the current selection so just return NO.
-- (BOOL)readSelectionFromPasteboard:(NSPasteboard *)pboard
-{
-  return NO;
-}
-
-
 #pragma mark -
 
 
@@ -6657,35 +6540,6 @@ nsTSMManager::GetIMEOpenState()
 }
 
 
-static const NSString* GetCurrentIMELanguage()
-{
-  if (!nsToolkit::OnLeopardOrLater()) {
-    // XXX [[NSInputManager currentInputManager] language] doesn't work fine.
-    switch (::GetScriptManagerVariable(smKeyScript)) {
-      case smJapanese:
-        return @"ja";
-      default:
-        return nil;
-    }
-  }
-
-  NS_PRECONDITION(Leopard_TISCopyCurrentKeyboardInputSource,
-    "Leopard_TISCopyCurrentKeyboardInputSource is not initialized");
-  TISInputSourceRef inputSource = Leopard_TISCopyCurrentKeyboardInputSource();
-  if (!inputSource) {
-    NS_ERROR("Leopard_TISCopyCurrentKeyboardInputSource failed");
-    return nil;
-  }
-
-  NS_PRECONDITION(Leopard_TISGetInputSourceProperty,
-    "Leopard_TISGetInputSourceProperty is not initialized");
-  CFArrayRef langs = static_cast<CFArrayRef>(
-    Leopard_TISGetInputSourceProperty(inputSource,
-                                      kOurTISPropertyInputSourceLanguages));
-  return static_cast<const NSString*>(CFArrayGetValueAtIndex(langs, 0));
-}
-
-
 void
 nsTSMManager::InitTSMDocument(NSView<mozView>* aViewForCaret)
 {
@@ -6718,11 +6572,8 @@ nsTSMManager::InitTSMDocument(NSView<mozView>* aViewForCaret)
 
   // ATOK (Japanese IME) updates the window level at activating,
   // we need to notify the change with this hack.
-  const NSString* lang = ::GetCurrentIMELanguage();
-  if (lang && [lang isEqualToString:@"ja"]) {
-    ::DeactivateTSMDocument(sDocumentID);
-    ::ActivateTSMDocument(sDocumentID);
-  }
+  ::DeactivateTSMDocument(sDocumentID);
+  ::ActivateTSMDocument(sDocumentID);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

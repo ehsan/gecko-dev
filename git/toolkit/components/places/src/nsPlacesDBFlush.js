@@ -46,7 +46,6 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
-const Cu = Components.utils;
 
 const kQuitApplication = "quit-application";
 const kSyncFinished = "places-sync-finished";
@@ -60,8 +59,8 @@ const kDefaultSyncInterval = 120;
 function nsPlacesDBFlush()
 {
   this._prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefService).
-                getBranch("places.");
+              getService(Ci.nsIPrefService).
+              getBranch("places.");
 
   // Get our sync interval
   try {
@@ -90,17 +89,6 @@ function nsPlacesDBFlush()
 
   // Create our timer to update everything
   this._timer = this._newTimer();
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// Smart Getters
-
-  this.__defineGetter__("_db", function() {
-    delete this._db;
-    return this._db = Cc["@mozilla.org/browser/nav-history-service;1"].
-                      getService(Ci.nsPIPlacesDatabase).
-                      DBConnection;
-  });
-
 }
 
 nsPlacesDBFlush.prototype = {
@@ -199,8 +187,8 @@ nsPlacesDBFlush.prototype = {
 
   handleError: function DBFlush_handleError(aError)
   {
-    Cu.reportError("Async statement execution returned with '" +
-                   aError.result + "', '" + aError.message + "'");
+    Components.utils.reportError("Async statement execution returned with '" +
+                                 aError.result + "', '" + aError.message + "'");
   },
 
   handleCompletion: function DBFlush_handleCompletion(aReason)
@@ -268,28 +256,7 @@ nsPlacesDBFlush.prototype = {
     // Delete all the data in the temp table.
     // We have triggers setup that ensure that the data is transferred over
     // upon deletion.
-    let condition = "";
-    switch(aTableName) {
-      case "historyvisits":
-        // For history table we want to leave embed visits in memory, since
-        // those are expired with current session, so we are filtering them out.
-        condition = "WHERE visit_type <> " + Ci.nsINavHistoryService.TRANSITION_EMBED;
-        break;
-      case "places":
-        // For places table we want to leave places associated with embed visits
-        // in memory, they usually have hidden = 1 and at least an embed visit
-        // in historyvisits_temp table.
-        condition = "WHERE id IN (SELECT id FROM moz_places_temp h " +
-                                  "WHERE h.hidden <> 1 OR NOT EXISTS ( " +
-                                    "SELECT id FROM moz_historyvisits_temp " +
-                                    "WHERE place_id = h.id AND visit_type = " +
-                                    Ci.nsINavHistoryService.TRANSITION_EMBED +
-                                    " LIMIT 1) " +
-                                  ")";
-        break;
-    }
-
-    return this._db.createStatement("DELETE FROM moz_" + aTableName + "_temp " + condition);
+    return this._db.createStatement("DELETE FROM moz_" + aTableName + "_temp");
   },
 
   /**
@@ -322,6 +289,16 @@ nsPlacesDBFlush.prototype = {
     Ci.mozIStorageStatementCallback,
   ])
 };
+
+//////////////////////////////////////////////////////////////////////////////
+//// Smart Getters
+
+nsPlacesDBFlush.prototype.__defineGetter__("_db", function() {
+  delete nsPlacesDBFlush._db;
+  return nsPlacesDBFlush._db = Cc["@mozilla.org/browser/nav-history-service;1"].
+                               getService(Ci.nsPIPlacesDatabase).
+                               DBConnection;
+});
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Module Registration

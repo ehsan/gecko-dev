@@ -77,7 +77,7 @@
 // It is safer to leve it commented out
 // #define HONOR_BLACK_POINT_TAG    1
 
-#ifdef DEBUG
+#ifdef CMS_DEBUG
 #include <stdio.h>
 #define CMSASSERT(x) \
 {   if (!(x)) { \
@@ -855,7 +855,6 @@ LCMSAPI LPcmsCIExyY LCMSEXPORT cmsD50_xyY(void);
 LCMSAPI cmsHPROFILE   LCMSEXPORT cmsOpenProfileFromFile(const char *ICCProfile, const char *sAccess);
 LCMSAPI cmsHPROFILE   LCMSEXPORT cmsOpenProfileFromMem(LPVOID MemPtr, DWORD dwSize);
 LCMSAPI LCMSBOOL      LCMSEXPORT cmsCloseProfile(cmsHPROFILE hProfile);
-LCMSAPI LCMSBOOL      LCMSEXPORT cmsProfileIsBogus(cmsHPROFILE hProfile);
 
 // Predefined run-time profiles
 
@@ -1776,14 +1775,14 @@ typedef enum {
              CMS_PRECACHE_LI1616_REVERSE = 0,   
              CMS_PRECACHE_LI168_REVERSE = 1,
              CMS_PRECACHE_LI16W_FORWARD = 2,
-             CMS_PRECACHE_LI8F_FORWARD = 3,
+             CMS_PRECACHE_LI16F_FORWARD = 3,
              PRECACHE_TYPE_COUNT
              } LCMSPRECACHETYPE;
 
 #define IS_LI_REVERSE(Type) ((Type == CMS_PRECACHE_LI1616_REVERSE) || \
                              (Type == CMS_PRECACHE_LI168_REVERSE))
 #define IS_LI_FORWARD(Type) ((Type == CMS_PRECACHE_LI16W_FORWARD) || \
-                             (Type == CMS_PRECACHE_LI8F_FORWARD))
+                             (Type == CMS_PRECACHE_LI16F_FORWARD))
 
 
 // Implementation structure for a 16 bit to 16 bit linear interpolations
@@ -1811,12 +1810,12 @@ typedef struct _lcms_precache_li16w_impl {
                } LCMSPRECACHELI16WIMPL, FAR* LPLCMSPRECACHELI16WIMPL;
 
 // Implementation structure for 16 bit to floating-point linear interpolations
-typedef struct _lcms_precache_li8f_impl {
+typedef struct _lcms_precache_li16f_impl {
 
                // Tables containing the precomputed values
                LPFLOAT Cache[3];
 
-               } LCMSPRECACHELI8FIMPL, FAR* LPLCMSPRECACHELI8FIMPL;
+               } LCMSPRECACHELI16FIMPL, FAR* LPLCMSPRECACHELI16FIMPL;
 
 // This is a struct containing data related to precached linear interpolations
 // on a profile.
@@ -1838,7 +1837,7 @@ typedef struct _lcms_precache_struct {
                      LCMSPRECACHELI1616IMPL LI1616_REVERSE;
                      LCMSPRECACHELI168IMPL  LI168_REVERSE;
                      LCMSPRECACHELI16WIMPL  LI16W_FORWARD;
-                     LCMSPRECACHELI8FIMPL  LI8F_FORWARD;
+                     LCMSPRECACHELI16FIMPL  LI16F_FORWARD;
                      } Impl;
 
                } LCMSPRECACHE, FAR* LPLCMSPRECACHE;

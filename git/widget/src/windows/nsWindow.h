@@ -94,12 +94,18 @@ PRInt32 GetWindowsVersion();
  * could break touchpad scrolling or screen readers.
  */
 const PRUint32 kMaxClassNameLength    = 40;
-const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
-const LPCWSTR kClassNameUI           = L"MozillaUIWindowClass";
-const LPCWSTR kClassNameContent      = L"MozillaContentWindowClass";
-const LPCWSTR kClassNameContentFrame = L"MozillaContentFrameWindowClass";
-const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
-const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
+const LPCWSTR kWClassNameHidden       = L"MozillaHiddenWindowClass";
+const LPCWSTR kWClassNameUI           = L"MozillaUIWindowClass";
+const LPCWSTR kWClassNameContent      = L"MozillaContentWindowClass";
+const LPCWSTR kWClassNameContentFrame = L"MozillaContentFrameWindowClass";
+const LPCWSTR kWClassNameGeneral      = L"MozillaWindowClass";
+const LPCWSTR kWClassNameDialog       = L"MozillaDialogClass";
+const LPCSTR kClassNameHidden         = "MozillaHiddenWindowClass";
+const LPCSTR kClassNameUI             = "MozillaUIWindowClass";
+const LPCSTR kClassNameContent        = "MozillaContentWindowClass";
+const LPCSTR kClassNameContentFrame   = "MozillaContentFrameWindowClass";
+const LPCSTR kClassNameGeneral        = "MozillaWindowClass";
+const LPCSTR kClassNameDialog         = "MozillaDialogClass";
 
 typedef enum
 {
@@ -290,29 +296,16 @@ protected:
 
   void                    DispatchPendingEvents();
   virtual PRBool          ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT *aRetValue);
-
-  /**
-   * The result means whether this method processed the native event for
-   * plugin. If false, the native event should be processed by the caller self.
-   */
-  PRBool                  ProcessMessageForPlugin(const MSG &aMsg,
-                            LRESULT *aRetValue, PRBool &aCallDefWndProc);
-
-  LRESULT                 ProcessCharMessage(const MSG &aMsg,
-                                             PRBool *aEventDispatched);
-  LRESULT                 ProcessKeyUpMessage(const MSG &aMsg,
-                                              PRBool *aEventDispatched);
-  LRESULT                 ProcessKeyDownMessage(const MSG &aMsg,
-                                                PRBool *aEventDispatched);
-
   virtual PRBool          DispatchWindowEvent(nsGUIEvent* event);
   virtual PRBool          DispatchWindowEvent(nsGUIEvent*event, nsEventStatus &aStatus);
 
    // Allow Derived classes to modify the height that is passed
    // when the window is created or resized.
   virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
-  virtual LPCWSTR         WindowClass();
-  virtual LPCWSTR         WindowPopupClass();
+  virtual LPCWSTR         WindowClassW();
+  virtual LPCWSTR         WindowPopupClassW();
+  virtual LPCTSTR         WindowClass();
+  virtual LPCTSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
   virtual DWORD           WindowExStyle();
 
@@ -324,28 +317,19 @@ protected:
   virtual PRBool          OnResize(nsRect &aWindowRect);
   
   void                    SetupModKeyState();
-  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg);
-
-  LRESULT                 OnChar(const MSG &aMsg, PRBool *aEventDispatched,
-                                 PRUint32 aFlags = 0);
-  LRESULT                 OnKeyDown(const MSG &aMsg, PRBool *aEventDispatched,
-                                    nsFakeCharMessage* aFakeCharMessage);
-  LRESULT                 OnKeyUp(const MSG &aMsg, PRBool *aEventDispatched);
-
-  LRESULT                 OnCharRaw(UINT charCode, UINT aScanCode,
-                                    PRUint32 aFlags = 0,
-                                    const MSG *aMsg = nsnull,
-                                    PRBool *aEventDispatched = nsnull);
-
+  BOOL                    OnChar(UINT charCode, UINT aScanCode, PRUint32 aFlags = 0);
+  BOOL                    OnKeyDown( UINT aVirtualKeyCode, LPARAM aKeyCode,
+                                     nsFakeCharMessage* aFakeCharMessage);
+  BOOL                    OnKeyUp( UINT aVirtualKeyCode, LPARAM aKeyCode);
   UINT                    MapFromNativeToDOM(UINT aNativeKeyCode);
 
 
-  BOOL                    OnInputLangChange(HKL aHKL);
-  BOOL                    OnIMEChar(wchar_t uniChar, LPARAM aKeyState);
+  BOOL                    OnInputLangChange(HKL aHKL, LRESULT *oResult);
+  BOOL                    OnIMEChar(BYTE aByte1, BYTE aByte2, LPARAM aKeyState);
   BOOL                    OnIMEComposition(LPARAM  aGCS);
   BOOL                    OnIMECompositionFull();
   BOOL                    OnIMEEndComposition();
-  BOOL                    OnIMENotify(WPARAM  aIMN, LPARAM aData);
+  BOOL                    OnIMENotify(WPARAM  aIMN, LPARAM aData, LRESULT *oResult);
   BOOL                    OnIMERequest(WPARAM  aIMR, LPARAM aData, LRESULT *oResult);
   BOOL                    OnIMESelect(BOOL  aSelected, WORD aLangID);
   BOOL                    OnIMESetContext(BOOL aActive, LPARAM& aISC);
@@ -375,22 +359,17 @@ protected:
                                              nsIWidget* aNewOriginWidget,
                                              nsRect&    aOutRect);
 
-  PRBool                  ConvertToANSIString(const nsAFlatString& aStr,
-                                              UINT aCodePage,
-                                              nsACString& aANSIStr);
-
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                             const nsTArray<nsAlternativeCharCode>* aAlternativeChars,
-                            UINT aVirtualCharCode, const MSG *aMsg,
+                            UINT aVirtualCharCode, LPARAM aKeyCode,
                             PRUint32 aFlags = 0);
-
-  PRBool                  DispatchPluginEvent(const MSG &aMsg);
 
   virtual PRBool          DispatchFocus(PRUint32 aEventType, PRBool isMozWindowTakingFocus);
   virtual PRBool          OnScroll(UINT scrollCode, int cPos);
   virtual HBRUSH          OnControlColor();
 
   static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+  static LRESULT CALLBACK DefaultWindowProc(HWND hWns, UINT msg, WPARAM wParam, LPARAM lParam);
 
   // Convert nsEventStatus value to a windows boolean
   static PRBool ConvertStatus(nsEventStatus aStatus)
@@ -419,19 +398,6 @@ protected:
                                             const nsAString& aCharacters,
                                             const nsAString& aUnmodifiedCharacters);
 
-  PRBool PluginHasFocus()
-  {
-    return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN;
-  }
-
-  MSG InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam)
-  {
-    MSG msg;
-    msg.message = aMessage;
-    msg.wParam  = wParam;
-    msg.lParam  = lParam;
-    return msg;
-  }
 private:
 
 
@@ -448,6 +414,7 @@ protected:
   static PRBool     sIMEIsComposing;
   static PRBool     sIMEIsStatusChanged;
 
+  static DWORD      sIMEProperty;
   static nsString*  sIMECompUnicode;
   static PRUint8*   sIMEAttributeArray;
   static PRInt32    sIMEAttributeArrayLength;
@@ -491,7 +458,6 @@ protected:
   PRPackedBool  mIsInMouseCapture;
   PRPackedBool  mIsInMouseWheelProcessing;
   PRPackedBool  mUnicodeWidget;
-  PRPackedBool  mIsPluginWindow;
 
   PRPackedBool  mPainting;
   char          mLeadByte;
@@ -511,6 +477,7 @@ protected:
   HIMC          mOldIMC;
   PRUint32      mIMEEnabled;
 
+  static HKL    gKeyboardLayout;
   static PRBool gSwitchKeyboardLayout;
 
   HKL           mLastKeyboardLayout;

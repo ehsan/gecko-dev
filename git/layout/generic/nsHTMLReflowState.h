@@ -46,7 +46,7 @@
 
 class nsPresContext;
 class nsIRenderingContext;
-class nsFloatManager;
+class nsSpaceManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
 
@@ -244,8 +244,8 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
   // initialized by the Init method below.
   nsCSSFrameType   mFrameType;
 
-  // pointer to the float manager associated with this area
-  nsFloatManager* mFloatManager;
+  // pointer to the space manager associated with this area
+  nsSpaceManager* mSpaceManager;
 
   // The amount the in-flow position of the block is moving vertically relative
   // to its previous in-flow position (i.e. the amount the line containing the
@@ -313,6 +313,9 @@ public:
   // a frame (e.g. nsTableCellFrame) which may need to generate a special 
   // reflow for percent height calculations 
   nsIPercentHeightObserver* mPercentHeightObserver;
+
+  // a frame (e.g. nsTableFrame) which initiates a special reflow for percent height calculations 
+  nsIFrame* mPercentHeightReflowInitiator;
 
   // CSS margin collapsing sometimes requires us to reflow
   // optimistically assuming that margins collapse to see if clearance
@@ -462,13 +465,11 @@ protected:
                        const nsMargin* aBorder,
                        const nsMargin* aPadding);
 
-  // Returns the nearest containing block or block frame (whether or not
-  // it is a containing block) for the specified frame.  Also returns
-  // the left edge and width of the containing block's content area.
+  // Returns the nearest containing block frame for the specified frame.  Also
+  // returns the left edge and width of the containing block's content area.
   // These are returned in the coordinate space of the containing block.
-  nsIFrame* GetHypotheticalBoxContainer(nsIFrame* aFrame,
-                                        nscoord& aCBLeftEdge,
-                                        nscoord& aCBWidth);
+  nsIFrame* GetNearestContainingBlock(nsIFrame* aFrame, nscoord& aCBLeftEdge,
+                                      nscoord& aCBWidth);
 
   void CalculateHypotheticalBox(nsPresContext*    aPresContext,
                                 nsIFrame*         aPlaceholderFrame,

@@ -146,6 +146,77 @@ nsGenericDOMDataNode::SetNodeValue(const nsAString& aNodeValue)
 }
 
 nsresult
+nsGenericDOMDataNode::GetParentNode(nsIDOMNode** aParentNode)
+{
+  *aParentNode = nsnull;
+  nsINode *parent = GetNodeParent();
+
+  return parent ? CallQueryInterface(parent, aParentNode) : NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::GetPreviousSibling(nsIDOMNode** aPrevSibling)
+{
+  *aPrevSibling = nsnull;
+
+  nsINode *parent = GetNodeParent();
+  if (!parent) {
+    return NS_OK;
+  }
+
+  PRInt32 pos = parent->IndexOf(this);
+  nsIContent *sibling = parent->GetChildAt(pos - 1);
+
+  return sibling ? CallQueryInterface(sibling, aPrevSibling) : NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::GetNextSibling(nsIDOMNode** aNextSibling)
+{
+  *aNextSibling = nsnull;
+
+  nsINode *parent = GetNodeParent();
+  if (!parent) {
+    return NS_OK;
+  }
+
+  PRInt32 pos = parent->IndexOf(this);
+  nsIContent *sibling = parent->GetChildAt(pos + 1);
+
+  return sibling ? CallQueryInterface(sibling, aNextSibling) : NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::GetChildNodes(nsIDOMNodeList** aChildNodes)
+{
+  *aChildNodes = nsnull;
+  nsDataSlots *slots = GetDataSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+  if (!slots->mChildNodes) {
+    slots->mChildNodes = new nsChildContentList(this);
+    NS_ENSURE_TRUE(slots->mChildNodes, NS_ERROR_OUT_OF_MEMORY);
+    NS_ADDREF(slots->mChildNodes);
+  }
+
+  NS_ADDREF(*aChildNodes = slots->mChildNodes);
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
+{
+  nsIDocument *document = GetOwnerDoc();
+  if (document) {
+    return CallQueryInterface(document, aOwnerDocument);
+  }
+
+  *aOwnerDocument = nsnull;
+
+  return NS_OK;
+}
+
+nsresult
 nsGenericDOMDataNode::GetNamespaceURI(nsAString& aNamespaceURI)
 {
   SetDOMStringToNull(aNamespaceURI);
@@ -541,7 +612,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
     NS_ASSERTION(IsRootOfNativeAnonymousSubtree() ||
                  !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
-                 (aParent && aParent->IsInNativeAnonymousSubtree()),
+                 aBindingParent->IsInNativeAnonymousSubtree(),
                  "Trying to re-bind content from native anonymous subtree to "
                  "non-native anonymous parent!");
     slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
@@ -736,9 +807,8 @@ nsGenericDOMDataNode::GetChildAt(PRUint32 aIndex) const
 }
 
 nsIContent * const *
-nsGenericDOMDataNode::GetChildArray(PRUint32* aChildCount) const
+nsGenericDOMDataNode::GetChildArray() const
 {
-  *aChildCount = 0;
   return nsnull;
 }
 

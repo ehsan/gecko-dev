@@ -680,7 +680,7 @@ static JSBool
 Namespace(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     return NamespaceHelper(cx,
-                           JS_IsConstructing(cx) ? obj : NULL,
+                           (cx->fp->flags & JSFRAME_CONSTRUCTING) ? obj : NULL,
                            argc, argv, rval);
 }
 
@@ -814,7 +814,7 @@ out:
 static JSBool
 QName(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    return QNameHelper(cx, JS_IsConstructing(cx) ? obj : NULL,
+    return QNameHelper(cx, (cx->fp->flags & JSFRAME_CONSTRUCTING) ? obj : NULL,
                        &js_QNameClass.base, argc, argv, rval);
 }
 
@@ -822,7 +822,7 @@ static JSBool
 AttributeName(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval)
 {
-    return QNameHelper(cx, JS_IsConstructing(cx) ? obj : NULL,
+    return QNameHelper(cx, (cx->fp->flags & JSFRAME_CONSTRUCTING) ? obj : NULL,
                        &js_AttributeNameClass, argc, argv, rval);
 }
 
@@ -1873,7 +1873,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
     chars [offset + dstlen] = 0;
 
     xml = NULL;
-    for (fp = js_GetTopStackFrame(cx); fp && !fp->regs; fp = fp->down)
+    for (fp = cx->fp; fp && !fp->regs; fp = fp->down)
         JS_ASSERT(!fp->script);
     filename = NULL;
     lineno = 1;
@@ -1892,8 +1892,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
     if (!js_InitParseContext(cx, &pc, NULL, NULL, chars, length, NULL,
                              filename, lineno))
         goto out;
-    pn = js_ParseXMLText(cx, js_GetTopStackFrame(cx)->scopeChain, &pc,
-                         JS_FALSE);
+    pn = js_ParseXMLText(cx, cx->fp->scopeChain, &pc, JS_FALSE);
     if (pn && XMLArrayInit(cx, &nsarray, 1)) {
         if (GetXMLSettingFlags(cx, &flags))
             xml = ParseNodeToXML(cx, &pc, pn, &nsarray, flags);
@@ -7264,7 +7263,7 @@ XML(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     *rval = OBJECT_TO_JSVAL(xobj);
     xml = (JSXML *) JS_GetPrivate(cx, xobj);
 
-    if (JS_IsConstructing(cx) && !JSVAL_IS_PRIMITIVE(v)) {
+    if ((cx->fp->flags & JSFRAME_CONSTRUCTING) && !JSVAL_IS_PRIMITIVE(v)) {
         vobj = JSVAL_TO_OBJECT(v);
         clasp = OBJ_GET_CLASS(cx, vobj);
         if (clasp == &js_XMLClass ||
@@ -7292,7 +7291,7 @@ XMLList(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (JSVAL_IS_NULL(v) || JSVAL_IS_VOID(v))
         v = STRING_TO_JSVAL(cx->runtime->emptyString);
 
-    if (JS_IsConstructing(cx) && !JSVAL_IS_PRIMITIVE(v)) {
+    if ((cx->fp->flags & JSFRAME_CONSTRUCTING) && !JSVAL_IS_PRIMITIVE(v)) {
         vobj = JSVAL_TO_OBJECT(v);
         if (OBJECT_IS_XML(cx, vobj)) {
             xml = (JSXML *) JS_GetPrivate(cx, vobj);
@@ -7711,7 +7710,7 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     JSObject *ns, *obj, *tmp;
     jsval v;
 
-    fp = js_GetTopStackFrame(cx);
+    fp = cx->fp;
     ns = fp->xmlNamespace;
     if (ns) {
         *vp = OBJECT_TO_JSVAL(ns);
@@ -7759,7 +7758,7 @@ js_SetDefaultXMLNamespace(JSContext *cx, jsval v)
         return JS_FALSE;
     v = OBJECT_TO_JSVAL(ns);
 
-    fp = js_GetTopStackFrame(cx);
+    fp = cx->fp;
     varobj = fp->varobj;
     if (varobj) {
         if (!OBJ_DEFINE_PROPERTY(cx, varobj, JS_DEFAULT_XML_NAMESPACE_ID, v,
@@ -7951,7 +7950,7 @@ js_FindXMLProperty(JSContext *cx, jsval nameval, JSObject **objp, jsid *idp)
     if (!IsFunctionQName(cx, qn, &funid))
         return JS_FALSE;
 
-    obj = js_GetTopStackFrame(cx)->scopeChain;
+    obj = cx->fp->scopeChain;
     do {
         /* Skip any With object that can wrap XML. */
         target = obj;
@@ -8164,7 +8163,7 @@ js_StepXMLListFilter(JSContext *cx, JSBool initialized)
     JSXML *xml, *list;
     JSXMLFilter *filter;
 
-    sp = js_GetTopStackFrame(cx)->regs->sp;
+    sp = cx->fp->regs->sp;
     if (!initialized) {
         /*
          * We haven't iterated yet, so initialize the filter based on the

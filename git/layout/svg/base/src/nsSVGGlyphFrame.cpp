@@ -428,24 +428,19 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
   mRect.Empty();
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
-  SetMatrixPropagation(PR_FALSE);
   CharacterIterator iter(this, PR_TRUE);
   
-  gfxRect extent = gfxRect(0, 0, 0, 0);
+  gfxRect extent;
 
   if (SetupCairoStrokeGeometry(tmpCtx)) {
-    gfxFloat strokeWidth = tmpCtx->CurrentLineWidth();
     AddCharactersToPath(&iter, tmpCtx);
-    tmpCtx->SetLineWidth(strokeWidth);
-    tmpCtx->IdentityMatrix();
     extent = tmpCtx->GetUserStrokeExtent();
-  }
-  if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None) {
+  } else if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None) {
     AddBoundingBoxesToPath(&iter, tmpCtx);
-    tmpCtx->IdentityMatrix();
-    extent = extent.Union(tmpCtx->GetUserPathExtent());
+    extent = tmpCtx->GetUserPathExtent();
+  } else {
+    extent = gfxRect(0, 0, 0, 0);
   }
-  SetMatrixPropagation(PR_TRUE);
 
   if (!extent.IsEmpty()) {
     gfxMatrix matrix;
@@ -1178,11 +1173,6 @@ nsSVGGlyphFrame::ContainsPoint(const nsPoint &aPoint)
 PRBool
 nsSVGGlyphFrame::GetGlobalTransform(gfxMatrix *aMatrix)
 {
-  if (!GetMatrixPropagation()) {
-    aMatrix->Reset();
-    return PR_TRUE;
-  }
-
   nsCOMPtr<nsIDOMSVGMatrix> ctm;
   GetCanvasTM(getter_AddRefs(ctm));
   if (!ctm)
@@ -1263,12 +1253,9 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     }
 
     const nsFont& font = fontData->mFont;
-    PRBool printerFont = (presContext->Type() == nsPresContext::eContext_PrintPreview ||
-                          presContext->Type() == nsPresContext::eContext_Print);
     gfxFontStyle fontStyle(font.style, font.weight, textRunSize, langGroup,
                            font.sizeAdjust, font.systemFont,
-                           font.familyNameQuirks,
-                           printerFont);
+                           font.familyNameQuirks);
 
     nsRefPtr<gfxFontGroup> fontGroup =
       gfxPlatform::GetPlatform()->CreateFontGroup(font.name, &fontStyle, presContext->GetUserFontSet());

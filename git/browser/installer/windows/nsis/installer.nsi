@@ -57,8 +57,7 @@ RequestExecutionLevel user
 !system 'echo ; > shortcuts.ini'
 !system 'echo ; > summary.ini'
 
-; USE_UAC_PLUGIN is temporary until all applications have been updated to use
-; the UAC plugin
+; USE_UAC_PLUGIN is temporary until Thunderbird has been updated to use the UAC plugin
 !define USE_UAC_PLUGIN
 
 Var TmpVal
@@ -73,6 +72,7 @@ Var AddDesktopSC
 !include FileFunc.nsh
 !include LogicLib.nsh
 !include MUI.nsh
+!include TextFunc.nsh
 !include WinMessages.nsh
 !include WinVer.nsh
 !include WordFunc.nsh
@@ -82,6 +82,11 @@ Var AddDesktopSC
 !insertmacro GetSize
 !insertmacro StrFilter
 !insertmacro WordReplace
+
+; NSIS provided macros that we have overridden
+!include overrides.nsh
+!insertmacro LocateNoDetails
+!insertmacro TextCompareNoDetails
 
 ; The following includes are custom.
 !include branding.nsi
@@ -100,6 +105,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
 !insertmacro CleanUpdatesDir
+!insertmacro CloseApp
 !insertmacro CopyFilesFromDir
 !insertmacro CreateRegKey
 !insertmacro GetPathFromString
@@ -283,9 +289,10 @@ Section "-Application" APP_IDX
   ClearErrors
   ReadRegStr $R0 HKLM "Software\Apple Computer, Inc.\QuickTime" "InstallDir"
   ${Unless} ${Errors}
-    ${GetLongPath} $R0 "$R0"
-    ${Unless} $R0 == ""
-      ClearErrors
+    Push $R0
+    ${GetPathFromRegStr}
+    Pop $R0
+    ${Unless} ${Errors}
       GetFullPathName $R0 "$R0\Plugins\nsIQTScriptablePlugin.xpt"
       ${Unless} ${Errors}
         ${LogHeader} "Copying QuickTime Scriptable Component"
@@ -361,12 +368,8 @@ Section "-Application" APP_IDX
   ${FixClassKeys}
 
   ; On install always add the FirefoxHTML and FirefoxURL keys.
-  ; An empty string is used for the 5th param because FirefoxHTML and FirefoxURL
-  ; are not protocol handlers.
-  ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
-  StrCpy $2 "$\"$8$\" -requestPending -osint -url $\"%1$\""
-  StrCpy $3 "$\"%1$\",,0,0,,,,"
-
+  ; An empty string is used for the 5th param because FirefoxHTML is not a
+  ; protocol handler.
   ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} Document" "" \
                          "${DDEApplication}" "$3" "WWW_OpenURL"
 
@@ -760,7 +763,7 @@ Function .onInit
   StrCpy $LANGUAGE 0
   ${SetBrandNameVars} "$EXEDIR\localized\distribution\setup.ini"
 
-  ${InstallOnInitCommon} "$(WARN_MIN_SUPPORTED_OS_MSG)"
+  ${InstallOnInitCommon} "$(WARN_UNSUPPORTED_MSG)"
 
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "options.ini"
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "shortcuts.ini"

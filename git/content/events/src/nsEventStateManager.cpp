@@ -143,7 +143,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsITimer.h"
 #include "nsIFontMetrics.h"
-#include "nsIDOMXULDocument.h"
+
 #include "nsIDragService.h"
 #include "nsIDragSession.h"
 #include "nsDOMDataTransfer.h"
@@ -995,41 +995,40 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
                                         gLastFocusedPresContextWeak,
                                         &blurevent, nsnull, &blurstatus);
 
-            nsCOMPtr<nsIEventStateManager> esm;
             if (!mCurrentFocus && gLastFocusedContent) {
               // We also need to blur the previously focused content node here,
               // if we don't have a focused content node in this document.
               // (SendFocusBlur isn't called in this case).
-              if (gLastFocusedContent) {
-                nsCOMPtr<nsIDocument> doc = gLastFocusedContent->GetCurrentDoc();
-                if (doc) {
-                  nsIPresShell *shell = doc->GetPrimaryShell();
-                  if (shell) {
-                    nsCOMPtr<nsPresContext> oldPresContext = shell->GetPresContext();
-                    esm = oldPresContext->EventStateManager();
-                    if (esm) {
-                      esm->SetFocusedContent(gLastFocusedContent);
-                    }
-                  }
-                }
-              }
+
               nsCOMPtr<nsIContent> blurContent = gLastFocusedContent;
               blurevent.target = nsnull;
               nsEventDispatcher::Dispatch(gLastFocusedContent,
                                           gLastFocusedPresContextWeak,
                                           &blurevent, nsnull, &blurstatus);
-            }
-            if (ourWindow) {
-              // Clear the target so that Dispatch can set it back correctly.
-              blurevent.target = nsnull;
-              nsEventDispatcher::Dispatch(ourWindow, gLastFocusedPresContextWeak,
-                                          &blurevent, nsnull, &blurstatus);
-            }
 
-            if (esm) {
-              esm->SetFocusedContent(nsnull);
+              // XXX bryner this isn't quite right -- it can result in
+              // firing two blur events on the content.
+
+              nsCOMPtr<nsIDocument> doc;
+              if (gLastFocusedContent) // could have changed in Dispatch
+                doc = gLastFocusedContent->GetDocument();
+              if (doc) {
+                nsIPresShell *shell = doc->GetPrimaryShell();
+                if (shell) {
+                  nsCOMPtr<nsPresContext> oldPresContext =
+                    shell->GetPresContext();
+
+                  nsCOMPtr<nsIEventStateManager> esm;
+                  esm = oldPresContext->EventStateManager();
+                  esm->SetFocusedContent(gLastFocusedContent);
+                  nsEventDispatcher::Dispatch(gLastFocusedContent,
+                                              oldPresContext,
+                                              &blurevent, nsnull, &blurstatus);
+                  esm->SetFocusedContent(nsnull);
+                  NS_IF_RELEASE(gLastFocusedContent);
+                }
+              }
             }
-            NS_IF_RELEASE(gLastFocusedContent);
           }
 
           if (focusController)
@@ -1545,17 +1544,10 @@ GetAccessModifierMask(nsISupports* aDocShell)
 static PRBool
 IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
 {
-  if (!aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::accesskey, aKey,
-                             eIgnoreCase))
+  if (!aFrame)
     return PR_FALSE;
 
-  nsCOMPtr<nsIDOMXULDocument> xulDoc =
-    do_QueryInterface(aContent->GetOwnerDoc());
-  if (!xulDoc && !aContent->IsNodeOfType(nsINode::eXUL))
-    return PR_TRUE;
-
-    // For XUL we do visibility checks.
-  if (!aFrame)
+  if (!aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::accesskey, aKey, eIgnoreCase))
     return PR_FALSE;
 
   if (aFrame->IsFocusable())
@@ -1567,7 +1559,6 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
   if (!aFrame->AreAncestorViewsVisible())
     return PR_FALSE;
 
-  // XUL controls can be activated.
   nsCOMPtr<nsIDOMXULControlElement> control(do_QueryInterface(aContent));
   if (control)
     return PR_TRUE;
@@ -2524,8 +2515,7 @@ GetParentFrameToScroll(nsPresContext* aPresContext, nsIFrame* aFrame)
   if (!aPresContext || !aFrame)
     return nsnull;
 
-  if (aFrame->GetStyleDisplay()->mPosition == NS_STYLE_POSITION_FIXED &&
-      nsLayoutUtils::IsReallyFixedPos(aFrame))
+  if (aFrame->GetStyleDisplay()->mPosition == NS_STYLE_POSITION_FIXED)
     return aPresContext->GetPresShell()->GetRootScrollFrame();
 
   return aFrame->GetParent();
@@ -2692,11 +2682,14 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     }
     
     if (aScrollQuantity == eScrollByPage)
-      scrollView->ScrollByPages(scrollX, scrollY, NS_VMREFRESH_SMOOTHSCROLL);
+      scrollView->ScrollByPages(scrollX, scrollY, NS_VMREFRESH_DEFERRED);
     else if (aScrollQuantity == eScrollByPixel)
       scrollView->ScrollByPixels(scrollX, scrollY, NS_VMREFRESH_DEFERRED);
     else
-      scrollView->ScrollByLines(scrollX, scrollY, NS_VMREFRESH_SMOOTHSCROLL);
+      scrollView->ScrollByLines(scrollX, scrollY,
+                                NS_VMREFRESH_SMOOTHSCROLL | NS_VMREFRESH_DEFERRED);
+
+    ForceViewUpdate(scrollView->View());
   }
   if (passToParent) {
     nsresult rv;
@@ -2922,9 +2915,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         if (!(msEvent->scrollFlags & nsMouseScrollEvent::kHasPixels)) {
           // No generated pixel scroll event will follow.
           // Create and send a pixel scroll DOM event now.
-          nsWeakFrame weakFrame(aTargetFrame);
           SendPixelScrollEvent(aTargetFrame, msEvent, presContext, aStatus);
-          NS_ENSURE_STATE(weakFrame.IsAlive());
         }
       }
 
@@ -3165,8 +3156,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
               nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
               if (sv) {
                 nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByPages(0, (keyEvent->keyCode != NS_VK_PAGE_UP) ? 1 : -1,
-                                  NS_VMREFRESH_SMOOTHSCROLL);
+                sv->ScrollByPages(0, (keyEvent->keyCode != NS_VK_PAGE_UP) ? 1 : -1);
               }
             }
             break;
@@ -3186,8 +3176,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
               nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
               if (sv) {
                 nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByLines(0, (keyEvent->keyCode == NS_VK_DOWN) ? 1 : -1,
-                                  NS_VMREFRESH_SMOOTHSCROLL);
+                sv->ScrollByLines(0, (keyEvent->keyCode == NS_VK_DOWN) ? 1 : -1);
 
                 // force the update to happen now, otherwise multiple scrolls can
                 // occur before the update is processed. (bug #7354)
@@ -3206,8 +3195,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
               nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eHorizontal);
               if (sv) {
                 nsKeyEvent * keyEvent = (nsKeyEvent *)aEvent;
-                sv->ScrollByLines((keyEvent->keyCode == NS_VK_RIGHT) ? 1 : -1, 0,
-                                  NS_VMREFRESH_SMOOTHSCROLL);
+                sv->ScrollByLines((keyEvent->keyCode == NS_VK_RIGHT) ? 1 : -1, 0);
 
                 // force the update to happen now, otherwise multiple scrolls can
                 // occur before the update is processed. (bug #7354)
@@ -3228,7 +3216,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
               if (!mCurrentFocus) {
                 nsIScrollableView* sv = nsLayoutUtils::GetNearestScrollingView(aView, nsLayoutUtils::eVertical);
                 if (sv) {
-                  sv->ScrollByPages(0, 1, NS_VMREFRESH_SMOOTHSCROLL);
+                  sv->ScrollByPages(0, 1);
                 }
               }
             }
@@ -4505,8 +4493,6 @@ nsEventStateManager::GetNextTabbableMapArea(PRBool aForward,
   nsCOMPtr<nsIDocument> doc = aImageContent->GetDocument();
   if (doc) {
     nsCOMPtr<nsIDOMHTMLMapElement> imageMap = nsImageMapUtils::FindImageMap(doc, useMap);
-    if (!imageMap)
-      return nsnull;
     nsCOMPtr<nsIContent> mapContent = do_QueryInterface(imageMap);
     PRUint32 count = mapContent->GetChildCount();
     // First see if mCurrentFocus is in this map
@@ -5454,6 +5440,20 @@ nsEventStateManager::GetRegisteredAccessKey(nsIContent* aContent,
   aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, accessKey);
   *aKey = accessKey.First();
   return NS_OK;
+}
+
+void
+nsEventStateManager::ForceViewUpdate(nsIView* aView)
+{
+  // force the update to happen now, otherwise multiple scrolls can
+  // occur before the update is processed. (bug #7354)
+
+  nsIViewManager* vm = aView->GetViewManager();
+  if (vm) {
+    // I'd use Composite here, but it doesn't always work.
+    // vm->Composite();
+    vm->ForceUpdate();
+  }
 }
 
 void

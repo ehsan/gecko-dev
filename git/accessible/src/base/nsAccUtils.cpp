@@ -448,16 +448,29 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
   // Get accessible from selection's focus DOM point (the DOM point where
   // selection is ended).
 
-  nsCOMPtr<nsIDOMNode> focusNode;
-  aSelection->GetFocusNode(getter_AddRefs(focusNode));
-  if (!focusNode)
+  nsCOMPtr<nsIDOMNode> resultNode;
+  aSelection->GetFocusNode(getter_AddRefs(resultNode));
+  if (!resultNode)
     return nsnull;
 
-  PRInt32 focusOffset = 0;
-  aSelection->GetFocusOffset(&focusOffset);
+  // Get DOM node that focus DOM point points to.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(resultNode));
+  if (content && content->IsNodeOfType(nsINode::eELEMENT)) {
+    PRInt32 offset = 0;
+    aSelection->GetFocusOffset(&offset);
 
-  nsCOMPtr<nsIDOMNode> resultNode =
-    nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
+    PRInt32 childCount = static_cast<PRInt32>(content->GetChildCount());
+    NS_ASSERTION(offset >= 0 && offset <= childCount,
+                 "Wrong focus offset in selection!");
+
+    // The offset can be after last child of container node that means DOM point
+    // is placed immediately after the last child. In this case use focusNode
+    // as result node.
+    if (offset != childCount) {
+      nsCOMPtr<nsIContent> child = content->GetChildAt(offset);
+      resultNode = do_QueryInterface(child);
+    }
+  }
 
   nsIAccessibilityService *accService = nsAccessNode::GetAccService();
 

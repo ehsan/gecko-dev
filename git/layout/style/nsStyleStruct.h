@@ -358,13 +358,7 @@ class nsCSSShadowArray {
       }
     }
 
-    nsrefcnt AddRef() {
-      if (mRefCnt == PR_UINT32_MAX) {
-        NS_WARNING("refcount overflow, leaking object");
-        return mRefCnt;
-      }
-      return ++mRefCnt;
-    }
+    nsrefcnt AddRef() { return ++mRefCnt; }
     nsrefcnt Release();
 
     PRUint32 Length() const { return mLength; }
@@ -437,7 +431,7 @@ struct nsStyleBorder {
   }
 
   void ClearBorderColors(PRUint8 aSide) {
-    if (mBorderColors && mBorderColors[aSide]) {
+    if (mBorderColors[aSide]) {
       delete mBorderColors[aSide];
       mBorderColors[aSide] = nsnull;
     }
@@ -787,7 +781,7 @@ struct nsStyleText {
   nsStyleCoord  mLetterSpacing;         // [inherited] coord, normal
   nsStyleCoord  mLineHeight;            // [inherited] coord, factor, normal
   nsStyleCoord  mTextIndent;            // [inherited] coord, percent
-  nscoord mWordSpacing;                 // [inherited]
+  nsStyleCoord  mWordSpacing;           // [inherited] coord, normal
 
   nsRefPtr<nsCSSShadowArray> mTextShadow; // [inherited] NULL in case of a zero-length
   

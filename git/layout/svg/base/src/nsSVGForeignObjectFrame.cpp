@@ -41,6 +41,7 @@
 #include "nsIDOMSVGForeignObjectElem.h"
 #include "nsIDOMSVGMatrix.h"
 #include "nsIDOMSVGSVGElement.h"
+#include "nsSpaceManager.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsRegion.h"
 #include "nsGkAtoms.h"
@@ -262,18 +263,6 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   if (!ctx || matrix.IsSingular()) {
     NS_WARNING("Can't render foreignObject element!");
     return NS_ERROR_FAILURE;
-  }
-
-  /* Check if we need to draw anything. */
-  if (aDirtyRect) {
-    gfxRect extent = matrix.TransformBounds(
-                       gfxRect(kid->GetRect().x, kid->GetRect().y, 
-                               kid->GetRect().width, kid->GetRect().height));
-    extent.RoundOut();
-    nsIntRect rect;
-    if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(extent, &rect)) &&
-        !aDirtyRect->Intersects(rect))
-      return NS_OK;
   }
 
   gfxContext *gfx = aContext->GetGfxContext();

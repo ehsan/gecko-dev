@@ -692,9 +692,10 @@ nsFrameManager::RemoveFrame(nsIFrame*       aParentFrame,
                             nsIAtom*        aListName,
                             nsIFrame*       aOldFrame)
 {
+#ifdef DEBUG  
   PRBool wasDestroyingFrames = mIsDestroyingFrames;
   mIsDestroyingFrames = PR_TRUE;
-
+#endif
   // In case the reflow doesn't invalidate anything since it just leaves
   // a gap where the old frame was, we invalidate it here.  (This is
   // reasonably likely to happen when removing a last child in a way
@@ -704,9 +705,9 @@ nsFrameManager::RemoveFrame(nsIFrame*       aParentFrame,
   aOldFrame->Invalidate(aOldFrame->GetOverflowRect());
 
   nsresult rv = aParentFrame->RemoveFrame(aListName, aOldFrame);
-
+#ifdef DEBUG  
   mIsDestroyingFrames = wasDestroyingFrames;
-
+#endif
   return rv;
 }
 
@@ -1097,24 +1098,13 @@ ShouldStopImage(imgIRequest *aOldImage, imgIRequest *aNewImage)
   return stopImages;
 }
 
-/**
- * Recompute style for aFrame and accumulate changes into aChangeList
- * given that aMinChange is already accumulated for an ancestor.
- * aParentContent is the content node used to resolve the parent style
- * context.  This means that, for pseudo-elements, it is the content
- * that should be used for selector matching (rather than the fake
- * content node attached to the frame).
- */
 nsChangeHint
-nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
+nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
                                       nsIFrame          *aFrame,
                                       nsIContent        *aParentContent,
                                       nsStyleChangeList *aChangeList, 
                                       nsChangeHint       aMinChange)
 {
-  NS_ASSERTION(aFrame->GetContent() ||
-               (!aFrame->GetParent() && !aParentContent),
-               "frame must have content (unless viewport)");
   // XXXldb get new context from prev-in-flow if possible, to avoid
   // duplication.  (Or should we just let |GetContext| handle that?)
   // Getting the hint would be nice too, but that's harder.
@@ -1137,10 +1127,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     oldContext->AddRef();
     nsIAtom* const pseudoTag = oldContext->GetPseudoType();
     nsIContent* localContent = aFrame->GetContent();
-    // |content| is the node that we used for rule matching of
-    // normal elements (not pseudo-elements) and for which we generate
-    // framechange hints if we need them.
-    // XXXldb Why does it make sense to use aParentContent
     nsIContent* content = localContent ? localContent : aParentContent;
 
     nsStyleContext* parentContext;
@@ -1167,8 +1153,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // style context provider will be automatically propagated to
       // the frame(s) with child style contexts.
       assumeDifferenceHint = ReResolveStyleContext(aPresContext, providerFrame,
-                                                   aParentContent, aChangeList,
-                                                   aMinChange);
+                                                   content, aChangeList, aMinChange);
 
       // The provider's new context becomes the parent context of
       // aFrame's context.
@@ -1187,8 +1172,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       newContext = styleSet->ResolveStyleForNonElement(parentContext).get();
     }
     else if (pseudoTag) {
-      // XXXldb This choice of pseudoContent seems incorrect for anon
-      // boxes and perhaps other cases.
       nsIContent* pseudoContent =
           aParentContent ? aParentContent : localContent;
       if (pseudoTag == nsCSSPseudoElements::before ||
@@ -1212,9 +1195,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                        "firstLetter pseudoTag without a nsFirstLetterFrame");
           nsBlockFrame* block = nsBlockFrame::GetNearestAncestorBlock(aFrame);
           pseudoContent = block->GetContent();
-        } else if (pseudoTag == nsCSSAnonBoxes::pageBreak) {
-          pseudoContent = nsnull;
-        }
+        }       
         newContext = styleSet->ResolvePseudoStyleFor(pseudoContent,
                                                      pseudoTag,
                                                      parentContext).get();
@@ -1654,7 +1635,7 @@ nsFrameManager::RestoreFrameStateFor(nsIFrame* aFrame,
     return;
   }
 
-  // Only restore state for stateful frames
+  // Only capture state for stateful frames
   nsIStatefulFrame* statefulFrame;
   CallQueryInterface(aFrame, &statefulFrame);
   if (!statefulFrame) {

@@ -96,12 +96,14 @@ struct JSStackFrame {
 #endif
 };
 
+#ifdef DEBUG
 #ifdef __cplusplus
 static JS_INLINE uintN
 FramePCOffset(JSStackFrame* fp)
 {
     return uintN((fp->imacpc ? fp->imacpc : fp->regs->pc) - fp->script->code);
 }
+#endif
 #endif
 
 static JS_INLINE jsval *
@@ -293,7 +295,7 @@ typedef struct JSPropertyCache {
  * from obj and sprop, and entry capability forged from 24-bit OBJ_SHAPE(obj),
  * 4-bit scopeIndex, and 4-bit protoIndex.
  */
-extern JS_REQUIRES_STACK void
+extern void
 js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                      uintN scopeIndex, uintN protoIndex,
                      JSObject *pobj, JSScopeProperty *sprop,
@@ -348,7 +350,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
             PCMETER(cache_->misses++);                                        \
     } while (0)
 
-extern JS_REQUIRES_STACK JSAtom *
+extern JSAtom *
 js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
                          JSObject **objp, JSObject **pobjp,
                          JSPropCacheEntry **entryp);
@@ -471,7 +473,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
 extern JSBool
 js_InvokeConstructor(JSContext *cx, uintN argc, JSBool clampReturn, jsval *vp);
 
-extern JS_REQUIRES_STACK JSBool
+extern JSBool
 js_Interpret(JSContext *cx);
 
 #define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
@@ -531,13 +533,13 @@ js_FreeRawStack(JSContext *cx, void *mark);
 extern JSObject *
 js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv);
 
-extern JS_REQUIRES_STACK JSBool
+extern JSBool
 js_EnterWith(JSContext *cx, jsint stackIndex);
 
-extern JS_REQUIRES_STACK void
+extern void
 js_LeaveWith(JSContext *cx);
 
-extern JS_REQUIRES_STACK JSClass *
+extern JSClass *
 js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
 
 extern jsint
@@ -547,7 +549,7 @@ js_CountWithBlocks(JSContext *cx, JSStackFrame *fp);
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-extern JS_REQUIRES_STACK JSBool
+extern JSBool
 js_UnwindScope(JSContext *cx, JSStackFrame *fp, jsint stackDepth,
                JSBool normalUnwind);
 
@@ -570,7 +572,7 @@ js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2);
  * Opcode tracing helper. When len is not 0, cx->fp->regs->pc[-len] gives the
  * previous opcode.
  */
-extern JS_REQUIRES_STACK void
+extern void
 js_TraceOpcode(JSContext *cx, jsint len);
 
 /*

@@ -91,7 +91,7 @@ public:
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual PRUint32 GetChildCount() const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
@@ -125,14 +125,6 @@ protected:
 
 private:
   nsresult EnsureChildState(PRBool aSetText, PRBool &aHasChild) const;
-
-  PRUint32 GetChildCount(PRBool aSetText) const
-  {
-    PRBool hasChild;
-    EnsureChildState(aSetText, hasChild);
-
-    return hasChild ? 1 : 0;
-  }
 
   nsString mValue;
   // XXX For now, there's only a single child - a text element

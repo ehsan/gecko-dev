@@ -20,8 +20,6 @@
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Jonathan Kew <jfkthame@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,16 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "gfxTextRunWordCache.h"
-
-#include "nsWeakReference.h"
-#include "nsCRT.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefBranch2.h"
-#include "nsIPrefService.h"
-#include "nsIObserver.h"
-
-#include "nsBidiUtils.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -72,22 +60,14 @@
  * are also kept out of the cache.
  */
 
-class TextRunWordCache :
-    public nsIObserver,
-    public nsSupportsWeakReference {
+class TextRunWordCache {
 public:
-    TextRunWordCache() :
-        mBidiNumeral(0) {
+    TextRunWordCache() {
         mCache.Init(100);
     }
     ~TextRunWordCache() {
-        Uninit();
         NS_WARN_IF_FALSE(mCache.Count() == 0, "Textrun cache not empty!");
     }
-    void Init();
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
 
     /**
      * Create a textrun using cached words.
@@ -123,7 +103,6 @@ public:
     void RemoveTextRun(gfxTextRun *aTextRun);
 
 #ifdef DEBUG
-    PRUint32 mGeneration;
     void Dump();
 #endif
 
@@ -201,80 +180,16 @@ protected:
                        const nsTArray<DeferredWord>& aDeferredWords,
                        PRBool aSuccessful);
     void RemoveWord(gfxTextRun *aTextRun, PRUint32 aStart,
-                    PRUint32 aEnd, PRUint32 aHash);
-    void Uninit();
+                    PRUint32 aEnd, PRUint32 aHash);    
 
     nsTHashtable<CacheHashEntry> mCache;
-
-    PRInt32 mBidiNumeral;
-    nsCOMPtr<nsIPrefBranch2> mPrefBranch;
-    nsCOMPtr<nsIPrefBranch2> mFontPrefBranch;
-
+    
 #ifdef DEBUG
     static PLDHashOperator CacheDumpEntry(CacheHashEntry* aEntry, void* userArg);
 #endif
 };
 
-NS_IMPL_ISUPPORTS2(TextRunWordCache, nsIObserver, nsISupportsWeakReference)
-
-static TextRunWordCache *gTextRunWordCache = nsnull;
-
 static PRLogModuleInfo *gWordCacheLog = PR_NewLogModule("wordCache");
-
-void
-TextRunWordCache::Init()
-{
-#ifdef DEBUG
-    mGeneration = 0;
-#endif
-
-    nsCOMPtr<nsIPrefService> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (!prefService)
-        return;
-
-    nsCOMPtr<nsIPrefBranch> branch;
-    prefService->GetBranch("bidi.", getter_AddRefs(branch));
-    mPrefBranch = do_QueryInterface(branch);
-    if (!mPrefBranch)
-        return;
-
-    mPrefBranch->AddObserver("", this, PR_TRUE);
-    mPrefBranch->GetIntPref("numeral", &mBidiNumeral);
-
-    nsCOMPtr<nsIPrefBranch> fontBranch;
-    prefService->GetBranch("font.", getter_AddRefs(fontBranch));
-    mFontPrefBranch = do_QueryInterface(fontBranch);
-    if (mFontPrefBranch)
-      mFontPrefBranch->AddObserver("", this, PR_TRUE);
-}
-
-void
-TextRunWordCache::Uninit()
-{
-    if (mPrefBranch)
-        mPrefBranch->RemoveObserver("", this);
-    if (mFontPrefBranch)
-        mFontPrefBranch->RemoveObserver("", this);
-}
-
-NS_IMETHODIMP
-TextRunWordCache::Observe(nsISupports     *aSubject,
-                          const char      *aTopic,
-                          const PRUnichar *aData)
-{
-    if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
-        if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("numeral").get())) {
-          mPrefBranch->GetIntPref("numeral", &mBidiNumeral);
-        }
-        mCache.Clear();
-        PR_LOG(gWordCacheLog, PR_LOG_DEBUG, ("flushing the textrun cache"));
-#ifdef DEBUG
-        mGeneration++;
-#endif
-    }
-
-    return NS_OK;
-}
 
 static inline PRUint32
 HashMix(PRUint32 aHash, PRUnichar aCh)
@@ -552,10 +467,6 @@ MakeBlankTextRun(const void* aText, PRUint32 aLength,
         return nsnull;
     gfxFont *font = aFontGroup->GetFontAt(0);
     textRun->AddGlyphRun(font, 0);
-#ifdef DEBUG
-    textRun->mCachedWords = 0;
-    textRun->mCacheGeneration = gTextRunWordCache ? gTextRunWordCache->mGeneration : 0;
-#endif
     return textRun.forget();
 }
 
@@ -581,7 +492,6 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
         return nsnull;
 #ifdef DEBUG
     textRun->mCachedWords = 0;
-    textRun->mCacheGeneration = mGeneration;
 #endif
 
     gfxFont *font = aFontGroup->GetFontAt(0);
@@ -590,73 +500,35 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
 
     nsAutoTArray<PRUnichar,200> tempString;
     nsAutoTArray<DeferredWord,50> deferredWords;
-    nsAutoTArray<nsAutoPtr<gfxTextRun>,10> transientRuns;
     PRUint32 i;
     PRUint32 wordStart = 0;
     PRUint32 hash = 0;
-    PRBool seenDigitToModify = PR_FALSE;
-    PRBool needsNumeralProcessing =
-        mBidiNumeral != IBMBIDI_NUMERAL_NOMINAL;
     for (i = 0; i <= aLength; ++i) {
         PRUnichar ch = i < aLength ? aText[i] : ' ';
-        if (!seenDigitToModify && needsNumeralProcessing) {
-            // check if there is a digit that needs to be transformed
-            if (HandleNumberInChar(ch, i > 0 ?
-                                       IS_ARABIC_CHAR(aText[i-1]) :
-                                       (aFlags & gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR),
-                                   mBidiNumeral) != ch)
-                seenDigitToModify = PR_TRUE;
-        }
         if (IsWordBoundary(ch)) {
-            if (seenDigitToModify) {
-                // the word included at least one digit that is modified by the current
-                // bidi.numerals setting, so we must not use the cache for this word;
-                // instead, we'll create a new textRun and a DeferredWord entry pointing to it
+            PRBool hit = LookupWord(textRun, font, wordStart, i, hash,
+                                    deferredWords.Length() == 0 ? nsnull : &deferredWords);
+            if (!hit) {
+                // Always put a space before the word so we can detect
+                // combining characters at the start of a word
+                tempString.AppendElement(' ');
+                PRUint32 offset = tempString.Length();
                 PRUint32 length = i - wordStart;
-                nsAutoPtr<PRUnichar> numString;
-                numString = new PRUnichar[length];
-                for (PRUint32 j = 0; j < length; ++j) {
-                    numString[j] = HandleNumberInChar(aText[wordStart+j],
-                                                      wordStart+j > 0 ?
-                                                          IS_ARABIC_CHAR(numString[j-1]) :
-                                                          (aFlags & gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR),
-                                                      mBidiNumeral);
+                PRUnichar *chars = tempString.AppendElements(length);
+                if (!chars) {
+                    FinishTextRun(textRun, nsnull, nsnull, deferredWords, PR_FALSE);
+                    return nsnull;
                 }
-                // now we make a transient textRun for the transformed word; this will not be cached
-                gfxTextRun *numRun;
-                numRun =
-                    aFontGroup->MakeTextRun(numString.get(), length, aParams,
-                                            aFlags & ~(gfxTextRunFactory::TEXT_IS_PERSISTENT |
-                                                       gfxTextRunFactory::TEXT_IS_8BIT));
-                DeferredWord word = { numRun, 0, wordStart, length, hash };
+                memcpy(chars, aText + wordStart, length*sizeof(PRUnichar));
+                DeferredWord word = { nsnull, offset, wordStart, length, hash };
                 deferredWords.AppendElement(word);
-                transientRuns.AppendElement(numRun);
-                seenDigitToModify = PR_FALSE;
-            } else {
-                PRBool hit = LookupWord(textRun, font, wordStart, i, hash,
-                                        deferredWords.Length() == 0 ? nsnull : &deferredWords);
-                if (!hit) {
-                    // Always put a space before the word so we can detect
-                    // combining characters at the start of a word
-                    tempString.AppendElement(' ');
-                    PRUint32 offset = tempString.Length();
-                    PRUint32 length = i - wordStart;
-                    PRUnichar *chars = tempString.AppendElements(length);
-                    if (!chars) {
-                        FinishTextRun(textRun, nsnull, nsnull, deferredWords, PR_FALSE);
-                        return nsnull;
-                    }
-                    memcpy(chars, aText + wordStart, length*sizeof(PRUnichar));
-                    DeferredWord word = { nsnull, offset, wordStart, length, hash };
-                    deferredWords.AppendElement(word);
-                }
-
-                if (deferredWords.Length() == 0) {
-                    if (IsBoundarySpace(ch) && i < aLength) {
-                        textRun->SetSpaceGlyph(font, aParams->mContext, i);
-                    } // else we should set this character to be invisible missing,
-                      // but it already is because the textrun is blank!
-                }
+            }
+            
+            if (deferredWords.Length() == 0) {
+                if (IsBoundarySpace(ch) && i < aLength) {
+                    textRun->SetSpaceGlyph(font, aParams->mContext, i);
+                } // else we should set this character to be invisible missing,
+                  // but it already is because the textrun is blank!
             }
             hash = 0;
             wordStart = i + 1;
@@ -678,6 +550,7 @@ TextRunWordCache::MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
     nsAutoPtr<gfxTextRun> newRun;
     newRun = aFontGroup->MakeTextRun(tempString.Elements(), tempString.Length(),
                                      &params, aFlags | gfxTextRunFactory::TEXT_IS_PERSISTENT);
+    
     FinishTextRun(textRun, newRun, aParams, deferredWords, newRun != nsnull);
     return textRun.forget();
 }
@@ -705,7 +578,6 @@ TextRunWordCache::MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
         return nsnull;
 #ifdef DEBUG
     textRun->mCachedWords = 0;
-    textRun->mCacheGeneration = mGeneration;
 #endif
 
     gfxFont *font = aFontGroup->GetFontAt(0);
@@ -714,69 +586,35 @@ TextRunWordCache::MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
 
     nsAutoTArray<PRUint8,200> tempString;
     nsAutoTArray<DeferredWord,50> deferredWords;
-    nsAutoTArray<nsAutoPtr<gfxTextRun>,10> transientRuns;
     PRUint32 i;
     PRUint32 wordStart = 0;
     PRUint32 hash = 0;
-    PRBool seenDigitToModify = PR_FALSE;
-    PRBool needsNumeralProcessing =
-        mBidiNumeral != IBMBIDI_NUMERAL_NOMINAL;
     for (i = 0; i <= aLength; ++i) {
         PRUint8 ch = i < aLength ? aText[i] : ' ';
-        if (!seenDigitToModify && needsNumeralProcessing) {
-            // check if there is a digit that needs to be transformed
-            if (HandleNumberInChar(ch, i == 0 && (aFlags & gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR),
-                                   mBidiNumeral) != ch)
-                seenDigitToModify = PR_TRUE;
-        }
         if (IsWordBoundary(ch)) {
-            if (seenDigitToModify) {
-                // see parallel code in the 16-bit method above
+            PRBool hit = LookupWord(textRun, font, wordStart, i, hash,
+                                    deferredWords.Length() == 0 ? nsnull : &deferredWords);
+            if (!hit) {
+                if (tempString.Length() > 0) {
+                    tempString.AppendElement(' ');
+                }
+                PRUint32 offset = tempString.Length();
                 PRUint32 length = i - wordStart;
-                nsAutoPtr<PRUnichar> numString;
-                numString = new PRUnichar[length];
-                for (PRUint32 j = 0; j < length; ++j) {
-                    numString[j] = HandleNumberInChar(aText[wordStart+j],
-                                                      wordStart+j > 0 ?
-                                                          IS_ARABIC_CHAR(numString[j-1]) :
-                                                          (aFlags & gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR),
-                                                      mBidiNumeral);
+                PRUint8 *chars = tempString.AppendElements(length);
+                if (!chars) {
+                    FinishTextRun(textRun, nsnull, nsnull, deferredWords, PR_FALSE);
+                    return nsnull;
                 }
-                // now we make a transient textRun for the transformed word; this will not be cached
-                gfxTextRun *numRun;
-                numRun =
-                    aFontGroup->MakeTextRun(numString.get(), length, aParams,
-                                            aFlags & ~(gfxTextRunFactory::TEXT_IS_PERSISTENT |
-                                                       gfxTextRunFactory::TEXT_IS_8BIT));
-                DeferredWord word = { numRun, 0, wordStart, length, hash };
+                memcpy(chars, aText + wordStart, length*sizeof(PRUint8));
+                DeferredWord word = { nsnull, offset, wordStart, length, hash };
                 deferredWords.AppendElement(word);
-                transientRuns.AppendElement(numRun);
-                seenDigitToModify = PR_FALSE;
-            } else {
-                PRBool hit = LookupWord(textRun, font, wordStart, i, hash,
-                                        deferredWords.Length() == 0 ? nsnull : &deferredWords);
-                if (!hit) {
-                    if (tempString.Length() > 0) {
-                        tempString.AppendElement(' ');
-                    }
-                    PRUint32 offset = tempString.Length();
-                    PRUint32 length = i - wordStart;
-                    PRUint8 *chars = tempString.AppendElements(length);
-                    if (!chars) {
-                        FinishTextRun(textRun, nsnull, nsnull, deferredWords, PR_FALSE);
-                        return nsnull;
-                    }
-                    memcpy(chars, aText + wordStart, length*sizeof(PRUint8));
-                    DeferredWord word = { nsnull, offset, wordStart, length, hash };
-                    deferredWords.AppendElement(word);
-                }
-
-                if (deferredWords.Length() == 0) {
-                    if (IsBoundarySpace(ch) && i < aLength) {
-                        textRun->SetSpaceGlyph(font, aParams->mContext, i);
-                    } // else we should set this character to be invisible missing,
-                      // but it already is because the textrun is blank!
-                }
+            }
+            
+            if (deferredWords.Length() == 0) {
+                if (IsBoundarySpace(ch) && i < aLength) {
+                    textRun->SetSpaceGlyph(font, aParams->mContext, i);
+                } // else we should set this character to be invisible missing,
+                  // but it already is because the textrun is blank!
             }
             hash = 0;
             wordStart = i + 1;
@@ -813,6 +651,7 @@ TextRunWordCache::RemoveWord(gfxTextRun *aTextRun, PRUint32 aStart,
     PRUint32 length = aEnd - aStart;
     CacheHashKey key(aTextRun, GetWordFontOrGroup(aTextRun, aStart, length),
                      aStart, length, aHash);
+                     
     CacheHashEntry *entry = mCache.GetEntry(key);
     if (entry && entry->mTextRun == aTextRun) {
         // XXX would like to use RawRemoveEntry here plus some extra method
@@ -831,12 +670,6 @@ TextRunWordCache::RemoveWord(gfxTextRun *aTextRun, PRUint32 aStart,
 void
 TextRunWordCache::RemoveTextRun(gfxTextRun *aTextRun)
 {
-#ifdef DEBUG
-    if (aTextRun->mCacheGeneration != mGeneration) {
-        PR_LOG(gWordCacheLog, PR_LOG_DEBUG, ("cache generation changed (aTextRun %p)", aTextRun));
-        return;
-    }
-#endif
     PRUint32 i;
     PRUint32 wordStart = 0;
     PRUint32 hash = 0;
@@ -955,23 +788,20 @@ TextRunWordCache::Dump()
 }
 #endif
 
+static TextRunWordCache *gTextRunWordCache = nsnull;
+
 nsresult
 gfxTextRunWordCache::Init()
 {
     gTextRunWordCache = new TextRunWordCache();
-    if (gTextRunWordCache) {
-        // ensure there is a reference before the AddObserver calls;
-        // this will be Release()'d in gfxTextRunWordCache::Shutdown()
-        NS_ADDREF(gTextRunWordCache);
-        gTextRunWordCache->Init();
-    }
     return gTextRunWordCache ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 void
 gfxTextRunWordCache::Shutdown()
 {
-    NS_IF_RELEASE(gTextRunWordCache);
+    delete gTextRunWordCache;
+    gTextRunWordCache = nsnull;
 }
 
 gfxTextRun *

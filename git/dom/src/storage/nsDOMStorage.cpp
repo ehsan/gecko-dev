@@ -833,40 +833,6 @@ nsDOMStorage::GetDBValue(const nsAString& aKey, nsAString& aValue,
   return NS_OK;
 }
 
-// The URI returned is the innermost URI that should be used for
-// security-check-like stuff.  aHost is its hostname, correctly canonicalized.
-static nsresult
-GetPrincipalURIAndHost(nsIPrincipal* aPrincipal, nsIURI** aURI, nsString& aHost)
-{
-  nsresult rv = aPrincipal->GetDomain(aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!*aURI) {
-    rv = aPrincipal->GetURI(aURI);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  if (!*aURI) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(*aURI);
-  if (!innerURI) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  nsCAutoString asciiHost;
-  rv = innerURI->GetAsciiHost(asciiHost);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-  
-  CopyUTF8toUTF16(asciiHost, aHost);
-  innerURI.swap(*aURI);
-
-  return NS_OK;
-}
-
 nsresult
 nsDOMStorage::SetDBValue(const nsAString& aKey,
                          const nsAString& aValue,
@@ -890,13 +856,17 @@ nsDOMStorage::SetDBValue(const nsAString& aKey,
   nsAutoString currentDomain;
 
   if (subjectPrincipal) {
-    nsCOMPtr<nsIURI> unused;
-    rv = GetPrincipalURIAndHost(subjectPrincipal, getter_AddRefs(unused),
-                                currentDomain);
-    // Don't bail out on NS_ERROR_DOM_SECURITY_ERR, since we want to allow
-    // trusted file:// URIs below.
-    if (NS_FAILED(rv) && rv != NS_ERROR_DOM_SECURITY_ERR) {
-      return rv;
+    nsCOMPtr<nsIURI> uri;
+    rv = subjectPrincipal->GetURI(getter_AddRefs(uri));
+
+    if (NS_SUCCEEDED(rv) && uri) {
+      nsCOMPtr<nsIURI> innerUri = NS_GetInnermostURI(uri);
+      if (!innerUri)
+        return NS_ERROR_UNEXPECTED;
+
+      nsCAutoString currentDomainAscii;
+      innerUri->GetAsciiHost(currentDomainAscii);
+      currentDomain = NS_ConvertUTF8toUTF16(currentDomainAscii);
     }
 
     if (currentDomain.IsEmpty()) {
@@ -1112,11 +1082,15 @@ nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
   NS_ENSURE_SUCCESS(*aResult, nsnull);
 
   nsCOMPtr<nsIURI> uri;
-  nsAutoString currentDomain;
+  nsCAutoString currentDomain;
   if (subjectPrincipal) {
-    *aResult = GetPrincipalURIAndHost(subjectPrincipal, getter_AddRefs(uri),
-                                      currentDomain);
+    *aResult = subjectPrincipal->GetDomain(getter_AddRefs(uri));
     NS_ENSURE_SUCCESS(*aResult, nsnull);
+
+    if (!uri) {
+      *aResult = subjectPrincipal->GetURI(getter_AddRefs(uri));
+      NS_ENSURE_SUCCESS(*aResult, nsnull);
+    }
 
     if (uri) {
       PRPackedBool sessionOnly;
@@ -1124,14 +1098,34 @@ nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
         *aResult = NS_ERROR_DOM_SECURITY_ERR;
         return nsnull;
       }
+
+      nsCOMPtr<nsIURI> innerUri = NS_GetInnermostURI(uri);
+      if (!innerUri) {
+        *aResult = NS_ERROR_UNEXPECTED;
+        return nsnull;
+      }
+
+      uri = innerUri;
+      nsresult rv = uri->GetAsciiHost(currentDomain);
+      if (NS_FAILED(rv)) {
+        *aResult = NS_ERROR_DOM_SECURITY_ERR;
+        return nsnull;
+      }
     }
   }
 
-  PRBool isSystem = nsContentUtils::IsCallerTrustedForRead();
+  PRBool isSystem;
+  *aResult = ssm->SubjectPrincipalIsSystem(&isSystem);
+  NS_ENSURE_SUCCESS(*aResult, nsnull);
+
+  // allow code that has read privileges to get the storage for any domain
+  if (!isSystem && nsContentUtils::IsCallerTrustedForRead())
+    isSystem = PR_TRUE;
 
   if (isSystem || !currentDomain.IsEmpty()) {
     return GetStorageForDomain(uri, NS_ConvertUTF8toUTF16(requestedDomain),
-                               currentDomain, isSystem, aResult);
+                               NS_ConvertUTF8toUTF16(currentDomain),
+                               isSystem, aResult);
   }
 
   *aResult = NS_ERROR_DOM_SECURITY_ERR;

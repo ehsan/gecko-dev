@@ -66,13 +66,8 @@ class nsIDOMNode;
 class nsIAtom;
 class nsIView;
 
-// see nsAccessible::GetAttrValue
 #define NS_OK_NO_ARIA_VALUE \
 NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x21)
-
-// see nsAccessible::GetNameInternal
-#define NS_OK_EMPTY_NAME \
-NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x23)
 
 // Saves a data member -- if child count equals this value we haven't
 // cached children or child count yet
@@ -140,13 +135,7 @@ public:
 
   /**
    * Returns the accessible name provided by native markup. It doesn't take
-   * into account ARIA markup used to specify the name.
-   *
-   * @param  aName             [out] the accessible name
-   *
-   * @return NS_OK_EMPTY_NAME  points empty name was specified by native markup
-   *                           explicitly (see nsIAccessible::name attribute for
-   *                           details)
+   * into account ARIA stuffs used to specify the name.
    */
   virtual nsresult GetNameInternal(nsAString& aName);
 
@@ -191,19 +180,9 @@ protected:
    */
   nsresult GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aName);
 
-  //////////////////////////////////////////////////////////////////////////////
-  // Name helpers.
-
-  /**
-   * Compute the name of HTML node.
-   */
-  nsresult GetHTMLName(nsAString& aName);
-
-  /**
-   * Compute the name for XUL node.
-   */
-  nsresult GetXULName(nsAString& aName);
-
+  // Name helpers
+  nsresult GetHTMLName(nsAString& _retval, PRBool aCanAggregateSubtree = PR_TRUE);
+  nsresult GetXULName(nsAString& aName, PRBool aCanAggregateSubtree = PR_TRUE);
   // For accessibles that are not lists of choices, the name of the subtree should be the 
   // sum of names in the subtree
   nsresult AppendFlatStringFromSubtree(nsIContent *aContent, nsAString *aFlatString);
@@ -283,17 +262,6 @@ protected:
    * @param aStates  [in] states of the accessible
    */
   PRUint32 GetActionRule(PRUint32 aStates);
-
-  /**
-   * Compute group attributes ('posinset', 'setsize' and 'level') based
-   * on accessible hierarchy. Used by GetAttributes() method if group attributes
-   * weren't provided by ARIA or by internal accessible implementation.
-   *
-   * @param  aRole        [in] role of this accessible
-   * @param  aAttributes  [in, out] object attributes
-   */
-  nsresult ComputeGroupAttributes(PRUint32 aRole,
-                                  nsIPersistentProperties *aAttributes);
 
   /**
    * Fires platform accessible event. It's notification method only. It does

@@ -85,8 +85,7 @@ public:
   }
   virtual ~nsRange();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsRange, nsIRange)
+  NS_DECL_ISUPPORTS
 
   // nsIDOMRange interface
   NS_DECL_NSIDOMRANGE
@@ -110,6 +109,7 @@ public:
                               nsIContent* aContainer,
                               nsIContent* aChild,
                               PRInt32 aIndexInContainer);
+  virtual void NodeWillBeDestroyed(const nsINode* aNode);
   virtual void ParentChainChanged(nsIContent *aContent);
 
 private:

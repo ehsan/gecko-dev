@@ -66,8 +66,6 @@
 // This also pulls in gfxTypes.h, which we cannot include directly.
 #include "gfxRect.h"
 #include "nsRegion.h"
-#include "nsTArray.h"
-#include "nsAutoPtr.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -95,7 +93,6 @@ struct nsStyleBackground;
 template <class T> class nsRunnableMethod;
 class nsIRunnable;
 class gfxUserFontSet;
-struct nsFontFaceRuleContainer;
 
 #ifdef MOZ_REFLOW_PERF
 class nsIRenderingContext;
@@ -213,18 +210,8 @@ public:
     { return GetPresShell()->FrameManager(); } 
 #endif
 
-  /**
-   * Rebuilds all style data by throwing out the old rule tree and
-   * building a new one, and additionally applying aExtraHint (which
-   * must not contain nsChangeHint_ReconstructFrame) to the root frame.
-   * Also rebuild the user font set.
-   */
   void RebuildAllStyleData(nsChangeHint aExtraHint);
-  /**
-   * Just like RebuildAllStyleData, except (1) asynchronous and (2) it
-   * doesn't rebuild the user font set.
-   */
-  void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
+  void PostRebuildAllStyleDataEvent();
 
   void MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData);
   void PostMediaFeatureValuesChangedEvent();
@@ -427,7 +414,7 @@ public:
 
   /**
    * Get the visible area associated with this presentation context.
-   * This is the size of the visible area that is used for
+   * This is the size of the visiable area that is used for
    * presenting the document. The returned value is in the standard
    * nscoord units (as scaled by the device context).
    */
@@ -438,12 +425,8 @@ public:
    * nscoord units (as scaled by the device context).
    */
   void SetVisibleArea(const nsRect& r) {
-    if (!r.IsExactEqual(mVisibleArea)) {
-      mVisibleArea = r;
-      // Visible area does not affect media queries when paginated.
-      if (!IsPaginated() && HasCachedStyleData())
-        PostMediaFeatureValuesChangedEvent();
-    }
+    mVisibleArea = r;
+    PostMediaFeatureValuesChangedEvent();
   }
 
   /**
@@ -509,8 +492,7 @@ public:
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
     mTextZoom = aZoom;
-    if (HasCachedStyleData())
-      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
   }
 
   float GetFullZoom() { return mFullZoom; }
@@ -760,21 +742,8 @@ public:
 
   PRBool           SupressingResizeReflow() const { return mSupressResizeReflow; }
   
-  virtual NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetExternal();
-  NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetInternal();
-#ifdef _IMPL_NS_LAYOUT
-  gfxUserFontSet* GetUserFontSet() { return GetUserFontSetInternal(); }
-#else
-  gfxUserFontSet* GetUserFontSet() { return GetUserFontSetExternal(); }
-#endif
-
-  void FlushUserFontSet();
-  void RebuildUserFontSet(); // asynchronously
-
-  // Should be called whenever the set of fonts available in the user
-  // font set changes (e.g., because a new font loads, or because the
-  // user font set is changed and fonts become unavailable).
-  void UserFontSetUpdated();
+  gfxUserFontSet* GetUserFontSet();
+  void SetUserFontSet(gfxUserFontSet *aUserFontSet);
 
   void NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc);
   void FireDOMPaintEvent();
@@ -783,7 +752,7 @@ protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
   NS_HIDDEN_(void) SysColorChangedInternal();
-
+  
   NS_HIDDEN_(void) SetImgAnimations(nsIContent *aParent, PRUint16 aMode);
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
@@ -797,14 +766,6 @@ protected:
   NS_HIDDEN_(void) GetFontPreferences();
 
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
-
-  void HandleRebuildUserFontSet() {
-    mPostedFlushUserFontSet = PR_FALSE;
-    FlushUserFontSet();
-  }
-
-  // Can't be inline because we can't include nsStyleSet.h.
-  PRBool HasCachedStyleData();
 
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -852,8 +813,6 @@ protected:
 
   // container for per-context fonts (downloadable, SVG, etc.)
   gfxUserFontSet* mUserFontSet;
-  // The list of @font-face rules that we put into mUserFontSet
-  nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   
   PRInt32               mFontScaler;
   nscoord               mMinimumFontSize;
@@ -912,13 +871,6 @@ protected:
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
   unsigned              mRenderedPositionVaryingContent : 1;
-
-  // Is the current mUserFontSet valid?
-  unsigned              mUserFontSetDirty : 1;
-  // Has GetUserFontSet() been called?
-  unsigned              mGetUserFontSetCalled : 1;
-  // Do we currently have an event posted to call FlushUserFontSet?
-  unsigned              mPostedFlushUserFontSet : 1;
 
   // resize reflow is supressed when the only change has been to zoom
   // the document rather than to change the document's dimensions

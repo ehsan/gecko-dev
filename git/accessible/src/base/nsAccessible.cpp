@@ -40,7 +40,6 @@
 #include "nsAccessible.h"
 #include "nsAccessibleRelation.h"
 #include "nsHyperTextAccessibleWrap.h"
-#include "nsNameUtils.h"
 
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleHyperText.h"
@@ -283,36 +282,7 @@ nsAccessible::GetName(nsAString& aName)
   if (!aName.IsEmpty())
     return NS_OK;
 
-  nsresult rv = GetNameInternal(aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aName.IsEmpty())
-    return NS_OK;
-
-  // In the end get the name from tooltip.
-  nsCOMPtr<nsIContent> content = nsCoreUtils::GetRoleContent(mDOMNode);
-  if (!content)
-    return NS_OK;
-
-  nsIAtom *tooltipAttr = nsnull;
-
-  if (content->IsNodeOfType(nsINode::eHTML))
-    tooltipAttr = nsAccessibilityAtoms::title;
-  else if (content->IsNodeOfType(nsINode::eXUL))
-    tooltipAttr = nsAccessibilityAtoms::tooltiptext;
-  else
-    return NS_OK;
-
-  // XXX: if CompressWhiteSpace worked on nsAString we could avoid a copy.
-  nsAutoString name;
-  if (content->GetAttr(kNameSpaceID_None, tooltipAttr, name)) {
-    name.CompressWhitespace();
-    aName = name;
-  } else if (rv != NS_OK_EMPTY_NAME) {
-    aName.SetIsVoid(PR_TRUE);
-  }
-
-  return NS_OK;
+  return GetNameInternal(aName);
 }
 
 NS_IMETHODIMP nsAccessible::GetDescription(nsAString& aDescription)
@@ -978,11 +948,11 @@ nsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   *aState = 0;
 
-  if (IsDefunct()) {
-    if (aExtraState)
+  if (!mDOMNode) {
+    if (aExtraState) {
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
+    }
+    return NS_OK; // Node shut down
   }
 
   if (aExtraState)
@@ -1746,8 +1716,12 @@ nsresult nsAccessible::GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aNa
   return NS_OK;
 }
 
-nsresult
-nsAccessible::GetHTMLName(nsAString& aLabel)
+/**
+  * Only called if the element is not a nsIDOMXULControlElement. Initially walks up
+  *   the DOM tree to the form, concatonating label elements as it goes. Then checks for
+  *   labels with the for="controlID" property.
+  */
+nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
   nsCOMPtr<nsIContent> content = nsCoreUtils::GetRoleContent(mDOMNode);
   if (!content) {
@@ -1768,10 +1742,9 @@ nsAccessible::GetHTMLName(nsAString& aLabel)
     }
   }
 
-  PRUint32 role = nsAccUtils::Role(this);
-  PRUint32 canAggregateName =
-    nsNameUtils::gRoleToNameRulesMap[role] & eFromSubtree;
-
+  PRBool canAggregateName = mRoleMapEntry ?
+                            mRoleMapEntry->nameRule == eNameOkFromChildren :
+                            aCanAggregateSubtree;
   if (canAggregateName) {
     // Don't use AppendFlatStringFromSubtree for container widgets like menulist
     nsresult rv = AppendFlatStringFromSubtree(content, &aLabel);
@@ -1779,6 +1752,12 @@ nsAccessible::GetHTMLName(nsAString& aLabel)
 
     if (!aLabel.IsEmpty())
       return NS_OK;
+  }
+
+  // Still try the title as as fallback method in that case.
+  if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title,
+                        aLabel)) {
+    aLabel.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
@@ -1796,8 +1775,7 @@ nsAccessible::GetHTMLName(nsAString& aLabel)
   *  the control that uses the control="controlID" syntax will use
   *  the child label for its Name.
   */
-nsresult
-nsAccessible::GetXULName(nsAString& aLabel)
+nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree)
 {
   // CASE #1 (via label attribute) -- great majority of the cases
   nsresult rv = NS_OK;
@@ -1852,6 +1830,13 @@ nsAccessible::GetXULName(nsAString& aLabel)
     return NS_OK;
   }
 
+  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::tooltiptext, label);
+  label.CompressWhitespace();
+  if (!label.IsEmpty()) {
+    aLabel = label;
+    return NS_OK;
+  }
+
   // Can get text from title of <toolbaritem> if we're a child of a <toolbaritem>
   nsIContent *bindingParent = content->GetBindingParent();
   nsIContent *parent = bindingParent? bindingParent->GetParent() :
@@ -1866,9 +1851,9 @@ nsAccessible::GetXULName(nsAString& aLabel)
     parent = parent->GetParent();
   }
 
-  PRUint32 role = nsAccUtils::Role(this);
-  PRUint32 canAggregateName =
-    nsNameUtils::gRoleToNameRulesMap[role] & eFromSubtree;
+  PRBool canAggregateName = mRoleMapEntry ?
+                            mRoleMapEntry->nameRule == eNameOkFromChildren :
+                            aCanAggregateSubtree;
 
   return canAggregateName ?
          AppendFlatStringFromSubtree(content, &aLabel) : NS_OK;
@@ -2015,12 +2000,95 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
     }
   }
 
-  // Group attributes (level/setsize/posinset)
+  // Level/setsize/posinset
   if (!nsAccUtils::HasAccGroupAttrs(attributes)) {
-    // Calculate group attributes based on accessible hierarhy if they weren't
-    // provided by ARIA or by accessible class implementation.
-    rv = ComputeGroupAttributes(role, attributes);
-    NS_ENSURE_SUCCESS(rv, rv);
+    // The role of an accessible can be pointed by ARIA attribute but ARIA
+    // posinset, level, setsize may be skipped. Therefore we calculate here
+    // these properties to map them into description.
+
+    // If accessible is invisible we don't want to calculate group ARIA
+    // attributes for it.
+    if ((role == nsIAccessibleRole::ROLE_LISTITEM ||
+         role == nsIAccessibleRole::ROLE_MENUITEM ||
+         role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+         role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM ||
+         role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
+         role == nsIAccessibleRole::ROLE_PAGETAB ||
+         role == nsIAccessibleRole::ROLE_OPTION ||
+         role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
+         role == nsIAccessibleRole::ROLE_OUTLINEITEM) &&
+        0 == (nsAccUtils::State(this) & nsIAccessibleStates::STATE_INVISIBLE)) {
+
+      PRUint32 baseRole = role;
+      if (role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+          role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
+        baseRole = nsIAccessibleRole::ROLE_MENUITEM;
+
+      nsCOMPtr<nsIAccessible> parent = GetParent();
+      NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
+
+      PRInt32 positionInGroup = 0;
+      PRInt32 setSize = 0;
+
+      nsCOMPtr<nsIAccessible> sibling, nextSibling;
+      parent->GetFirstChild(getter_AddRefs(sibling));
+      NS_ENSURE_TRUE(sibling, NS_ERROR_FAILURE);
+
+      PRBool foundCurrent = PR_FALSE;
+      PRUint32 siblingRole, siblingBaseRole;
+      while (sibling) {
+        sibling->GetFinalRole(&siblingRole);
+
+        siblingBaseRole = siblingRole;
+        if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+            siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
+          siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
+
+        // If sibling is visible and has the same base role.
+        if (siblingBaseRole == baseRole &&
+            !(nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
+          ++ setSize;
+          if (!foundCurrent) {
+            ++ positionInGroup;
+            if (sibling == this)
+              foundCurrent = PR_TRUE;
+          }
+        }
+
+        // If the sibling is separator
+        if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR) {
+          if (foundCurrent) // the our group is ended
+            break;
+
+          // not our group, continue the searching
+          positionInGroup = 0;
+          setSize = 0;
+        }
+
+        sibling->GetNextSibling(getter_AddRefs(nextSibling));
+        sibling = nextSibling;
+      }
+
+      PRInt32 groupLevel = 0;
+      if (role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+        groupLevel = 1;
+        nsCOMPtr<nsIAccessible> nextParent;
+        while (parent) {
+          parent->GetFinalRole(&role);
+
+          if (role == nsIAccessibleRole::ROLE_OUTLINE)
+            break;
+          if (role == nsIAccessibleRole::ROLE_GROUPING)
+            ++ groupLevel;
+
+          parent->GetParent(getter_AddRefs(nextParent));
+          parent.swap(nextParent);
+        }
+      }
+
+      nsAccUtils::SetAccGroupAttrs(attributes, groupLevel, positionInGroup,
+                                   setSize);
+    }
   }
 
   // Expose all ARIA attributes
@@ -2206,7 +2274,7 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   NS_ENSURE_ARG_POINTER(aState);
 
   nsresult rv = GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Apply ARIA states to be sure accessible states will be overriden.
   GetARIAState(aState);
@@ -3353,10 +3421,10 @@ nsAccessible::GetNameInternal(nsAString& aName)
     return NS_OK;
 
   if (content->IsNodeOfType(nsINode::eHTML))
-    return GetHTMLName(aName);
+    return GetHTMLName(aName, PR_FALSE);
 
   if (content->IsNodeOfType(nsINode::eXUL))
-    return GetXULName(aName);
+    return GetXULName(aName, PR_FALSE);
 
   return NS_OK;
 }
@@ -3483,146 +3551,4 @@ nsAccessible::GetActionRule(PRUint32 aStates)
     return mRoleMapEntry->actionRule;
 
   return eNoAction;
-}
-
-nsresult
-nsAccessible::ComputeGroupAttributes(PRUint32 aRole,
-                                     nsIPersistentProperties *aAttributes)
-{
-  // The role of an accessible can be specified by ARIA attribute but ARIA
-  // posinset, level, setsize may be skipped. As well this method is used
-  // for non ARIA accessibles to avoid GetAccessibleInternal() method
-  // implementation in subclasses. For example, it's being used to calculate
-  // group attributes for HTML li elements.
-
-  // If accessible is invisible we don't want to calculate group attributes for
-  // it.
-  if (nsAccUtils::State(this) & nsIAccessibleStates::STATE_INVISIBLE)
-    return NS_OK;
-
-  if (aRole != nsIAccessibleRole::ROLE_LISTITEM &&
-      aRole != nsIAccessibleRole::ROLE_MENUITEM &&
-      aRole != nsIAccessibleRole::ROLE_CHECK_MENU_ITEM &&
-      aRole != nsIAccessibleRole::ROLE_RADIO_MENU_ITEM &&
-      aRole != nsIAccessibleRole::ROLE_RADIOBUTTON &&
-      aRole != nsIAccessibleRole::ROLE_PAGETAB &&
-      aRole != nsIAccessibleRole::ROLE_OPTION &&
-      aRole != nsIAccessibleRole::ROLE_OUTLINEITEM)
-    return NS_OK;
-
-  PRUint32 baseRole = aRole;
-  if (aRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
-      aRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
-    baseRole = nsIAccessibleRole::ROLE_MENUITEM;
-
-  nsCOMPtr<nsIAccessible> parent = GetParent();
-  NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
-
-  // Compute 'posinset' and 'setsize' attributes.
-  PRInt32 positionInGroup = 0;
-  PRInt32 setSize = 0;
-
-  nsCOMPtr<nsIAccessible> sibling, nextSibling;
-  parent->GetFirstChild(getter_AddRefs(sibling));
-  NS_ENSURE_STATE(sibling);
-
-  PRBool foundCurrent = PR_FALSE;
-  PRUint32 siblingRole, siblingBaseRole;
-  while (sibling) {
-    siblingRole = nsAccUtils::Role(sibling);
-
-    siblingBaseRole = siblingRole;
-    if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
-        siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
-      siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
-
-    // If sibling is visible and has the same base role.
-    if (siblingBaseRole == baseRole &&
-        !(nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
-      ++ setSize;
-      if (!foundCurrent) {
-        ++ positionInGroup;
-        if (sibling == this)
-          foundCurrent = PR_TRUE;
-      }
-    }
-
-    // If the sibling is separator
-    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR) {
-      if (foundCurrent) // the our group is ended
-        break;
-
-      // not our group, continue the searching
-      positionInGroup = 0;
-      setSize = 0;
-    }
-
-    sibling->GetNextSibling(getter_AddRefs(nextSibling));
-    sibling = nextSibling;
-  }
-
-  // Compute 'level' attribute.
-  PRInt32 groupLevel = 0;
-  if (aRole == nsIAccessibleRole::ROLE_OUTLINEITEM) {
-    // Always expose 'level' attribute for 'outlineitem' accessible. The number
-    // of nested 'grouping' accessibles containing 'outlineitem' accessible is
-    // its level.
-    groupLevel = 1;
-    nsCOMPtr<nsIAccessible> nextParent;
-    while (parent) {
-      PRUint32 parentRole = nsAccUtils::Role(parent);
-
-      if (parentRole == nsIAccessibleRole::ROLE_OUTLINE)
-        break;
-      if (parentRole == nsIAccessibleRole::ROLE_GROUPING)
-        ++ groupLevel;
-
-      parent->GetParent(getter_AddRefs(nextParent));
-      parent.swap(nextParent);
-    }
-  } else if (aRole == nsIAccessibleRole::ROLE_LISTITEM) {
-    // Expose 'level' attribute on nested lists. We assume nested list is a last
-    // child of listitem of parent list. We don't handle the case when nested
-    // lists have more complex structure, for example when there are accessibles
-    // between parent listitem and nested list.
-
-    // Calculate 'level' attribute based on number of parent listitems.
-    nsCOMPtr<nsIAccessible> nextParent;
-    while (parent) {
-      PRUint32 parentRole = nsAccUtils::Role(parent);
-
-      if (parentRole == nsIAccessibleRole::ROLE_LISTITEM)
-        ++ groupLevel;
-      else if (parentRole != nsIAccessibleRole::ROLE_LIST)
-        break;
-
-      parent->GetParent(getter_AddRefs(nextParent));
-      parent.swap(nextParent);
-    }
-
-    if (groupLevel == 0) {
-      // If this listitem is on top of nested lists then expose 'level'
-      // attribute.
-      nsCOMPtr<nsIAccessible> parent = GetParent();
-      parent->GetFirstChild(getter_AddRefs(sibling));
-
-      while (sibling) {
-        nsCOMPtr<nsIAccessible> siblingChild;
-        sibling->GetLastChild(getter_AddRefs(siblingChild));
-        if (nsAccUtils::Role(siblingChild) == nsIAccessibleRole::ROLE_LIST) {
-          groupLevel = 1;
-          break;
-        }
-
-        sibling->GetNextSibling(getter_AddRefs(nextSibling));
-        sibling.swap(nextSibling);
-      }
-    } else
-      groupLevel++; // level is 1-index based
-  }
-
-  nsAccUtils::SetAccGroupAttrs(aAttributes, groupLevel, positionInGroup,
-                               setSize);
-
-  return NS_OK;
 }

@@ -40,7 +40,6 @@
 
 #include "nscore.h"
 #include "prlog.h"
-#include "nsTArray.h"
 
 extern PRLogModuleInfo* gAudioStreamLog;
 
@@ -117,12 +116,6 @@ class nsAudioStream
   PRInt64 mSamplesBuffered;
 
   SampleFormat mFormat;
-
-  // When a Write() request is made, and the number of samples
-  // requested to be written exceeds the buffer size of the audio
-  // backend, the remaining samples are stored in this variable. They
-  // will be written on the next Write() request.
-  nsTArray<short> mBufferOverflow;
 
   PRPackedBool mPaused;
 };

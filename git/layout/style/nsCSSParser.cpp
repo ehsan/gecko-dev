@@ -2147,29 +2147,20 @@ void
 CSSParserImpl::SkipUntil(PRUnichar aStopSymbol)
 {
   nsCSSToken* tk = &mToken;
-  nsAutoTArray<PRUnichar, 16> stack;
-  stack.AppendElement(aStopSymbol);
   for (;;) {
     if (!GetToken(PR_TRUE)) {
       break;
     }
     if (eCSSToken_Symbol == tk->mType) {
       PRUnichar symbol = tk->mSymbol;
-      PRUint32 stackTopIndex = stack.Length() - 1;
-      if (symbol == stack.ElementAt(stackTopIndex)) {
-        stack.RemoveElementAt(stackTopIndex);
-        if (stackTopIndex == 0) {
-          break;
-        }
+      if (symbol == aStopSymbol) {
+        break;
       } else if ('{' == symbol) {
-        // In this case and the two below, just handle out-of-memory by
-        // parsing incorrectly.  It's highly unlikely we're dealing with
-        // a legitimate style sheet anyway.
-        stack.AppendElement('}');
+        SkipUntil('}');
       } else if ('[' == symbol) {
-        stack.AppendElement(']');
+        SkipUntil(']');
       } else if ('(' == symbol) {
-        stack.AppendElement(')');
+        SkipUntil(')');
       }
     }
   }
@@ -5350,13 +5341,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParsePositiveVariant(aValue, VARIANT_HKL,
                                 nsCSSProps::kBorderWidthKTable);
   case eCSSProperty__moz_column_count:
-    // Need to reject 0 in addition to negatives, so don't bother with
-    // ParsePositiveVariant.  If we accept 0, we need to change
-    // NS_STYLE_COLUMN_COUNT_AUTO to something else.
-    return ParseVariant(aValue, VARIANT_AHI, nsnull) &&
-           (aValue.GetUnit() != eCSSUnit_Integer ||
-            aValue.GetIntValue() > 0 ||
-            (UngetToken(), PR_FALSE));
+    return ParsePositiveVariant(aValue, VARIANT_AHI, nsnull);
   case eCSSProperty__moz_column_width:
     return ParsePositiveVariant(aValue, VARIANT_AHL, nsnull);
   case eCSSProperty__moz_column_gap:
@@ -5381,7 +5366,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBoxPackKTable);
   case eCSSProperty_box_ordinal_group:
-    return ParsePositiveVariant(aValue, VARIANT_HI, nsnull);
+    return ParseVariant(aValue, VARIANT_HI, nsnull);
 #ifdef MOZ_SVG
   case eCSSProperty_clip_path:
     return ParseVariant(aValue, VARIANT_HUO, nsnull);
@@ -5437,10 +5422,8 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kStrokeLinejoinKTable);
   case eCSSProperty_stroke_miterlimit:
-    return ParseVariant(aValue, VARIANT_HN, nsnull) &&
-           // Enforce the restriction that the value is greater than 1.
-           (aValue.GetUnit() != eCSSUnit_Number || 
-            aValue.GetFloatValue() >= 1.0f);
+    return ParsePositiveVariant(aValue, VARIANT_HN,
+                                nsnull);
   case eCSSProperty_stroke_opacity:
     return ParseVariant(aValue, VARIANT_HN,
                         nsnull);
@@ -6371,36 +6354,37 @@ PRBool
 CSSParserImpl::ParseBorderColors(nsCSSValueList** aResult,
                                  nsCSSProperty aProperty)
 {
-  nsCSSValueList *list = nsnull;
-  for (nsCSSValueList **curp = &list, *cur; ; curp = &cur->mNext) {
-    cur = *curp = new nsCSSValueList();
-    if (!cur) {
+  nsCSSValue value;
+  if (ParseVariant(value, VARIANT_HCK|VARIANT_NONE, nsCSSProps::kBorderColorKTable)) {
+    nsCSSValueList* listHead = new nsCSSValueList();
+    nsCSSValueList* list = listHead;
+    if (!list) {
       mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
+      return PR_FALSE;
     }
-    if (!ParseVariant(cur->mValue,
-                      (cur == list)
-                        ? (VARIANT_HCK | VARIANT_NONE)
-                        : (VARIANT_COLOR | VARIANT_KEYWORD),
-                      nsCSSProps::kBorderColorKTable)) {
-      break;
+    list->mValue = value;
+
+    while (list) {
+      if (ExpectEndProperty()) {
+        mTempData.SetPropertyBit(aProperty);
+        *aResult = listHead;
+        return PR_TRUE;
+      }
+      // FIXME Bug 389404: We should not accept inherit, -moz-initial,
+      // or none as anything other than the first value.
+      if (ParseVariant(value, VARIANT_HCK|VARIANT_NONE, nsCSSProps::kBorderColorKTable)) {
+        list->mNext = new nsCSSValueList();
+        list = list->mNext;
+        if (list)
+          list->mValue = value;
+        else
+          mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+      }
+      else
+        break;
     }
-    if (ExpectEndProperty()) {
-      // Only success case here, since having the failure case at the
-      // end allows more sharing of code.
-      mTempData.SetPropertyBit(aProperty);
-      *aResult = list;
-      return PR_TRUE;
-    }
-    if (cur->mValue.GetUnit() == eCSSUnit_Inherit ||
-        cur->mValue.GetUnit() == eCSSUnit_Initial ||
-        cur->mValue.GetUnit() == eCSSUnit_None) {
-      // 'inherit', 'initial', and 'none' are only allowed on their own
-      break;
-    }
+    delete listHead;
   }
-  // Have failure case at the end so we can |break| to get to it.
-  delete list;
   return PR_FALSE;
 }
 
@@ -6428,7 +6412,7 @@ CSSParserImpl::DoParseRect(nsCSSRect& aRect)
     switch (keyword) {
       case eCSSKeyword_auto:
         if (ExpectEndProperty()) {
-          aRect.SetAllSidesTo(nsCSSValue(eCSSUnit_RectIsAuto));
+          aRect.SetAllSidesTo(nsCSSValue(eCSSUnit_Auto));
           return PR_TRUE;
         }
         break;
@@ -7635,12 +7619,7 @@ CSSParserImpl::ParseTextDecoration(nsCSSValue& aValue)
       PRInt32 index;
       for (index = 0; index < 3; index++) {
         if (ParseEnum(keyword, nsCSSProps::kTextDecorationKTable)) {
-          PRInt32 newValue = keyword.GetIntValue();
-          if (newValue & intValue) {
-            // duplicate keyword is not allowed
-            return PR_FALSE;
-          }
-          intValue |= newValue;
+          intValue |= keyword.GetIntValue();
         }
         else {
           break;

@@ -1117,16 +1117,17 @@ nsExternalResourceMap::PendingLoad::StartLoad(nsIURI* aURI,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  nsCOMPtr<nsIInterfaceRequestor> req = nsContentUtils::GetSameOriginChecker();
-  NS_ENSURE_TRUE(req, NS_ERROR_OUT_OF_MEMORY);
-
   nsCOMPtr<nsILoadGroup> loadGroup = doc->GetDocumentLoadGroup();
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel), aURI, nsnull, loadGroup, req);
+  rv = NS_NewChannel(getter_AddRefs(channel), aURI, nsnull, loadGroup);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mURI = aURI;
 
+  nsCOMPtr<nsIInterfaceRequestor> req = nsContentUtils::GetSameOriginChecker();
+  NS_ENSURE_TRUE(req, NS_ERROR_OUT_OF_MEMORY);
+
+  channel->SetNotificationCallbacks(req);
   return channel->AsyncOpen(this, nsnull);
 }
 
@@ -3197,9 +3198,9 @@ nsDocument::GetChildCount() const
 }
 
 nsIContent * const *
-nsDocument::GetChildArray(PRUint32* aChildCount) const
+nsDocument::GetChildArray() const
 {
-  return mChildren.GetChildArray(aChildCount);
+  return mChildren.GetChildArray();
 }
   
 
@@ -3604,10 +3605,6 @@ nsDocument::GetWindow()
 nsPIDOMWindow *
 nsDocument::GetInnerWindow()
 {
-  if (!mRemovedFromDocShell) {
-    return mWindow;
-  }
-
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
   return win;
@@ -3855,13 +3852,9 @@ nsDocument::RemoveIDTargetObserver(nsIAtom* aID,
   if (!CheckGetElementByIdArg(aID))
     return;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aID);
-  if (!entry) {
-    // We don't need to do the stuff that GetElementByIdInternal does;
-    // if there's no entry already in mIdentifierMap, then there's no
-    // callback to remove.
+  nsIdentifierMapEntry *entry = GetElementByIdInternal(aID);
+  if (!entry)
     return;
-  }
 
   entry->RemoveContentChangeCallback(aObserver, aData);
 }
@@ -5115,18 +5108,6 @@ nsDocument::FlushSkinBindings()
   BindingManager()->FlushSkinBindings();
 }
 
-class nsFrameLoaderRunner : public nsRunnable
-{
-public:
-  nsFrameLoaderRunner(nsDocument* aDoc) : mDoc(aDoc) {}
-  NS_IMETHOD Run() {
-    mDoc->InitializeFinalizeFrameLoaders();
-    return NS_OK;
-  }
-private:
-  nsRefPtr<nsDocument> mDoc;
-};
-
 nsresult
 nsDocument::InitializeFrameLoader(nsFrameLoader* aLoader)
 {
@@ -5137,12 +5118,11 @@ nsDocument::InitializeFrameLoader(nsFrameLoader* aLoader)
                "document is being deleted");
     return NS_ERROR_FAILURE;
   }
-
-  mInitializableFrameLoaders.AppendElement(aLoader);
-  if (!mFrameLoaderRunner) {
-    mFrameLoaderRunner = new nsFrameLoaderRunner(this);
-    NS_ENSURE_TRUE(mFrameLoaderRunner, NS_ERROR_OUT_OF_MEMORY);
-    nsContentUtils::AddScriptRunner(mFrameLoaderRunner);
+  if (mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization) {
+    nsRefPtr<nsFrameLoader> loader = aLoader;
+    return loader->ReallyStartLoading();
+  } else {
+    mInitializableFrameLoaders.AppendElement(aLoader);
   }
   return NS_OK;
 }
@@ -5154,12 +5134,11 @@ nsDocument::FinalizeFrameLoader(nsFrameLoader* aLoader)
   if (mInDestructor) {
     return NS_ERROR_FAILURE;
   }
-
-  mFinalizableFrameLoaders.AppendElement(aLoader);
-  if (!mFrameLoaderRunner) {
-    mFrameLoaderRunner = new nsFrameLoaderRunner(this);
-    NS_ENSURE_TRUE(mFrameLoaderRunner, NS_ERROR_OUT_OF_MEMORY);
-    nsContentUtils::AddScriptRunner(mFrameLoaderRunner);
+  if (mUpdateNestLevel == 0) {
+    nsRefPtr<nsFrameLoader> loader = aLoader;
+    loader->Finalize();
+  } else {
+    mFinalizableFrameLoaders.AppendElement(aLoader);
   }
   return NS_OK;
 }
@@ -5167,11 +5146,8 @@ nsDocument::FinalizeFrameLoader(nsFrameLoader* aLoader)
 void
 nsDocument::InitializeFinalizeFrameLoaders()
 {
-  mFrameLoaderRunner = nsnull;
-  if (mDelayFrameLoaderInitialization || mUpdateNestLevel != 0) {
-    return;
-  }
-
+  NS_ASSERTION(mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization,
+               "Wrong time to call InitializeFinalizeFrameLoaders!");
   // Don't use a temporary array for mInitializableFrameLoaders, because
   // loading a frame may cause some other frameloader to be removed from the
   // array. But be careful to keep the loader alive when starting the load!
@@ -5350,7 +5326,18 @@ nsDocument::GetParentNode(nsIDOMNode** aParentNode)
 NS_IMETHODIMP
 nsDocument::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
-  return nsINode::GetChildNodes(aChildNodes);
+  nsSlots *slots = GetSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
+  if (!slots->mChildNodes) {
+    slots->mChildNodes = new nsChildContentList(this);
+    NS_ENSURE_TRUE(slots->mChildNodes, NS_ERROR_OUT_OF_MEMORY);
+    NS_ADDREF(slots->mChildNodes);
+  }
+
+  NS_ADDREF(*aChildNodes = slots->mChildNodes);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -5376,13 +5363,26 @@ nsDocument::HasAttributes(PRBool* aHasAttributes)
 NS_IMETHODIMP
 nsDocument::GetFirstChild(nsIDOMNode** aFirstChild)
 {
-  return nsINode::GetFirstChild(aFirstChild);
+  if (mChildren.ChildCount()) {
+    return CallQueryInterface(mChildren.ChildAt(0), aFirstChild);
+  }
+
+  *aFirstChild = nsnull;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocument::GetLastChild(nsIDOMNode** aLastChild)
 {
-  return nsINode::GetLastChild(aLastChild);
+  PRInt32 count = mChildren.ChildCount();
+  if (count) {
+    return CallQueryInterface(mChildren.ChildAt(count-1), aLastChild);
+  }
+
+  *aLastChild = nsnull;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -5984,7 +5984,9 @@ nsDocument::RenameNode(nsIDOMNode *aNode,
 NS_IMETHODIMP
 nsDocument::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
 {
-  return nsINode::GetOwnerDocument(aOwnerDocument);
+  *aOwnerDocument = nsnull;
+
+  return NS_OK;
 }
 
 nsresult
@@ -7086,10 +7088,6 @@ nsDocument::OnPageShow(PRBool aPersisted)
     }
   }
 
-  // Set mIsShowing before firing events, in case those event handlers
-  // move us around.
-  mIsShowing = PR_TRUE;
-  
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, aPersisted);
   DispatchEventToWindow(&event);
 }
@@ -7116,10 +7114,6 @@ nsDocument::OnPageHide(PRBool aPersisted)
     }
   }
 
-  // Set mIsShowing before firing events, in case those event handlers
-  // move us around.
-  mIsShowing = PR_FALSE;
-  
   // Now send out a PageHide event.
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, aPersisted);
   DispatchEventToWindow(&event);
@@ -7350,7 +7344,8 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
   clone->nsDocument::SetDocumentURI(nsIDocument::GetDocumentURI());
   // Must set the principal first, since SetBaseURI checks it.
   clone->SetPrincipal(NodePrincipal());
-  clone->mDocumentBaseURI = mDocumentBaseURI;
+  rv = clone->SetBaseURI(nsIDocument::GetBaseURI());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Set scripting object
   PRBool hasHadScriptObject = PR_TRUE;

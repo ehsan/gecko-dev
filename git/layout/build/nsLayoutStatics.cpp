@@ -67,7 +67,7 @@
 #include "nsNodeInfo.h"
 #include "nsRange.h"
 #include "nsRepeatService.h"
-#include "nsFloatManager.h"
+#include "nsSpaceManager.h"
 #include "nsSprocketLayout.h"
 #include "nsStackLayout.h"
 #include "nsStyleSet.h"
@@ -315,7 +315,7 @@ nsLayoutStatics::Shutdown()
 #endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
-  nsFloatManager::Shutdown();
+  nsSpaceManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
   nsCSSScanner::ReleaseGlobals();

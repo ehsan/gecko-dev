@@ -30,7 +30,6 @@
 #   Dean Tessman <dean_tessman@hotmail.com>
 #   Johnathan Nightingale <johnath@mozilla.com>
 #   Dão Gottwald <dao@mozilla.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -66,20 +65,12 @@
         xmlns:svg="http://www.w3.org/2000/svg"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="BrowserStartup()" onunload="BrowserShutdown()" onclose="return WindowIsClosing();"
-        title="&mainWindow.title;"
-        title_normal="&mainWindow.title;"
-#ifdef XP_MACOSX
-        title_privatebrowsing="&mainWindow.title;&mainWindow.titlemodifiermenuseparator;&mainWindow.titlePrivateBrowsingSuffix;"
-        titledefault="&mainWindow.title;"
-        titlemodifier=""
-        titlemodifier_normal=""
-        titlemodifier_privatebrowsing="&mainWindow.titlePrivateBrowsingSuffix;"
-#else
-        title_privatebrowsing="&mainWindow.titlemodifierPrivateBrowsing;"
-        titlemodifier="&mainWindow.titlemodifier;"
-        titlemodifier_normal="&mainWindow.titlemodifier;"
-        titlemodifier_privatebrowsing="&mainWindow.titlemodifierPrivateBrowsing;"
-#endif
+        title="&mainWindow.title; 3.1 Beta 2"
+        title_normal="&mainWindow.title; 3.1 Beta 2"
+        title_privatebrowsing="&mainWindowPrivateBrowsing.titlemodifier; 3.1 Beta 2"
+        titlemodifier="&mainWindow.titlemodifier; 3.1 Beta 2"
+        titlemodifier_normal="&mainWindow.titlemodifier; 3.1 Beta 2"
+        titlemodifier_privatebrowsing="&mainWindowPrivateBrowsing.titlemodifier; 3.1 Beta 2"
         titlemenuseparator="&mainWindow.titlemodifiermenuseparator;"
         windowtype="navigator:browser"
         screenX="4" screenY="4"
@@ -136,6 +127,7 @@
                     accesskey="&editBookmark.undo.accessKey;"/>
             <button id="editBookmarkPanelRemoveButton"
                     oncommand="StarUI.removeBookmarkButtonCommand();"
+                    label="&editBookmark.removeBookmark.label;"
                     accesskey="&editBookmark.removeBookmark.accessKey;"/>
             <button id="editBookmarkPanelEditButton"
                     oncommand="StarUI.editButtonCommand();"
@@ -241,7 +233,7 @@
     <tooltip id="urlTooltip">
       <label crop="center" flex="1" class="tooltip-label"/>
     </tooltip>
-
+#ifdef USE_TAB_PREVIEWS
     <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" norestorefocus="true" ignorekeys="true">
       <hbox pack="center">
         <textbox id="ctrlTab-search"
@@ -267,6 +259,7 @@
       </hbox>
       <hbox id="ctrlTab-pages"/>
     </panel>
+#endif
   </popupset>
 
   <!-- bookmarks toolbar tooltip -->
@@ -397,8 +390,6 @@
                     class="plain urlbar-icon"
                     id="feed-button"
                     chromedir="&locale.dir;"
-                    collapsed="true"
-                    tooltiptext="&feedButton.tooltip;"
                     onclick="return FeedHandler.onFeedButtonClick(event);">
               <menupopup position="after_end"
                          onpopupshowing="return FeedHandler.buildFeedList(this);"
@@ -575,7 +566,6 @@
                       ondblclick="if (event.button == 0) displaySecurityInfo();"/>
       <statusbarpanel id="page-report-button" type="menu"
                       class="statusbarpanel-menu-iconic"
-                      hidden="true"
                       tooltiptext="&pageReportIcon.tooltip;">
         <menupopup onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
           <menuitem observes="blockedPopupAllowSite"/>

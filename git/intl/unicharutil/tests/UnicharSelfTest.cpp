@@ -58,7 +58,7 @@ NS_DEFINE_CID(kEntityConverterCID, NS_ENTITYCONVERTER_CID);
 NS_DEFINE_CID(kSaveAsCharsetCID, NS_SAVEASCHARSET_CID);
 NS_DEFINE_CID(kUnicodeNormalizerCID, NS_UNICODE_NORMALIZER_CID);
 
-#define TESTLEN 32
+#define TESTLEN 29
 #define T2LEN TESTLEN
 #define T3LEN TESTLEN
 #define T4LEN TESTLEN
@@ -94,9 +94,6 @@ static PRUnichar t2data  [T2LEN+1] = {
   0x01F1 ,  // 26
   0x01F2 ,  // 27
   0x01F3 ,  // 28
-  0x0250 ,  // 29
-  0x0271 ,  // 30
-  0xA641 ,  // 31
   0x00  
 };
 // expected result for ToUpper 
@@ -130,9 +127,6 @@ static PRUnichar t2result[T2LEN+1] =  {
   0x01F1 ,  // 26
   0x01F1 ,  // 27
   0x01F1 ,  // 28
-  0x2C6F ,  // 29
-  0x2C6E ,  // 30
-  0xA640 ,  // 31
   0x00  
 };
 // test data for ToLower 
@@ -166,9 +160,6 @@ static PRUnichar t3data  [T3LEN+1] =  {
   0x01F1 ,  // 26
   0x01F2 ,  // 27
   0x01F3 ,  // 28
-  0x2C6F ,  // 29
-  0x2C6E ,  // 30
-  0xA640 ,  // 31
   0x00  
 };
 // expected result for ToLower 
@@ -202,9 +193,6 @@ static PRUnichar t3result[T3LEN+1] =  {
   0x01F3 ,  // 26
   0x01F3 ,  // 27
   0x01F3 ,  // 28
-  0x0250 ,  // 29
-  0x0271 ,  // 30
-  0xA641 ,  // 31
   0x00  
 };
 // test data for ToTitle 
@@ -238,9 +226,6 @@ static PRUnichar t4data  [T4LEN+2] =  {
   0x01F1 ,  // 26
   0x01F2 ,  // 27
   0x01F3 ,  // 28
-  0x0250 ,  // 29
-  0x0271 ,  // 30
-  0xA641 ,  // 31
   0x0041 ,  // Dummy entry to prevent overflow
   0x00  
 };
@@ -275,9 +260,6 @@ static PRUnichar t4result[T4LEN+2] =  {
   0x01F1 ,  // 26
   0x01F2 ,  // 27
   0x01F2 ,  // 28
-  0x2C6F ,  // 29
-  0x2C6E ,  // 30
-  0xA640 ,  // 31
   0x0041 ,  // Dummy entry to prevent overflow
   0x00  
 };

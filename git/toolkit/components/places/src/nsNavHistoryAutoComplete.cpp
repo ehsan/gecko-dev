@@ -78,16 +78,9 @@
 #include "nsNavBookmarks.h"
 #include "nsPrintfCString.h"
 #include "nsILivemarkService.h"
-#include "mozIStoragePendingStatement.h"
 
 #define NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID \
   "@mozilla.org/autocomplete/simple-result;1"
-
-// Helpers to get and set fields in the mAutoCompleteCurrentBehavior bitmap
-#define GET_BEHAVIOR(aBitName) \
-  (mAutoCompleteCurrentBehavior & kAutoCompleteBehavior##aBitName)
-#define SET_BEHAVIOR(aBitName) \
-  mAutoCompleteCurrentBehavior |= kAutoCompleteBehavior##aBitName
 
 // Helper to get a particular column with a desired name from the bookmark and
 // tags table based on if we want to include tags or not
@@ -798,14 +791,18 @@ nsNavHistory::AddSearchToken(nsAutoString &aToken)
 void
 nsNavHistory::ProcessTokensForSpecialSearch()
 {
-  // Start with the default behavior
-  mAutoCompleteCurrentBehavior = mAutoCompleteDefaultBehavior;
+  // If any of the special searches are empty, automatically use it
+  mRestrictHistory = mAutoCompleteRestrictHistory.IsEmpty();
+  mRestrictBookmark = mAutoCompleteRestrictBookmark.IsEmpty();
+  mRestrictTag = mAutoCompleteRestrictTag.IsEmpty();
+  mMatchTitle = mAutoCompleteMatchTitle.IsEmpty();
+  mMatchUrl = mAutoCompleteMatchUrl.IsEmpty();
 
   // If we're searching only one of history or bookmark, we can use filters
   if (mAutoCompleteSearchSources == SEARCH_HISTORY)
-    SET_BEHAVIOR(History);
+    mRestrictHistory = PR_TRUE;
   else if (mAutoCompleteSearchSources == SEARCH_BOOKMARK)
-    SET_BEHAVIOR(Bookmark);
+    mRestrictBookmark = PR_TRUE;
   // SEARCH_BOTH doesn't require any filtering
 
   // Determine which special searches to apply
@@ -814,15 +811,15 @@ nsNavHistory::ProcessTokensForSpecialSearch()
     const nsString *token = mCurrentSearchTokens.StringAt(i);
 
     if (token->Equals(mAutoCompleteRestrictHistory))
-      SET_BEHAVIOR(History);
+      mRestrictHistory = PR_TRUE;
     else if (token->Equals(mAutoCompleteRestrictBookmark))
-      SET_BEHAVIOR(Bookmark);
+      mRestrictBookmark = PR_TRUE;
     else if (token->Equals(mAutoCompleteRestrictTag))
-      SET_BEHAVIOR(Tag);
+      mRestrictTag = PR_TRUE;
     else if (token->Equals(mAutoCompleteMatchTitle))
-      SET_BEHAVIOR(Title);
+      mMatchTitle = PR_TRUE;
     else if (token->Equals(mAutoCompleteMatchUrl))
-      SET_BEHAVIOR(Url);
+      mMatchUrl = PR_TRUE;
     else
       needToRemove = PR_FALSE;
 
@@ -833,9 +830,9 @@ nsNavHistory::ProcessTokensForSpecialSearch()
 
   // We can use optimized queries for restricts, so check for the most
   // restrictive query first
-  mDBCurrentQuery = GET_BEHAVIOR(Tag) ? GetDBAutoCompleteTagsQuery() :
-    GET_BEHAVIOR(Bookmark) ? GetDBAutoCompleteStarQuery() :
-    GET_BEHAVIOR(History) ? GetDBAutoCompleteHistoryQuery() :
+  mDBCurrentQuery = mRestrictTag ? GetDBAutoCompleteTagsQuery() :
+    mRestrictBookmark ? GetDBAutoCompleteStarQuery() :
+    mRestrictHistory ? GetDBAutoCompleteHistoryQuery() :
     static_cast<mozIStorageStatement *>(mDBAutoCompleteQuery);
 }
 
@@ -1028,9 +1025,9 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
           // only history items, only bookmarks, only tags. If a given restrict
           // is active, make sure a corresponding condition is *not* true. If
           // any are violated, matchAll will be false.
-          PRBool matchAll = !((GET_BEHAVIOR(History) && visitCount == 0) ||
-                              (GET_BEHAVIOR(Bookmark) && !parentId) ||
-                              (GET_BEHAVIOR(Tag) && entryTags.IsEmpty()));
+          PRBool matchAll = !((mRestrictHistory && visitCount == 0) ||
+            (mRestrictBookmark && !parentId) ||
+            (mRestrictTag && entryTags.IsEmpty()));
 
           // Unescape the url to search for unescaped terms
           nsString entryURL = FixupURIText(escapedEntryURL);
@@ -1047,14 +1044,14 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
             // Make sure we match something in the title or tags if we have to
             matchAll = matchTags || matchTitle;
-            if (GET_BEHAVIOR(Title) && !matchAll)
+            if (mMatchTitle && !matchAll)
               break;
 
             // Check if the url matches the search term
             PRBool matchUrl = (*tokenMatchesTarget)(*token, entryURL);
             // If we don't match the url when we have to, reset matchAll to
             // false; otherwise keep track that we did match the current search
-            if (GET_BEHAVIOR(Url) && !matchUrl)
+            if (mMatchUrl && !matchUrl)
               matchAll = PR_FALSE;
             else
               matchAll |= matchUrl;
@@ -1158,9 +1155,7 @@ nsNavHistory::AutoCompleteFeedback(PRInt32 aIndex,
   rv = stmt->BindStringParameter(1, url);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // We do the update async and we don't care about failures
-  nsCOMPtr<mozIStoragePendingStatement> canceler;
-  rv = stmt->ExecuteAsync(nsnull, getter_AddRefs(canceler));
+  rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

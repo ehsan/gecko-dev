@@ -46,6 +46,7 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGAnimatedRect.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
@@ -120,6 +121,9 @@ nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo)
 
 nsSVGSVGElement::~nsSVGSVGElement()
 {
+  if (mPreserveAspectRatio) {
+    NS_REMOVE_SVGVALUE_OBSERVER(mPreserveAspectRatio);
+  }
   if (mViewBox) {
     NS_REMOVE_SVGVALUE_OBSERVER(mViewBox);
   }
@@ -142,6 +146,20 @@ nsSVGSVGElement::Init()
     rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
     NS_ENSURE_SUCCESS(rv,rv);
     rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  // DOM property: preserveAspectRatio , #IMPLIED attrib: preserveAspectRatio
+  {
+    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
+    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedPreserveAspectRatio(
+                                          getter_AddRefs(mPreserveAspectRatio),
+                                          preserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
+                           mPreserveAspectRatio);
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
@@ -624,10 +642,11 @@ nsSVGSVGElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
-                                        **aPreserveAspectRatio)
+nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
+  *aPreserveAspectRatio = mPreserveAspectRatio;
+  NS_ADDREF(*aPreserveAspectRatio);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -1424,18 +1443,4 @@ nsSVGSVGElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-void
-nsSVGSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
-{
-  nsSVGSVGElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
-
-  InvalidateTransformNotifyFrame();
-}
-
-nsSVGPreserveAspectRatio *
-nsSVGSVGElement::GetPreserveAspectRatio()
-{
-  return &mPreserveAspectRatio;
 }

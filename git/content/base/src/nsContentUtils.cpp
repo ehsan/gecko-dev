@@ -161,7 +161,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIOfflineCacheUpdate.h"
 #include "nsCPrefetchService.h"
 #include "nsIChromeRegistry.h"
-#include "nsIMIMEHeaderParam.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -463,7 +462,7 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onloadstart,                   { NS_LOADSTART, EventNameType_HTML }},
     { &nsGkAtoms::onprogress,                    { NS_PROGRESS, EventNameType_HTML }},
     { &nsGkAtoms::onloadedmetadata,              { NS_LOADEDMETADATA, EventNameType_HTML }},
-    { &nsGkAtoms::onloadeddata,                  { NS_LOADEDDATA, EventNameType_HTML }},
+    { &nsGkAtoms::onloadedfirstframe,            { NS_LOADEDFIRSTFRAME, EventNameType_HTML }},
     { &nsGkAtoms::onemptied,                     { NS_EMPTIED, EventNameType_HTML }},
     { &nsGkAtoms::onstalled,                     { NS_STALLED, EventNameType_HTML }},
     { &nsGkAtoms::onplay,                        { NS_PLAY, EventNameType_HTML }},
@@ -473,6 +472,8 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onseeked,                      { NS_SEEKED, EventNameType_HTML }},
     { &nsGkAtoms::ontimeupdate,                  { NS_TIMEUPDATE, EventNameType_HTML }},
     { &nsGkAtoms::onended,                       { NS_ENDED, EventNameType_HTML }},
+    { &nsGkAtoms::ondataunavailable,             { NS_DATAUNAVAILABLE, EventNameType_HTML }},
+    { &nsGkAtoms::oncanshowcurrentframe,         { NS_CANSHOWCURRENTFRAME, EventNameType_HTML }},
     { &nsGkAtoms::oncanplay,                     { NS_CANPLAY, EventNameType_HTML }},
     { &nsGkAtoms::oncanplaythrough,              { NS_CANPLAYTHROUGH, EventNameType_HTML }},
     { &nsGkAtoms::onratechange,                  { NS_RATECHANGE, EventNameType_HTML }},
@@ -3170,7 +3171,7 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
 /* static */
 PRBool
 nsContentUtils::CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
-                            nsACString& aCharset, PRBool *bigEndian)
+                            nsACString& aCharset)
 {
   PRBool found = PR_TRUE;
   aCharset.Truncate();
@@ -3185,30 +3186,22 @@ nsContentUtils::CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
            aBuffer[1] == 0x00 &&
            aBuffer[2] == 0xFE &&
            aBuffer[3] == 0xFF) {
-    aCharset = "UTF-32";
-    if (bigEndian)
-      *bigEndian = PR_TRUE;
+    aCharset = "UTF-32BE";
   }
   else if (aLength >= 4 &&
            aBuffer[0] == 0xFF &&
            aBuffer[1] == 0xFE &&
            aBuffer[2] == 0x00 &&
            aBuffer[3] == 0x00) {
-    aCharset = "UTF-32";
-    if (bigEndian)
-      *bigEndian = PR_FALSE;
+    aCharset = "UTF-32LE";
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFE && aBuffer[1] == 0xFF) {
-    aCharset = "UTF-16";
-    if (bigEndian)
-      *bigEndian = PR_TRUE;
+    aCharset = "UTF-16BE";
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFF && aBuffer[1] == 0xFE) {
-    aCharset = "UTF-16";
-    if (bigEndian)
-      *bigEndian = PR_FALSE;
+    aCharset = "UTF-16LE";
   } else {
     found = PR_FALSE;
   }
@@ -3247,7 +3240,8 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   }
 
   // global object will be null for documents that don't have windows.
-  nsPIDOMWindow* window = doc->GetInnerWindow();
+  nsCOMPtr<nsPIDOMWindow> window;
+  window = do_QueryInterface(doc->GetScriptGlobalObject());
   // This relies on nsEventListenerManager::AddEventListener, which sets
   // all mutation bits when there is a listener for DOMSubtreeModified event.
   if (window && !window->HasMutationListeners(aType)) {
@@ -3861,8 +3855,6 @@ nsContentUtils::GetWidgetStatusFromIMEStatus(PRUint32 aState)
       return nsIWidget::IME_STATUS_ENABLED;
     case nsIContent::IME_STATUS_PASSWORD:
       return nsIWidget::IME_STATUS_PASSWORD;
-    case nsIContent::IME_STATUS_PLUGIN:
-      return nsIWidget::IME_STATUS_PLUGIN;
     default:
       NS_ERROR("The given state doesn't have valid enable state");
       return nsIWidget::IME_STATUS_ENABLED;
@@ -4495,26 +4487,17 @@ nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
                                        PRUint32    aFlags)
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-  if (!nsContentUtils::GetSecurityManager()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 
-  nsCOMPtr<nsIPrincipal> oldPrincipal;
-  nsContentUtils::GetSecurityManager()->
-    GetChannelPrincipal(aOldChannel, getter_AddRefs(oldPrincipal));
+  nsCOMPtr<nsIURI> oldURI;
+  nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI)); // The original URI
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIURI> newURI;
-  aNewChannel->GetURI(getter_AddRefs(newURI));
-  nsCOMPtr<nsIURI> newOriginalURI;
-  aNewChannel->GetOriginalURI(getter_AddRefs(newOriginalURI));
+  rv = aNewChannel->GetURI(getter_AddRefs(newURI)); // The new URI
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_ENSURE_STATE(oldPrincipal && newURI && newOriginalURI);
-
-  nsresult rv = oldPrincipal->CheckMayLoad(newURI, PR_FALSE);
-  if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
-    rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
-  }
-  return rv;
+  return nsContentUtils::GetSecurityManager()->
+    CheckSameOriginURI(oldURI, newURI, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -4523,22 +4506,3 @@ nsSameOriginChecker::GetInterface(const nsIID & aIID, void **aResult)
   return QueryInterface(aIID, aResult);
 }
 
-nsContentTypeParser::nsContentTypeParser(const nsAString& aString)
-  : mString(aString), mService(nsnull)
-{
-  CallGetService("@mozilla.org/network/mime-hdrparam;1", &mService);
-}
-
-nsContentTypeParser::~nsContentTypeParser()
-{
-  NS_IF_RELEASE(mService);
-}
-
-nsresult
-nsContentTypeParser::GetParameter(const char* aParameterName, nsAString& aResult)
-{
-  NS_ENSURE_TRUE(mService, NS_ERROR_FAILURE);
-  return mService->GetParameter(mString, aParameterName,
-                                EmptyCString(), PR_FALSE, nsnull,
-                                aResult);
-}

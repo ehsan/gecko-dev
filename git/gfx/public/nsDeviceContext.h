@@ -61,8 +61,7 @@ public:
   virtual nsresult Init(nsIDeviceContext* aContext);
   virtual nsresult GetDeviceContext(nsIDeviceContext *&aContext) const;
   virtual nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                                 gfxUserFontSet* aUserFontSet,
-                                 nsIFontMetrics *&aMetrics);
+                                 nsIFontMetrics *&aMetrics, gfxUserFontSet *aUserFontSet = nsnull);
 
   nsresult   FontMetricsDeleted(const nsIFontMetrics* aFontMetrics);
   nsresult   Compact();
@@ -101,11 +100,9 @@ public:
   NS_IMETHOD  CreateRenderingContextInstance(nsIRenderingContext *&aContext);
 
   NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                            gfxUserFontSet* aUserFontSet,
-                            nsIFontMetrics*& aMetrics);
-  NS_IMETHOD  GetMetricsFor(const nsFont& aFont,
-                            gfxUserFontSet* aUserFontSet,
-                            nsIFontMetrics*& aMetrics);
+                            nsIFontMetrics*& aMetrics, gfxUserFontSet *aUserFontSet = nsnull);
+  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIFontMetrics*& aMetrics, 
+                            gfxUserFontSet *aUserFontSet = nsnull);
 
   NS_IMETHOD FirstExistingFont(const nsFont& aFont, nsString& aFaceName);
 

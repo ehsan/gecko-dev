@@ -39,9 +39,7 @@
 #include "nsDOMWorkerScriptLoader.h"
 
 // Interfaces
-#include "nsIChannel.h"
 #include "nsIContentPolicy.h"
-#include "nsIHttpChannel.h"
 #include "nsIIOService.h"
 #include "nsIRequest.h"
 #include "nsIScriptSecurityManager.h"
@@ -71,8 +69,7 @@ nsDOMWorkerScriptLoader::nsDOMWorkerScriptLoader(nsDOMWorker* aWorker)
 : nsDOMWorkerFeature(aWorker),
   mTarget(nsnull),
   mScriptCount(0),
-  mCanceled(PR_FALSE),
-  mForWorker(PR_FALSE)
+  mCanceled(PR_FALSE)
 {
   // Created on worker thread.
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
@@ -85,8 +82,7 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsDOMWorkerScriptLoader, nsDOMWorkerFeature,
 
 nsresult
 nsDOMWorkerScriptLoader::LoadScripts(JSContext* aCx,
-                                     const nsTArray<nsString>& aURLs,
-                                     PRBool aForWorker)
+                                     const nsTArray<nsString>& aURLs)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aCx, "Null context!");
@@ -97,8 +93,6 @@ nsDOMWorkerScriptLoader::LoadScripts(JSContext* aCx,
   if (mCanceled) {
     return NS_ERROR_ABORT;
   }
-
-  mForWorker = aForWorker;
 
   mScriptCount = aURLs.Length();
   if (!mScriptCount) {
@@ -153,13 +147,12 @@ nsDOMWorkerScriptLoader::LoadScripts(JSContext* aCx,
 
 nsresult
 nsDOMWorkerScriptLoader::LoadScript(JSContext* aCx,
-                                    const nsString& aURL,
-                                    PRBool aForWorker)
+                                    const nsString& aURL)
 {
   nsAutoTArray<nsString, 1> url;
   url.AppendElement(aURL);
 
-  return LoadScripts(aCx, url, aForWorker);
+  return LoadScripts(aCx, url);
 }
 
 nsresult
@@ -233,7 +226,6 @@ nsDOMWorkerScriptLoader::VerifyScripts(JSContext* aCx)
           message = "Malformed script URI: %s";
           break;
         case NS_ERROR_FILE_NOT_FOUND:
-        case NS_ERROR_NOT_AVAILABLE:
           message = "Script file not found: %s";
           break;
         default:
@@ -422,36 +414,9 @@ nsDOMWorkerScriptLoader::RunInternal()
     return NS_ERROR_ABORT;
   }
 
-  nsIPrincipal* principal;
-  nsIURI* baseURI;
-
-  if (mForWorker) {
-    NS_ASSERTION(mScriptCount == 1, "Bad state!");
-
-    nsRefPtr<nsDOMWorker> parentWorker = mWorker->GetParent();
-    if (parentWorker) {
-      principal = parentWorker->GetPrincipal();
-      NS_ENSURE_STATE(principal);
-
-      baseURI = parentWorker->GetURI();
-      NS_ENSURE_STATE(baseURI);
-    }
-    else {
-      principal = parentDoc->NodePrincipal();
-      NS_ENSURE_STATE(principal);
-
-      baseURI = parentDoc->GetBaseURI();
-    }
-  }
-  else {
-    principal = mWorker->GetPrincipal();
-    baseURI = mWorker->GetURI();
-
-    NS_ASSERTION(principal && baseURI, "Should have been set already!");
-  }
-
   // All of these can potentially be null, but that should be ok. We'll either
   // succeed without them or fail below.
+  nsIURI* parentBaseURI = parentDoc->GetBaseURI();
   nsCOMPtr<nsILoadGroup> loadGroup(parentDoc->GetDocumentLoadGroup());
   nsCOMPtr<nsIIOService> ios(do_GetIOService());
 
@@ -462,7 +427,7 @@ nsDOMWorkerScriptLoader::RunInternal()
     nsCOMPtr<nsIURI>& uri = loadInfo.finalURI;
     rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(uri),
                                                    loadInfo.url, parentDoc,
-                                                   baseURI);
+                                                   parentBaseURI);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -470,33 +435,26 @@ nsDOMWorkerScriptLoader::RunInternal()
     nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
     NS_ENSURE_TRUE(secMan, NS_ERROR_FAILURE);
 
+    rv = secMan->CheckLoadURIWithPrincipal(parentDoc->NodePrincipal(), uri, 0);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+
     PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_SCRIPT, uri,
-                                   principal, parentDoc,
+    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_SCRIPT,
+                                   uri,
+                                   parentDoc->NodePrincipal(),
+                                   parentDoc,
                                    NS_LITERAL_CSTRING("text/javascript"),
-                                   nsnull, &shouldLoad,
-                                   nsContentUtils::GetContentPolicy(), secMan);
+                                   nsnull,
+                                   &shouldLoad,
+                                   nsContentUtils::GetContentPolicy(),
+                                   secMan);
     if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
       if (NS_FAILED(rv) || shouldLoad != nsIContentPolicy::REJECT_TYPE) {
         return NS_ERROR_CONTENT_BLOCKED;
       }
       return NS_ERROR_CONTENT_BLOCKED_SHOW_ALT;
-    }
-
-    // If this script loader is being used to make a new worker then we need to
-    // do a same-origin check. Otherwise we need to clear the load with the
-    // security manager.
-    if (mForWorker) {
-      rv = principal->CheckMayLoad(uri, PR_FALSE);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      // Set the principal and URI on the new worker.
-      mWorker->SetPrincipal(principal);
-      mWorker->SetURI(uri);
-    }
-    else {
-      rv = secMan->CheckLoadURIWithPrincipal(principal, uri, 0);
-      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // We need to know which index we're on in OnStreamComplete so we know where
@@ -555,15 +513,15 @@ nsDOMWorkerScriptLoader::OnStreamCompleteInternal(nsIStreamLoader* aLoader,
 
 #ifdef DEBUG
   // Make sure we're seeing the channel that we expect.
-  nsCOMPtr<nsIRequest> requestDebug;
-  nsresult rvDebug = aLoader->GetRequest(getter_AddRefs(requestDebug));
+  nsCOMPtr<nsIRequest> request;
+  nsresult rvDebug = aLoader->GetRequest(getter_AddRefs(request));
 
   // When we cancel sometimes we get null here. That should be ok, but only if
   // we're canceled.
   NS_ASSERTION(NS_SUCCEEDED(rvDebug) || mCanceled, "GetRequest failed!");
 
   if (NS_SUCCEEDED(rvDebug)) {
-    nsCOMPtr<nsIChannel> channel(do_QueryInterface(requestDebug));
+    nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
     NS_ASSERTION(channel, "QI failed!");
 
     nsCOMPtr<nsISupports> thisChannel(do_QueryInterface(channel));
@@ -585,23 +543,6 @@ nsDOMWorkerScriptLoader::OnStreamCompleteInternal(nsIStreamLoader* aLoader,
 
   if (!(aStringLen && aString)) {
     return rv = NS_ERROR_UNEXPECTED;
-  }
-
-  // Make sure we're not seeing the result of a 404 or something by checking the
-  // 'requestSucceeded' attribute on the http channel.
-  nsCOMPtr<nsIRequest> request;
-  rv = aLoader->GetRequest(getter_AddRefs(request));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(request));
-  if (httpChannel) {
-    PRBool requestSucceeded;
-    rv = httpChannel->GetRequestSucceeded(&requestSucceeded);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!requestSucceeded) {
-      return rv = NS_ERROR_NOT_AVAILABLE;
-    }
   }
 
   nsIDocument* parentDoc = mWorker->Pool()->ParentDocument();
