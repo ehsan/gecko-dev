@@ -2714,12 +2714,12 @@
     "n_buckets": 20,
     "description": "Firefox: Time in ms spent on switching tabs in response to a tab click"
   },
-  "FX_APP_MENU_OPEN_MS": {
+  "FX_IDENTITY_POPUP_OPEN_MS": {
     "kind": "exponential",
     "high": "1000",
     "n_buckets": 10,
     "extended_statistics_ok": true,
-    "description": "Firefox: Time taken by the app-menu opening in milliseconds"
+    "description": "Firefox: Time taken by the identity popup to open in milliseconds"
   },
   "FX_BOOKMARKS_TOOLBAR_INIT_MS": {
     "kind": "exponential",
@@ -3670,6 +3670,18 @@
     "kind": "enumerated",
     "n_values": 3,
     "description": "User actions taken in the plugin notification: 0: allownow 1: allowalways 2: block"
+  },
+  "PLUGINS_INFOBAR_SHOWN": {
+    "kind": "boolean",
+    "description": "Count of when the hidden-plugin infobar was displayed."
+  },
+  "PLUGINS_INFOBAR_BLOCK": {
+    "kind": "boolean",
+    "description": "Count the number of times the user clicked 'block' on the hidden-plugin infobar."
+  },
+  "PLUGINS_INFOBAR_ALLOW": {
+    "kind": "boolean",
+    "description": "Count the number of times the user clicked 'allow' on the hidden-plugin infobar."
   },
   "POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS": {
     "kind": "linear",
