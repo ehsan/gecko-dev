@@ -75,7 +75,6 @@ public:
     eColor_TextSelectForeground,
     eColor_TextSelectBackgroundDisabled,
     eColor_TextSelectBackgroundAttention,
-    eColor_TextHighlightBackground,
 
     eColor_IMERawInputBackground,
     eColor_IMERawInputForeground,
@@ -234,14 +233,6 @@ public:
      * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
      */
     eMetric_WindowsDefaultTheme,
-
-    /*
-     * A Boolean value to determine whether the DWM compositor is being used
-     *
-     * This metric is not used on non-Windows platforms. These platforms
-     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
-     */
-    eMetric_DWMCompositor,
 
     /*
      * eMetric_AlertNotificationOrigin indicates from which corner of the

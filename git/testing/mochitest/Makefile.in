@@ -69,7 +69,6 @@ _SERV_FILES = 	\
 		redirect.js \
 		$(topsrcdir)/build/pgo/server-locations.txt \
 		$(topsrcdir)/netwerk/test/httpserver/httpd.js \
-		mozprefs.js \
 		$(NULL)	
 
 

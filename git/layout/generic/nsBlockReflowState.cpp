@@ -139,7 +139,8 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mPrevChild = nsnull;
   mCurrentLine = aFrame->end_lines();
 
-  mMinLineHeight = nsHTMLReflowState::CalcLineHeight(aReflowState.frame);
+  mMinLineHeight = nsHTMLReflowState::CalcLineHeight(aReflowState.rendContext,
+                                                     aReflowState.frame);
 
   // Calculate mOutsideBulletX
   GetAvailableSpace();
@@ -443,7 +444,8 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
       fc = fc->Next();
     }
   } else if (aLine->IsBlock()) {
-    nsBlockFrame *kid = nsLayoutUtils::GetAsBlock(aLine->mFirstChild);
+    nsBlockFrame *kid = nsnull;
+    aLine->mFirstChild->QueryInterface(kBlockFrameCID, (void**)&kid);
     // don't recover any state inside a block that has its own space
     // manager (we don't currently have any blocks like this, though,
     // thanks to our use of extra frames for 'overflow')
@@ -636,9 +638,10 @@ nsBlockReflowState::AddFloat(nsLineLayout&       aLineLayout,
     // This float will be placed after the line is done (it is a
     // below-current-line float).
     mBelowCurrentLineFloats.Append(fc);
-    if (aPlaceholder->GetNextInFlow()) {
+    if (mReflowState.availableHeight != NS_UNCONSTRAINEDSIZE ||
+        aPlaceholder->GetNextInFlow()) {
       // If the float might not be complete, mark it incomplete now to
-      // prevent its next-in-flow placeholders being torn down. We will destroy any
+      // prevent the placeholders being torn down. We will destroy any
       // placeholders later if PlaceBelowCurrentLineFloats finds the
       // float is complete.
       // Note that we could have unconstrained height and yet have

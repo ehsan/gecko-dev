@@ -54,7 +54,6 @@
 #include "nsIDOM3Attr.h"
 #include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsContentUtils.h"
 
 class nsDOMAttribute;
 
@@ -110,10 +109,6 @@ public:
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
-  {
-    return nsContentUtils::GetContextForEventHandlers(this, aContext);
-  }
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   static void Initialize();

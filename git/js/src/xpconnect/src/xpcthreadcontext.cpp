@@ -622,8 +622,6 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
         sMainJSThread = cx->thread;
 
         sMainThreadData = data;
-
-        sMainThreadData->mThread = PR_GetCurrentThread();
     }
 
     return data;

@@ -53,7 +53,6 @@ typedef void* cmsHPROFILE;
 typedef void* cmsHTRANSFORM;
 
 class gfxImageSurface;
-class gfxFont;
 class gfxFontGroup;
 struct gfxFontStyle;
 
@@ -98,13 +97,6 @@ enum eFontPrefLang {
 
     eFontPrefLang_CJKSet      = 31, // special code for CJK set
     eFontPrefLang_AllCount    = 32
-};
-
-enum eCMSMode {
-    eCMSMode_Off          = 0,     // No color management
-    eCMSMode_All          = 1,     // Color manage everything
-    eCMSMode_TaggedOnly   = 2,     // Color manage tagged Images Only
-    eCMSMode_AllCount     = 3
 };
 
 // when searching through pref langs, max number of pref langs
@@ -221,29 +213,12 @@ public:
     /**
      * Are we going to try color management?
      */
-    static eCMSMode GetCMSMode();
-
-    /**
-     * Determines the rendering intent for color management.
-     *
-     * If the value in the pref gfx.color_management.rendering_intent is a
-     * valid rendering intent as defined in modules/lcms/include/lcms.h, that
-     * value is returned. Otherwise, -1 is returned and the embedded intent
-     * should be used.
-     *
-     * See bug 444014 for details.
-     */
-    static int GetRenderingIntent();
+    static PRBool IsCMSEnabled();
 
     /**
      * Return the output device ICC profile.
      */
     static cmsHPROFILE GetCMSOutputProfile();
-
-    /**
-     * Return the sRGB ICC profile.
-     */
-    static cmsHPROFILE GetCMSsRGBProfile();
 
     /**
      * Return sRGB -> output device transform.

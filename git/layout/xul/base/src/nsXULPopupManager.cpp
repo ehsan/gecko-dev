@@ -64,7 +64,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDOMMouseEvent.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsIDocument.h"
 #include "nsPIDOMWindow.h"
 
@@ -530,7 +530,7 @@ CheckCaretDrawingState(nsIDocument *aDocument) {
   if (!presShell)
     return;
 
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   nsresult res = presShell->GetCaret(getter_AddRefs(caret));
   if (!caret)
     return;

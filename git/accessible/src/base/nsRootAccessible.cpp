@@ -40,6 +40,7 @@
 #include "nsAccessibleEventData.h"
 #include "nsHTMLSelectAccessible.h"
 #include "nsIBaseWindow.h"
+#include "nsICaret.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"

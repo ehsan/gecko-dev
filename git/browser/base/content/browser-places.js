@@ -22,6 +22,7 @@
 #   Annie Sullivan <annie.sullivan@gmail.com>
 #   Joe Hughes <joe@retrovirus.com>
 #   Asaf Romano <mano@mozilla.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or

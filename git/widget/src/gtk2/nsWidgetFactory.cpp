@@ -44,12 +44,10 @@
 #include "nsLookAndFeel.h"
 #include "nsWindow.h"
 #include "nsTransferable.h"
-#include "nsHTMLFormatConverter.h"
-#ifdef MOZ_X11
 #include "nsClipboardHelper.h"
+#include "nsHTMLFormatConverter.h"
 #include "nsClipboard.h"
 #include "nsDragService.h"
-#endif
 #include "nsFilePicker.h"
 #include "nsSound.h"
 #include "nsBidiKeyboard.h"
@@ -65,13 +63,8 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsImageToPixbuf.h"
-#include "nsPrintDialogGTK.h"
-
-#if defined(NS_OSSO)
-#include "nsIdleServiceOSSO.h"
-#elif defined(MOZ_X11)
 #include "nsIdleServiceGTK.h"
-#endif
+#include "nsPrintDialogGTK.h"
 
 #ifdef NATIVE_THEME_SUPPORT
 #include "nsNativeThemeGTK.h"
@@ -94,24 +87,17 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsChildWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLookAndFeel)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBidiKeyboard)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
-#ifdef MOZ_X11
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboardHelper)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsClipboard, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDragService)
-#endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSound)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScreenManagerGtk)
 #ifdef NATIVE_THEME_SUPPORT
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsNativeThemeGTK)
 #endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsImageToPixbuf)
-
-#if defined(NS_OSSO)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceOSSO)
-#elif defined(MOZ_X11)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceGTK)
-#endif
 
 #ifdef NS_PRINTING
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceContextSpecGTK)
@@ -229,7 +215,6 @@ static const nsModuleComponentInfo components[] =
     NS_TRANSFERABLE_CID,
     "@mozilla.org/widget/transferable;1",
     nsTransferableConstructor },
-#ifdef MOZ_X11
   { "Gtk Clipboard",
     NS_CLIPBOARD_CID,
     "@mozilla.org/widget/clipboard;1",
@@ -242,7 +227,6 @@ static const nsModuleComponentInfo components[] =
     NS_DRAGSERVICE_CID,
     "@mozilla.org/widget/dragservice;1",
     nsDragServiceConstructor },
-#endif
   { "HTML Format Converter",
     NS_HTMLFORMATCONVERTER_CID,
     "@mozilla.org/widget/htmlformatconverter;1",
@@ -301,18 +285,10 @@ static const nsModuleComponentInfo components[] =
     NS_IMAGE_TO_PIXBUF_CID,
     "@mozilla.org/widget/image-to-gdk-pixbuf;1",
     nsImageToPixbufConstructor },
-#if defined(NS_OSSO)
   { "User Idle Service",
     NS_IDLE_SERVICE_CID,
     "@mozilla.org/widget/idleservice;1",
-    nsIdleServiceOSSOConstructor },  
-#elif defined(MOZ_X11)
-{ "User Idle Service",
-    NS_IDLE_SERVICE_CID,
-    "@mozilla.org/widget/idleservice;1",
     nsIdleServiceGTKConstructor },
-#endif
-
 };
 
 PR_STATIC_CALLBACK(void)

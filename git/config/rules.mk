@@ -231,7 +231,6 @@ endif # MOZ_MAPINFO
 
 ifdef DEFFILE
 OS_LDFLAGS += -DEF:$(DEFFILE)
-EXTRA_DEPS += $(DEFFILE)
 endif
 
 ifdef MAPFILE
@@ -624,36 +623,28 @@ alldep::
 endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
-ifeq ($(filter s,$(MAKEFLAGS)),)
-ECHO := echo
-QUIET :=
-else
-ECHO := true
-QUIET := -q
-endif
-
 MAKE_TIER_SUBMAKEFILES = +$(if $(tier_$*_dirs),$(MAKE) $(addsuffix /Makefile,$(tier_$*_dirs)))
 
 export_tier_%: 
-	@$(ECHO) "$@"
+	@echo "$@"
 	@$(MAKE_TIER_SUBMAKEFILES)
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$(tier_$*_dirs),$(MAKE) -C $(dir) export; ) true
 
 libs_tier_%:
-	@$(ECHO) "$@"
+	@echo "$@"
 	@$(MAKE_TIER_SUBMAKEFILES)
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$(tier_$*_dirs),$(MAKE) -C $(dir) libs; ) true
 
 tools_tier_%:
-	@$(ECHO) "$@"
+	@echo "$@"
 	@$(MAKE_TIER_SUBMAKEFILES)
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$(tier_$*_dirs),$(MAKE) -C $(dir) tools; ) true
 
 $(foreach tier,$(TIERS),tier_$(tier))::
-	@$(ECHO) "$@: $($@_staticdirs) $($@_dirs)"
+	@echo "$@: $($@_staticdirs) $($@_dirs)"
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$($@_staticdirs),$(MAKE) -C $(dir); ) true
 	$(MAKE) export_$@
@@ -1469,7 +1460,7 @@ endif
 
 ifneq ($(EXPORTS)$(XPIDLSRCS)$(SDK_HEADERS)$(SDK_XPIDLSRCS),)
 $(SDK_PUBLIC) $(PUBLIC)::
-	@if test ! -d $@; then $(ECHO) Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 endif
 
 ifdef MOZ_JAVAXPCOM
@@ -1796,7 +1787,7 @@ ifndef NO_DIST_INSTALL
 	  $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py $(XULPPFLAGS) $(DEFINES) $(ACDEFINES) \
 	    $(JAR_MANIFEST) | \
 	  $(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/make-jars.pl \
-	    $(QUIET) -d $(MAKE_JARS_TARGET)/chrome -j $(FINAL_TARGET)/chrome \
+	    -d $(MAKE_JARS_TARGET)/chrome -j $(FINAL_TARGET)/chrome \
 	    $(MAKE_JARS_FLAGS) -- "$(XULPPFLAGS) $(DEFINES) $(ACDEFINES)"; \
 	fi
 endif

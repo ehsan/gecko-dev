@@ -115,6 +115,7 @@ function load()
                              null, null);
     }
 
+    gNavigatorBundle = document.getElementById("bundle_browser");
     gLoadFired = true;
 }
 

@@ -245,7 +245,7 @@ NS_IMETHODIMP nsPNGDecoder::Init(imgILoad *aLoad)
 
 #if defined(PNG_UNKNOWN_CHUNKS_SUPPORTED)
   /* Ignore unused chunks */
-  if (gfxPlatform::GetCMSMode() == eCMSMode_Off) {
+  if (!gfxPlatform::IsCMSEnabled()) {
     png_set_keep_unknown_chunks(mPNG, 1, color_chunks, 2);
   }
   png_set_keep_unknown_chunks(mPNG, 1, unused_chunks,
@@ -378,7 +378,7 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
                    int color_type, PRUint32 *inType, PRUint32 *intent)
 {
   cmsHPROFILE profile = nsnull;
-  *intent = INTENT_PERCEPTUAL; // Our default
+  *intent = INTENT_PERCEPTUAL;   // XXX: should this be the default?
 
 #ifndef PNG_NO_READ_iCCP
   // First try to see if iCCP chunk is present
@@ -531,14 +531,10 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   if (bit_depth == 16)
     png_set_strip_16(png_ptr);
 
-  PRUint32 inType, intent, pIntent;
-  if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
-    intent = gfxPlatform::GetRenderingIntent();
+  PRUint32 inType, intent;
+  if (gfxPlatform::IsCMSEnabled()) {
     decoder->mInProfile = PNGGetColorProfile(png_ptr, info_ptr,
-                                             color_type, &inType, &pIntent);
-    /* If we're not mandating an intent, use the one from the image. */
-    if (intent == -1)
-      intent = pIntent;
+                                             color_type, &inType, &intent);
   }
   if (decoder->mInProfile && gfxPlatform::GetCMSOutputProfile()) {
     PRUint32 outType;
@@ -556,7 +552,7 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
                                              0);
   } else {
     png_set_gray_to_rgb(png_ptr);
-    if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
+    if (gfxPlatform::IsCMSEnabled()) {
       if (color_type & PNG_COLOR_MASK_ALPHA || num_trans)
         decoder->mTransform = gfxPlatform::GetCMSRGBATransform();
       else
@@ -659,7 +655,7 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   }
 
   if (interlace_type == PNG_INTERLACE_ADAM7) {
-    if (height < PR_INT32_MAX / (width * channels))
+    if (height < INT_MAX / (width * channels))
       decoder->interlacebuf = (PRUint8 *)nsMemory::Alloc(channels * width * height);
     if (!decoder->interlacebuf) {
       longjmp(decoder->mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY

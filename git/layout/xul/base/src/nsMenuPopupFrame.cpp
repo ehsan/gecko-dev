@@ -211,8 +211,7 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   widgetData.mPopupHint = mPopupType;
 
   PRBool viewHasTransparentContent = !mInContentShell &&
-                                     (eTransparencyTransparent ==
-                                      nsLayoutUtils::GetFrameTransparency(this));
+                                     nsLayoutUtils::FrameHasTransparency(this);
   nsIContent* parentContent = GetContent()->GetParent();
   nsIAtom *tag = nsnull;
   if (parentContent)
@@ -247,8 +246,7 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   aView->CreateWidget(kCChildCID, &widgetData, nsnull, PR_TRUE, PR_TRUE,
                       eContentTypeInherit, parentWidget);
 #endif
-  aView->GetWidget()->SetTransparencyMode(viewHasTransparentContent ?
-      eTransparencyTransparent : eTransparencyOpaque);
+  aView->GetWidget()->SetHasTransparentBackground(viewHasTransparentContent);
   return NS_OK;
 }
 

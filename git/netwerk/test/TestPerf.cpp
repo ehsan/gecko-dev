@@ -6,8 +6,6 @@
 #include "nsIComponentRegistrar.h"
 #include "nsISupportsArray.h"
 
-namespace TestPerf {
-
 static nsIIOService *gIOService = nsnull;
 
 //-----------------------------------------------------------------------------
@@ -177,10 +175,6 @@ print_usage()
 {
     printf("usage: TestPerf [-sync|-async] <file-of-urls>\n");
 }
-
-} // namespace
-
-using namespace TestPerf;
 
 int
 main(int argc, char **argv)

@@ -83,7 +83,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_MutationEvent_id,
   eDOMClassInfo_UIEvent_id,
   eDOMClassInfo_MouseEvent_id,
-  eDOMClassInfo_MouseScrollEvent_id,
   eDOMClassInfo_KeyboardEvent_id,
   eDOMClassInfo_PopupBlockedEvent_id,
 
@@ -425,14 +424,6 @@ enum nsDOMClassInfoID {
   // HTML5
   eDOMClassInfo_MessageEvent_id,
 
-  // Geolocation
-  eDOMClassInfo_Geolocation_id,
-  eDOMClassInfo_Geolocator_id,
-
-  // @font-face in CSS
-  eDOMClassInfo_CSSFontFaceRule_id,
-  eDOMClassInfo_CSSFontFaceStyleDecl_id,
-
   // WhatWG Video Element
 #if defined(MOZ_MEDIA)
   eDOMClassInfo_HTMLVideoElement_id,
@@ -441,9 +432,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_HTMLMediaError_id,
   eDOMClassInfo_HTMLAudioElement_id,
 #endif
-
-  // DOM Traversal NodeIterator class
-  eDOMClassInfo_NodeIterator_id,
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

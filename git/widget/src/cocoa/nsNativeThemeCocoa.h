@@ -64,7 +64,7 @@ public:
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
-                                  const nsRect& aDirtyRect);
+                                  const nsRect& aClipRect);
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,

@@ -50,8 +50,6 @@
 #include "nsIUUIDGenerator.h"
 #include "prprf.h"
 #include "nsILivemarkService.h"
-#include "nsPlacesTriggers.h"
-#include "nsPlacesTables.h"
 
 const PRInt32 nsNavBookmarks::kFindBookmarksIndex_ID = 0;
 const PRInt32 nsNavBookmarks::kFindBookmarksIndex_Type = 1;
@@ -328,7 +326,19 @@ nsNavBookmarks::InitTables(mozIStorageConnection* aDBConn)
   nsresult rv = aDBConn->TableExists(NS_LITERAL_CSTRING("moz_bookmarks"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (! exists) {
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_BOOKMARKS);
+    // The fk column is for "foreign key". It contains ids from moz_places
+    // if the row is a bookmark.
+    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("CREATE TABLE moz_bookmarks ("
+        "id INTEGER PRIMARY KEY,"
+        "type INTEGER, "
+        "fk INTEGER DEFAULT NULL, "
+        "parent INTEGER, "
+        "position INTEGER, "
+        "title LONGVARCHAR, "
+        "keyword_id INTEGER, "
+        "folder_type TEXT, "
+        "dateAdded INTEGER, " 
+        "lastModified INTEGER)"));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // This index will make it faster to determine if a given item is
@@ -357,7 +367,9 @@ nsNavBookmarks::InitTables(mozIStorageConnection* aDBConn)
   rv = aDBConn->TableExists(NS_LITERAL_CSTRING("moz_bookmarks_roots"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!exists) {
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_BOOKMARKS_ROOTS);
+    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("CREATE TABLE moz_bookmarks_roots ("
+        "root_name VARCHAR(16) UNIQUE, "
+        "folder_id INTEGER)"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -365,11 +377,10 @@ nsNavBookmarks::InitTables(mozIStorageConnection* aDBConn)
   rv = aDBConn->TableExists(NS_LITERAL_CSTRING("moz_keywords"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (! exists) {
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_KEYWORDS);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Create trigger to update as well
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_KEYWORD_VALIDITY_TRIGGER);
+    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+        "CREATE TABLE moz_keywords ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "keyword TEXT UNIQUE)"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

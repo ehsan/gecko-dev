@@ -296,8 +296,6 @@ class nsAccessibleWrap : public nsAccessible,
   // Helper methods
   static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
   static HWND GetHWNDFor(nsIAccessible *aAccessible);
-  static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
-                                        BSTR *aIA2Attributes);
 
   /**
    * System caret support: update the Windows caret position. 

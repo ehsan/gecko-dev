@@ -73,7 +73,7 @@ public:
   PRBool IsInside(nscoord aX, nscoord aY,
                   nsIContent** aContent) const;
 
-  void Draw(nsIFrame* aFrame, nsIRenderingContext& aRC);
+  void Draw(nsPresContext* aCX, nsIRenderingContext& aRC);
   
   /** 
    * Called just before the nsImageFrame releases us. 

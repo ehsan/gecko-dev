@@ -282,55 +282,6 @@ MAKEFILES_libutil="
   modules/libutil/src/Makefile
 "
 
-MAKEFILES_libvorbis="
-  media/libvorbis/Makefile
-  media/libvorbis/lib/Makefile
-  media/libvorbis/include/Makefile
-  media/libvorbis/include/vorbis/Makefile
-"
-
-MAKEFILES_libtheora="
-  media/libtheora/Makefile
-  media/libtheora/lib/Makefile
-  media/libtheora/include/Makefile
-  media/libtheora/include/theora/Makefile
-"
-
-MAKEFILES_liboggz="
-  media/liboggz/Makefile
-  media/liboggz/src/Makefile
-  media/liboggz/src/liboggz/Makefile
-  media/liboggz/include/Makefile
-  media/liboggz/include/oggz/Makefile
-"
-
-MAKEFILES_libogg="
-  media/libogg/Makefile
-  media/libogg/src/Makefile
-  media/libogg/include/Makefile
-  media/libogg/include/ogg/Makefile
-"
-
-MAKEFILES_libfishsound="
-  media/libfishsound/Makefile
-  media/libfishsound/src/Makefile
-  media/libfishsound/src/libfishsound/Makefile
-  media/libfishsound/include/Makefile
-  media/libfishsound/include/fishsound/Makefile
-"
-
-MAKEFILES_liboggplay="
-  media/liboggplay/Makefile
-  media/liboggplay/src/Makefile
-  media/liboggplay/src/liboggplay/Makefile
-  media/liboggplay/include/Makefile
-  media/liboggplay/include/oggplay/Makefile
-"
-
-MAKEFILES_liboggplay_audio="
-  media/liboggplay_audio/Makefile
-"
-
 MAKEFILES_oji="
   modules/oji/Makefile
   modules/oji/public/Makefile
@@ -584,6 +535,9 @@ MAKEFILES_xpfe="
   xpfe/components/find/Makefile
   xpfe/components/find/public/Makefile
   xpfe/components/find/src/Makefile
+  xpfe/components/filepicker/Makefile
+  xpfe/components/filepicker/public/Makefile
+  xpfe/components/filepicker/src/Makefile
   xpfe/components/history/Makefile
   xpfe/components/history/src/Makefile
   xpfe/components/history/public/Makefile
@@ -692,8 +646,6 @@ MAKEFILES_xulapp="
   toolkit/components/downloads/Makefile
   toolkit/components/downloads/src/Makefile
   toolkit/components/filepicker/Makefile
-  toolkit/components/filepicker/public/Makefile
-  toolkit/components/filepicker/src/Makefile
   toolkit/system/gnome/Makefile
   toolkit/system/unixproxy/Makefile
   toolkit/system/osxproxy/Makefile
@@ -891,6 +843,17 @@ if [ ! "$MOZ_NATIVE_LCMS" ] ; then
     modules/lcms/Makefile
     modules/lcms/include/Makefile
     modules/lcms/src/Makefile
+  "
+fi
+
+if [ "$SUNCTL" ] ; then
+  add_makefiles "
+    intl/ctl/Makefile
+    intl/ctl/public/Makefile
+    intl/ctl/src/Makefile
+    intl/ctl/src/pangoLite/Makefile
+    intl/ctl/src/thaiShaper/Makefile
+    intl/ctl/src/hindiShaper/Makefile
   "
 fi
 
@@ -1178,17 +1141,5 @@ if [ "$MOZ_MEDIA" ]; then
    content/media/video/Makefile
    content/media/video/public/Makefile
    content/media/video/src/Makefile
- "
-fi
-
-if [ "$MOZ_OGG" ]; then
- add_makefiles "
-   $MAKEFILES_libvorbis
-   $MAKEFILES_libtheora
-   $MAKEFILES_liboggz
-   $MAKEFILES_libogg
-   $MAKEFILES_libfishsound
-   $MAKEFILES_liboggplay
-   $MAKEFILES_liboggplay_audio
  "
 fi

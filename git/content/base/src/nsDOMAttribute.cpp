@@ -45,6 +45,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsINameSpaceManager.h"
 #include "nsDOMError.h"
+#include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsDOMString.h"
 #include "nsIDocument.h"
@@ -200,7 +201,11 @@ NS_IMETHODIMP
 nsDOMAttribute::GetSpecified(PRBool* aSpecified)
 {
   NS_ENSURE_ARG_POINTER(aSpecified);
-  *aSpecified = PR_TRUE;
+
+  nsIContent* content = GetContentInternal();
+  *aSpecified = content && content->HasAttr(mNodeInfo->NamespaceID(),
+                                            mNodeInfo->NameAtom());
+
   return NS_OK;
 }
 

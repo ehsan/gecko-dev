@@ -85,7 +85,6 @@
 #include "nsIDOMText.h"
 #include "nsIDOMComment.h"
 #include "nsDOMDocumentType.h"
-#include "nsNodeIterator.h"
 #include "nsTreeWalker.h"
 
 #include "nsIServiceManager.h"
@@ -94,6 +93,7 @@
 #include "nsDOMError.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsIXBLService.h"
@@ -1142,7 +1142,6 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsISupportsWeakReference)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIRadioGroupContainer)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIMutationObserver)
-    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMNodeSelector)
     // nsNodeSH::PreCreate() depends on the identity pointer being the
     // same as nsINode (which nsIDocument inherits), so if you change
     // the below line, make sure nsNodeSH::PreCreate() still does the
@@ -1711,8 +1710,6 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
 
   mMayStartLayout = PR_FALSE;
 
-  mHaveInputEncoding = PR_TRUE;
-
   if (aReset) {
     Reset(aChannel, aLoadGroup);
   }
@@ -2147,8 +2144,8 @@ nsDocument::ElementFromPoint(PRInt32 aX, PRInt32 aY, nsIDOMElement** aReturn)
   // replace it with the first non-anonymous parent node of type element.
   while (ptContent &&
          !ptContent->IsNodeOfType(nsINode::eELEMENT) ||
-         ptContent->IsInAnonymousSubtree()) {
-    // XXXldb: Faster to jump to GetBindingParent if non-null?
+         ptContent->GetBindingParent() ||
+         ptContent->IsNativeAnonymous()) {
     ptContent = ptContent->GetParent();
   }
  
@@ -3176,10 +3173,6 @@ nsDocument::BeginLoad()
   // unblocking it while we know the document is loading.
   BlockOnload();
 
-  if (mScriptLoader) {
-    mScriptLoader->BeginDeferringScripts();
-  }
-
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginLoad, (this));
 }
 
@@ -3423,10 +3416,6 @@ nsDocument::DispatchContentLoadedEvents()
     } while (parent);
   }
 
-  if (mScriptLoader) {
-    mScriptLoader->EndDeferringScripts();
-  }
-
   UnblockOnload(PR_TRUE);
 }
 
@@ -3443,14 +3432,10 @@ nsDocument::EndLoad()
   
   NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
 
-  if (!mSynchronousDOMContentLoaded) {
-    nsRefPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsDocument>(this,
-                                       &nsDocument::DispatchContentLoadedEvents);
-    NS_DispatchToCurrentThread(ev);
-  } else {
-    DispatchContentLoadedEvents();
-  }
+  nsRefPtr<nsIRunnable> ev =
+    new nsRunnableMethod<nsDocument>(this,
+                                     &nsDocument::DispatchContentLoadedEvents);
+  NS_DispatchToCurrentThread(ev);
 }
 
 void
@@ -4213,28 +4198,7 @@ nsDocument::CreateNodeIterator(nsIDOMNode *aRoot,
                                PRBool aEntityReferenceExpansion,
                                nsIDOMNodeIterator **_retval)
 {
-  *_retval = nsnull;
-
-  if (!aRoot)
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-
-  nsresult rv = nsContentUtils::CheckSameOrigin(this, aRoot);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  nsCOMPtr<nsINode> root = do_QueryInterface(aRoot);
-  NS_ENSURE_TRUE(root, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-
-  nsNodeIterator *iterator = new nsNodeIterator(root,
-                                                aWhatToShow,
-                                                aFilter,
-                                                aEntityReferenceExpansion);
-  NS_ENSURE_TRUE(iterator, NS_ERROR_OUT_OF_MEMORY);
-
-  NS_ADDREF(*_retval = iterator);
-
-  return NS_OK; 
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -4246,26 +4210,17 @@ nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
 {
   *_retval = nsnull;
 
-  if (!aRoot)
+  if (!aRoot) {
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+  }
 
   nsresult rv = nsContentUtils::CheckSameOrigin(this, aRoot);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  nsCOMPtr<nsINode> root = do_QueryInterface(aRoot);
-  NS_ENSURE_TRUE(root, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-
-  nsTreeWalker* walker = new nsTreeWalker(root,
-                                          aWhatToShow,
-                                          aFilter,
-                                          aEntityReferenceExpansion);
-  NS_ENSURE_TRUE(walker, NS_ERROR_OUT_OF_MEMORY);
-
-  NS_ADDREF(*_retval = walker);
-
-  return NS_OK;
+  return NS_NewTreeWalker(aRoot, aWhatToShow, aFilter,
+                          aEntityReferenceExpansion, _retval);
 }
 
 
@@ -4969,12 +4924,7 @@ nsDocument::LookupNamespaceURI(const nsAString& aNamespacePrefix,
 NS_IMETHODIMP
 nsDocument::GetInputEncoding(nsAString& aInputEncoding)
 {
-  if (mHaveInputEncoding) {
-    return GetCharacterSet(aInputEncoding);
-  }
-
-  SetDOMStringToNull(aInputEncoding);
-  return NS_OK;
+  return GetCharacterSet(aInputEncoding);
 }
 
 NS_IMETHODIMP
@@ -5564,15 +5514,8 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   // flush ourselves, then don't flush the parent, since that can cause things
   // like resizes of our frame's widget, which we can't handle while flushing
   // is unsafe.
-  // Since media queries mean that a size change of our container can
-  // affect style, we need to promote a style flush on ourself to a
-  // layout flush on our parent, since we need our container to be the
-  // correct size to determine the correct style.
   if (mParentDocument && IsSafeToFlush()) {
-    mozFlushType parentType = aType;
-    if (aType == Flush_Style)
-      parentType = Flush_Layout;
-    mParentDocument->FlushPendingNotifications(parentType);
+    mParentDocument->FlushPendingNotifications(aType);
   }
 
   nsPresShellIterator iter(this);
@@ -6651,18 +6594,4 @@ nsDocument::SetScriptTypeID(PRUint32 aScriptType)
 {
     NS_ERROR("Can't change default script type for a document");
     return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDocument::QuerySelector(const nsAString& aSelector,
-                          nsIDOMElement **aReturn)
-{
-  return nsGenericElement::doQuerySelector(this, aSelector, aReturn);
-}
-
-NS_IMETHODIMP
-nsDocument::QuerySelectorAll(const nsAString& aSelector,
-                             nsIDOMNodeList **aReturn)
-{
-  return nsGenericElement::doQuerySelectorAll(this, aSelector, aReturn);
 }

@@ -45,7 +45,6 @@
 #include "nsIContent.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIDocShellTreeOwner.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
@@ -407,27 +406,9 @@ TAEListIndex nsWindowUtils::GetWindowIndex(TWindowKind windowKind, WindowPtr the
 //---------------------------------------------------------
 void nsWindowUtils::GetCleanedWindowName(WindowPtr wind, char* outName, long maxLen)
 {
-  nsCOMPtr<nsIXULWindow> xulWindow;
-  GetXULWindowFromWindowPtr(wind, getter_AddRefs(xulWindow));
-  ThrowErrIfNil(xulWindow, paramErr);
-
-  nsCOMPtr<nsIDocShellTreeItem> contentShell;
-  xulWindow->GetPrimaryContentShell(getter_AddRefs(contentShell));
-  ThrowErrIfNil(contentShell, paramErr);
-
-  nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-  contentShell->GetTreeOwner(getter_AddRefs(treeOwner));
-
-  nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(treeOwner));
-  ThrowErrIfNil(baseWindow, paramErr);
-
-  nsXPIDLString title;
-  baseWindow->GetTitle(getter_Copies(title));
-  ThrowErrIfNil(title, paramErr);
-
-  const char* cTitle = NS_ConvertUTF16toUTF8(title).get();
-  strncpy(outName, cTitle, maxLen);
-  outName[maxLen - 1] = '\0';
+	Str255 uncleanName;
+	GetWTitle(wind, uncleanName);
+	CopyPascalToCString(uncleanName, outName, maxLen);
 }
 
 //---------------------------------------------------------

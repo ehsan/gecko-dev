@@ -92,6 +92,9 @@ public:
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
 
+  virtual void InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
+                                  nsIFrame* aForChild, PRBool aImmediate);
+
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
   virtual void ReflowCallbackCanceled();
@@ -312,7 +315,9 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate);
+                                  PRBool aImmediate) {
+    mInner.InvalidateInternal(aDamageRect, aX, aY, aForChild, aImmediate);
+  }
 
   virtual PRBool NeedsView() { return PR_TRUE; }
   virtual PRBool DoesClipChildren() { return PR_TRUE; }
@@ -477,7 +482,9 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate);
+                                  PRBool aImmediate) {
+    mInner.InvalidateInternal(aDamageRect, aX, aY, aForChild, aImmediate);
+  }
 
   virtual PRBool NeedsView() { return PR_TRUE; }
   virtual PRBool DoesClipChildren() { return PR_TRUE; }

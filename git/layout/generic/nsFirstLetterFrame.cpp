@@ -236,8 +236,6 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     nsLineLayout* ll = aReflowState.mLineLayout;
     PRBool        pushedFrame;
 
-    NS_ASSERTION(ll->GetFirstLetterStyleOK() || GetPrevInFlow(),
-                 "First-in-flow first-letter should have first-letter style enabled in nsLineLayout!");
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);

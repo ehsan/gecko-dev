@@ -103,7 +103,6 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
     mForceBreakContent(nsnull),
     mLastOptionalBreakContentOffset(-1),
     mForceBreakContentOffset(-1),
-    mLastOptionalBreakPriority(eNoBreak),
     mBlockRS(nsnull),/* XXX temporary */
     mMinLineHeight(0),
     mTextIndent(0)
@@ -341,7 +340,7 @@ nsLineLayout::UpdateBand(const nsRect& aNewAvailSpace,
   for (PerSpanData* psd = mCurrentSpan; psd; psd = psd->mParent) {
     psd->mRightEdge += deltaWidth;
     psd->mContainsFloat = PR_TRUE;
-    NS_ASSERTION(psd->mX - mTrimmableWidth <= psd->mRightEdge,
+    NS_ASSERTION(psd->mX <= psd->mRightEdge,
                  "We placed a float where there was no room!");
 #ifdef NOISY_REFLOW
     printf("  span %p: oldRightEdge=%d newRightEdge=%d\n",
@@ -845,10 +844,8 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
 
   nsIAtom* frameType = aFrame->GetType();
   PRInt32 savedOptionalBreakOffset;
-  gfxBreakPriority savedOptionalBreakPriority;
   nsIContent* savedOptionalBreakContent =
-    GetLastOptionalBreakPosition(&savedOptionalBreakOffset,
-                                 &savedOptionalBreakPriority);
+    GetLastOptionalBreakPosition(&savedOptionalBreakOffset);
 
   rv = aFrame->Reflow(mPresContext, metrics, reflowState, aReflowStatus);
   if (NS_FAILED(rv)) {
@@ -873,22 +870,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
       nsIFrame* outOfFlowFrame = nsLayoutUtils::GetFloatFromPlaceholder(aFrame);
       if (outOfFlowFrame) {
         nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(aFrame);
-        // Add mTrimmableWidth to the available width since if the line ends
-        // here, the width of the inline content will be reduced by
-        // mTrimmableWidth.
-        nscoord availableWidth = psd->mRightEdge - (psd->mX - mTrimmableWidth);
-        if (psd->mNoWrap) {
-          // If we place floats after inline content where there's
-          // no break opportunity, we don't know how much additional
-          // width is required for the non-breaking content after the float,
-          // so we can't know whether the float plus that content will fit
-          // on the line. So for now, don't place floats after inline
-          // content where there's no break opportunity. This is incorrect
-          // but hopefully rare. Fixing it will require significant
-          // restructuring of line layout.
-          // We might as well allow zero-width floats to be placed, though.
-          availableWidth = 0;
-        }
+        nscoord availableWidth = psd->mRightEdge - psd->mX;
         // XXXldb What is this test supposed to be?
         if (!NS_SUBTREE_DIRTY(aFrame)) {
           // incremental reflow of child
@@ -1048,7 +1030,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
           // record soft break opportunity after this content that can't be
           // part of a text run. This is not a text frame so we know
           // that offset PR_INT32_MAX means "after the content".
-          if (NotifyOptionalBreakPosition(aFrame->GetContent(), PR_INT32_MAX, optionalBreakAfterFits, eNormalBreak)) {
+          if (NotifyOptionalBreakPosition(aFrame->GetContent(), PR_INT32_MAX, optionalBreakAfterFits)) {
             // If this returns true then we are being told to actually break here.
             aReflowStatus = NS_INLINE_LINE_BREAK_AFTER(aReflowStatus);
           }
@@ -1061,8 +1043,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
       // Undo any saved break positions that the frame might have told us about,
       // since we didn't end up placing it
       RestoreSavedBreakPosition(savedOptionalBreakContent,
-                                savedOptionalBreakOffset,
-                                savedOptionalBreakPriority);
+                                savedOptionalBreakOffset);
     }
   }
   else {
@@ -1280,7 +1261,19 @@ nsLineLayout::CanPlaceFrame(PerFrameData* pfd,
 
     // We will want to try backup.
     SetFlag(LL_NEEDBACKUP, PR_TRUE);
-    return PR_TRUE;
+
+    if (!aCanRollBackBeforeFrame) {
+      // Nowhere to roll back to, so make this fit
+      return PR_TRUE;
+    }
+    if (pfd->mSpan) {
+      // Allow spans to fit here. We don't want a span to fail to fit just
+      // because one of its children didn't fit; there may be a break opportunity
+      // we can roll back to inside the span.
+      return PR_TRUE;
+    }
+    // There is a break opportunity before the frame, so we can stop line
+    // reflow now.
   }
 
 #ifdef NOISY_CAN_PLACE_FRAME
@@ -1673,7 +1666,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     // Compute the logical height for this span. The logical height
     // is based on the line-height value, not the font-size. Also
     // compute the top leading.
-    nscoord logicalHeight = nsHTMLReflowState::CalcLineHeight(spanFrame);
+    nscoord logicalHeight = nsHTMLReflowState::CalcLineHeight(rc, spanFrame);
     nscoord contentHeight = spanFramePFD->mBounds.height -
       spanFramePFD->mBorderPadding.top - spanFramePFD->mBorderPadding.bottom;
 
@@ -1919,7 +1912,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
       case eStyleUnit_Percent:
         // Similar to a length value (eStyleUnit_Coord) except that the
         // percentage is a function of the elements line-height value.
-        elementLineHeight = nsHTMLReflowState::CalcLineHeight(frame);
+        elementLineHeight = nsHTMLReflowState::CalcLineHeight(rc, frame);
         percentOffset = nscoord(
           textStyle->mVerticalAlign.GetPercentValue() * elementLineHeight
           );

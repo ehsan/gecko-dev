@@ -698,9 +698,9 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
         int *ip;
     } u;
     const char *fmt0;
-    static const char hex[] = "0123456789abcdef";
-    static const char HEX[] = "0123456789ABCDEF";
-    const char *hexp;
+    static char *hex = "0123456789abcdef";
+    static char *HEX = "0123456789ABCDEF";
+    char *hexp;
     int rv, i;
     struct NumArgState *nas = NULL;
     struct NumArgState nasArray[ NAS_DEFAULT_NUM ];
