@@ -1426,8 +1426,9 @@ RENDER_AGAIN:
       nsUXThemeData::drawThemeBG(theme, hdc, gripPart, state, &widgetRect, &clipRect);
     }
   }
-  else if (aWidgetType == NS_THEME_WINDOW_BUTTON_BOX ||
-           aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED)
+  else if ((aWidgetType == NS_THEME_WINDOW_BUTTON_BOX ||
+            aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED) &&
+            nsUXThemeData::CheckForCompositor())
   {
     // The caption buttons are drawn by the DWM, we just need to clear the area where they
     // are because we might have drawn something above them (like a background-image).
@@ -1930,16 +1931,19 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* 
 
     case NS_THEME_WINDOW_BUTTON_BOX:
     case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
-      QueryForButtonData(aFrame);
-      aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cx;
-      aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy
-                        - GetSystemMetrics(SM_CYFRAME);
-      if (aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED) {
-        aResult->width += 1;
-        aResult->height -= 2;
+      if (nsUXThemeData::CheckForCompositor()) {
+        QueryForButtonData(aFrame);
+        aResult->width = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cx;
+        aResult->height = nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy
+                          - GetSystemMetrics(SM_CYFRAME);
+        if (aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED) {
+          aResult->width += 1;
+          aResult->height -= 2;
+        }
+        *aIsOverridable = PR_FALSE;
+        return NS_OK;
       }
-      *aIsOverridable = PR_FALSE;
-      return NS_OK;
+      break;
 
     case NS_THEME_WINDOW_FRAME_LEFT:
     case NS_THEME_WINDOW_FRAME_RIGHT:
