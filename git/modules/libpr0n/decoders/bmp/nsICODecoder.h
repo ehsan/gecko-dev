@@ -41,7 +41,7 @@
 #ifndef _nsICODecoder_h
 #define _nsICODecoder_h
 
-#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 #include "imgIDecoder.h"
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
@@ -50,12 +50,6 @@
 // {CB3EDE1A-0FA5-4e27-AAFE-0F7801E5A1F1}
 #define NS_ICODECODER_CID \
 { 0xcb3ede1a, 0xfa5, 0x4e27, { 0xaa, 0xfe, 0xf, 0x78, 0x1, 0xe5, 0xa1, 0xf1 } }
-
-namespace mozilla {
-namespace imagelib {
-class RasterImage;
-} // namespace imagelib
-} // namespace mozilla
 
 struct IconDirEntry
 {
@@ -94,7 +88,7 @@ private:
   PRUint32 CalcAlphaRowSize();
 
 private:
-  nsRefPtr<mozilla::imagelib::RasterImage> mImage;
+  nsCOMPtr<imgIContainer> mImage;
   nsCOMPtr<imgIDecoderObserver> mObserver;
   PRUint32 mFlags;
   

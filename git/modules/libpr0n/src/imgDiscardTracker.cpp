@@ -41,24 +41,21 @@
 
 #include "nsComponentManagerUtils.h"
 #include "nsITimer.h"
-#include "RasterImage.h"
-#include "DiscardTracker.h"
-
-namespace mozilla {
-namespace imagelib {
+#include "imgContainer.h"
+#include "imgDiscardTracker.h"
 
 static PRBool sInitialized = PR_FALSE;
 static PRBool sTimerOn = PR_FALSE;
 static PRUint32 sMinDiscardTimeoutMs = 10000; /* Default if pref unreadable. */
 static nsITimer *sTimer = nsnull;
-static struct DiscardTrackerNode sHead, sSentinel, sTail;
+static struct imgDiscardTrackerNode sHead, sSentinel, sTail;
 
 /*
  * Puts an image in the back of the tracker queue. If the image is already
  * in the tracker, this removes it first.
  */
 nsresult
-DiscardTracker::Reset(DiscardTrackerNode *node)
+imgDiscardTracker::Reset(imgDiscardTrackerNode *node)
 {
   nsresult rv;
 #ifdef DEBUG
@@ -101,7 +98,7 @@ DiscardTracker::Reset(DiscardTrackerNode *node)
  * Removes a node from the tracker. No-op if the node is currently untracked.
  */
 void
-DiscardTracker::Remove(DiscardTrackerNode *node)
+imgDiscardTracker::Remove(imgDiscardTrackerNode *node)
 {
   NS_ABORT_IF_FALSE(node != nsnull, "Can't pass null node");
 
@@ -124,7 +121,7 @@ DiscardTracker::Remove(DiscardTrackerNode *node)
  * Initialize the tracker.
  */
 nsresult
-DiscardTracker::Initialize()
+imgDiscardTracker::Initialize()
 {
   nsresult rv;
 
@@ -155,7 +152,7 @@ DiscardTracker::Initialize()
  * Shut down the tracker, deallocating the timer.
  */
 void
-DiscardTracker::Shutdown()
+imgDiscardTracker::Shutdown()
 {
   if (sTimer) {
     sTimer->Cancel();
@@ -168,7 +165,7 @@ DiscardTracker::Shutdown()
  * Sets the minimum timeout.
  */
 void
-DiscardTracker::ReloadTimeout()
+imgDiscardTracker::ReloadTimeout()
 {
   nsresult rv;
 
@@ -199,7 +196,7 @@ DiscardTracker::ReloadTimeout()
  * Enables the timer. No-op if the timer is already running.
  */
 nsresult
-DiscardTracker::TimerOn()
+imgDiscardTracker::TimerOn()
 {
   // Nothing to do if the timer's already on.
   if (sTimerOn)
@@ -217,7 +214,7 @@ DiscardTracker::TimerOn()
  * Disables the timer. No-op if the timer isn't running.
  */
 void
-DiscardTracker::TimerOff()
+imgDiscardTracker::TimerOff()
 {
   // Nothing to do if the timer's already off.
   if (!sTimerOn)
@@ -234,9 +231,9 @@ DiscardTracker::TimerOff()
  * list.
  */
 void
-DiscardTracker::TimerCallback(nsITimer *aTimer, void *aClosure)
+imgDiscardTracker::TimerCallback(nsITimer *aTimer, void *aClosure)
 {
-  DiscardTrackerNode *node;
+  imgDiscardTrackerNode *node;
 
   // Remove and discard everything before the sentinel
   for (node = sSentinel.prev; node != &sHead; node = sSentinel.prev) {
@@ -253,6 +250,3 @@ DiscardTracker::TimerCallback(nsITimer *aTimer, void *aClosure)
   if (sSentinel.prev == &sHead)
     TimerOff();
 }
-
-} // namespace imagelib
-} // namespace mozilla

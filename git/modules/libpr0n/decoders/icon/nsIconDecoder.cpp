@@ -40,7 +40,7 @@
 
 #include "nsIconDecoder.h"
 #include "nsIInputStream.h"
-#include "RasterImage.h"
+#include "imgIContainer.h"
 #include "imgIContainerObserver.h"
 #include "nspr.h"
 #include "nsIComponentManager.h"
@@ -49,8 +49,6 @@
 
 #include "nsIInterfaceRequestorUtils.h"
 #include "ImageErrors.h"
-
-using namespace mozilla::imagelib;
 
 NS_IMPL_THREADSAFE_ADDREF(nsIconDecoder)
 NS_IMPL_THREADSAFE_RELEASE(nsIconDecoder)
@@ -87,10 +85,7 @@ NS_IMETHODIMP nsIconDecoder::Init(imgIContainer *aImage,
 {
 
   // Grab parameters
-  NS_ABORT_IF_FALSE(aImage->GetType() == imgIContainer::TYPE_RASTER,
-                    "wrong type of imgIContainer for decoding into");
-
-  mImage = static_cast<RasterImage*>(aImage);
+  mImage = aImage;
   mObserver = aObserver;
   mFlags = aFlags;
 
