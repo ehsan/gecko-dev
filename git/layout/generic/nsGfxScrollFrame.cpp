@@ -3257,8 +3257,7 @@ nsGfxScrollFrameInner::ReflowFinished()
     nsPoint scrollPos = GetScrollPosition();
     // XXX shouldn't we use GetPageScrollAmount/GetLineScrollAmount here?
     if (vScroll) {
-      const double kScrollMultiplier = Preferences::GetInt("toolkit.scrollbox.verticalScrollDistance",
-                                                           NS_DEFAULT_VERTICAL_SCROLL_DISTANCE);
+      const double kScrollMultiplier = 3;
       nscoord fontHeight = GetLineScrollAmount().height * kScrollMultiplier;
       // We normally use (scrollArea.height - fontHeight) for height
       // of page scrolling.  However, it is too small when

@@ -44,6 +44,9 @@ let gBrowserThumbnails = {
     this._tabEvents.forEach(function (aEvent) {
       gBrowser.tabContainer.removeEventListener(aEvent, this, false);
     }, this);
+
+    this._timeouts = null;
+    this._pageThumbs = null;
   },
 
   handleEvent: function Thumbnails_handleEvent(aEvent) {
