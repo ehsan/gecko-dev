@@ -178,16 +178,7 @@ Factory::HasSSE2()
   // cl.exe with -arch:SSE2 (default on x64 compiler)
   return true;
 #elif defined(HAVE_CPU_DETECTION)
-  static enum {
-    UNINITIALIZED,
-    NO_SSE2,
-    HAS_SSE2
-  } sDetectionState = UNINITIALIZED;
-
-  if (sDetectionState == UNINITIALIZED) {
-    sDetectionState = HasCPUIDBit(1u, edx, (1u<<26)) ? HAS_SSE2 : NO_SSE2;
-  }
-  return sDetectionState == HAS_SSE2;
+  return HasCPUIDBit(1u, edx, (1u<<26));
 #else
   return false;
 #endif

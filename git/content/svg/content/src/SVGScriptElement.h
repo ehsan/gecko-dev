@@ -66,8 +66,8 @@ public:
   // WebIDL
   void GetType(nsAString & aType);
   void SetType(const nsAString & aType, ErrorResult& rv);
-  void GetCrossOrigin(nsAString & aCrossOrigin);
-  void SetCrossOrigin(const nsAString & aCrossOrigin, ErrorResult& aError);
+  void GetCrossOrigin(nsAString & aOrigin);
+  void SetCrossOrigin(const nsAString & aOrigin, ErrorResult& rv);
   already_AddRefed<SVGAnimatedString> Href();
 
 protected:

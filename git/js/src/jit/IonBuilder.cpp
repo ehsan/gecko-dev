@@ -4302,7 +4302,7 @@ class WrapMGetPropertyCache
     }
 
   public:
-    explicit WrapMGetPropertyCache(MGetPropertyCache *cache)
+    WrapMGetPropertyCache(MGetPropertyCache *cache)
       : cache_(cache)
     { }
 

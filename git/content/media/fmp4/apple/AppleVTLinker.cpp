@@ -24,7 +24,6 @@ AppleVTLinker::sLinkStatus = LinkStatus_INIT;
 
 void* AppleVTLinker::sLink = nullptr;
 nsrefcnt AppleVTLinker::sRefCount = 0;
-CFStringRef AppleVTLinker::skPropHWAccel = nullptr;
 
 #define LINK_FUNC(func) typeof(func) func;
 #include "AppleVTFunctions.h"
@@ -59,10 +58,6 @@ AppleVTLinker::Link()
 #include "AppleVTFunctions.h"
 #undef LINK_FUNC
 
-  // Will only resolve in 10.9 and later.
-  skPropHWAccel =
-    GetIOConst("kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder");
-
   LOG("Loaded VideoToolbox framework.");
   sLinkStatus = LinkStatus_SUCCEEDED;
   return true;
@@ -88,25 +83,7 @@ AppleVTLinker::Unlink()
     LOG("Unlinking VideoToolbox framework.");
     dlclose(sLink);
     sLink = nullptr;
-    skPropHWAccel = nullptr;
   }
-}
-
-/* static */ CFStringRef
-AppleVTLinker::GetIOConst(const char* symbol)
-{
-  CFStringRef* address = (CFStringRef*)dlsym(sLink, symbol);
-  if (!address) {
-    return nullptr;
-  }
-
-  return *address;
-}
-
-/* static */ CFStringRef
-AppleVTLinker::GetPropHWAccel()
-{
-  return skPropHWAccel;
 }
 
 } // namespace mozilla

@@ -164,26 +164,18 @@ gfxPlatformGtk::CreateFontGroup(const FontFamilyList& aFontFamilyList,
 }
 
 gfxFontEntry*
-gfxPlatformGtk::LookupLocalFont(const nsAString& aFontName,
-                                uint16_t aWeight,
-                                int16_t aStretch,
-                                bool aItalic)
+gfxPlatformGtk::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                const nsAString& aFontName)
 {
-    return gfxPangoFontGroup::NewFontEntry(aFontName, aWeight,
-                                           aStretch, aItalic);
+    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry, aFontName);
 }
 
 gfxFontEntry* 
-gfxPlatformGtk::MakePlatformFont(const nsAString& aFontName,
-                                 uint16_t aWeight,
-                                 int16_t aStretch,
-                                 bool aItalic,
-                                 const uint8_t* aFontData,
-                                 uint32_t aLength)
+gfxPlatformGtk::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry, 
+                                 const uint8_t *aFontData, uint32_t aLength)
 {
     // passing ownership of the font data to the new font entry
-    return gfxPangoFontGroup::NewFontEntry(aFontName, aWeight,
-                                           aStretch, aItalic,
+    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry,
                                            aFontData, aLength);
 }
 

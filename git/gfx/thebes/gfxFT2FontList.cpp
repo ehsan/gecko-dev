@@ -253,11 +253,8 @@ FT2FontEntry::CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold
 
 /* static */
 FT2FontEntry*
-FT2FontEntry::CreateFontEntry(const nsAString& aFontName,
-                              uint16_t aWeight,
-                              int16_t aStretch,
-                              bool aItalic,
-                              const uint8_t* aFontData,
+FT2FontEntry::CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                              const uint8_t *aFontData,
                               uint32_t aLength)
 {
     // Ownership of aFontData is passed in here; the fontEntry must
@@ -276,16 +273,16 @@ FT2FontEntry::CreateFontEntry(const nsAString& aFontName,
         NS_Free((void*)aFontData);
         return nullptr;
     }
-    // Create our FT2FontEntry, which inherits the name of the userfont entry
+    // Create our FT2FontEntry, which inherits the name of the proxy
     // as it's not guaranteed that the face has valid names (bug 737315)
     FT2FontEntry* fe =
-        FT2FontEntry::CreateFontEntry(face, nullptr, 0, aFontName,
+        FT2FontEntry::CreateFontEntry(face, nullptr, 0, aProxyEntry.Name(),
                                       aFontData);
     if (fe) {
-        fe->mItalic = aItalic;
-        fe->mWeight = aWeight;
-        fe->mStretch = aStretch;
-        fe->mIsDataUserFont = true;
+        fe->mItalic = aProxyEntry.mItalic;
+        fe->mWeight = aProxyEntry.mWeight;
+        fe->mStretch = aProxyEntry.mStretch;
+        fe->mIsUserFont = true;
     }
     return fe;
 }
@@ -382,7 +379,7 @@ FT2FontEntry*
 FT2FontEntry::CreateFontEntry(FT_Face aFace,
                               const char* aFilename, uint8_t aIndex,
                               const nsAString& aName,
-                              const uint8_t* aFontData)
+                              const uint8_t *aFontData)
 {
     FT2FontEntry *fe = new FT2FontEntry(aName);
     fe->mItalic = FTFaceIsItalic(aFace);
@@ -1512,10 +1509,8 @@ FindFullName(nsStringHashKey::KeyType aKey,
 }
 
 gfxFontEntry* 
-gfxFT2FontList::LookupLocalFont(const nsAString& aFontName,
-                                uint16_t aWeight,
-                                int16_t aStretch,
-                                bool aItalic)
+gfxFT2FontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                const nsAString& aFontName)
 {
     // walk over list of names
     FullFontNameSearch data(aFontName);
@@ -1529,7 +1524,7 @@ gfxFT2FontList::LookupLocalFont(const nsAString& aFontName,
     }
 
     // Clone the font entry so that we can then set its style descriptors
-    // from the userfont entry rather than the actual font.
+    // from the proxy rather than the actual font.
 
     // Ensure existence of mFTFace in the original entry
     data.mFontEntry->CairoFontFace();
@@ -1543,10 +1538,10 @@ gfxFT2FontList::LookupLocalFont(const nsAString& aFontName,
                                       data.mFontEntry->mFTFontIndex,
                                       data.mFontEntry->Name(), nullptr);
     if (fe) {
-        fe->mItalic = aItalic;
-        fe->mWeight = aWeight;
-        fe->mStretch = aStretch;
-        fe->mIsLocalUserFont = true;
+        fe->mItalic = aProxyEntry->mItalic;
+        fe->mWeight = aProxyEntry->mWeight;
+        fe->mStretch = aProxyEntry->mStretch;
+        fe->mIsUserFont = fe->mIsLocalUserFont = true;
     }
 
     return fe;
@@ -1569,18 +1564,14 @@ gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle)
 }
 
 gfxFontEntry*
-gfxFT2FontList::MakePlatformFont(const nsAString& aFontName,
-                                 uint16_t aWeight,
-                                 int16_t aStretch,
-                                 bool aItalic,
-                                 const uint8_t* aFontData,
+gfxFT2FontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                 const uint8_t *aFontData,
                                  uint32_t aLength)
 {
     // The FT2 font needs the font data to persist, so we do NOT free it here
     // but instead pass ownership to the font entry.
     // Deallocation will happen later, when the font face is destroyed.
-    return FT2FontEntry::CreateFontEntry(aFontName, aWeight, aStretch,
-                                         aItalic, aFontData, aLength);
+    return FT2FontEntry::CreateFontEntry(*aProxyEntry, aFontData, aLength);
 }
 
 static PLDHashOperator

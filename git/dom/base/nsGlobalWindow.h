@@ -43,13 +43,23 @@
 #include "nsFrameMessageManager.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/TimeStamp.h"
+#include "nsIInlineEventHandlers.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsIIdleObserver.h"
 #include "nsIDocument.h"
+#include "nsIDOMTouchEvent.h"
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "Units.h"
 #include "nsComponentManagerUtils.h"
+
+#ifdef MOZ_B2G
+#include "nsIDOMWindowB2G.h"
+#endif // MOZ_B2G
+
+#ifdef MOZ_WEBSPEECH
+#include "nsISpeechSynthesisGetter.h"
+#endif // MOZ_WEBSPEECH
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -319,7 +329,16 @@ class nsGlobalWindow : public mozilla::dom::EventTarget,
                        public nsIDOMJSWindow,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
-                       public PRCListStr
+                       public PRCListStr,
+                       public nsIDOMWindowPerformance,
+                       public nsITouchEventReceiver,
+                       public nsIInlineEventHandlers
+#ifdef MOZ_B2G
+                     , public nsIDOMWindowB2G
+#endif // MOZ_B2G
+#ifdef MOZ_WEBSPEECH
+                     , public nsISpeechSynthesisGetter
+#endif // MOZ_WEBSPEECH
 {
 public:
   typedef mozilla::TimeStamp TimeStamp;
@@ -368,6 +387,19 @@ public:
   // nsIDOMWindow
   NS_DECL_NSIDOMWINDOW
 
+#ifdef MOZ_B2G
+  // nsIDOMWindowB2G
+  NS_DECL_NSIDOMWINDOWB2G
+#endif // MOZ_B2G
+
+#ifdef MOZ_WEBSPEECH
+  // nsISpeechSynthesisGetter
+  NS_DECL_NSISPEECHSYNTHESISGETTER
+#endif // MOZ_WEBSPEECH
+
+  // nsIDOMWindowPerformance
+  NS_DECL_NSIDOMWINDOWPERFORMANCE
+
   // nsIDOMJSWindow
   NS_DECL_NSIDOMJSWINDOW
 
@@ -394,6 +426,12 @@ public:
 
     return GetOuterFromCurrentInner(this);
   }
+
+  // nsITouchEventReceiver
+  NS_DECL_NSITOUCHEVENTRECEIVER
+
+  // nsIInlineEventHandlers
+  NS_DECL_NSIINLINEEVENTHANDLERS
 
   // nsPIDOMWindow
   virtual nsPIDOMWindow* GetPrivateRoot();
@@ -785,6 +823,8 @@ public:
     return nullptr;
   }
 
+  static bool WindowOnWebIDL(JSContext* /* unused */, JSObject* aObj);
+
   nsIDOMWindow* GetWindow(mozilla::ErrorResult& aError);
   nsIDOMWindow* GetSelf(mozilla::ErrorResult& aError);
   nsIDocument* GetDocument()
@@ -933,7 +973,7 @@ public:
   int32_t RequestAnimationFrame(mozilla::dom::FrameRequestCallback& aCallback,
                                 mozilla::ErrorResult& aError);
   void CancelAnimationFrame(int32_t aHandle, mozilla::ErrorResult& aError);
-  nsPerformance* GetPerformance();
+  nsPerformance* GetPerformance(mozilla::ErrorResult& aError);
 #ifdef MOZ_WEBSPEECH
   mozilla::dom::SpeechSynthesis*
     GetSpeechSynthesis(mozilla::ErrorResult& aError);
@@ -1359,8 +1399,6 @@ protected:
 
   inline int32_t DOMMinTimeoutValue() const;
 
-  // Clear the document-dependent slots on our JS wrapper.  Inner windows only.
-  void ClearDocumentDependentSlots(JSContext* aCx);
 
   // Inner windows only.
   already_AddRefed<mozilla::dom::StorageEvent>

@@ -363,7 +363,7 @@ struct JitcodeMapBufferWriteSpewer
 
     static const uint32_t DumpMaxBytes = 50;
 
-    explicit JitcodeMapBufferWriteSpewer(CompactBufferWriter &w)
+    JitcodeMapBufferWriteSpewer(CompactBufferWriter &w)
       : writer(&w), startPos(writer->length())
     {}
 
