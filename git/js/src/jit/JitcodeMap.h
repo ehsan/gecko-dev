@@ -314,19 +314,19 @@ class JitcodeGlobalEntry
         base_.init();
     }
 
-    explicit JitcodeGlobalEntry(const IonEntry &ion) {
+    JitcodeGlobalEntry(const IonEntry &ion) {
         ion_ = ion;
     }
 
-    explicit JitcodeGlobalEntry(const BaselineEntry &baseline) {
+    JitcodeGlobalEntry(const BaselineEntry &baseline) {
         baseline_ = baseline;
     }
 
-    explicit JitcodeGlobalEntry(const IonCacheEntry &ionCache) {
+    JitcodeGlobalEntry(const IonCacheEntry &ionCache) {
         ionCache_ = ionCache;
     }
 
-    explicit JitcodeGlobalEntry(const QueryEntry &query) {
+    JitcodeGlobalEntry(const QueryEntry &query) {
         query_ = query;
     }
 
@@ -804,7 +804,7 @@ class JitcodeIonTable
     }
 
   public:
-    explicit JitcodeIonTable(uint32_t numRegions)
+    JitcodeIonTable(uint32_t numRegions)
       : numRegions_(numRegions)
     {
         for (uint32_t i = 0; i < numRegions; i++)

@@ -18,7 +18,6 @@
 #include "RestyleManager.h"
 #include "nsDisplayList.h"
 #include "mozilla/Likely.h"
-#include "SVGTextFrame.h"
 
 #ifdef DEBUG
 #undef NOISY_PUSHING
@@ -425,28 +424,6 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
   // overflow-rect state for us.
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
-}
-
-nsresult 
-nsInlineFrame::AttributeChanged(int32_t aNameSpaceID,
-                                nsIAtom* aAttribute,
-                                int32_t aModType)
-{
-  nsresult rv =
-    nsInlineFrameBase::AttributeChanged(aNameSpaceID, aAttribute, aModType);
-
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  if (IsSVGText()) {
-    SVGTextFrame* f = static_cast<SVGTextFrame*>(
-      nsLayoutUtils::GetClosestFrameOfType(this, nsGkAtoms::svgTextFrame));
-    f->HandleAttributeChangeInDescendant(mContent->AsElement(),
-                                         aNameSpaceID, aAttribute);
-  }
-
-  return NS_OK;
 }
 
 bool

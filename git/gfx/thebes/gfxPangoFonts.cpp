@@ -326,15 +326,13 @@ gfxSystemFcFontEntry::ReleaseGrFace(gr_face* aFace)
 
 class gfxUserFcFontEntry : public gfxFcFontEntry {
 protected:
-    explicit gfxUserFcFontEntry(const nsAString& aFontName,
-                       uint16_t aWeight,
-                       int16_t aStretch,
-                       bool aItalic)
-        : gfxFcFontEntry(aFontName)
+    explicit gfxUserFcFontEntry(const gfxProxyFontEntry &aProxyEntry)
+        : gfxFcFontEntry(aProxyEntry.Name())
     {
-        mItalic = aItalic;
-        mWeight = aWeight;
-        mStretch = aStretch;
+        mItalic = aProxyEntry.mItalic;
+        mWeight = aProxyEntry.mWeight;
+        mStretch = aProxyEntry.mStretch;
+        mIsUserFont = true;
     }
 
     // Helper function to change a pattern so that it matches the CSS style
@@ -412,12 +410,9 @@ gfxUserFcFontEntry::AdjustPatternToCSS(FcPattern *aPattern)
 
 class gfxLocalFcFontEntry : public gfxUserFcFontEntry {
 public:
-    gfxLocalFcFontEntry(const nsAString& aFontName,
-                        uint16_t aWeight,
-                        int16_t aStretch,
-                        bool aItalic,
+    gfxLocalFcFontEntry(const gfxProxyFontEntry &aProxyEntry,
                         const nsTArray< nsCountedRef<FcPattern> >& aPatterns)
-        : gfxUserFcFontEntry(aFontName, aWeight, aStretch, aItalic)
+        : gfxUserFcFontEntry(aProxyEntry)
     {
         if (!mPatterns.SetCapacity(aPatterns.Length()))
             return; // OOM
@@ -448,16 +443,11 @@ public:
 class gfxDownloadedFcFontEntry : public gfxUserFcFontEntry {
 public:
     // This takes ownership of the face and its underlying data
-    gfxDownloadedFcFontEntry(const nsAString& aFontName,
-                             uint16_t aWeight,
-                             int16_t aStretch,
-                             bool aItalic,
+    gfxDownloadedFcFontEntry(const gfxProxyFontEntry &aProxyEntry,
                              const uint8_t *aData, FT_Face aFace)
-        : gfxUserFcFontEntry(aFontName, aWeight, aStretch, aItalic),
-          mFontData(aData), mFace(aFace)
+        : gfxUserFcFontEntry(aProxyEntry), mFontData(aData), mFace(aFace)
     {
         NS_PRECONDITION(aFace != nullptr, "aFace is NULL!");
-        mIsDataUserFont = true;
         InitPattern();
     }
 
@@ -812,27 +802,16 @@ FindFontPatterns(gfxUserFontSet *mUserFontSet,
     gfxUserFcFontEntry *fontEntry = nullptr;
     gfxFontFamily *family = mUserFontSet->LookupFamily(utf16Family);
     if (family) {
-        gfxUserFontEntry* userFontEntry =
-            mUserFontSet->FindUserFontEntry(family, style, needsBold,
-                                            aWaitForUserFont);
-        if (userFontEntry) {
-            fontEntry = static_cast<gfxUserFcFontEntry*>
-                (userFontEntry->GetPlatformFontEntry());
-        }
+        fontEntry = static_cast<gfxUserFcFontEntry*>
+            (mUserFontSet->FindFontEntry(family, style, needsBold,
+                                         aWaitForUserFont));
 
         // Accept synthetic oblique for italic and oblique.
-        // xxx - this isn't really ideal behavior, for docs that only use a
-        //       single italic face it will also pull down the normal face
-        //       and probably never use it
         if (!fontEntry && aStyle != NS_FONT_STYLE_NORMAL) {
             style.style = NS_FONT_STYLE_NORMAL;
-            userFontEntry = mUserFontSet->FindUserFontEntry(family, style,
-                                                            needsBold,
-                                                            aWaitForUserFont);
-            if (userFontEntry) {
-                fontEntry = static_cast<gfxUserFcFontEntry*>
-                    (userFontEntry->GetPlatformFontEntry());
-            }
+            fontEntry = static_cast<gfxUserFcFontEntry*>
+                (mUserFontSet->FindFontEntry(family, style, needsBold,
+                                             aWaitForUserFont));
         }
     }
 
@@ -1020,7 +999,7 @@ gfxFcFontSet::SortPreferredFonts(bool &aWaitForUserFont)
             }
 
             // User fonts are already filtered by slant (but not size) in
-            // mUserFontSet->FindUserFontEntry().
+            // mUserFontSet->FindFontEntry().
             if (requestedSize != -1.0 && !SizeIsAcceptable(font, requestedSize))
                 continue;
 
@@ -1603,10 +1582,8 @@ gfxPangoFontGroup::Shutdown()
 }
 
 /* static */ gfxFontEntry *
-gfxPangoFontGroup::NewFontEntry(const nsAString& aFontName,
-                                uint16_t aWeight,
-                                int16_t aStretch,
-                                bool aItalic)
+gfxPangoFontGroup::NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                const nsAString& aFullname)
 {
     gfxFontconfigUtils *utils = gfxFontconfigUtils::GetFontconfigUtils();
     if (!utils)
@@ -1633,7 +1610,7 @@ gfxPangoFontGroup::NewFontEntry(const nsAString& aFontName,
     if (!pattern)
         return nullptr;
 
-    NS_ConvertUTF16toUTF8 fullname(aFontName);
+    NS_ConvertUTF16toUTF8 fullname(aFullname);
     FcPatternAddString(pattern, FC_FULLNAME,
                        gfxFontconfigUtils::ToFcChar8(fullname));
     FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
@@ -1646,11 +1623,7 @@ gfxPangoFontGroup::NewFontEntry(const nsAString& aFontName,
             utils->GetFontsForFullname(name);
 
         if (fonts.Length() != 0)
-            return new gfxLocalFcFontEntry(aFontName,
-                                           aWeight,
-                                           aStretch,
-                                           aItalic,
-                                           fonts);
+            return new gfxLocalFcFontEntry(aProxyEntry, fonts);
     }
 
     return nullptr;
@@ -1688,12 +1661,8 @@ gfxPangoFontGroup::GetFTLibrary()
 }
 
 /* static */ gfxFontEntry *
-gfxPangoFontGroup::NewFontEntry(const nsAString& aFontName,
-                                uint16_t aWeight,
-                                int16_t aStretch,
-                                bool aItalic,
-                                const uint8_t* aFontData,
-                                uint32_t aLength)
+gfxPangoFontGroup::NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                const uint8_t *aFontData, uint32_t aLength)
 {
     // Ownership of aFontData is passed in here, and transferred to the
     // new fontEntry, which will release it when no longer needed.
@@ -1708,9 +1677,7 @@ gfxPangoFontGroup::NewFontEntry(const nsAString& aFontName,
         return nullptr;
     }
 
-    return new gfxDownloadedFcFontEntry(aFontName, aWeight,
-                                        aStretch, aItalic,
-                                        aFontData, face);
+    return new gfxDownloadedFcFontEntry(aProxyEntry, aFontData, face);
 }
 
 

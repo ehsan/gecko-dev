@@ -64,10 +64,7 @@ public:
   {
     return &mRef;
   }
-
 private:
-  // Copy operator isn't supported and is not implemented.
-  AutoCFRelease<T>& operator=(const AutoCFRelease<T>&);
   T mRef;
 };
 

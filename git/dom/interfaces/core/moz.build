@@ -23,6 +23,7 @@ XPIDL_SOURCES += [
     'nsIDOMText.idl',
     'nsIDOMUserDataHandler.idl',
     'nsIDOMXMLDocument.idl',
+    'nsIInlineEventHandlers.idl',
 ]
 
 XPIDL_MODULE = 'dom_core'

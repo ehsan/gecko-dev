@@ -1042,10 +1042,7 @@ nsWindow::OnContextmenuEvent(AndroidGeckoEvent *ae)
     WidgetMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
                                       WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
     contextMenuEvent.refPoint =
-        LayoutDeviceIntPoint(RoundedToInt(pt * GetDefaultScale())) -
-        LayoutDeviceIntPoint::FromUntyped(WidgetToScreenOffset());
-    contextMenuEvent.ignoreRootScrollFrame = true;
-    contextMenuEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+        LayoutDeviceIntPoint(RoundedToInt(pt * GetDefaultScale()));
 
     nsEventStatus contextMenuStatus;
     DispatchEvent(&contextMenuEvent, contextMenuStatus);

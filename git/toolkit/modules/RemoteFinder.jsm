@@ -83,17 +83,6 @@ RemoteFinder.prototype = {
   },
 
   focusContent: function () {
-    // Allow Finder listeners to cancel focusing the content.
-    for (let l of this._listeners) {
-      try {
-        if ("shouldFocusContent" in l &&
-            !l.shouldFocusContent())
-          return;
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    }
-
     this._browser.messageManager.sendAsyncMessage("Finder:FocusContent");
   },
 
@@ -143,6 +132,12 @@ RemoteFinderListener.prototype = {
   // it passes them forward to the parent.
   onMatchesCountResult: function (aData) {
     this._global.sendAsyncMessage("Finder:MatchesResult", aData);
+  },
+
+  //XXXmikedeboer-20131016: implement |shouldFocusContent| here to mitigate
+  //                        issues like bug 921338 and bug 921308.
+  shouldFocusContent: function () {
+    return true;
   },
 
   receiveMessage: function (aMessage) {

@@ -70,7 +70,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         SimdConstant value;
         NonAssertingLabel uses;
 
-        explicit SimdData(const SimdConstant &v) : value(v) {}
+        SimdData(const SimdConstant &v) : value(v) {}
         SimdConstant::Type type() { return value.type(); }
     };
     Vector<SimdData, 0, SystemAllocPolicy> simds_;

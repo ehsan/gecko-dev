@@ -751,14 +751,12 @@ gfxDWriteFontList::GetDefaultFont(const gfxFontStyle *aStyle)
 }
 
 gfxFontEntry *
-gfxDWriteFontList::LookupLocalFont(const nsAString& aFontName,
-                                   uint16_t aWeight,
-                                   int16_t aStretch,
-                                   bool aItalic)
+gfxDWriteFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                   const nsAString& aFullname)
 {
     gfxFontEntry *lookup;
 
-    lookup = LookupInFaceNameLists(aFontName);
+    lookup = LookupInFaceNameLists(aFullname);
     if (!lookup) {
         return nullptr;
     }
@@ -767,19 +765,16 @@ gfxDWriteFontList::LookupLocalFont(const nsAString& aFontName,
     gfxDWriteFontEntry *fe =
         new gfxDWriteFontEntry(lookup->Name(),
                                dwriteLookup->mFont,
-                               aWeight,
-                               aStretch,
-                               aItalic);
+                               aProxyEntry->Weight(),
+                               aProxyEntry->Stretch(),
+                               aProxyEntry->IsItalic());
     fe->SetForceGDIClassic(dwriteLookup->GetForceGDIClassic());
     return fe;
 }
 
 gfxFontEntry *
-gfxDWriteFontList::MakePlatformFont(const nsAString& aFontName,
-                                    uint16_t aWeight,
-                                    int16_t aStretch,
-                                    bool aItalic,
-                                    const uint8_t* aFontData,
+gfxDWriteFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                    const uint8_t *aFontData,
                                     uint32_t aLength)
 {
     nsresult rv;
@@ -841,9 +836,9 @@ gfxDWriteFontList::MakePlatformFont(const nsAString& aFontName,
     gfxDWriteFontEntry *entry = 
         new gfxDWriteFontEntry(uniqueName, 
                                fontFile,
-                               aWeight,
-                               aStretch,
-                               aItalic);
+                               aProxyEntry->Weight(),
+                               aProxyEntry->Stretch(),
+                               aProxyEntry->IsItalic());
 
     fontFile->Analyze(&isSupported, &fileType, &entry->mFaceType, &numFaces);
     if (!isSupported || numFaces > 1) {

@@ -197,12 +197,9 @@ Finder.prototype = {
     // Allow Finder listeners to cancel focusing the content.
     for (let l of this._listeners) {
       try {
-        if ("shouldFocusContent" in l &&
-            !l.shouldFocusContent())
+        if (!l.shouldFocusContent())
           return;
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
+      } catch (ex) {}
     }
 
     let fastFind = this._fastFind;
