@@ -340,12 +340,11 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
 
   JSObject* obj = JSVAL_TO_OBJECT(thisv);
   JSClass* clasp = js::GetObjectJSClass(obj);
-  if (!IsDOMClass(clasp) ||
-      !DOMJSClass::FromJSClass(clasp)->mDOMObjectIsISupports) {
+  if (!IsDOMClass(clasp)) {
     return Throw<true>(cx, NS_ERROR_FAILURE);
   }
 
-  nsISupports* native = UnwrapDOMObject<nsISupports>(obj);
+  nsISupports* native = UnwrapDOMObject<nsISupports>(obj, clasp);
 
   if (argc < 1) {
     return Throw<true>(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);

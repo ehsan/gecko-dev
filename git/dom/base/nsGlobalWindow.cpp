@@ -2473,7 +2473,7 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 bool
 nsGlobalWindow::DialogOpenAttempted()
 {
-  nsGlobalWindow *topWindow = GetScriptableTop();
+  nsGlobalWindow *topWindow = GetTop();
   if (!topWindow) {
     NS_ERROR("DialogOpenAttempted() called without a top window?");
 
@@ -2507,7 +2507,7 @@ nsGlobalWindow::DialogOpenAttempted()
 bool
 nsGlobalWindow::AreDialogsBlocked()
 {
-  nsGlobalWindow *topWindow = GetScriptableTop();
+  nsGlobalWindow *topWindow = GetTop();
   if (!topWindow) {
     NS_ASSERTION(!mDocShell, "AreDialogsBlocked() called without a top window?");
 
@@ -2558,7 +2558,7 @@ nsGlobalWindow::ConfirmDialogAllowed()
 void
 nsGlobalWindow::PreventFurtherDialogs()
 {
-  nsGlobalWindow *topWindow = GetScriptableTop();
+  nsGlobalWindow *topWindow = GetTop();
   if (!topWindow) {
     NS_ERROR("PreventFurtherDialogs() called without a top window?");
 
@@ -6361,12 +6361,7 @@ nsGlobalWindow::Close()
 {
   FORWARD_TO_OUTER(Close, (), NS_ERROR_NOT_INITIALIZED);
 
-  bool isMozBrowser = false;
-  if (mDocShell) {
-    mDocShell->GetIsBrowserFrame(&isMozBrowser);
-  }
-
-  if ((!isMozBrowser && IsFrame()) || !mDocShell || IsInModalState()) {
+  if (IsFrame() || !mDocShell || IsInModalState()) {
     // window.close() is called on a frame in a frameset, on a window
     // that's already closed, or on a window for which there's
     // currently a modal dialog open. Ignore such calls.
@@ -6548,9 +6543,7 @@ nsGlobalWindow::ReallyCloseWindow()
 nsIDOMWindow *
 nsGlobalWindow::EnterModalState()
 {
-  // GetScriptableTop, not GetTop, so that EnterModalState works properly with
-  // <iframe mozbrowser>.
-  nsGlobalWindow* topWin = GetScriptableTop();
+  nsGlobalWindow* topWin = GetTop();
 
   if (!topWin) {
     NS_ERROR("Uh, EnterModalState() called w/o a reachable top window?");
@@ -6679,7 +6672,7 @@ private:
 void
 nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
 {
-  nsGlobalWindow* topWin = GetScriptableTop();
+  nsGlobalWindow *topWin = GetTop();
 
   if (!topWin) {
     NS_ERROR("Uh, LeaveModalState() called w/o a reachable top window?");
@@ -6721,7 +6714,7 @@ nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
 bool
 nsGlobalWindow::IsInModalState()
 {
-  nsGlobalWindow *topWin = GetScriptableTop();
+  nsGlobalWindow *topWin = GetTop();
 
   if (!topWin) {
     NS_ERROR("Uh, IsInModalState() called w/o a reachable top window?");
@@ -10076,44 +10069,35 @@ nsGlobalWindow::EnableDeviceSensor(PRUint32 aType)
     }
   }
 
+  if (alreadyEnabled)
+    return;
+
   mEnabledSensors.AppendElement(aType);
 
-  if (alreadyEnabled) {
-    return;
-  }
-
   nsCOMPtr<nsIDeviceSensors> ac = do_GetService(NS_DEVICE_SENSORS_CONTRACTID);
-  if (ac) {
+  if (ac)
     ac->AddWindowListener(aType, this);
-  }
 }
 
 void
 nsGlobalWindow::DisableDeviceSensor(PRUint32 aType)
 {
   PRInt32 doomedElement = -1;
-  PRInt32 listenerCount = 0;
   for (PRUint32 i = 0; i < mEnabledSensors.Length(); i++) {
     if (mEnabledSensors[i] == aType) {
       doomedElement = i;
-      listenerCount++;
+      break;
     }
   }
 
-  if (doomedElement == -1) {
+  if (doomedElement == -1)
     return;
-  }
 
   mEnabledSensors.RemoveElementAt(doomedElement);
 
-  if (listenerCount > 1) {
-    return;
-  }
-
   nsCOMPtr<nsIDeviceSensors> ac = do_GetService(NS_DEVICE_SENSORS_CONTRACTID);
-  if (ac) {
+  if (ac)
     ac->RemoveWindowListener(aType, this);
-  }
 }
 
 NS_IMETHODIMP
@@ -10147,13 +10131,13 @@ nsGlobalWindow::HasPerformanceSupport()
 void
 nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 {
-  aWindowSizes->mDOMOther += aWindowSizes->mMallocSizeOf(this);
+  aWindowSizes->mDOM += aWindowSizes->mMallocSizeOf(this);
 
   if (IsInnerWindow()) {
     nsEventListenerManager* elm =
       const_cast<nsGlobalWindow*>(this)->GetListenerManager(false);
     if (elm) {
-      aWindowSizes->mDOMOther +=
+      aWindowSizes->mDOM +=
         elm->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
     }
     if (mDoc) {
@@ -10161,7 +10145,7 @@ nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
     }
   }
 
-  aWindowSizes->mDOMOther +=
+  aWindowSizes->mDOM +=
     mNavigator ?
       mNavigator->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf) : 0;
 }

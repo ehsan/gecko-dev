@@ -1,5 +1,3 @@
-#include "mozilla/Assertions.h"
-
 #include <stdio.h>
 
 #include "nscore.h"
@@ -44,7 +42,6 @@ const PRInt16 CRASH_INVALID_POINTER_DEREF = 0;
 const PRInt16 CRASH_PURE_VIRTUAL_CALL     = 1;
 const PRInt16 CRASH_RUNTIMEABORT          = 2;
 const PRInt16 CRASH_OOM                   = 3;
-const PRInt16 CRASH_MOZ_CRASH             = 4;
 
 extern "C" NS_EXPORT
 void Crash(PRInt16 how)
@@ -69,10 +66,6 @@ void Crash(PRInt16 how)
     (void) moz_xmalloc((size_t) -1);
     (void) moz_xmalloc((size_t) -1);
     (void) moz_xmalloc((size_t) -1);
-    break;
-  }
-  case CRASH_MOZ_CRASH: {
-    MOZ_CRASH();
     break;
   }
   default:

@@ -489,6 +489,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     return NS_OK;
 
   nsAutoEditBatch batchIt(this);
+  nsresult res;
 
   if (aEnabled) {
     PRInt32 x, y;
@@ -511,11 +512,11 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     nsINode* parentNode = element->GetNodeParent();
     if (parentNode->GetChildCount() == 1) {
       nsCOMPtr<nsIDOMNode> brNode;
-      nsresult res = CreateBR(parentNode->AsDOMNode(), 0, address_of(brNode));
-      NS_ENSURE_SUCCESS(res, res);
+      res = CreateBR(parentNode->AsDOMNode(), 0, address_of(brNode));
     }
   }
   else {
+    res = NS_OK;
     mHTMLCSSUtils->RemoveCSSProperty(aElement,
                                      nsEditProperty::cssPosition,
                                      EmptyString(), false);
@@ -542,13 +543,12 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     if (element && element->IsHTML(nsGkAtoms::div) && !HasStyleOrIdOrClass(element)) {
       nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
       NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
-      nsresult res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
+      res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
       NS_ENSURE_SUCCESS(res, res);
       res = RemoveContainer(aElement);
-      NS_ENSURE_SUCCESS(res, res);
     }
   }
-  return NS_OK;
+  return res;
 }
 
 NS_IMETHODIMP

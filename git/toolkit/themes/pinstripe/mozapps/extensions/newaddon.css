@@ -25,7 +25,6 @@
 }
 
 #addon-container {
-  overflow: visible;
   max-width: 600px;
   margin: 20px;
   padding: 30px 90px;

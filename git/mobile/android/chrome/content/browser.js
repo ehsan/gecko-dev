@@ -2850,8 +2850,7 @@ var BrowserEventHandler = {
     var computedStyle = win.getComputedStyle(elem);
     if (!computedStyle)
       return false;
-    return computedStyle.overflowX == 'auto' || computedStyle.overflowX == 'scroll'
-        || computedStyle.overflowY == 'auto' || computedStyle.overflowY == 'scroll';
+    return computedStyle.overflow == 'auto' || computedStyle.overflow == 'scroll';
   },
 
   _findScrollableElement: function(elem, checkElem) {
@@ -5161,8 +5160,8 @@ var WebappsUI = {
         break;
       case "webapps-launch":
         DOMApplicationRegistry.getManifestFor(data.origin, (function(aManifest) {
-          if (!aManifest)
-            return;
+	   if (!aManifest)
+	     return;
           let manifest = new DOMApplicationManifest(aManifest, data.origin);
           this.openURL(manifest.fullLaunchPath(), data.origin);
         }).bind(this));
@@ -5170,8 +5169,8 @@ var WebappsUI = {
       case "webapps-sync-install":
         // Wait until we know the app install worked, then make a homescreen shortcut
         DOMApplicationRegistry.getManifestFor(data.origin, (function(aManifest) {
-          if (!aManifest)
-            return;
+	   if (!aManifest)
+	     return;
           let manifest = new DOMApplicationManifest(aManifest, data.origin);
 
           // Add a homescreen shortcut

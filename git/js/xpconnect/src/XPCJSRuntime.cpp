@@ -25,7 +25,6 @@
 #include "jsfriendapi.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/BindingUtils.h"
 
 #include "nsJSPrincipals.h"
 
@@ -461,14 +460,14 @@ SuspectDOMExpandos(nsPtrHashKey<JSObject> *key, void *arg)
     JSObject* obj = key->GetKey();
     nsISupports* native = nsnull;
     if (js::IsProxy(obj)) {
-        NS_ASSERTION(dom::binding::instanceIsProxy(obj),
+        NS_ASSERTION(mozilla::dom::binding::instanceIsProxy(obj),
                      "Not a DOM proxy?");
         native = static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
     }
     else {
-        NS_ASSERTION(dom::DOMJSClass::FromJSClass(JS_GetClass(obj))->mDOMObjectIsISupports,
+        NS_ASSERTION(mozilla::dom::DOMJSClass::FromJSClass(JS_GetClass(obj))->mDOMObjectIsISupports,
                      "Someone added a wrapper for a non-nsISupports native to DOMExpandos!");
-        native = dom::UnwrapDOMObject<nsISupports>(obj);
+        native = static_cast<nsISupports*>(js::GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate());
     }
     closure->cb->NoteXPCOMRoot(native);
     return PL_DHASH_NEXT;

@@ -60,17 +60,20 @@ IsDOMClass(const JSClass* clasp)
   return clasp->flags & JSCLASS_IS_DOMJSCLASS;
 }
 
-inline bool
-IsDOMClass(const js::Class* clasp)
-{
-  return clasp->flags & JSCLASS_IS_DOMJSCLASS;
-}
-
 template <class T>
 inline T*
-UnwrapDOMObject(JSObject* obj)
+UnwrapDOMObject(JSObject* obj, const JSClass* clasp)
 {
-  JS::Value val = js::GetReservedSlot(obj, DOM_OBJECT_SLOT);
+  MOZ_ASSERT(IsDOMClass(clasp));
+  MOZ_ASSERT(JS_GetClass(obj) == clasp);
+
+  size_t slot = DOMJSClass::FromJSClass(clasp)->mNativeSlot;
+  MOZ_ASSERT((slot == DOM_OBJECT_SLOT &&
+              !(clasp->flags & JSCLASS_DOM_GLOBAL)) ||
+             (slot == DOM_GLOBAL_OBJECT_SLOT &&
+              (clasp->flags & JSCLASS_DOM_GLOBAL)));
+
+  JS::Value val = js::GetReservedSlot(obj, slot);
   // XXXbz/khuey worker code tries to unwrap interface objects (which have
   // nothing here).  That needs to stop.
   // XXX We don't null-check UnwrapObject's result; aren't we going to crash
@@ -80,6 +83,13 @@ UnwrapDOMObject(JSObject* obj)
   }
   
   return static_cast<T*>(val.toPrivate());
+}
+
+template <class T>
+inline T*
+UnwrapDOMObject(JSObject* obj, const js::Class* clasp)
+{
+  return UnwrapDOMObject<T>(obj, Jsvalify(clasp));
 }
 
 // Some callers don't want to set an exception when unwrappin fails
@@ -119,7 +129,7 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
   DOMJSClass* domClass = DOMJSClass::FromJSClass(clasp);
   if (domClass->mInterfaceChain[PrototypeTraits<PrototypeID>::Depth] ==
       PrototypeID) {
-    value = UnwrapDOMObject<T>(obj);
+    value = UnwrapDOMObject<T>(obj, clasp);
     return NS_OK;
   }
 

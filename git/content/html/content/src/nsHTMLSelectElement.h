@@ -549,7 +549,7 @@ protected:
       return false;
     }
 
-    PRUint32 size = 1;
+    PRInt32 size = 1;
     GetSize(&size);
     return size <= 1;
   }

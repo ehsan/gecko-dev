@@ -876,8 +876,12 @@ void nsBaseWidget::CreateCompositor()
     AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
     mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
     PRInt32 maxTextureSize;
-    PLayersChild* shadowManager =
-      mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
+    PLayersChild* shadowManager;
+    if (mUseAcceleratedRendering) {
+      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
+    } else {
+      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_BASIC, &maxTextureSize);
+    }
 
     if (shadowManager) {
       ShadowLayerForwarder* lf = lm->AsShadowForwarder();
@@ -887,7 +891,10 @@ void nsBaseWidget::CreateCompositor()
         return;
       }
       lf->SetShadowManager(shadowManager);
-      lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
+      if (mUseAcceleratedRendering)
+        lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
+      else
+        lf->SetParentBackendType(LayerManager::LAYERS_BASIC);
       lf->SetMaxTextureSize(maxTextureSize);
 
       mLayerManager = lm;
@@ -1329,18 +1336,9 @@ static void InitOnlyOnce()
   // X11 (else it would crash).
   sUseOffMainThreadCompositing = (PR_GetEnv("MOZ_USE_OMTC") != NULL);
 #else
-  sUseOffMainThreadCompositing = Preferences::GetBool(
+  sUseOffMainThreadCompositing = mozilla::Preferences::GetBool(
         "layers.offmainthreadcomposition.enabled", 
         false);
-  // Until https://bugzilla.mozilla.org/show_bug.cgi?id=745148 lands,
-  // we use either omtc or content processes, but not both.  Prefer
-  // OOP content to omtc.  (Currently, this only affects b2g.)
-  //
-  // See https://bugzilla.mozilla.org/show_bug.cgi?id=761962 .
-  if (!Preferences::GetBool("dom.ipc.tabs.disabled", true)) {
-    // Disable omtc if OOP content isn't force-disabled.
-    sUseOffMainThreadCompositing = false;
-  }
 #endif
 }
 

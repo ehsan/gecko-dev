@@ -117,7 +117,7 @@ DOMJSClass Class = {
     JSCLASS_NO_INTERNAL_MEMBERS
   },
   { %s },
-  -1, %s,
+  -1, %s, DOM_OBJECT_SLOT,
   %s
 };
 """ % (self.descriptor.interface.identifier.name,
@@ -464,7 +464,8 @@ class CGAbstractClassHook(CGAbstractStaticMethod):
 
     def definition_body_prologue(self):
         return """
-  %s* self = UnwrapDOMObject<%s>(obj);
+  MOZ_ASSERT(js::GetObjectJSClass(obj) == Class.ToJSClass());
+  %s* self = UnwrapDOMObject<%s>(obj, Class.ToJSClass());
 """ % (self.descriptor.nativeType, self.descriptor.nativeType)
 
     def definition_body(self):

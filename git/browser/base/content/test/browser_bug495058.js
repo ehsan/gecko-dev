@@ -27,7 +27,11 @@ function next() {
   function detach() {
     var win = gBrowser.replaceTabWithWindow(tab);
 
-    whenDelayedStartupFinished(win, function () {
+    Services.obs.addObserver(function (subject, topic, data) {
+      if (subject != win)
+        return;
+      Services.obs.removeObserver(arguments.callee, topic);
+
       is(win.gBrowser.currentURI.spec, uri, uri + ": uri loaded in detached tab");
       is(win.document.activeElement, win.gBrowser.selectedBrowser, uri + ": browser is focused");
       is(win.gURLBar.value, "", uri + ": urlbar is empty");
@@ -38,6 +42,6 @@ function next() {
         next();
       else
         executeSoon(finish);
-    });
+    }, "browser-delayed-startup-finished", false);
   }
 }

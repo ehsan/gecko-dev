@@ -1237,7 +1237,7 @@ nsHTMLEditRules::WillInsert(nsISelection *aSelection, bool *aCancel)
 
 nsresult
 nsHTMLEditRules::WillInsertText(nsEditor::OperationID aAction,
-                                nsTypedSelection* aSelection,
+                                nsISelection *aSelection, 
                                 bool            *aCancel,
                                 bool            *aHandled,
                                 const nsAString *inString,
@@ -1463,7 +1463,7 @@ nsHTMLEditRules::WillLoadHTML(nsISelection *aSelection, bool *aCancel)
 }
 
 nsresult
-nsHTMLEditRules::WillInsertBreak(nsTypedSelection* aSelection,
+nsHTMLEditRules::WillInsertBreak(nsISelection* aSelection,
                                  bool* aCancel, bool* aHandled)
 {
   if (!aSelection || !aCancel || !aHandled) {
@@ -1779,7 +1779,7 @@ nsHTMLEditRules::SplitMailCites(nsISelection *aSelection, bool aPlaintext, bool 
 
 
 nsresult
-nsHTMLEditRules::WillDeleteSelection(nsTypedSelection* aSelection,
+nsHTMLEditRules::WillDeleteSelection(nsISelection* aSelection,
                                      nsIEditor::EDirection aAction,
                                      nsIEditor::EStripWrappers aStripWrappers,
                                      bool* aCancel,
@@ -1980,7 +1980,8 @@ nsHTMLEditRules::WillDeleteSelection(nsTypedSelection* aSelection,
         NS_ENSURE_SUCCESS(res, res);
 
         bool interLineIsRight;
-        res = aSelection->GetInterlinePosition(&interLineIsRight);
+        nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(aSelection));
+        res = selPriv->GetInterlinePosition(&interLineIsRight);
         NS_ENSURE_SUCCESS(res, res);
 
         if (startNode == selNode &&
@@ -1996,7 +1997,7 @@ nsHTMLEditRules::WillDeleteSelection(nsTypedSelection* aSelection,
           // by setting the interline position to left.
           ++selOffset;
           res = aSelection->Collapse(selNode, selOffset);
-          aSelection->SetInterlinePosition(false);
+          selPriv->SetInterlinePosition(false);
           mDidExplicitlySetInterline = true;
           *aHandled = true;
 
@@ -2349,7 +2350,8 @@ nsHTMLEditRules::WillDeleteSelection(nsTypedSelection* aSelection,
         // else blocks not same type, or not siblings.  Delete everything except
         // table elements.
         nsCOMPtr<nsIEnumerator> enumerator;
-        res = aSelection->GetEnumerator(getter_AddRefs(enumerator));
+        nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(aSelection));
+        res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
         NS_ENSURE_SUCCESS(res, res);
         NS_ENSURE_TRUE(enumerator, NS_ERROR_UNEXPECTED);
 

@@ -17,6 +17,7 @@
 #include "nsIAtom.h"
 #include "nsIDOMDocument.h"
 #include "nsISelection.h"
+#include "nsRange.h"
 #include "nsTypedSelection.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIPrivateTextRange.h"

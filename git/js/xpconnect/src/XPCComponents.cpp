@@ -28,7 +28,6 @@
 #include "jsfriendapi.h"
 #include "AccessCheck.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace js;
@@ -3469,7 +3468,7 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 class ContextHolder : public nsISupports
 {
 public:
-    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox, bool isChrome);
+    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox);
     virtual ~ContextHolder();
 
     JSContext * GetJSContext()
@@ -3488,23 +3487,17 @@ private:
 
 NS_IMPL_ISUPPORTS0(ContextHolder)
 
-ContextHolder::ContextHolder(JSContext *aOuterCx,
-                             JSObject *aSandbox,
-                             bool isChrome)
+ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
     : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
       mOrigCx(aOuterCx)
 {
     if (mJSContext) {
-        bool allowXML = Preferences::GetBool(isChrome ?
-                                             "javascript.options.xml.chrome" :
-                                             "javascript.options.xml.content");
-
         JSAutoRequest ar(mJSContext);
         JS_SetOptions(mJSContext,
                       JS_GetOptions(mJSContext) |
                       JSOPTION_DONT_REPORT_UNCAUGHT |
                       JSOPTION_PRIVATE_IS_NSISUPPORTS |
-                      (allowXML ? JSOPTION_ALLOW_XML : 0));
+                      JSOPTION_ALLOW_XML);
         JS_SetGlobalObject(mJSContext, aSandbox);
         JS_SetContextPrivate(mJSContext, this);
         JS_SetOperationCallback(mJSContext, ContextHolderOperationCallback);
@@ -3652,10 +3645,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         }
     }
 
-    bool isChrome;
-    nsresult rv = XPCWrapper::GetSecurityManager()->IsSystemPrincipal(prin, &isChrome);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox, isChrome);
+    nsRefPtr<ContextHolder> sandcx = new ContextHolder(cx, sandbox);
     if (!sandcx || !sandcx->GetJSContext()) {
         JS_ReportError(cx, "Can't prepare context for evalInSandbox");
         return NS_ERROR_OUT_OF_MEMORY;
@@ -3674,7 +3664,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         }
     }
 
-    rv = NS_OK;
+    nsresult rv = NS_OK;
 
     {
         JSAutoRequest req(sandcx->GetJSContext());

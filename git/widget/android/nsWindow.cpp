@@ -689,6 +689,9 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         mLayerManager = CreateBasicLayerManager();
         return mLayerManager;
     }
+
+    mUseAcceleratedRendering = GetShouldAccelerate();
+
 #ifdef MOZ_JAVA_COMPOSITOR
     bool useCompositor = UseOffMainThreadCompositing();
 
@@ -703,7 +706,6 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         sFailedToCreateGLContext = true;
     }
 #endif
-    mUseAcceleratedRendering = GetShouldAccelerate();
 
     if (!mUseAcceleratedRendering ||
         sFailedToCreateGLContext)
@@ -2169,11 +2171,6 @@ nsWindow::OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd)
     ALOGIME("IME: OnIMETextChange: s=%d, oe=%d, ne=%d",
             aStart, aOldEnd, aNewEnd);
 
-    if (!mInputContext.mIMEState.mEnabled) {
-        AndroidBridge::NotifyIMEChange(nsnull, 0, 0, 0, 0);
-        return NS_OK;
-    }
-
     // A quirk in Android makes it necessary to pass the whole text.
     // The more efficient way would have been passing the substring from index
     // aStart to index aNewEnd
@@ -2198,11 +2195,6 @@ NS_IMETHODIMP
 nsWindow::OnIMESelectionChange(void)
 {
     ALOGIME("IME: OnIMESelectionChange");
-
-    if (!mInputContext.mIMEState.mEnabled) {
-        AndroidBridge::NotifyIMEChange(nsnull, 0, 0, 0, -1);
-        return NS_OK;
-    }
 
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);

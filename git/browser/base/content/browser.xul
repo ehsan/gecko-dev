@@ -344,8 +344,11 @@
     <tooltip id="bhTooltip"/>
 
     <panel id="customizeToolbarSheetPopup"
-           noautohide="true"
-           sheetstyle="&dialog.dimensions;"/>
+           noautohide="true">
+      <iframe id="customizeToolbarSheetIFrame"
+              style="&dialog.dimensions;"
+              hidden="true"/>
+    </panel>
 
     <tooltip id="tabbrowser-tab-tooltip" onpopupshowing="gBrowser.createTooltip(event);"/>
 

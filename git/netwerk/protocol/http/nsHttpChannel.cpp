@@ -565,8 +565,6 @@ nsHttpChannel::HandleAsyncRedirect()
         rv = AsyncProcessRedirection(mResponseHead->Status());
         if (NS_FAILED(rv)) {
             PopRedirectAsyncFunc(&nsHttpChannel::ContinueHandleAsyncRedirect);
-            // TODO: if !DoNotRender3xxBody(), render redirect body instead.
-            // But first we need to cache 3xx bodies (bug 748510)
             ContinueHandleAsyncRedirect(rv);
         }
     }
@@ -1245,15 +1243,7 @@ nsHttpChannel::ProcessResponse()
         if (NS_FAILED(rv)) {
             PopRedirectAsyncFunc(&nsHttpChannel::ContinueProcessResponse);
             LOG(("AsyncProcessRedirection failed [rv=%x]\n", rv));
-            // don't cache failed redirect responses.
-            if (mCacheEntry)
-                mCacheEntry->Doom();
-            if (DoNotRender3xxBody(rv)) {
-                mStatus = rv;
-                DoNotifyListener();
-            } else {
-                rv = ContinueProcessResponse(rv);
-            }
+            rv = ContinueProcessResponse(rv);
         }
         break;
     case 304:
@@ -1319,30 +1309,28 @@ nsHttpChannel::ProcessResponse()
 nsresult
 nsHttpChannel::ContinueProcessResponse(nsresult rv)
 {
-    bool doNotRender = DoNotRender3xxBody(rv);
+    if (rv == NS_ERROR_CORRUPTED_CONTENT) {
+        // don't ever render responses we've flagged as suspect content
+        return NS_ERROR_CORRUPTED_CONTENT;
+    }
 
     if (rv == NS_ERROR_DOM_BAD_URI && mRedirectURI) {
+
         bool isHTTP = false;
         if (NS_FAILED(mRedirectURI->SchemeIs("http", &isHTTP)))
             isHTTP = false;
         if (!isHTTP && NS_FAILED(mRedirectURI->SchemeIs("https", &isHTTP)))
             isHTTP = false;
-
+        
         if (!isHTTP) {
             // This was a blocked attempt to redirect and subvert the system by
             // redirecting to another protocol (perhaps javascript:)
             // In that case we want to throw an error instead of displaying the
             // non-redirected response body.
-            LOG(("ContinueProcessResponse detected rejected Non-HTTP Redirection"));
-            doNotRender = true;
-            rv = NS_ERROR_CORRUPTED_CONTENT;
-        }
-    }
 
-    if (doNotRender) {
-        Cancel(rv);
-        DoNotifyListener();
-        return rv;
+            LOG(("ContinueProcessResponse detected rejected Non-HTTP Redirection"));
+            return NS_ERROR_CORRUPTED_CONTENT;
+        }
     }
 
     if (NS_SUCCEEDED(rv)) {
@@ -3978,6 +3966,8 @@ nsHttpChannel::AsyncProcessRedirection(PRUint32 redirectType)
 
     if (mRedirectionLimit == 0) {
         LOG(("redirection limit reached!\n"));
+        // this error code is fatal, and should be conveyed to our listener.
+        Cancel(NS_ERROR_REDIRECT_LOOP);
         return NS_ERROR_REDIRECT_LOOP;
     }
 
@@ -3990,6 +3980,7 @@ nsHttpChannel::AsyncProcessRedirection(PRUint32 redirectType)
 
     if (NS_FAILED(rv)) {
         LOG(("Invalid URI for redirect: Location: %s\n", location));
+        Cancel(NS_ERROR_CORRUPTED_CONTENT);
         return NS_ERROR_CORRUPTED_CONTENT;
     }
 
@@ -5380,9 +5371,6 @@ NS_IMETHODIMP
 nsHttpChannel::GetProfileDirectory(nsIFile **_result)
 {
     NS_ENSURE_ARG(_result);
-
-    if (!mProfileDirectory)
-        return NS_ERROR_NOT_AVAILABLE;
 
     NS_ADDREF(*_result = mProfileDirectory);
     return NS_OK;

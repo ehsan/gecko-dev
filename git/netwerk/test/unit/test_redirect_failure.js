@@ -20,8 +20,6 @@ function redirectHandler(metadata, response)
 
 function finish_test(request, buffer)
 {
-  do_check_eq(request.status, Components.results.NS_ERROR_UNKNOWN_PROTOCOL);
-
   do_check_eq(buffer, "");
   httpServer.stop(do_test_finished);
 }
@@ -33,6 +31,6 @@ function run_test()
   httpServer.start(4444);
 
   var chan = make_channel(randomURI);
-  chan.asyncOpen(new ChannelListener(finish_test, null, CL_EXPECT_FAILURE), null);
+  chan.asyncOpen(new ChannelListener(finish_test), null);
   do_test_pending();
 }

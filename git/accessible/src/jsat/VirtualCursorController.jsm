@@ -52,36 +52,26 @@ var VirtualCursorController = {
         this.moveBackward(document, true);
         break;
       case aEvent.DOM_VK_RIGHT:
-        if (this._isEditableText(target)) {
-          if (target.selectionEnd != target.textLength)
-            // Don't move forward if caret is not at end of entry.
-            // XXX: Fix for rtl
-            return;
-          else
-            target.blur();
-        }
+        if (this._isEditableText(target) &&
+            target.selectionEnd != target.textLength)
+          // Don't move forward if caret is not at end of entry.
+          // XXX: Fix for rtl
+          return;
         this.moveForward(document, aEvent.shiftKey);
         break;
       case aEvent.DOM_VK_LEFT:
-        if (this._isEditableText(target)) {
-          if (target.selectionEnd != 0)
-            // Don't move backward if caret is not at start of entry.
-            // XXX: Fix for rtl
-            return;
-          else
-            target.blur();
-        }
+        if (this._isEditableText(target) &&
+            target.selectionEnd != 0)
+          // Don't move backward if caret is not at start of entry.
+          // XXX: Fix for rtl
+          return;
         this.moveBackward(document, aEvent.shiftKey);
         break;
       case aEvent.DOM_VK_UP:
-        if (this._isEditableText(target) == this.MULTI_LINE_EDITABLE) {
-          if (target.selectionEnd != 0)
-            // Don't blur content if caret is not at start of text area.
-            return;
-          else
-            target.blur();
-        }
-
+        if (this._isEditableText(target) == this.MULTI_LINE_EDITABLE &&
+            target.selectionEnd != 0)
+          // Don't blur content if caret is not at start of text area.
+          return;
         if (Services.appinfo.OS == 'Android')
           // Return focus to native Android browser chrome.
           Cc['@mozilla.org/android/bridge;1'].
@@ -122,8 +112,8 @@ var VirtualCursorController = {
       try {
         virtualCursor.moveNext(this.SimpleTraversalRule);
       } catch (x) {
-        this.moveCursorToObject(
-          gAccRetrieval.getAccessibleFor(document.activeElement));
+        virtualCursor.position =
+          gAccRetrieval.getAccessibleFor(document.activeElement);
       }
     }
   },
@@ -136,8 +126,8 @@ var VirtualCursorController = {
       try {
         virtualCursor.movePrevious(this.SimpleTraversalRule);
       } catch (x) {
-        this.moveCursorToObject(
-          gAccRetrieval.getAccessibleFor(document.activeElement));
+        virtualCursor.position =
+          gAccRetrieval.getAccessibleFor(document.activeElement);
       }
     }
   },
