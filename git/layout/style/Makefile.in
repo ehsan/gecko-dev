@@ -151,7 +151,6 @@ CPPSRCS		= \
 		nsDOMCSSRGBColor.cpp \
 		nsDOMCSSRect.cpp \
 		nsDOMCSSValueList.cpp \
-		nsFontFaceLoader.cpp \
 		nsHTMLCSSStyleSheet.cpp \
 		nsHTMLStyleSheet.cpp \
 		nsInspectorCSSUtils.cpp \

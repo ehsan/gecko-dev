@@ -840,6 +840,9 @@ if [ "$MOZ_TREE_CAIRO" ] ; then
     gfx/cairo/libpixman/src/Makefile
     gfx/cairo/cairo/src/Makefile
     gfx/cairo/cairo/src/cairo-features.h
+    gfx/cairo/glitz/src/Makefile
+    gfx/cairo/glitz/src/glx/Makefile
+    gfx/cairo/glitz/src/wgl/Makefile
   "
 fi
 

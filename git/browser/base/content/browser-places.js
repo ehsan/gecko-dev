@@ -768,7 +768,7 @@ var BookmarksEventHandler = {
     var tooltipTitle = document.getElementById("btTitleText");
     if (title && title != url) {
       tooltipTitle.hidden = false;
-      tooltipTitle.textContent = title;
+      tooltipTitle.value = title;
     }
     else
       tooltipTitle.hidden = true;

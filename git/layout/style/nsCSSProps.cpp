@@ -144,6 +144,7 @@ struct CSSPropertyAlias {
 };
 
 static const CSSPropertyAlias gAliases[] = {
+  { "-moz-opacity", eCSSProperty_opacity },
   { "-moz-outline", eCSSProperty_outline },
   { "-moz-outline-color", eCSSProperty_outline_color },
   { "-moz-outline-style", eCSSProperty_outline_style },
@@ -1035,6 +1036,7 @@ const PRInt32 nsCSSProps::kWhitespaceKTable[] = {
   eCSSKeyword_pre, NS_STYLE_WHITESPACE_PRE,
   eCSSKeyword_nowrap, NS_STYLE_WHITESPACE_NOWRAP,
   eCSSKeyword_pre_wrap, NS_STYLE_WHITESPACE_PRE_WRAP,
+  eCSSKeyword__moz_pre_wrap, NS_STYLE_WHITESPACE_PRE_WRAP,
   eCSSKeyword_pre_line, NS_STYLE_WHITESPACE_PRE_LINE,
   eCSSKeyword_UNKNOWN,-1
 };

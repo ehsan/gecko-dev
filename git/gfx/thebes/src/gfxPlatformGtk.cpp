@@ -68,6 +68,11 @@
 #include "gfxDirectFBSurface.h"
 #endif
 
+#ifdef MOZ_ENABLE_GLITZ
+#include "gfxGlitzSurface.h"
+#include "glitz-glx.h"
+#endif
+
 #ifdef MOZ_DFB
 #include "gfxDirectFBSurface.h"
 #endif
@@ -102,6 +107,10 @@ static void do_gdk_drawable_unref (void *data)
 
 gfxPlatformGtk::gfxPlatformGtk()
 {
+#ifdef MOZ_ENABLE_GLITZ
+    if (UseGlitz())
+        glitz_glx_init(NULL);
+#endif
     if (!sFontconfigUtils)
         sFontconfigUtils = gfxFontconfigUtils::GetFontconfigUtils();
 
@@ -181,41 +190,71 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     if (!display)
         return nsnull;
 
-    GdkPixmap* pixmap = nsnull;
-    XRenderPictFormat* xrenderFormat =
-        XRenderFindStandardFormat(display, xrenderFormatID);
+    if (!UseGlitz()) {
+        GdkPixmap* pixmap = nsnull;
+        XRenderPictFormat* xrenderFormat =
+            XRenderFindStandardFormat(display, xrenderFormatID);
 
-    if (xrenderFormat) {
-        pixmap = gdk_pixmap_new(nsnull, size.width, size.height,
-                                xrenderFormat->depth);
+        if (xrenderFormat) {
+            pixmap = gdk_pixmap_new(nsnull, size.width, size.height,
+                                    xrenderFormat->depth);
 
-        if (pixmap) {
-            gdk_drawable_set_colormap(GDK_DRAWABLE(pixmap), nsnull);
-            newSurface = new gfxXlibSurface(display,
-                                            GDK_PIXMAP_XID(GDK_DRAWABLE(pixmap)),
-                                            xrenderFormat,
-                                            size);
+            if (pixmap) {
+                gdk_drawable_set_colormap(GDK_DRAWABLE(pixmap), nsnull);
+                newSurface = new gfxXlibSurface(display,
+                                                GDK_PIXMAP_XID(GDK_DRAWABLE(pixmap)),
+                                                xrenderFormat,
+                                                size);
+            }
+
+            if (newSurface && newSurface->CairoStatus() == 0) {
+                // set up the surface to auto-unref the gdk pixmap when
+                // the surface is released
+                SetGdkDrawable(newSurface, GDK_DRAWABLE(pixmap));
+            } else {
+                // something went wrong with the surface creation.
+                // Ignore and let's fall back to image surfaces.
+                newSurface = nsnull;
+            }
+
+            // always unref; SetGdkDrawable takes its own ref
+            if (pixmap)
+                g_object_unref(pixmap);
         }
 
-        if (newSurface && newSurface->CairoStatus() == 0) {
-            // set up the surface to auto-unref the gdk pixmap when
-            // the surface is released
-            SetGdkDrawable(newSurface, GDK_DRAWABLE(pixmap));
-        } else {
-            // something went wrong with the surface creation.
-            // Ignore and let's fall back to image surfaces.
-            newSurface = nsnull;
+        if (!newSurface) {
+            // We don't have Render or we couldn't create an xlib surface for
+            // whatever reason; fall back to image surface for the data.
+            newSurface = new gfxImageSurface(gfxIntSize(size.width, size.height), imageFormat);
         }
 
-        // always unref; SetGdkDrawable takes its own ref
-        if (pixmap)
-            g_object_unref(pixmap);
-    }
+    } else {
+#ifdef MOZ_ENABLE_GLITZ
+        glitz_drawable_format_t *gdformat = glitz_glx_find_pbuffer_format
+            (display,
+             gdk_x11_get_default_screen(),
+             0, NULL, 0);
 
-    if (!newSurface) {
-        // We don't have Render or we couldn't create an xlib surface for
-        // whatever reason; fall back to image surface for the data.
-        newSurface = new gfxImageSurface(gfxIntSize(size.width, size.height), imageFormat);
+        glitz_drawable_t *gdraw =
+            glitz_glx_create_pbuffer_drawable(display,
+                                              DefaultScreen(display),
+                                              gdformat,
+                                              size.width,
+                                              size.height);
+        glitz_format_t *gformat =
+            glitz_find_standard_format(gdraw, (glitz_format_name_t)glitzf);
+
+        glitz_surface_t *gsurf =
+            glitz_surface_create(gdraw,
+                                 gformat,
+                                 size.width,
+                                 size.height,
+                                 0,
+                                 NULL);
+
+        glitz_surface_attach(gsurf, gdraw, GLITZ_DRAWABLE_BUFFER_FRONT_COLOR);
+        newSurface = new gfxGlitzSurface(gdraw, gsurf, PR_TRUE);
+#endif
     }
 #endif
 
@@ -267,10 +306,9 @@ gfxPlatformGtk::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFa
 
 gfxFontGroup *
 gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
-                                const gfxFontStyle *aStyle,
-                                gfxUserFontSet *aUserFontSet)
+                                const gfxFontStyle *aStyle)
 {
-    return new gfxPangoFontGroup(aFamilies, aStyle, aUserFontSet);
+    return new gfxPangoFontGroup(aFamilies, aStyle);
 }
 
 #else
