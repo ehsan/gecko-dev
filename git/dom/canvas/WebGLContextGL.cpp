@@ -594,15 +594,7 @@ WebGLContext::CopyTexSubImage2D(GLenum rawTexImgTarget,
         ClearBackbufferIfNeeded();
 
     if (imageInfo.HasUninitializedImageData()) {
-        bool coversWholeImage = xoffset == 0 &&
-                                yoffset == 0 &&
-                                width == texWidth &&
-                                height == texHeight;
-        if (coversWholeImage) {
-            tex->SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
-        } else {
-            tex->DoDeferredImageInitialization(texImageTarget, level);
-        }
+        tex->DoDeferredImageInitialization(texImageTarget, level);
     }
 
     TexInternalFormat internalformat;
@@ -3422,17 +3414,8 @@ WebGLContext::CompressedTexSubImage2D(GLenum rawTexImgTarget, GLint level, GLint
         return;
     }
 
-    if (levelInfo.HasUninitializedImageData()) {
-        bool coversWholeImage = xoffset == 0 &&
-                                yoffset == 0 &&
-                                width == levelInfo.Width() &&
-                                height == levelInfo.Height();
-        if (coversWholeImage) {
-            tex->SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
-        } else {
-            tex->DoDeferredImageInitialization(texImageTarget, level);
-        }
-    }
+    if (levelInfo.HasUninitializedImageData())
+        tex->DoDeferredImageInitialization(texImageTarget, level);
 
     MakeContextCurrent();
     gl->fCompressedTexSubImage2D(texImageTarget.get(), level, xoffset, yoffset, width, height, internalformat, byteLength, view.Data());
@@ -3958,17 +3941,9 @@ WebGLContext::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (byteLength < bytesNeeded)
         return ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, byteLength);
 
-    if (imageInfo.HasUninitializedImageData()) {
-        bool coversWholeImage = xoffset == 0 &&
-                                yoffset == 0 &&
-                                width == imageInfo.Width() &&
-                                height == imageInfo.Height();
-        if (coversWholeImage) {
-            tex->SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
-        } else {
-            tex->DoDeferredImageInitialization(texImageTarget, level);
-        }
-    }
+    if (imageInfo.HasUninitializedImageData())
+        tex->DoDeferredImageInitialization(texImageTarget, level);
+
     MakeContextCurrent();
 
     size_t   srcStride = srcStrideOrZero ? srcStrideOrZero : checked_alignedRowSize.value();

@@ -1112,10 +1112,10 @@ CancelFMRadioSeek() {
   PROXY_IF_SANDBOXED(CancelFMRadioSeek());
 }
 
-bool
+void
 EnableRDS(uint32_t aMask) {
   AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(EnableRDS(aMask), false);
+  PROXY_IF_SANDBOXED(EnableRDS(aMask));
 }
 
 void

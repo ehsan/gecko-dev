@@ -38,11 +38,9 @@ static const PRLogModuleInfo *gUrlClassifierPrefixSetLog = nullptr;
 NS_IMPL_ISUPPORTS(
   nsUrlClassifierPrefixSet, nsIUrlClassifierPrefixSet, nsIMemoryReporter)
 
-MOZ_DEFINE_MALLOC_SIZE_OF(UrlClassifierMallocSizeOf)
-
 nsUrlClassifierPrefixSet::nsUrlClassifierPrefixSet()
-  : mTotalPrefixes(0)
-  , mMemoryInUse(0)
+  : mHasPrefixes(false)
+  , mTotalPrefixes(0)
   , mMemoryReportPath()
 {
 #if defined(PR_LOGGING)
@@ -73,22 +71,19 @@ nsUrlClassifierPrefixSet::~nsUrlClassifierPrefixSet()
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::SetPrefixes(const uint32_t* aArray, uint32_t aLength)
 {
-  nsresult rv = NS_OK;
-
   if (aLength <= 0) {
-    if (mIndexPrefixes.Length() > 0) {
+    if (mHasPrefixes) {
       LOG(("Clearing PrefixSet"));
       mIndexDeltas.Clear();
       mIndexPrefixes.Clear();
       mTotalPrefixes = 0;
+      mHasPrefixes = false;
     }
   } else {
-    rv = MakePrefixSet(aArray, aLength);
+    return MakePrefixSet(aArray, aLength);
   }
 
-  mMemoryInUse = SizeOfIncludingThis(UrlClassifierMallocSizeOf);
-
-  return rv;
+  return NS_OK;
 }
 
 nsresult
@@ -136,6 +131,8 @@ nsUrlClassifierPrefixSet::MakePrefixSet(const uint32_t* aPrefixes, uint32_t aLen
   LOG(("Total number of indices: %d", aLength));
   LOG(("Total number of deltas: %d", totalDeltas));
   LOG(("Total number of delta chunks: %d", mIndexDeltas.Length()));
+
+  mHasPrefixes = true;
 
   return NS_OK;
 }
@@ -197,7 +194,7 @@ nsUrlClassifierPrefixSet::Contains(uint32_t aPrefix, bool* aFound)
 {
   *aFound = false;
 
-  if (mIndexPrefixes.Length() == 0) {
+  if (!mHasPrefixes) {
     return NS_OK;
   }
 
@@ -239,13 +236,15 @@ nsUrlClassifierPrefixSet::Contains(uint32_t aPrefix, bool* aFound)
   return NS_OK;
 }
 
+MOZ_DEFINE_MALLOC_SIZE_OF(UrlClassifierMallocSizeOf)
+
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::CollectReports(nsIHandleReportCallback* aHandleReport,
                                          nsISupports* aData, bool aAnonymize)
 {
   return aHandleReport->Callback(
     EmptyCString(), mMemoryReportPath, KIND_HEAP, UNITS_BYTES,
-    mMemoryInUse,
+    SizeOfIncludingThis(UrlClassifierMallocSizeOf),
     NS_LITERAL_CSTRING("Memory used by the prefix set for a URL classifier."),
     aData);
 }
@@ -266,7 +265,7 @@ nsUrlClassifierPrefixSet::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeO
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::IsEmpty(bool * aEmpty)
 {
-  *aEmpty = (mIndexPrefixes.Length() == 0);
+  *aEmpty = !mHasPrefixes;
   return NS_OK;
 }
 
@@ -324,6 +323,8 @@ nsUrlClassifierPrefixSet::LoadFromFd(AutoFDClose& fileFd)
         NS_ENSURE_TRUE(read == toRead, NS_ERROR_FILE_CORRUPTED);
       }
     }
+
+    mHasPrefixes = true;
   } else {
     LOG(("Version magic mismatch, not loading"));
     return NS_ERROR_FILE_CORRUPTED;
@@ -344,12 +345,9 @@ nsUrlClassifierPrefixSet::LoadFromFile(nsIFile* aFile)
   AutoFDClose fileFd;
   rv = aFile->OpenNSPRFileDesc(PR_RDONLY | nsIFile::OS_READAHEAD,
                                0, &fileFd.rwget());
-  if (!NS_FAILED(rv)) {
-    rv = LoadFromFd(fileFd);
-    mMemoryInUse = SizeOfIncludingThis(UrlClassifierMallocSizeOf);
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return rv;
+  return LoadFromFd(fileFd);
 }
 
 nsresult

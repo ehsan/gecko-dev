@@ -79,9 +79,6 @@ interface DOMApplication : EventTarget {
     DOMRequest removeReceipt(optional DOMString receipt);
     DOMRequest replaceReceipt(optional DOMString oldReceipt,
                               optional DOMString newReceipt);
-
-    // Export this app as a shareable Blob.
-    Promise<Blob> export();
 };
 
 [JSImplementation="@mozilla.org/webapps/manager;1",
@@ -92,9 +89,6 @@ interface DOMApplicationsManager : EventTarget {
   DOMRequest getNotInstalled();
   void applyDownload(DOMApplication app);
   DOMRequest uninstall(DOMApplication app);
-
-  Promise<DOMApplication> import(Blob blob);
-  Promise<any> extractManifest(Blob blob);
 
   attribute EventHandler oninstall;
   attribute EventHandler onuninstall;

@@ -516,7 +516,7 @@ class StructTypeDescr : public ComplexTypeDescr
     }
 
     NativeObject &maybeForwardedFieldInfoObject(size_t slot) const {
-        return MaybeForwarded(&getReservedSlot(slot).toObject())->as<NativeObject>();
+        return *MaybeForwarded(&fieldInfoObject(slot));
     }
 };
 
