@@ -52,7 +52,6 @@ EXPORTS	= \
 	GLContextProvider.h \
 	GLContextProviderImpl.h \
 	EGLUtils.h \
-	ForceDiscreteGPUHelperCGL.h \
 	$(NULL)
 
 ifdef MOZ_X11

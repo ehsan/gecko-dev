@@ -82,7 +82,6 @@ class nsIScrollableFrame;
 class nsAttrValueOrString;
 class nsContentList;
 class nsDOMTokenList;
-class ContentUnbinder;
 struct nsRect;
 
 typedef PRUptrdiff PtrBits;
@@ -957,7 +956,6 @@ protected:
    */
   virtual void GetLinkTarget(nsAString& aTarget);
 
-  friend class ContentUnbinder;
   /**
    * Array containing all attributes and children for this element
    */
