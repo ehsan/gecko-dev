@@ -17,8 +17,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.Html;
 import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
 import android.text.style.ForegroundColorSpan;
@@ -162,9 +160,7 @@ public class DoorHanger extends LinearLayout {
     }
 
     public void setMessage(String message) {
-        Spanned markupMessage = Html.fromHtml(message);
-        mTextView.setMovementMethod(LinkMovementMethod.getInstance()); // Necessary for clickable links
-        mTextView.setText(markupMessage);
+        mTextView.setText(message);
     }
 
     public void setIcon(int resId) {

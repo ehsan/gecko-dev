@@ -345,10 +345,15 @@ public:
     return CurrentPresShellState()->mInsidePointerEventsNoneDoc;
   }
 
-  bool GetAncestorHasApzAwareEventHandler() { return mAncestorHasApzAwareEventHandler; }
-  void SetAncestorHasApzAwareEventHandler(bool aValue)
+  bool GetAncestorHasTouchEventHandler() { return mAncestorHasTouchEventHandler; }
+  void SetAncestorHasTouchEventHandler(bool aValue)
   {
-    mAncestorHasApzAwareEventHandler = aValue;
+    mAncestorHasTouchEventHandler = aValue;
+  }
+  bool GetAncestorHasScrollEventHandler() { return mAncestorHasScrollEventHandler; }
+  void SetAncestorHasScrollEventHandler(bool aValue)
+  {
+    mAncestorHasScrollEventHandler = aValue;
   }
 
   bool HaveScrollableDisplayPort() const { return mHaveScrollableDisplayPort; }
@@ -573,7 +578,8 @@ public:
         mPrevOffset(aBuilder->mCurrentOffsetToReferenceFrame),
         mPrevDirtyRect(aBuilder->mDirtyRect),
         mPrevIsAtRootOfPseudoStackingContext(aBuilder->mIsAtRootOfPseudoStackingContext),
-        mPrevAncestorHasApzAwareEventHandler(aBuilder->mAncestorHasApzAwareEventHandler)
+        mPrevAncestorHasTouchEventHandler(aBuilder->mAncestorHasTouchEventHandler),
+        mPrevAncestorHasScrollEventHandler(aBuilder->mAncestorHasScrollEventHandler)
     {
       if (aForChild->IsTransformed()) {
         aBuilder->mCurrentOffsetToReferenceFrame = nsPoint();
@@ -618,7 +624,8 @@ public:
       mBuilder->mCurrentOffsetToReferenceFrame = mPrevOffset;
       mBuilder->mDirtyRect = mPrevDirtyRect;
       mBuilder->mIsAtRootOfPseudoStackingContext = mPrevIsAtRootOfPseudoStackingContext;
-      mBuilder->mAncestorHasApzAwareEventHandler = mPrevAncestorHasApzAwareEventHandler;
+      mBuilder->mAncestorHasTouchEventHandler = mPrevAncestorHasTouchEventHandler;
+      mBuilder->mAncestorHasScrollEventHandler = mPrevAncestorHasScrollEventHandler;
       mBuilder->mCurrentAnimatedGeometryRoot = mPrevAnimatedGeometryRoot;
     }
   private:
@@ -630,7 +637,8 @@ public:
     nsPoint               mPrevOffset;
     nsRect                mPrevDirtyRect;
     bool                  mPrevIsAtRootOfPseudoStackingContext;
-    bool                  mPrevAncestorHasApzAwareEventHandler;
+    bool                  mPrevAncestorHasTouchEventHandler;
+    bool                  mPrevAncestorHasScrollEventHandler;
   };
 
   /**
@@ -912,7 +920,8 @@ private:
   bool                           mIsPaintingToWindow;
   bool                           mIsCompositingCheap;
   bool                           mContainsPluginItem;
-  bool                           mAncestorHasApzAwareEventHandler;
+  bool                           mAncestorHasTouchEventHandler;
+  bool                           mAncestorHasScrollEventHandler;
   // True when the first async-scrollable scroll frame for which we build a
   // display list has a display port. An async-scrollable scroll frame is one
   // which WantsAsyncScroll().
@@ -3036,7 +3045,6 @@ public:
 
 protected:
   ViewID mScrollParentId;
-  bool mForceDispatchToContentRegion;
 };
 
 /**
