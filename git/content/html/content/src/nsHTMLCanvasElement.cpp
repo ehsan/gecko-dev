@@ -46,6 +46,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
+#include "nsJSUtils.h"
 
 #include "nsFrameManager.h"
 #include "nsDisplayList.h"
@@ -291,7 +292,7 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
   // for us to read right away, so optimize this case.
   PRUint32 bufSize;
   rv = imgStream->Available(&bufSize);
-  CheckedInt32 safeBufSize(bufSize);
+  CheckedUint32 safeBufSize(bufSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // ...leave a little extra room so we can call read again and make sure we
@@ -304,7 +305,8 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
     return NS_ERROR_OUT_OF_MEMORY;
   PRUint32 numReadThisTime = 0;
   while ((rv = imgStream->Read(&aResult[aSize], safeBufSize.value() - aSize,
-                         &numReadThisTime)) == NS_OK && numReadThisTime > 0) {
+                               &numReadThisTime)) == NS_OK &&
+         numReadThisTime > 0) {
     aSize += numReadThisTime;
     if (aSize == safeBufSize.value()) {
       // need a bigger buffer, just double
@@ -501,8 +503,11 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
           }
 
           JSString *propnameString = JS_ValueToString(cx, propname);
-
-          nsDependentString pstr(JS_GetStringChars(propnameString), JS_GetStringLength(propnameString));
+          nsDependentJSString pstr;
+          if (!propnameString || !pstr.init(cx, propnameString)) {
+            mCurrentContext = nsnull;
+            return NS_ERROR_FAILURE;
+          }
 
           if (JSVAL_IS_BOOLEAN(propval)) {
             newProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? PR_TRUE : PR_FALSE);
@@ -511,8 +516,14 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
           } else if (JSVAL_IS_DOUBLE(propval)) {
             newProps->SetPropertyAsDouble(pstr, JSVAL_TO_DOUBLE(propval));
           } else if (JSVAL_IS_STRING(propval)) {
-            newProps->SetPropertyAsAString(pstr, nsDependentString(JS_GetStringChars(JS_ValueToString(cx, propval)),
-                                                                   JS_GetStringLength(JS_ValueToString(cx, propval))));
+            JSString *propvalString = JS_ValueToString(cx, propval);
+            nsDependentJSString vstr;
+            if (!propvalString || !vstr.init(cx, propvalString)) {
+              mCurrentContext = nsnull;
+              return NS_ERROR_FAILURE;
+            }
+
+            newProps->SetPropertyAsAString(pstr, vstr);
           }
         }
       }

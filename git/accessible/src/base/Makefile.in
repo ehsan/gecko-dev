@@ -53,6 +53,7 @@ CPPSRCS = \
   AccGroupInfo.cpp \
   AccIterator.cpp \
   filters.cpp \
+  NotificationController.cpp \
   nsAccDocManager.cpp \
   nsAccessNode.cpp \
   nsARIAGridAccessible.cpp \
@@ -82,6 +83,7 @@ EXPORTS = \
   a11yGeneric.h \
   nsAccessible.h \
   nsAccessNode.h \
+  nsARIAMap.h \
   $(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.

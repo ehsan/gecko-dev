@@ -107,6 +107,7 @@ struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
 class imgIRequest;
+class nsISHEntry;
 
 namespace mozilla {
 namespace css {
@@ -213,9 +214,13 @@ public:
    * has just been bound to the document.
    */
   virtual void NotifyPossibleTitleChange(PRBool aBoundTitleElement) = 0;
-  
+
   /**
    * Return the URI for the document. May return null.
+   *
+   * The value returned corresponds to the "document's current address" in
+   * HTML5.  As such, it may change over the lifetime of the document, for
+   * instance as a result of a call to pushState() or replaceState().
    */
   nsIURI* GetDocumentURI() const
   {
@@ -223,7 +228,21 @@ public:
   }
 
   /**
-   * Set the URI for the document.
+   * Return the original URI of the document.  This is the same as the
+   * document's URI unless history.pushState() or replaceState() is invoked on
+   * the document.
+   *
+   * This method corresponds to the "document's address" in HTML5 and, once
+   * set, doesn't change over the lifetime of the document.
+   */
+  nsIURI* GetOriginalURI() const
+  {
+    return mOriginalURI;
+  }
+
+  /**
+   * Set the URI for the document.  This also sets the document's original URI,
+   * if it's null.
    */
   virtual void SetDocumentURI(nsIURI* aURI) = 0;
 
@@ -266,6 +285,9 @@ public:
    * Get/Set the base target of a link in a document.
    */
   virtual void GetBaseTarget(nsAString &aBaseTarget) = 0;
+  void SetBaseTarget(const nsString& aBaseTarget) {
+    mBaseTarget = aBaseTarget;
+  }
 
   /**
    * Return a standard name for the document's character set.
@@ -450,11 +472,16 @@ public:
 
   nsIPresShell* GetShell() const
   {
-    return mShellIsHidden ? nsnull : mPresShell;
+    return GetBFCacheEntry() ? nsnull : mPresShell;
   }
 
-  void SetShellHidden(PRBool aHide) { mShellIsHidden = aHide; }
-  PRBool ShellIsHidden() const { return mShellIsHidden; }
+  void SetBFCacheEntry(nsISHEntry* aSHEntry) {
+    mSHEntry = aSHEntry;
+    // Doing this just to keep binary compat for the gecko 2.0 release
+    mShellIsHidden = !!aSHEntry;
+  }
+
+  nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -674,6 +701,15 @@ public:
   nsPIDOMWindow* GetInnerWindow()
   {
     return mRemovedFromDocShell ? GetInnerWindowInternal() : mWindow;
+  }
+
+  /**
+   * Return the outer window ID.
+   */
+  PRUint64 OuterWindowID()
+  {
+    nsPIDOMWindow *window = GetWindow();
+    return window ? window->WindowID() : 0;
   }
 
   /**
@@ -1542,6 +1578,7 @@ protected:
   }
 
   nsCOMPtr<nsIURI> mDocumentURI;
+  nsCOMPtr<nsIURI> mOriginalURI;
   nsCOMPtr<nsIURI> mDocumentBaseURI;
 
   nsWeakPtr mDocumentLoadGroup;
@@ -1594,6 +1631,8 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
+  // True if we're currently bfcached. This is only here for binary compat.
+  // Remove once the gecko 2.0 has branched and just use mSHEntry instead.
   PRPackedBool mShellIsHidden;
 
   PRPackedBool mIsRegularHTML;
@@ -1706,6 +1745,13 @@ protected:
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
   AnimationListenerList mAnimationFrameListeners;
+
+  // The session history entry in which we're currently bf-cached. Non-null
+  // if and only if we're currently in the bfcache.
+  nsISHEntry* mSHEntry;
+
+  // Our base target.
+  nsString mBaseTarget;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

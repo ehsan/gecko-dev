@@ -197,7 +197,7 @@ jsds_InvalidateAllEphemerals (LiveEphemeral **listHead)
     LiveEphemeral *lv_record = 
         reinterpret_cast<LiveEphemeral *>
                         (PR_NEXT_LINK(&(*listHead)->links));
-    while (*listHead)
+    do
     {
         LiveEphemeral *next =
             reinterpret_cast<LiveEphemeral *>
@@ -205,6 +205,7 @@ jsds_InvalidateAllEphemerals (LiveEphemeral **listHead)
         lv_record->value->Invalidate();
         lv_record = next;
     }
+    while (*listHead);
 }
 
 void
@@ -953,6 +954,23 @@ jsdProperty::GetVarArgSlot(PRUint32 *_rval)
 /* Scripts */
 NS_IMPL_THREADSAFE_ISUPPORTS2(jsdScript, jsdIScript, jsdIEphemeral)
 
+static NS_IMETHODIMP
+AssignToJSString(nsACString *x, JSString *str)
+{
+    if (!str) {
+        x->SetLength(0);
+        return NS_OK;
+    }
+    size_t length = JS_GetStringEncodingLength(NULL, str);
+    if (length == size_t(-1))
+        return NS_ERROR_FAILURE;
+    x->SetLength(PRUint32(length));
+    if (x->Length() != PRUint32(length))
+        return NS_ERROR_OUT_OF_MEMORY;
+    JS_EncodeStringToBuffer(str, x->BeginWriting(), length);
+    return NS_OK;
+}
+
 jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
                                                              mTag(0),
                                                              mCx(aCx),
@@ -971,8 +989,12 @@ jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
          * gets destroyed. */
         JSD_LockScriptSubsystem(mCx);
         mFileName = new nsCString(JSD_GetScriptFilename(mCx, mScript));
-        mFunctionName =
-            new nsCString(JSD_GetScriptFunctionName(mCx, mScript));
+        mFunctionName = new nsCString();
+        if (mFunctionName) {
+            JSString *str = JSD_GetScriptFunctionName(mCx, mScript);
+            if (str)
+                AssignToJSString(mFunctionName, str);
+        }
         mBaseLineNumber = JSD_GetScriptBaseLineNumber(mCx, mScript);
         mLineExtent = JSD_GetScriptLineExtent(mCx, mScript);
         mFirstPC = JSD_GetClosestPC(mCx, mScript, 0);
@@ -1012,36 +1034,61 @@ jsdScript::CreatePPLineMap()
     JSObject   *obj = JS_NewObject(cx, NULL, NULL, NULL);
     JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
     JSScript   *script;
+    JSString   *jsstr;
     PRUint32    baseLine;
     PRBool      scriptOwner = PR_FALSE;
     
     if (fun) {
-        uintN nargs = JS_GetFunctionArgumentCount(cx, fun);
-        if (nargs > 12)
-            return nsnull;
-        JSString *jsstr = JS_DecompileFunctionBody (cx, fun, 4);
-        if (!jsstr)
+        uintN nargs;
+
+        /* Enter a new block so we can leave before the end of this block */
+        do {
+            JSAutoEnterCompartment ac;
+            if (!ac.enter(cx, JS_GetFunctionObject(fun)))
+                return nsnull;
+
+            nargs = JS_GetFunctionArgumentCount(cx, fun);
+            if (nargs > 12)
+                return nsnull;
+            jsstr = JS_DecompileFunctionBody (cx, fun, 4);
+            if (!jsstr)
+                return nsnull;
+        } while(false);
+
+        size_t length;
+        const jschar *chars = JS_GetStringCharsAndLength(cx, jsstr, &length);
+        if (!chars)
             return nsnull;
     
         const char *argnames[] = {"arg1", "arg2", "arg3", "arg4", 
                                   "arg5", "arg6", "arg7", "arg8",
                                   "arg9", "arg10", "arg11", "arg12" };
-        fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames,
-                                    JS_GetStringChars(jsstr),
-                                    JS_GetStringLength(jsstr),
-                                    "x-jsd:ppbuffer?type=function", 3);
+        fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames, chars,
+                                    length, "x-jsd:ppbuffer?type=function", 3);
         if (!fun || !(script = JS_GetFunctionScript(cx, fun)))
             return nsnull;
         baseLine = 3;
     } else {
-        JSString *jsstr = JS_DecompileScript (cx, JSD_GetJSScript(mCx, mScript),
-                                              "ppscript", 4);
-        if (!jsstr)
+        /* Enter a new block so we can leave before the end of this block */
+        do {
+            script = JSD_GetJSScript(mCx, mScript);
+
+            JSAutoEnterCompartment ac;
+            if (!ac.enter(cx, script))
+                return nsnull;
+
+            jsstr = JS_DecompileScript (cx, JSD_GetJSScript(mCx, mScript),
+                                        "ppscript", 4);
+            if (!jsstr)
+                return nsnull;
+        } while(false);
+
+        size_t length;
+        const jschar *chars = JS_GetStringCharsAndLength(cx, jsstr, &length);
+        if (!chars)
             return nsnull;
 
-        script = JS_CompileUCScript (cx, obj,
-                                     JS_GetStringChars(jsstr),
-                                     JS_GetStringLength(jsstr),
+        script = JS_CompileUCScript (cx, obj, chars, length,
                                      "x-jsd:ppbuffer?type=script", 1);
         if (!script)
             return nsnull;
@@ -1263,8 +1310,7 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
             ret[i] = 0;
         } else {
             JSString *str = JS_AtomKey(atom);
-            ret[i] = NS_strndup(reinterpret_cast<PRUnichar*>(JS_GetStringChars(str)),
-                                JS_GetStringLength(str));
+            ret[i] = NS_strndup(JS_GetInternedStringChars(str), JS_GetStringLength(str));
             if (!ret[i]) {
                 NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
                 rv = NS_ERROR_OUT_OF_MEMORY;
@@ -1322,23 +1368,26 @@ jsdScript::GetFunctionSource(nsAString & aFunctionSource)
     JSAutoRequest ar(cx);
 
     JSString *jsstr;
+    JSAutoEnterCompartment ac;
     if (fun) {
-        JSAutoEnterCompartment ac;
         if (!ac.enter(cx, JS_GetFunctionObject(fun)))
             return NS_ERROR_FAILURE;
         jsstr = JS_DecompileFunction (cx, fun, 4);
     } else {
         JSScript *script = JSD_GetJSScript (mCx, mScript);
-        js::SwitchToCompartment sc(cx, script->compartment);
+        if (!ac.enter(cx, script))
+            return NS_ERROR_FAILURE;
         jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
     }
     if (!jsstr)
         return NS_ERROR_FAILURE;
 
-    aFunctionSource =
-        nsDependentString(
-            reinterpret_cast<PRUnichar*>(JS_GetStringChars(jsstr)),
-            JS_GetStringLength(jsstr));
+    size_t length;
+    const jschar *chars = JS_GetStringCharsZAndLength(cx, jsstr, &length);
+    if (!chars)
+        return NS_ERROR_FAILURE;
+
+    aFunctionSource = nsDependentString(chars, length);
     return NS_OK;
 }
 
@@ -1455,6 +1504,20 @@ jsdScript::LineToPc(PRUint32 aLine, PRUint32 aPcmap, PRUint32 *_rval)
     } else {
         return NS_ERROR_INVALID_ARG;
     }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdScript::EnableSingleStepInterrupts(PRBool enable)
+{
+    ASSERT_VALID_EPHEMERAL;
+
+    /* Must have set interrupt hook before enabling */
+    if (enable && !jsdService::GetService()->CheckInterruptHook())
+        return NS_ERROR_NOT_INITIALIZED;
+
+    JSD_EnableSingleStepInterrupts(mCx, mScript, enable);
 
     return NS_OK;
 }
@@ -1844,7 +1907,11 @@ NS_IMETHODIMP
 jsdStackFrame::GetFunctionName(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    _rval.Assign(JSD_GetNameForStackFrame(mCx, mThreadState, mStackFrameInfo));
+    JSString *str = JSD_GetNameForStackFrame(mCx, mThreadState, mStackFrameInfo);
+    if (str)
+        return AssignToJSString(&_rval, str);
+    
+    _rval.Assign("anonymous");
     return NS_OK;
 }
 
@@ -2172,8 +2239,7 @@ NS_IMETHODIMP
 jsdValue::GetJsFunctionName(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    _rval.Assign(JSD_GetValueFunctionName(mCx, mValue));
-    return NS_OK;
+    return AssignToJSString(&_rval, JSD_GetValueFunctionName(mCx, mValue));
 }
 
 NS_IMETHODIMP
@@ -2216,12 +2282,19 @@ NS_IMETHODIMP
 jsdValue::GetStringValue(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
+    JSContext *cx = JSD_GetDefaultJSContext (mCx);
+    if (!cx) {
+        NS_WARNING("No default context !?");
+        return NS_ERROR_FAILURE;
+    }
     JSString *jstr_val = JSD_GetValueString(mCx, mValue);
     if (jstr_val) {
-        nsDependentString chars(
-            reinterpret_cast<PRUnichar*>(JS_GetStringChars(jstr_val)),
-            JS_GetStringLength(jstr_val));
-        CopyUTF16toUTF8(chars, _rval);
+        size_t length;
+        const jschar *chars = JS_GetStringCharsZAndLength(cx, jstr_val, &length);
+        if (!chars)
+            return NS_ERROR_FAILURE;
+        nsDependentString depStr(chars, length);
+        CopyUTF16toUTF8(depStr, _rval);
     } else {
         _rval.Truncate();
     }

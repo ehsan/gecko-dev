@@ -97,24 +97,35 @@ bool Display::initialize()
 
         HRESULT result;
         
-        do
+        // Give up on getting device caps after about one second.
+        for (int i = 0; i < 10; ++i)
         {
             result = mD3d9->GetDeviceCaps(mAdapter, mDeviceType, &mDeviceCaps);
-
-            if (result == D3DERR_NOTAVAILABLE)
+            
+            if (SUCCEEDED(result))
             {
-                Sleep(0);   // Give the driver some time to initialize/recover
+                break;
+            }
+            else if (result == D3DERR_NOTAVAILABLE)
+            {
+                Sleep(100);   // Give the driver some time to initialize/recover
             }
             else if (FAILED(result))   // D3DERR_OUTOFVIDEOMEMORY, E_OUTOFMEMORY, D3DERR_INVALIDDEVICE, or another error we can't recover from
             {
+                terminate();
                 return error(EGL_BAD_ALLOC, false);
             }
         }
-        while(result == D3DERR_NOTAVAILABLE);
-
-        ASSERT(SUCCEEDED(result));
 
         if (mDeviceCaps.PixelShaderVersion < D3DPS_VERSION(2, 0))
+        {
+            terminate();
+            return error(EGL_NOT_INITIALIZED, false);
+        }
+
+        // When DirectX9 is running with an older DirectX8 driver, a StretchRect from a regular texture to a render target texture is not supported.
+        // This is required by Texture2D::convertToRenderTarget.
+        if ((mDeviceCaps.DevCaps2 & D3DDEVCAPS2_CAN_STRETCHRECT_FROM_TEXTURES) == 0)
         {
             terminate();
             return error(EGL_NOT_INITIALIZED, false);
@@ -135,7 +146,7 @@ bool Display::initialize()
         //  D3DFMT_A2R10G10B10,   // The color_ramp conformance test uses ReadPixels with UNSIGNED_BYTE causing it to think that rendering skipped a colour value.
             D3DFMT_A8R8G8B8,
             D3DFMT_R5G6B5,
-            D3DFMT_X1R5G5B5,
+        //  D3DFMT_X1R5G5B5,      // Has no compatible OpenGL ES renderbuffer format
             D3DFMT_X8R8G8B8
         };
 
@@ -178,7 +189,8 @@ bool Display::initialize()
                         {
                             // FIXME: enumerate multi-sampling
 
-                            configSet.add(currentDisplayMode, mMinSwapInterval, mMaxSwapInterval, renderTargetFormat, depthStencilFormat, 0);
+                            configSet.add(currentDisplayMode, mMinSwapInterval, mMaxSwapInterval, renderTargetFormat, depthStencilFormat, 0,
+                                          mDeviceCaps.MaxTextureWidth, mDeviceCaps.MaxTextureHeight);
                         }
                     }
                 }
@@ -321,6 +333,9 @@ bool Display::getConfigAttrib(EGLConfig config, EGLint attribute, EGLint *value)
       case EGL_RENDERABLE_TYPE:           *value = configuration->mRenderableType;         break;
       case EGL_MATCH_NATIVE_PIXMAP:       *value = false; UNIMPLEMENTED();                 break;
       case EGL_CONFORMANT:                *value = configuration->mConformant;             break;
+      case EGL_MAX_PBUFFER_WIDTH:         *value = configuration->mMaxPBufferWidth;        break;
+      case EGL_MAX_PBUFFER_HEIGHT:        *value = configuration->mMaxPBufferHeight;       break;
+      case EGL_MAX_PBUFFER_PIXELS:        *value = configuration->mMaxPBufferPixels;       break;
       default:
         return false;
     }
@@ -387,6 +402,16 @@ Surface *Display::createWindowSurface(HWND window, EGLConfig config)
     const Config *configuration = mConfigSet.get(config);
 
     Surface *surface = new Surface(this, configuration, window);
+    mSurfaceSet.insert(surface);
+
+    return surface;
+}
+
+Surface *Display::createOffscreenSurface(int width, int height, EGLConfig config)
+{
+    const Config *configuration = mConfigSet.get(config);
+
+    Surface *surface = new Surface(this, configuration, width, height);
     mSurfaceSet.insert(surface);
 
     return surface;
@@ -577,6 +602,22 @@ bool Display::getHalfFloatTextureSupport(bool *filtering, bool *renderable)
     {
         return true;
     }
+}
+
+bool Display::getLuminanceTextureSupport()
+{
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+    return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, D3DRTYPE_TEXTURE, D3DFMT_L8));
+}
+
+bool Display::getLuminanceAlphaTextureSupport()
+{
+    D3DDISPLAYMODE currentDisplayMode;
+    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
+
+    return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, D3DRTYPE_TEXTURE, D3DFMT_A8L8));
 }
 
 bool Display::getEventQuerySupport()

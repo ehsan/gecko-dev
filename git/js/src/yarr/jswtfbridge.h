@@ -50,21 +50,7 @@
 #include "jstl.h"
 
 typedef jschar UChar;
-typedef JSString UString;
-
-template <typename T>
-class ValueDeleter
-{
-  public:
-    void operator()(T &t) { delete t; }
-};
-
-template<typename T, size_t N, class AP>
-static inline void
-deleteAllValues(js::Vector<T,N,AP> &vector)
-{
-    js::ForEach(vector.begin(), vector.end(), ValueDeleter<T>());
-}
+typedef JSLinearString UString;
 
 class Unicode {
   public:

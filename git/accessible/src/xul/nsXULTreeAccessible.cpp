@@ -295,13 +295,13 @@ nsXULTreeAccessible::SelectedItems()
   if (!selectedItems)
     return nsnull;
 
-  PRInt32 rowIndex, rowCount;
-  PRBool isSelected;
-  mTreeView->GetRowCount(&rowCount);
-  for (rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-    selection->IsSelected(rowIndex, &isSelected);
-    if (isSelected) {
-      nsIAccessible* item = GetTreeItemAccessible(rowIndex);
+  PRInt32 rangeCount = 0;
+  selection->GetRangeCount(&rangeCount);
+  for (PRInt32 rangeIdx = 0; rangeIdx < rangeCount; rangeIdx++) {
+    PRInt32 firstIdx = 0, lastIdx = -1;
+    selection->GetRangeAt(rangeIdx, &firstIdx, &lastIdx);
+    for (PRInt32 rowIdx = firstIdx; rowIdx <= lastIdx; rowIdx++) {
+      nsIAccessible* item = GetTreeItemAccessible(rowIdx);
       if (item)
         selectedItems->AppendElement(item, PR_FALSE);
     }
@@ -391,15 +391,15 @@ nsXULTreeAccessible::GetSelectedItem(PRUint32 aIndex)
   if (!selection)
     return nsnull;
 
-  PRInt32 rowIndex, rowCount;
-  PRInt32 selCount = 0;
-  PRBool isSelected;
-  mTreeView->GetRowCount(&rowCount);
-  for (rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-    selection->IsSelected(rowIndex, &isSelected);
-    if (isSelected) {
+  PRUint32 selCount = 0;
+  PRInt32 rangeCount = 0;
+  selection->GetRangeCount(&rangeCount);
+  for (PRInt32 rangeIdx = 0; rangeIdx < rangeCount; rangeIdx++) {
+    PRInt32 firstIdx = 0, lastIdx = -1;
+    selection->GetRangeAt(rangeIdx, &firstIdx, &lastIdx);
+    for (PRInt32 rowIdx = firstIdx; rowIdx <= lastIdx; rowIdx++) {
       if (selCount == aIndex)
-        return GetTreeItemAccessible(rowIndex);
+        return GetTreeItemAccessible(rowIdx);
 
       selCount++;
     }
@@ -596,26 +596,18 @@ nsXULTreeAccessible::TreeViewChanged()
   if (IsDefunct())
     return;
 
-  // Fire only notification destroy/create events on accessible tree to lie to
-  // AT because it should be expensive to fire destroy events for each tree item
-  // in cache.
-  nsRefPtr<AccEvent> eventDestroy =
-    new AccEvent(nsIAccessibleEvent::EVENT_HIDE, this);
-  if (!eventDestroy)
-    return;
+  // Fire reorder event on tree accessible on accessible tree (do not fire
+  // show/hide events on tree items because it can be expensive to fire them for
+  // each tree item.
+  nsRefPtr<AccEvent> reorderEvent =
+    new AccEvent(nsIAccessibleEvent::EVENT_REORDER, this, eAutoDetect,
+                 AccEvent::eCoalesceFromSameSubtree);
+  if (reorderEvent)
+    GetDocAccessible()->FireDelayedAccessibleEvent(reorderEvent);
 
-  FirePlatformEvent(eventDestroy);
-
+  // Clear cache.
   ClearCache(mAccessibleCache);
-
   mTree->GetView(getter_AddRefs(mTreeView));
-
-  nsRefPtr<AccEvent> eventCreate =
-    new AccEvent(nsIAccessibleEvent::EVENT_SHOW, this);
-  if (!eventCreate)
-    return;
-
-  FirePlatformEvent(eventCreate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

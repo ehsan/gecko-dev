@@ -48,6 +48,7 @@
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
 
+#include "nsARIAMap.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
@@ -145,7 +146,25 @@ public:
   /**
    * Return enumerated accessible role (see constants in nsIAccessibleRole).
    */
-  virtual PRUint32 Role();
+  inline PRUint32 Role()
+  {
+    if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+      return NativeRole();
+
+    return ARIARoleInternal();
+  }
+
+  /**
+   * Return accessible role specified by ARIA (see constants in
+   * nsIAccessibleRole).
+   */
+  inline PRUint32 ARIARole()
+  {
+    if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+      return nsIAccessibleRole::ROLE_NOTHING;
+
+    return ARIARoleInternal();
+  }
 
   /**
    * Returns enumerated accessible role from native markup (see constants in
@@ -205,7 +224,15 @@ public:
    *                      nsnull if none.
    */
   virtual void SetRoleMapEntry(nsRoleMapEntry *aRoleMapEntry);
-  const nsRoleMapEntry* GetRoleMapEntry() const { return mRoleMapEntry; }
+
+  /**
+   * Update the children cache.
+   */
+  inline bool UpdateChildren()
+  {
+    InvalidateChildren();
+    return EnsureChildren();
+  }
 
   /**
    * Cache children if necessary. Return true if the accessible is defunct.
@@ -233,7 +260,7 @@ public:
   /**
    * Return parent accessible.
    */
-  nsAccessible* GetParent();
+  virtual nsAccessible* GetParent();
 
   /**
    * Return child accessible at the given index.
@@ -441,6 +468,11 @@ protected:
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous helpers
+
+  /**
+   * Return ARIA role (helper method).
+   */
+  PRUint32 ARIARoleInternal();
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);

@@ -78,6 +78,20 @@
 #include "nsIDOMWindow.h"
 #include "nsContentUtils.h"
 
+class nsAutoEditorKeypressOperation {
+public:
+  nsAutoEditorKeypressOperation(nsEditor *aEditor, nsIDOMNSEvent *aEvent)
+    : mEditor(aEditor) {
+    mEditor->BeginKeypressHandling(aEvent);
+  }
+  ~nsAutoEditorKeypressOperation() {
+    mEditor->EndKeypressHandling();
+  }
+
+private:
+  nsEditor *mEditor;
+};
+
 nsEditorEventListener::nsEditorEventListener() :
   mEditor(nsnull), mCaretDrawn(PR_FALSE), mCommitText(PR_FALSE),
   mInTransaction(PR_FALSE)
@@ -143,7 +157,7 @@ nsEditorEventListener::InstallToEditor()
                                     NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = elmP->AddEventListenerByType(static_cast<nsIDOMKeyListener*>(this),
-                                    NS_LITERAL_STRING("dragleave"),
+                                    NS_LITERAL_STRING("dragexit"),
                                     NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = elmP->AddEventListenerByType(static_cast<nsIDOMKeyListener*>(this),
@@ -216,7 +230,7 @@ nsEditorEventListener::UninstallFromEditor()
                                   NS_LITERAL_STRING("dragover"),
                                   NS_EVENT_FLAG_BUBBLE, sysGroup);
   elmP->RemoveEventListenerByType(static_cast<nsIDOMKeyListener*>(this),
-                                  NS_LITERAL_STRING("dragleave"),
+                                  NS_LITERAL_STRING("dragexit"),
                                   NS_EVENT_FLAG_BUBBLE, sysGroup);
   elmP->RemoveEventListenerByType(static_cast<nsIDOMKeyListener*>(this),
                                   NS_LITERAL_STRING("drop"),
@@ -283,8 +297,8 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
       return DragEnter(dragEvent);
     if (eventType.EqualsLiteral("dragover"))
       return DragOver(dragEvent);
-    if (eventType.EqualsLiteral("dragleave"))
-      return DragLeave(dragEvent);
+    if (eventType.EqualsLiteral("dragexit"))
+      return DragExit(dragEvent);
     if (eventType.EqualsLiteral("drop"))
       return Drop(dragEvent);
   }
@@ -319,6 +333,10 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
   if (!mEditor->IsAcceptableInputEvent(aKeyEvent)) {
     return NS_OK;
   }
+
+  // Transfer the event's trusted-ness to our editor
+  nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aKeyEvent);
+  nsAutoEditorKeypressOperation operation(mEditor, NSEvent);
 
   // DOM event handling happens in two passes, the client pass and the system
   // pass.  We do all of our processing in the system pass, to allow client
@@ -601,7 +619,7 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
 }
 
 nsresult
-nsEditorEventListener::DragLeave(nsIDOMDragEvent* aDragEvent)
+nsEditorEventListener::DragExit(nsIDOMDragEvent* aDragEvent)
 {
   if (mCaret && mCaretDrawn)
   {
@@ -713,7 +731,8 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
   // is the same as the drag source.
   nsCOMPtr<nsIDOMNode> sourceNode;
   dataTransferNS->GetMozSourceNode(getter_AddRefs(sourceNode));
-  NS_ENSURE_TRUE(sourceNode, PR_TRUE);
+  if (!sourceNode)
+    return PR_TRUE;
 
   // There is a source node, so compare the source documents and this document.
   // Disallow drops on the same document.
@@ -794,6 +813,11 @@ nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
   if (!mEditor->IsAcceptableInputEvent(aCompositionEvent)) {
     return NS_OK;
   }
+
+  // Transfer the event's trusted-ness to our editor
+  nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aCompositionEvent);
+  nsAutoEditorKeypressOperation operation(mEditor, NSEvent);
+
   return mEditor->EndIMEComposition();
 }
 

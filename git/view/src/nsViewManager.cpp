@@ -65,6 +65,7 @@
 
 static NS_DEFINE_IID(kRegionCID, NS_REGION_CID);
 
+PRTime gFirstPaintTimestamp = 0; // Timestamp of the first paint event
 /**
    XXX TODO XXX
 
@@ -445,6 +446,8 @@ void nsViewManager::RenderViews(nsView *aView, nsIWidget *aWidget,
     nsRegion region = ConvertRegionBetweenViews(aRegion, aView, displayRoot);
     mObserver->Paint(displayRoot, aView, aWidget, region, aIntRegion,
                      aPaintDefaultBackground, aWillSendDidPaint);
+    if (!gFirstPaintTimestamp)
+      gFirstPaintTimestamp = PR_Now();
   }
 }
 
@@ -980,7 +983,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
         // destruction in, say, some JavaScript event handler.
         nsCOMPtr<nsIViewObserver> obs = GetViewObserver();
         if (obs) {
-          obs->HandleEvent(aView, aEvent, aStatus);
+          obs->HandleEvent(aView, aEvent, PR_FALSE, aStatus);
         }
       }
       break; 
@@ -1089,7 +1092,7 @@ nsEventStatus nsViewManager::HandleEvent(nsView* aView, nsGUIEvent* aEvent)
   nsCOMPtr<nsIViewObserver> obs = aView->GetViewManager()->GetViewObserver();
   nsEventStatus status = nsEventStatus_eIgnore;
   if (obs) {
-     obs->HandleEvent(aView, aEvent, &status);
+     obs->HandleEvent(aView, aEvent, PR_FALSE, &status);
   }
 
   return status;

@@ -42,6 +42,7 @@
 #include "mozilla/jsipc/ContextWrapperParent.h"
 #include "mozilla/jsipc/CPOWTypes.h"
 #include "mozilla/unused.h"
+#include "nsJSUtils.h"
 
 #include "jsobj.h"
 #include "jsfun.h"
@@ -62,7 +63,7 @@ namespace {
         JSContext* mContext;
         JSObject* mObj;
         uintN mOldFlags;
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
         static uintN GetFlags(JSContext* cx, JSObject* obj) {
             jsval v;
@@ -118,7 +119,7 @@ namespace {
 
     class AutoCheckOperation : public ACOBase
     {
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     public:
         AutoCheckOperation(JSContext* cx,
                            ObjectWrapperParent* owp
@@ -265,8 +266,12 @@ ObjectWrapperParent::jsval_to_JSVariant(JSContext* cx, jsval from,
         }
         return true;
     case JSTYPE_STRING:
-        *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(from)),
-                                JS_GetStringLength(JSVAL_TO_STRING(from)));
+        {
+            nsDependentJSString depStr;
+            if (!depStr.init(cx, from))
+                return false;
+            *to = depStr;
+        }
         return true;
     case JSTYPE_NUMBER:
         if (JSVAL_IS_INT(from))
@@ -379,10 +384,12 @@ static bool
 jsval_to_nsString(JSContext* cx, jsid from, nsString* to)
 {
     JSString* str;
+    const jschar* chars;
     jsval idval;
     if (JS_IdToValue(cx, from, &idval) &&
-        (str = JS_ValueToString(cx, idval))) {
-        *to = JS_GetStringChars(str);
+        (str = JS_ValueToString(cx, idval)) &&
+        (chars = JS_GetStringCharsZ(cx, str))) {
+        *to = chars;
         return true;
     }
     return false;

@@ -57,8 +57,6 @@
 
 #define LOG(args...) __android_log_print(ANDROID_LOG_INFO, MOZ_APP_NAME, args)
 
-static pthread_t gGeckoThread = 0;
-
 struct AutoAttachJavaThread {
     AutoAttachJavaThread() {
         attached = mozilla_AndroidBridge_SetMainThread((void*)pthread_self());
@@ -94,7 +92,7 @@ GeckoStart(void *data)
 
     nsresult rv;
     nsCOMPtr<nsILocalFile> appini;
-    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/org.mozilla." MOZ_APP_NAME "/application.ini"),
+    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/" ANDROID_PACKAGE_NAME "/application.ini"),
                          PR_FALSE,
                          getter_AddRefs(appini));
     if (NS_FAILED(rv)) {
@@ -105,12 +103,12 @@ GeckoStart(void *data)
     nsXREAppData *appData;
     rv = XRE_CreateAppData(appini, &appData);
     if (NS_FAILED(rv)) {
-        LOG("Failed to load application.ini from /data/data/org.mozilla." MOZ_APP_NAME "/application.ini\n");
+        LOG("Failed to load application.ini from /data/data/" ANDROID_PACKAGE_NAME "/application.ini\n");
         return 0;
     }
 
     nsCOMPtr<nsILocalFile> xreDir;
-    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/org.mozilla." MOZ_APP_NAME),
+    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/" ANDROID_PACKAGE_NAME),
                          PR_FALSE,
                          getter_AddRefs(xreDir));
     if (NS_FAILED(rv)) {
@@ -159,8 +157,6 @@ Java_org_mozilla_gecko_GeckoAppShell_nativeRun(JNIEnv *jenv, jclass jc, jstring 
     jenv->GetStringRegion(jargs, 0, len, wargs.BeginWriting());
     char *args = ToNewUTF8String(wargs);
 
-    if (pthread_create(&gGeckoThread, NULL, GeckoStart, args) != 0) {
-        LOG("pthread_create failed!");
-    }
+    GeckoStart(args);
 }
 

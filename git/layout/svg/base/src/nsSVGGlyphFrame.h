@@ -171,6 +171,7 @@ public:
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetFirstGlyphFragment();
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetNextGlyphFragment();
   NS_IMETHOD_(void) SetWhitespaceHandling(PRUint8 aWhitespaceHandling);
+  NS_IMETHOD_(PRBool) IsAllWhitespace();
 
 protected:
   friend class CharacterIterator;
@@ -216,8 +217,8 @@ protected:
                             float aMetricsScale);
   gfxFloat GetBaselineOffset(float aMetricsScale);
 
-  virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
-  already_AddRefed<nsIDOMSVGNumberList> GetRotate();
+  virtual void GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy);
+  virtual const SVGNumberList *GetRotate();
 
   // Used to support GetBBoxContribution by making GetConvasTM use this as the
   // parent transform instead of the real CanvasTM.

@@ -19,6 +19,7 @@
  *
  * Contributor(s):
  * Philipp von Weitershausen <philipp@weitershausen.de>
+ *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,10 +40,8 @@ const EXPORTED_SYMBOLS = ['Weave'];
 let Weave = {};
 Components.utils.import("resource://services-sync/constants.js", Weave);
 let lazies = {
-  "auth.js":              ['Auth', 'BrokenBasicAuthenticator',
-                           'BasicAuthenticator', 'NoOpAuthenticator'],
-  "base_records/keys.js": ['PubKey', 'PrivKey', 'PubKeys', 'PrivKeys'],
-  "engines.js":           ['Engines', 'Engine', 'SyncEngine'],
+  "record.js":            ["CollectionKeys", "BulkKeyBundle", "SyncKeyBundle"],
+  "engines.js":           ['Engines', 'Engine', 'SyncEngine', 'Store'],
   "engines/bookmarks.js": ['BookmarksEngine', 'BookmarksSharingManager'],
   "engines/clients.js":   ["Clients"],
   "engines/forms.js":     ["FormEngine"],
@@ -51,11 +50,12 @@ let lazies = {
   "engines/passwords.js": ["PasswordEngine"],
   "engines/tabs.js":      ["TabEngine"],
   "identity.js":          ["Identity", "ID"],
+  "jpakeclient.js":       ["JPAKEClient"],
   "notifications.js":     ["Notifications", "Notification", "NotificationButton"],
-  "resource.js":          ["Resource"],
+  "resource.js":          ["Resource", "AsyncResource", "Auth",
+                           "BasicAuthenticator", "NoOpAuthenticator"],
   "service.js":           ["Service"],
   "status.js":            ["Status"],
-  "stores.js":            ["Store"],
   "util.js":              ['Utils', 'Svc', 'Str']
 };
 

@@ -154,15 +154,12 @@ NS_IMETHODIMP_(nsIFrame*)
 nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   PRUint16 fillRule, mask;
-  // check if we're a clipPath - cheaper than IsClipChild(), and we shouldn't
-  // get in here for other nondisplay children
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
-    NS_ASSERTION(IsClipChild(), "should be in clipPath but we're not");
+  if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
     mask = HITTEST_MASK_FILL;
     fillRule = GetClipRule();
   } else {
     mask = GetHittestMask();
-    if (!mask || (!(mask & HITTEST_MASK_FORCE_TEST) &&
+    if (!mask || ((mask & HITTEST_MASK_CHECK_MRECT) &&
                   !mRect.Contains(aPoint)))
       return nsnull;
     fillRule = GetStyleSVG()->mFillRule;
@@ -524,24 +521,25 @@ nsSVGPathGeometryFrame::GetHittestMask()
           mask |= HITTEST_MASK_FILL;
         if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
           mask |= HITTEST_MASK_STROKE;
+        if (GetStyleSVG()->mStrokeOpacity > 0)
+          mask |= HITTEST_MASK_CHECK_MRECT;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEFILL:
       if (GetStyleVisibility()->IsVisible()) {
-        mask |= HITTEST_MASK_FILL | HITTEST_MASK_FORCE_TEST;
+        mask |= HITTEST_MASK_FILL;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLESTROKE:
       if (GetStyleVisibility()->IsVisible()) {
-        mask |= HITTEST_MASK_STROKE | HITTEST_MASK_FORCE_TEST;
+        mask |= HITTEST_MASK_STROKE;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLE:
       if (GetStyleVisibility()->IsVisible()) {
         mask |=
           HITTEST_MASK_FILL |
-          HITTEST_MASK_STROKE |
-          HITTEST_MASK_FORCE_TEST;
+          HITTEST_MASK_STROKE;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_PAINTED:
@@ -549,18 +547,19 @@ nsSVGPathGeometryFrame::GetHittestMask()
         mask |= HITTEST_MASK_FILL;
       if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
         mask |= HITTEST_MASK_STROKE;
+      if (GetStyleSVG()->mStrokeOpacity)
+        mask |= HITTEST_MASK_CHECK_MRECT;
       break;
     case NS_STYLE_POINTER_EVENTS_FILL:
-      mask |= HITTEST_MASK_FILL | HITTEST_MASK_FORCE_TEST;
+      mask |= HITTEST_MASK_FILL;
       break;
     case NS_STYLE_POINTER_EVENTS_STROKE:
-      mask |= HITTEST_MASK_STROKE | HITTEST_MASK_FORCE_TEST;
+      mask |= HITTEST_MASK_STROKE;
       break;
     case NS_STYLE_POINTER_EVENTS_ALL:
       mask |=
         HITTEST_MASK_FILL |
-        HITTEST_MASK_STROKE |
-        HITTEST_MASK_FORCE_TEST;
+        HITTEST_MASK_STROKE;
       break;
     default:
       NS_ERROR("not reached");

@@ -56,6 +56,7 @@
 #include "IDBFactory.h"
 #include "LazyIdleThread.h"
 #include "TransactionThreadPool.h"
+#include "nsISHEntry.h"
 
 // The amount of time, in milliseconds, that our IO thread will stay alive
 // after the last event it processes.
@@ -162,29 +163,41 @@ public:
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
     // Fire version change events at all of the databases that are not already
-    // closed.
+    // closed. Also kick bfcached documents out of bfcache.
     for (PRUint32 index = 0; index < mWaitingDatabases.Length(); index++) {
       nsRefPtr<IDBDatabase>& database = mWaitingDatabases[index];
 
-      if (!database->IsClosed()) {
-
-        nsCOMPtr<nsIDOMEvent> event(IDBVersionChangeEvent::Create(mVersion));
-        NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
-
-        PRBool dummy;
-        database->DispatchEvent(event, &dummy);
+      if (database->IsClosed()) {
+        continue;
       }
+
+      // First check if the document the IDBDatabase is part of is bfcached
+      nsCOMPtr<nsIDocument> ownerDoc = database->GetOwnerDocument();
+      nsISHEntry* shEntry;
+      if (ownerDoc && (shEntry = ownerDoc->GetBFCacheEntry())) {
+        nsCOMPtr<nsISHEntryInternal> sheInternal = do_QueryInterface(shEntry);
+        if (sheInternal) {
+          sheInternal->RemoveFromBFCacheSync();
+        }
+        NS_ASSERTION(database->IsClosed(),
+                     "Kicking doc out of bfcache should have closed database");
+        continue;
+      }
+
+      // Otherwise fire a versionchange event.
+      nsCOMPtr<nsIDOMEvent> event(IDBVersionChangeEvent::Create(mVersion));
+      NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
+
+      PRBool dummy;
+      database->DispatchEvent(event, &dummy);
     }
 
     // Now check to see if any didn't close. If there are some running still
     // then fire the blocked event.
     for (PRUint32 index = 0; index < mWaitingDatabases.Length(); index++) {
       if (!mWaitingDatabases[index]->IsClosed()) {
-        nsISupports* source =
-          static_cast<nsPIDOMEventTarget*>(mRequestingDatabase);
-
         nsCOMPtr<nsIDOMEvent> event =
-          IDBVersionChangeEvent::CreateBlocked(source, mVersion);
+          IDBVersionChangeEvent::CreateBlocked(mVersion);
         NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 
         PRBool dummy;
@@ -830,14 +843,15 @@ IndexedDatabaseManager::OriginClearRunnable::Run()
 
       mFirstCallback = false;
 
+      nsCOMPtr<nsIThread> thread;
+      mThread.swap(thread);
+
       // Dispatch to the IO thread.
-      if (NS_FAILED(mThread->Dispatch(this, NS_DISPATCH_NORMAL))) {
+      if (NS_FAILED(thread->Dispatch(this, NS_DISPATCH_NORMAL))) {
         NS_WARNING("Failed to dispatch to IO thread!");
         return NS_ERROR_FAILURE;
       }
 
-      // Don't need this any longer.
-      mThread = nsnull;
       return NS_OK;
     }
 

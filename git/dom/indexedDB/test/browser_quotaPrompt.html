@@ -55,19 +55,19 @@
         window.addEventListener("indexedDB-addMore", onAddMore, true);
         window.addEventListener("indexedDB-done", onDone, true);
 
-        let request = moz_indexedDB.open(name, description);
+        let request = mozIndexedDB.open(name, description);
         request.onerror = errorHandler;
         request.onsuccess = grabEventAndContinueHandler;
         let event = yield;
 
-        db = event.result;
+        db = event.target.result;
 
         request = db.setVersion("1");
         request.onerror = errorHandler;
         request.onsuccess = grabEventAndContinueHandler;
         event = yield;
 
-        db.createObjectStore("foo", "", true);
+        db.createObjectStore("foo", { autoIncrement: true });
 
         setTimeout(testFinishedCallback, 0, "ready");
         yield;

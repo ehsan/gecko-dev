@@ -46,6 +46,14 @@
 namespace mozilla {
 namespace layers {
 
+enum StereoMode {
+  STEREO_MODE_MONO,
+  STEREO_MODE_LEFT_RIGHT,
+  STEREO_MODE_RIGHT_LEFT,
+  STEREO_MODE_BOTTOM_TOP,
+  STEREO_MODE_TOP_BOTTOM
+};
+
 /**
  * A class representing a buffer of pixel data. The data can be in one
  * of various formats including YCbCr.
@@ -187,6 +195,13 @@ public:
    */
   virtual void SetScaleHint(const gfxIntSize& /* aScaleHint */) { }
 
+  /**
+   * Get the layer manager type this image container was created with,
+   * presumably its users might want to do something special if types do not
+   * match.
+   */
+  virtual LayerManager::LayersBackend GetBackendType() = 0;
+
 protected:
   LayerManager* mManager;
 
@@ -203,7 +218,12 @@ public:
    * Set the ImageContainer. aContainer must have the same layer manager
    * as this layer.
    */
-  void SetContainer(ImageContainer* aContainer) { mContainer = aContainer; }
+  void SetContainer(ImageContainer* aContainer) 
+  {
+    NS_ASSERTION(!aContainer->Manager() || aContainer->Manager() == Manager(), 
+                 "ImageContainer must have the same manager as the ImageLayer");
+    mContainer = aContainer;  
+  }
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the filter used to resample this image if necessary.
@@ -277,6 +297,7 @@ public:
     PRUint32 mPicX;
     PRUint32 mPicY;
     gfxIntSize mPicSize;
+    StereoMode mStereoMode;
   };
 
   enum {

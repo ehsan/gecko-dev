@@ -171,6 +171,11 @@ nsFocusManager::~nsFocusManager()
     prefBranch->RemoveObserver("accessibility.tabfocus_applies_to_xul", this);
     prefBranch->RemoveObserver("accessibility.mouse_focuses_formcontrol", this);
   }
+  
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    obs->RemoveObserver(this, "xpcom-shutdown");
+  }
 }
 
 // static
@@ -194,6 +199,11 @@ nsFocusManager::Init()
   prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
   prefBranch->AddObserver("accessibility.mouse_focuses_formcontrol", fm, PR_TRUE);
 
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    obs->AddObserver(fm, "xpcom-shutdown", PR_TRUE);
+  }
+
   return NS_OK;
 }
 
@@ -209,8 +219,8 @@ nsFocusManager::Observe(nsISupports *aSubject,
                         const char *aTopic,
                         const PRUnichar *aData)
 {
-  nsDependentString data(aData);
   if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
+    nsDependentString data(aData);
     if (data.EqualsLiteral("accessibility.browsewithcaret")) {
       UpdateCaret(PR_FALSE, PR_TRUE, mFocusedContent);
     }
@@ -223,6 +233,14 @@ nsFocusManager::Observe(nsISupports *aSubject,
       sMouseFocusesFormControl =
         nsContentUtils::GetBoolPref("accessibility.mouse_focuses_formcontrol", PR_FALSE);
     }
+  } else if (!nsCRT::strcmp(aTopic, "xpcom-shutdown")) {
+    mActiveWindow = nsnull;
+    mFocusedWindow = nsnull;
+    mFocusedContent = nsnull;
+    mFirstBlurEvent = nsnull;
+    mFirstFocusEvent = nsnull;
+    mWindowBeingLowered = nsnull;
+    mMouseDownEventHandlingDocument = nsnull;
   }
 
   return NS_OK;
@@ -2035,7 +2053,10 @@ nsFocusManager::SetCaretVisible(nsIPresShell* aPresShell,
     nsISelection* domSelection = docFrameSelection->
       GetSelection(nsISelectionController::SELECTION_NORMAL);
     if (domSelection) {
-      // First, tell the caret which selection to use
+      // First, hide the caret to prevent attempting to show it in SetCaretDOMSelection
+      caret->SetCaretVisible(PR_FALSE);
+
+      // Tell the caret which selection to use
       caret->SetCaretDOMSelection(domSelection);
 
       // In content, we need to set the caret. The only special case is edit
@@ -2857,8 +2878,15 @@ nsFocusManager::GetRootForFocus(nsPIDOMWindow* aWindow,
   if (aIsForDocNavigation) {
     nsCOMPtr<nsIContent> docContent =
       do_QueryInterface(aWindow->GetFrameElementInternal());
-    if (docContent && docContent->Tag() == nsGkAtoms::iframe)
-      return nsnull;
+    // document navigation skips iframes and frames that are specifically non-focusable
+    if (docContent) {
+      if (docContent->Tag() == nsGkAtoms::iframe)
+        return nsnull;
+
+      nsIFrame* frame = docContent->GetPrimaryFrame();
+      if (!frame || !frame->IsFocusable(nsnull, 0))
+        return nsnull;
+    }
   }
   else  {
     PRInt32 itemType;

@@ -70,6 +70,7 @@
 
 #ifdef XP_WIN
 #include "COMMessageFilter.h"
+#include "nsWindowsDllInterceptor.h"
 #endif
 
 #ifdef OS_MACOSX
@@ -81,6 +82,7 @@ using namespace mozilla::plugins;
 
 #if defined(XP_WIN)
 const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
+const PRUnichar * kMozillaWindowClass = L"MozillaWindowClass";
 #endif
 
 namespace {
@@ -96,12 +98,18 @@ static PRLibrary *sGtkLib = nsnull;
 #ifdef XP_WIN
 // Used with fix for flash fullscreen window loosing focus.
 static bool gDelayFlashFocusReplyUntilEval = false;
+// Used to fix GetWindowInfo problems with internal flash settings dialogs
+static WindowsDllInterceptor sUser32Intercept;
+typedef BOOL (WINAPI *GetWindowInfoPtr)(HWND hwnd, PWINDOWINFO pwi);
+static GetWindowInfoPtr sGetWindowInfoPtrStub = NULL;
+static HWND sBrowserHwnd = NULL;
 #endif
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
     mShutdownFunc(0),
-    mInitializeFunc(0)
+    mInitializeFunc(0),
+    mQuirks(QUIRKS_NOT_INITIALIZED)
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -205,6 +213,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     memset((void*) &mFunctions, 0, sizeof(mFunctions));
     mFunctions.size = sizeof(mFunctions);
+    mFunctions.version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
 
     // TODO: use PluginPRLibrary here
 
@@ -570,9 +579,28 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
     return true;
 }
 
+bool
+PluginModuleChild::AnswerURLRedirectNotifySupported(bool *aBoolVal)
+{
+    *aBoolVal = !!mFunctions.urlredirectnotify;
+    return true;
+}
+
+void
+PluginModuleChild::QuickExit()
+{
+    NS_WARNING("plugin process _exit()ing");
+    _exit(0);
+}
+
 void
 PluginModuleChild::ActorDestroy(ActorDestroyReason why)
 {
+    if (AbnormalShutdown == why) {
+        NS_WARNING("shutting down early because of crash!");
+        QuickExit();
+    }
+
     // doesn't matter why we're being destroyed; it's up to us to
     // initiate (clean) shutdown
     XRE_ShutdownChildProcess();
@@ -801,6 +829,9 @@ _convertpoint(NPP instance,
               double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
               double *destX, double *destY, NPCoordinateSpace destSpace);
 
+static void NP_CALLBACK
+_urlredirectresponse(NPP instance, void* notifyData, NPBool allow);
+
 } /* namespace child */
 } /* namespace plugins */
 } /* namespace mozilla */
@@ -862,7 +893,7 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_convertpoint,
     NULL, // handleevent, unimplemented
     NULL, // unfocusinstance, unimplemented
-    NULL  // urlredirectresponse, unimplemented
+    mozilla::plugins::child::_urlredirectresponse
 };
 
 PluginInstanceChild*
@@ -1617,11 +1648,33 @@ _convertpoint(NPP instance,
     return result;
 }
 
+void NP_CALLBACK
+_urlredirectresponse(NPP instance, void* notifyData, NPBool allow)
+{
+    InstCast(instance)->NPN_URLRedirectResponse(notifyData, allow);
+}
+
 } /* namespace child */
 } /* namespace plugins */
 } /* namespace mozilla */
 
 //-----------------------------------------------------------------------------
+
+bool
+PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
+{
+    PLUGIN_LOG_DEBUG_METHOD;
+    AssertPluginThread();
+
+#if defined(OS_LINUX)
+    return true;
+#elif defined(OS_WIN) || defined(OS_MACOSX)
+    *_retval = mGetEntryPointsFunc(&mFunctions);
+    return true;
+#else
+#  error Please implement me for your platform
+#endif
+}
 
 bool
 PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
@@ -1649,24 +1702,8 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 #if defined(OS_LINUX)
     *_retval = mInitializeFunc(&sBrowserFuncs, &mFunctions);
     return true;
-#elif defined(OS_WIN)
-    nsresult rv = mGetEntryPointsFunc(&mFunctions);
-    if (NS_FAILED(rv)) {
-        return false;
-    }
-    NS_ASSERTION(HIBYTE(mFunctions.version) >= NP_VERSION_MAJOR,
-                 "callback version is less than NP version");
-
+#elif defined(OS_WIN) || defined(OS_MACOSX)
     *_retval = mInitializeFunc(&sBrowserFuncs);
-    return true;
-#elif defined(OS_MACOSX)
-    *_retval = mInitializeFunc(&sBrowserFuncs);
-
-    nsresult rv = mGetEntryPointsFunc(&mFunctions);
-    if (NS_FAILED(rv)) {
-        return false;
-    }
-
     return true;
 #else
 #  error Please implement me for your platform
@@ -1708,6 +1745,36 @@ PluginModuleChild::DeallocPPluginIdentifier(PPluginIdentifierChild* aActor)
     return true;
 }
 
+#if defined(XP_WIN)
+BOOL WINAPI
+PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
+{
+  if (!pwi)
+      return FALSE;
+
+  if (!sGetWindowInfoPtrStub) {
+     NS_ASSERTION(FALSE, "Something is horribly wrong in PMCGetWindowInfoHook!");
+     return FALSE;
+  }
+
+  if (!sBrowserHwnd) {
+      PRUnichar szClass[20];
+      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
+          !wcscmp(szClass, kMozillaWindowClass)) {
+          sBrowserHwnd = hWnd;
+      }
+  }
+  // Oddity: flash does strange rect comparisons for mouse input destined for
+  // it's internal settings window. Post removing sub widgets for tabs, touch
+  // this up so they get the rect they expect.
+  // XXX potentially tie this to a specific major version?
+  BOOL result = sGetWindowInfoPtrStub(hWnd, pwi);
+  if (sBrowserHwnd && sBrowserHwnd == hWnd)
+      pwi->rcWindow = pwi->rcClient;
+  return result;
+}
+#endif
+
 PPluginInstanceChild*
 PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
                                         const uint16_t& aMode,
@@ -1718,13 +1785,52 @@ PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
 
+    InitQuirksModes(aMimeType);
+
+#ifdef XP_WIN
+    if (mQuirks & QUIRK_FLASH_HOOK_GETWINDOWINFO) {
+        sUser32Intercept.Init("user32.dll");
+        sUser32Intercept.AddHook("GetWindowInfo", PMCGetWindowInfoHook,
+                                 (void**) &sGetWindowInfoPtrStub);
+    }
+#endif
+
     nsAutoPtr<PluginInstanceChild> childInstance(
-        new PluginInstanceChild(&mFunctions, aMimeType));
+        new PluginInstanceChild(&mFunctions));
     if (!childInstance->Initialize()) {
         *rv = NPERR_GENERIC_ERROR;
         return 0;
     }
     return childInstance.forget();
+}
+
+void
+PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
+{
+    if (mQuirks != QUIRKS_NOT_INITIALIZED)
+      return;
+    mQuirks = 0;
+    // application/x-silverlight
+    // application/x-silverlight-2
+    NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
+    if (FindInReadable(silverlight, aMimeType)) {
+        mQuirks |= QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT;
+#ifdef OS_WIN
+        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
+#endif
+    }
+
+#ifdef OS_WIN
+    // application/x-shockwave-flash
+    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
+    if (FindInReadable(flash, aMimeType)) {
+        mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
+        mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
+        mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
+        mQuirks |= QUIRK_FLASH_HOOK_GETWINDOWINFO;
+        mQuirks |= QUIRK_FLASH_MASK_CLEARTYPE_SETTINGS;
+    }
+#endif
 }
 
 bool

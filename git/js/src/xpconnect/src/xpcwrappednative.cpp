@@ -427,7 +427,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     AutoMarkingJSVal newParentVal_automarker(ccx, &newParentVal_markable);
     JSBool needsSOW = JS_FALSE;
     JSBool needsCOW = JS_FALSE;
-    JSBool needsXOW = JS_FALSE;
 
     JSAutoEnterCompartment ac;
 
@@ -441,8 +440,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
         if(rv == NS_SUCCESS_CHROME_ACCESS_ONLY)
             needsSOW = JS_TRUE;
-        else if(rv == NS_SUCCESS_NEEDS_XOW)
-            needsXOW = JS_TRUE;
         rv = NS_OK;
 
         NS_ASSERTION(!xpc::WrapperFactory::IsXrayWrapper(parent),
@@ -519,8 +516,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             nsCOMPtr<nsIXPConnectWrappedJS> wrappedjs(do_QueryInterface(Object));
             JSObject *obj;
             wrappedjs->GetJSObject(&obj);
-            if(xpc::AccessCheck::isChrome(obj->getCompartment()) &&
-               !xpc::AccessCheck::isChrome(Scope->GetGlobalJSObject()->getCompartment()))
+            if(xpc::AccessCheck::isChrome(obj->compartment()) &&
+               !xpc::AccessCheck::isChrome(Scope->GetGlobalJSObject()->compartment()))
             {
                 needsCOW = JS_TRUE;
             }
@@ -544,9 +541,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
         proto->CacheOffsets(identity);
 
-        wrapper = needsXOW
-                  ? new XPCWrappedNativeWithXOW(identity, proto)
-                  : new XPCWrappedNative(identity, proto);
+        wrapper = new XPCWrappedNative(identity, proto);
         if(!wrapper)
             return NS_ERROR_FAILURE;
     }
@@ -562,9 +557,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         if(!set)
             return NS_ERROR_FAILURE;
 
-        wrapper = needsXOW
-                  ? new XPCWrappedNativeWithXOW(identity, Scope, set)
-                  : new XPCWrappedNative(identity, Scope, set);
+        wrapper = new XPCWrappedNative(identity, Scope, set);
         if(!wrapper)
             return NS_ERROR_FAILURE;
 
@@ -860,6 +853,9 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
       mWrapperWord(0)
+#ifdef XPC_CHECK_WRAPPER_THREADSAFETY
+    , mThread(PR_GetCurrentThread())
+#endif
 {
     mIdentity = aIdentity.get();
 
@@ -879,6 +875,9 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
       mWrapperWord(0)
+#ifdef XPC_CHECK_WRAPPER_THREADSAFETY
+    , mThread(PR_GetCurrentThread())
+#endif
 {
     mIdentity = aIdentity.get();
 
@@ -1199,11 +1198,14 @@ XPCWrappedNative::FinishInit(XPCCallContext &ccx)
     }
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
-    mThread = do_GetCurrentThread();
+    NS_ASSERTION(mThread, "Should have been set at construction time!");
 
     if(HasProto() && GetProto()->ClassIsMainThreadOnly() && !NS_IsMainThread())
+    {
         DEBUG_ReportWrapperThreadSafetyError(ccx,
             "MainThread only wrapper created on the wrong thread", this);
+        return JS_FALSE;
+    }
 #endif
 
     // A hack for bug 517665, increase the probability for GC.
@@ -1354,21 +1356,6 @@ XPCWrappedNative::FlatJSObjectFinalized(JSContext *cx)
     // This makes IsValid return false from now on...
     mFlatJSObject = nsnull;
 
-    // Because order of finalization is random, we need to be careful here: if
-    // we're getting finalized, then it means that any XOWs in our cache are
-    // also getting finalized (or else we would be marked). But it's possible
-    // for us to outlive our cached XOW. So, in order to make it safe for the
-    // cached XOW to clear the cache, we need to finalize it first.
-    if(NeedsXOW())
-    {
-        XPCWrappedNativeWithXOW* wnxow =
-            static_cast<XPCWrappedNativeWithXOW *>(this);
-        if(JSObject* wrapper = wnxow->GetXOW())
-        {
-            wrapper->getClass()->finalize(cx, wrapper);
-        }
-    }
-
     NS_ASSERTION(mIdentity, "bad pointer!");
 #ifdef XP_WIN
     // Try to detect free'd pointer
@@ -1505,15 +1492,30 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
         return NS_OK;
     }
 
+    bool crosscompartment = aOldScope->GetGlobalJSObject()->compartment() !=
+                            aNewScope->GetGlobalJSObject()->compartment();
+#ifdef DEBUG
+    if(crosscompartment)
+    {
+        NS_ASSERTION(aNewParent, "won't be able to find the new parent");
+        NS_ASSERTION(wrapper, "can't transplant slim wrappers");
+    }
+#endif
+
     // ReparentWrapperIfFound is really only meant to be called from DOM code
     // which must happen only on the main thread. Bail if we're on some other
     // thread or have a non-main-thread-only wrapper.
     if (!XPCPerThreadData::IsMainThread(ccx) ||
         (wrapper &&
          wrapper->GetProto() &&
-         !wrapper->GetProto()->ClassIsMainThreadOnly())) {
+         !wrapper->GetProto()->ClassIsMainThreadOnly()))
+    {
         return NS_ERROR_FAILURE;
     }
+
+    JSAutoEnterCompartment ac;
+    if(!ac.enter(ccx, aNewScope->GetGlobalJSObject()))
+        return NS_ERROR_FAILURE;
 
     if(aOldScope != aNewScope)
     {
@@ -1586,20 +1588,46 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
             // We only try to fixup the __proto__ JSObject if the wrapper
             // is directly using that of its XPCWrappedNativeProto.
 
-            if(wrapper->HasProto() &&
-               flat->getProto() == oldProto->GetJSProtoObject())
+            if(crosscompartment)
             {
-                if(!JS_SetPrototype(ccx, flat, newProto->GetJSProtoObject()))
-                {
-                    // this is bad, very bad
-                    NS_ERROR("JS_SetPrototype failed");
+                JSObject *newobj = flat->clone(ccx, newProto->GetJSProtoObject(),
+                                               aNewParent);
+                if(!newobj)
                     return NS_ERROR_FAILURE;
-                }
+
+                JS_SetPrivate(ccx, flat, nsnull);
+
+                JSObject *propertyHolder =
+                    JS_NewObjectWithGivenProto(ccx, NULL, NULL, aNewParent);
+                if(!propertyHolder || !propertyHolder->copyPropertiesFrom(ccx, flat))
+                    return NS_ERROR_OUT_OF_MEMORY;
+
+                flat = JS_TransplantObject(ccx, flat, newobj);
+                if(!flat)
+                    return NS_ERROR_FAILURE;
+                wrapper->mFlatJSObject = flat;
+                if(cache)
+                    cache->SetWrapper(flat);
+                if (!flat->copyPropertiesFrom(ccx, propertyHolder))
+                    return NS_ERROR_FAILURE;
             }
             else
             {
-                NS_WARNING("Moving XPConnect wrappedNative to new scope, "
-                           "but can't fixup __proto__");
+                if(wrapper->HasProto() &&
+                   flat->getProto() == oldProto->GetJSProtoObject())
+                {
+                    if(!JS_SetPrototype(ccx, flat, newProto->GetJSProtoObject()))
+                    {
+                        // this is bad, very bad
+                        NS_ERROR("JS_SetPrototype failed");
+                        return NS_ERROR_FAILURE;
+                    }
+                }
+                else
+                {
+                    NS_WARNING("Moving XPConnect wrappedNative to new scope, "
+                               "but can't fixup __proto__");
+                }
             }
         }
         else
@@ -1829,14 +1857,16 @@ XPCWrappedNative::FindTearOff(XPCCallContext& ccx,
                 if(needJSObject && !to->GetJSObject())
                 {
                     AutoMarkingWrappedNativeTearOffPtr tearoff(ccx, to);
-                    rv = InitTearOffJSObject(ccx, to);
+                    JSBool ok = InitTearOffJSObject(ccx, to);
                     // During shutdown, we don't sweep tearoffs.  So make sure
                     // to unmark manually in case the auto-marker marked us.
                     // We shouldn't ever be getting here _during_ our
                     // Mark/Sweep cycle, so this should be safe.
                     to->Unmark();
-                    if(NS_FAILED(rv))
+                    if(!ok) {
                         to = nsnull;
+                        rv = NS_ERROR_OUT_OF_MEMORY;
+                    }
                 }
                 goto return_result;
             }
@@ -3726,9 +3756,10 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper)
     if(proto && proto->ClassIsThreadSafe())
         return;
 
-    PRBool val;
     if(proto && proto->ClassIsMainThreadOnly())
     {
+        // NS_IsMainThread is safe to call even after we've started shutting
+        // down.
         if(!NS_IsMainThread())
         {
             XPCCallContext ccx(NATIVE_CALLER);
@@ -3736,7 +3767,7 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper)
                 "Main Thread Only wrapper accessed on another thread", wrapper);
         }
     }
-    else if(NS_SUCCEEDED(wrapper->mThread->IsOnCurrentThread(&val)) && !val)
+    else if(PR_GetCurrentThread() != wrapper->mThread)
     {
         XPCCallContext ccx(NATIVE_CALLER);
         DEBUG_ReportWrapperThreadSafetyError(ccx,

@@ -1,6 +1,5 @@
 Cu.import("resource://services-sync/engines/tabs.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/type_records/tabs.js");
 
 function test_create() {
   let store = new TabEngine()._store;
@@ -101,13 +100,13 @@ function test_createRecord() {
 
   _("create a record");
   fakeSessionSvc("http://foo.com");
-  record = store.createRecord("fake-guid", "http://fake.uri/");
+  record = store.createRecord("fake-guid");
   do_check_true(record instanceof TabSetRecord);
   do_check_eq(record.tabs.length, 1);
 
   _("create a big record");
   fakeSessionSvc("http://foo.com", numtabs);
-  record = store.createRecord("fake-guid", "http://fake.uri/");
+  record = store.createRecord("fake-guid");
   do_check_true(record instanceof TabSetRecord);
   do_check_eq(record.tabs.length, 256);
 }

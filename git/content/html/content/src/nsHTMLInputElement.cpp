@@ -115,7 +115,6 @@
 #include "nsIDOMWindowInternal.h"
 
 #include "mozAutoDocUpdate.h"
-#include "nsHTMLFormElement.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
@@ -410,9 +409,8 @@ AsyncClickHandler::Run()
         }
         if (!prefSaved) {
           // Store the last used directory using the content pref service
-          rv = nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(), 
-                                                                          localFile);
-          NS_ENSURE_SUCCESS(rv, rv);
+          nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
+                                                                     localFile);
           prefSaved = PR_TRUE;
         }
       }
@@ -430,9 +428,8 @@ AsyncClickHandler::Run()
         newFiles.AppendObject(domFile);
       }
       // Store the last used directory using the content pref service
-      rv = nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
-                                                                      localFile);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
+                                                                 localFile);
     }
   }
 
@@ -441,10 +438,10 @@ AsyncClickHandler::Run()
     // The text control frame (if there is one) isn't going to send a change
     // event because it will think this is done by a script.
     // So, we can safely send one by ourself.
-    mInput->SetFiles(newFiles);
+    mInput->SetFiles(newFiles, true);
     nsContentUtils::DispatchTrustedEvent(mInput->GetOwnerDoc(),
                                          static_cast<nsIDOMHTMLInputElement*>(mInput.get()),
-                                         NS_LITERAL_STRING("change"), PR_FALSE,
+                                         NS_LITERAL_STRING("change"), PR_TRUE,
                                          PR_FALSE);
   }
 
@@ -626,6 +623,8 @@ nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   SET_BOOLBIT(mBitField, BF_PARSER_CREATING, aFromParser);
   SET_BOOLBIT(mBitField, BF_INHIBIT_RESTORATION,
       aFromParser & mozilla::dom::FROM_PARSER_FRAGMENT);
+  SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI, PR_TRUE);
+  SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, PR_TRUE);
   mInputData.mState = new nsTextEditorState(this);
   NS_ADDREF(mInputData.mState);
   
@@ -721,7 +720,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
     case NS_FORM_INPUT_PASSWORD:
     case NS_FORM_INPUT_TEL:
     case NS_FORM_INPUT_URL:
-      if (GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
+      if (GetValueChanged()) {
         // We don't have our default value anymore.  Set our value on
         // the clone.
         // XXX GetValue should be const
@@ -822,8 +821,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     // we have to re-set it. This is only the case when GetValueMode() returns
     // VALUE_MODE_VALUE.
     if (aName == nsGkAtoms::value &&
-        !GET_BOOLBIT(mBitField, BF_VALUE_CHANGED) &&
-        GetValueMode() == VALUE_MODE_VALUE) {
+        !GetValueChanged() && GetValueMode() == VALUE_MODE_VALUE) {
       SetDefaultValueAsValue();
     }
 
@@ -901,6 +899,8 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                 NS_EVENT_STATE_OPTIONAL |
                 NS_EVENT_STATE_VALID |
                 NS_EVENT_STATE_INVALID |
+                NS_EVENT_STATE_MOZ_UI_VALID |
+                NS_EVENT_STATE_MOZ_UI_INVALID |
                 NS_EVENT_STATE_INDETERMINATE |
                 NS_EVENT_STATE_MOZ_PLACEHOLDER |
                 NS_EVENT_STATE_MOZ_SUBMITINVALID;
@@ -916,13 +916,16 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       }
 
       states |= NS_EVENT_STATE_REQUIRED | NS_EVENT_STATE_OPTIONAL |
-                NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+                NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
     } else if (MaxLengthApplies() && aName == nsGkAtoms::maxlength) {
       UpdateTooLongValidityState();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
     } else if (aName == nsGkAtoms::pattern) {
       UpdatePatternMismatchValidityState();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
     }
 
     if (aNotify) {
@@ -1076,7 +1079,7 @@ nsHTMLInputElement::SetValue(const nsAString& aValue)
       return MozSetFileNameArray(&name, 1);
     }
     else {
-      ClearFiles();
+      ClearFiles(true);
     }
   }
   else {
@@ -1170,7 +1173,7 @@ nsHTMLInputElement::MozSetFileNameArray(const PRUnichar **aFileNames, PRUint32 a
 
   }
 
-  SetFiles(files);
+  SetFiles(files, true);
 
   return NS_OK;
 }
@@ -1197,7 +1200,11 @@ nsHTMLInputElement::SetUserInput(const nsAString& aValue)
   } else {
     SetValueInternal(aValue, PR_TRUE, PR_TRUE);
   }
-  return NS_OK;
+
+  return nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
+                                              static_cast<nsIDOMHTMLInputElement*>(this),
+                                              NS_LITERAL_STRING("input"), PR_TRUE,
+                                              PR_TRUE);
 }
 
 NS_IMETHODIMP_(nsIEditor*)
@@ -1330,7 +1337,8 @@ nsHTMLInputElement::GetDisplayFileName(nsAString& aValue) const
 }
 
 void
-nsHTMLInputElement::SetFiles(const nsCOMArray<nsIDOMFile>& aFiles)
+nsHTMLInputElement::SetFiles(const nsCOMArray<nsIDOMFile>& aFiles,
+                             bool aSetValueChanged)
 {
   mFiles.Clear();
   mFiles.AppendObjects(aFiles);
@@ -1347,7 +1355,10 @@ nsHTMLInputElement::SetFiles(const nsCOMArray<nsIDOMFile>& aFiles)
 
   UpdateFileList();
 
-  SetValueChanged(PR_TRUE);
+  if (aSetValueChanged) {
+    SetValueChanged(PR_TRUE);
+  }
+
   UpdateAllValidityStates(PR_TRUE);
 }
 
@@ -1430,12 +1441,25 @@ nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
 NS_IMETHODIMP
 nsHTMLInputElement::SetValueChanged(PRBool aValueChanged)
 {
+  PRBool valueChangedBefore = GetValueChanged();
+
   SET_BOOLBIT(mBitField, BF_VALUE_CHANGED, aValueChanged);
+
   if (!aValueChanged) {
     if (!IsSingleLineTextControl(PR_FALSE)) {
       FreeData();
     }
   }
+
+  if (valueChangedBefore != aValueChanged) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_UI_VALID |
+                                              NS_EVENT_STATE_MOZ_UI_INVALID);
+    }
+  }
+
   return NS_OK;
 }
 
@@ -1471,14 +1495,21 @@ nsHTMLInputElement::DoSetCheckedChanged(PRBool aCheckedChanged,
 void
 nsHTMLInputElement::SetCheckedChangedInternal(PRBool aCheckedChanged)
 {
+  PRBool checkedChangedBefore = GetCheckedChanged();
+
   SET_BOOLBIT(mBitField, BF_CHECKED_CHANGED, aCheckedChanged);
-}
 
-
-PRBool
-nsHTMLInputElement::GetCheckedChanged()
-{
-  return GET_BOOLBIT(mBitField, BF_CHECKED_CHANGED);
+  // This method can't be called when we are not authorized to notify
+  // so we do not need a aNotify parameter.
+  if (checkedChangedBefore != aCheckedChanged) {
+    nsIDocument* document = GetCurrentDoc();
+    if (document) {
+      mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
+      document->ContentStatesChanged(this, nsnull,
+                                     NS_EVENT_STATE_MOZ_UI_VALID |
+                                     NS_EVENT_STATE_MOZ_UI_INVALID);
+    }
+  }
 }
 
 NS_IMETHODIMP
@@ -1683,25 +1714,8 @@ nsHTMLInputElement::SetCheckedInternal(PRBool aChecked, PRBool aNotify)
   }
 
   if (mType == NS_FORM_INPUT_RADIO) {
-    // OnValueChanged is going to be called for all radios in the radio group.
-    nsCOMPtr<nsIRadioVisitor> visitor =
-      NS_GetRadioUpdateValueMissingVisitor();
-    VisitGroup(visitor, aNotify);
+    UpdateValueMissingValidityState();
   }
-}
-
-
-void
-nsHTMLInputElement::FireOnChange()
-{
-  //
-  // Since the value is changing, send out an onchange event (bug 23571)
-  //
-  nsEventStatus status = nsEventStatus_eIgnore;
-  nsEvent event(PR_TRUE, NS_FORM_CHANGE);
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
-  nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
-                              &event, nsnull, &status);
 }
 
 NS_IMETHODIMP
@@ -2081,16 +2095,31 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     return NS_OK;
   }
 
-  if (PlaceholderApplies() &&
-      HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
-      // TODO: checking if the value is empty could be a good idea but we do not
+  if (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
+      aVisitor.mEvent->message == NS_BLUR_CONTENT) {
+    nsEventStates states;
+
+    if (aVisitor.mEvent->message == NS_FOCUS_CONTENT) {
+      UpdateValidityUIBits(true);
+
+      // We don't have to update NS_EVENT_STATE_MOZ_UI_INVALID nor
+      // NS_EVENT_STATE_MOZ_UI_VALID given that the states should not change.
+    } else { // NS_BLUR_CONTENT
+      UpdateValidityUIBits(false);
+      states |= NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
+    }
+
+    if (PlaceholderApplies() &&
+        HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
+        // TODO: checking if the value is empty could be a good idea but we do not
       // have a simple way to do that, see bug 585100
-      (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
-       aVisitor.mEvent->message == NS_BLUR_CONTENT)) {
+      states |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+    }
+
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_MOZ_PLACEHOLDER);
+      doc->ContentStatesChanged(this, nsnull, states);
     }
   }
 
@@ -2182,7 +2211,10 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         DoSetChecked(originalCheckedValue, PR_TRUE, PR_TRUE);
       }
     } else {
-      FireOnChange();
+      nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
+                                           static_cast<nsIDOMHTMLInputElement*>(this),
+                                           NS_LITERAL_STRING("change"), PR_TRUE,
+                                           PR_FALSE);
 #ifdef ACCESSIBILITY
       // Fire an event to notify accessibility
       if (mType == NS_FORM_INPUT_CHECKBOX) {
@@ -2269,6 +2301,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                 nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
                                             aVisitor.mPresContext, &event,
                                             nsnull, &status);
+                aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
               } // case
             } // switch
           }
@@ -2280,6 +2313,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               case NS_VK_UP: 
               case NS_VK_LEFT:
                 isMovingBack = PR_TRUE;
+                // FALLTHROUGH
               case NS_VK_DOWN:
               case NS_VK_RIGHT:
               // Arrow key pressed, focus+select prev/next radio button
@@ -2434,6 +2468,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               // Hold a strong ref while dispatching
               nsRefPtr<nsHTMLFormElement> form(mForm);
               presShell->HandleDOMEventWithTarget(mForm, &event, &status);
+              aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
             }
           }
           break;
@@ -2654,7 +2689,7 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
           // This call isn't strictly needed any more since we'll never
           // confuse values and filenames. However it's there for backwards
           // compat.
-          ClearFiles();
+          ClearFiles(false);
         }
 
         HandleTypeChange(newType);
@@ -2984,7 +3019,7 @@ nsHTMLInputElement::Reset()
       GetDefaultChecked(&resetVal);
       return DoSetChecked(resetVal, PR_TRUE, PR_FALSE);
     case VALUE_MODE_FILENAME:
-      ClearFiles();
+      ClearFiles(false);
       return NS_OK;
     case VALUE_MODE_DEFAULT:
     default:
@@ -3150,7 +3185,7 @@ nsHTMLInputElement::SaveState()
     case NS_FORM_INPUT_URL:
     case NS_FORM_INPUT_HIDDEN:
       {
-        if (GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
+        if (GetValueChanged()) {
           inputState = new nsHTMLInputElementState();
           if (!inputState) {
             return NS_ERROR_OUT_OF_MEMORY;
@@ -3274,7 +3309,34 @@ nsHTMLInputElement::IntrinsicState() const
   }
 
   if (IsCandidateForConstraintValidation()) {
-    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
+    if (IsValid()) {
+      state |= NS_EVENT_STATE_VALID;
+    } else {
+      state |= NS_EVENT_STATE_INVALID;
+
+      if ((!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) &&
+          (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR) ||
+           (GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI) &&
+            ShouldShowValidityUI()))) {
+        state |= NS_EVENT_STATE_MOZ_UI_INVALID;
+      }
+    }
+
+    // :-moz-ui-valid applies if all of the following conditions are true:
+    // 1. The element is not focused, or had either :-moz-ui-valid or
+    //    :-moz-ui-invalid applying before it was focused ;
+    // 2. The element is either valid or isn't allowed to have
+    //    :-moz-ui-invalid applying ;
+    // 3. The element has no form owner or its form owner doesn't have the
+    //    novalidate attribute set ;
+    // 4. The element has already been modified or the user tried to submit the
+    //    form owner while invalid.
+    if ((!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) &&
+        (GET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI) && ShouldShowValidityUI() &&
+         (IsValid() || (!state.HasState(NS_EVENT_STATE_MOZ_UI_INVALID) &&
+                        !GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI))))) {
+      state |= NS_EVENT_STATE_MOZ_UI_VALID;
+    }
   }
 
   if (PlaceholderApplies() && HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
@@ -3334,7 +3396,7 @@ nsHTMLInputElement::RestoreState(nsPresState* aState)
       case NS_FORM_INPUT_FILE:
         {
           const nsCOMArray<nsIDOMFile>& files = inputState->GetFiles();
-          SetFiles(files);
+          SetFiles(files, true);
           break;
         }
     }
@@ -3360,10 +3422,10 @@ nsHTMLInputElement::AllowDrop()
  */
 
 void
-nsHTMLInputElement::AddedToRadioGroup(PRBool aNotify)
+nsHTMLInputElement::AddedToRadioGroup()
 {
   // Make sure not to notify if we're still being created by the parser
-  aNotify = aNotify && !GET_BOOLBIT(mBitField, BF_PARSER_CREATING);
+  PRBool notify = !GET_BOOLBIT(mBitField, BF_PARSER_CREATING);
 
   //
   //  If the input element is not in a form and
@@ -3385,7 +3447,7 @@ nsHTMLInputElement::AddedToRadioGroup(PRBool aNotify)
     // should not be that common an occurrence, I think we can live with
     // that.
     //
-    RadioSetChecked(aNotify);
+    RadioSetChecked(notify);
   }
 
   //
@@ -3398,7 +3460,7 @@ nsHTMLInputElement::AddedToRadioGroup(PRBool aNotify)
                                            getter_AddRefs(visitor));
   if (NS_FAILED(rv)) { return; }
   
-  VisitGroup(visitor, aNotify);
+  VisitGroup(visitor, notify);
   SetCheckedChangedInternal(checkedChanged);
   
   //
@@ -3443,14 +3505,8 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
     if (container) {
       container->SetCurrentRadioButton(name, nsnull);
     }
-
-    // Removing a checked radio from the group can change the validity state.
-    // Let's ask other radio to update their value missing validity state.
-    nsCOMPtr<nsIRadioVisitor> visitor =
-      NS_GetRadioUpdateValueMissingVisitor();
-    VisitGroup(visitor, PR_FALSE);
   }
-  
+
   //
   // Remove this radio from its group in the container
   //
@@ -3463,6 +3519,9 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
       }
       gotName = PR_TRUE;
     }
+
+    UpdateValueMissingValidityStateForRadio(true);
+
     container->RemoveFromRadioGroup(name,
                                     static_cast<nsIFormControl*>(this));
   }
@@ -3471,7 +3530,7 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
 PRBool
 nsHTMLInputElement::IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLFormElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
 
@@ -3691,7 +3750,9 @@ nsHTMLInputElement::SetCustomValidity(const nsAString& aError)
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
     doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
-                                            NS_EVENT_STATE_VALID);
+                                            NS_EVENT_STATE_VALID |
+                                            NS_EVENT_STATE_MOZ_UI_INVALID |
+                                            NS_EVENT_STATE_MOZ_UI_VALID);
   }
 
   return NS_OK;
@@ -3702,7 +3763,7 @@ nsHTMLInputElement::IsTooLong()
 {
   if (!MaxLengthApplies() ||
       !HasAttr(kNameSpaceID_None, nsGkAtoms::maxlength) ||
-      !GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
+      !GetValueChanged()) {
     return PR_FALSE;
   }
 
@@ -3743,11 +3804,6 @@ nsHTMLInputElement::IsValueMissing()
   {
     case NS_FORM_INPUT_CHECKBOX:
       return !GetChecked();
-    case NS_FORM_INPUT_RADIO:
-      {
-        nsCOMPtr<nsIDOMHTMLInputElement> selected = GetSelectedRadioButton();
-        return !selected;
-      }
     case NS_FORM_INPUT_FILE:
       {
         const nsCOMArray<nsIDOMFile>& files = GetFiles();
@@ -3824,12 +3880,50 @@ nsHTMLInputElement::HasPatternMismatch()
 void
 nsHTMLInputElement::UpdateTooLongValidityState()
 {
+  // TODO: this code will be re-enabled with bug 613016 and bug 613019.
+#if 0
   SetValidityState(VALIDITY_STATE_TOO_LONG, IsTooLong());
+#endif
+}
+
+void
+nsHTMLInputElement::UpdateValueMissingValidityStateForRadio(bool aIgnoreSelf)
+{
+  PRBool notify = !GET_BOOLBIT(mBitField, BF_PARSER_CREATING);
+  nsCOMPtr<nsIDOMHTMLInputElement> selection = GetSelectedRadioButton();
+  // If there is no selection, that might mean the radio is not in a group.
+  // In that case, we can look for the checked state of the radio.
+  bool selected = selection ? true
+                            : aIgnoreSelf ? false : GetChecked();
+  bool required = aIgnoreSelf ? false
+                              : HasAttr(kNameSpaceID_None, nsGkAtoms::required);
+  bool valueMissing = false;
+
+  // If the current radio is required, don't check the entire group.
+  if (!required) {
+    nsCOMPtr<nsIRadioVisitor> visitor =
+      NS_GetRadioGroupRequiredVisitor(this, &required);
+    VisitGroup(visitor, notify);
+  }
+
+  valueMissing = required && !selected;
+
+  SetValidityState(VALIDITY_STATE_VALUE_MISSING, valueMissing);
+
+  nsCOMPtr<nsIRadioVisitor> visitor =
+    NS_SetRadioValueMissingState(this, GetCurrentDoc(), valueMissing,
+                                 notify);
+  VisitGroup(visitor, notify);
 }
 
 void
 nsHTMLInputElement::UpdateValueMissingValidityState()
 {
+  if (mType == NS_FORM_INPUT_RADIO) {
+    UpdateValueMissingValidityStateForRadio(false);
+    return;
+  }
+
   SetValidityState(VALIDITY_STATE_VALUE_MISSING, IsValueMissing());
 }
 
@@ -3859,7 +3953,8 @@ nsHTMLInputElement::UpdateAllValidityStates(PRBool aNotify)
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
       doc->ContentStatesChanged(this, nsnull,
-                                NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID);
+                                NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+                                NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID);
     }
   }
 }
@@ -3870,6 +3965,8 @@ nsHTMLInputElement::UpdateBarredFromConstraintValidation()
   SetBarredFromConstraintValidation(mType == NS_FORM_INPUT_HIDDEN ||
                                     mType == NS_FORM_INPUT_BUTTON ||
                                     mType == NS_FORM_INPUT_RESET ||
+                                    mType == NS_FORM_INPUT_SUBMIT ||
+                                    mType == NS_FORM_INPUT_IMAGE ||
                                     HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) ||
                                     IsDisabled());
 }
@@ -4024,16 +4121,11 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     return PR_FALSE;
   }
 
-  // The domain name must have at least one dot which can't follow another dot,
-  // can't be the first nor the last domain name character.
-  PRBool dotFound = PR_FALSE;
-
   // Parsing the domain name.
   for (; i < length; ++i) {
     PRUnichar c = aValue[i];
 
     if (c == '.') {
-      dotFound = PR_TRUE;
       // A dot can't follow a dot.
       if (aValue[i-1] == '.') {
         return PR_FALSE;
@@ -4045,7 +4137,7 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     }
   }
 
-  return dotFound;
+  return PR_TRUE;
 }
 
 //static
@@ -4159,32 +4251,72 @@ protected:
   nsIFormControl* mExcludeElement;
 };
 
-class nsRadioUpdateValueMissingVisitor : public nsRadioVisitor {
+class nsRadioGroupRequiredVisitor : public nsRadioVisitor {
 public:
-  nsRadioUpdateValueMissingVisitor()
-    : nsRadioVisitor()
+  nsRadioGroupRequiredVisitor(nsIFormControl* aExcludeElement, bool* aRequired)
+    : mRequired(aRequired)
+    , mExcludeElement(aExcludeElement)
     { }
-
-  virtual ~nsRadioUpdateValueMissingVisitor() { };
 
   NS_IMETHOD Visit(nsIFormControl* aRadio, PRBool* aStop)
   {
-    /**
-     * The simplest way to update the value missing validity state is to do a
-     * global update of the validity state by simulationg a value change.
-     * OnValueChanged() is declared into nsITextControlElement. That may sound
-     * to be a weird way to update the validity states for radio controls but
-     * they are also implementing nsITextControlElement interface.
-     *
-     * When OnValueChanged() is called on a radio control, it will check if any
-     * radio in the group is checked. If none, the required radio will be
-     * suffering from being missing.
-     */
-    nsCOMPtr<nsITextControlElement> textCtl(do_QueryInterface(aRadio));
-    NS_ASSERTION(textCtl, "Visit() passed a null or non-radio pointer");
-    textCtl->OnValueChanged(PR_TRUE);
+    if (aRadio == mExcludeElement) {
+      return NS_OK;
+    }
+
+    *mRequired = static_cast<nsHTMLInputElement*>(aRadio)
+      ->HasAttr(kNameSpaceID_None, nsGkAtoms::required);
+
+    if (*mRequired) {
+      *aStop = PR_TRUE;
+    }
+
     return NS_OK;
   }
+
+protected:
+  bool* mRequired;
+  nsIFormControl* mExcludeElement;
+};
+
+class nsRadioSetValueMissingState : public nsRadioVisitor {
+public:
+  nsRadioSetValueMissingState(nsIFormControl* aExcludeElement,
+                              nsIDocument* aDocument, bool aValidity,
+                              bool aNotify)
+    : mExcludeElement(aExcludeElement)
+    , mDocument(aDocument)
+    , mValidity(aValidity)
+    , mNotify(aNotify)
+    { }
+
+  NS_IMETHOD Visit(nsIFormControl* aRadio, PRBool* aStop)
+  {
+    if (aRadio == mExcludeElement) {
+      return NS_OK;
+    }
+
+    nsHTMLInputElement* input = static_cast<nsHTMLInputElement*>(aRadio);
+
+    input->SetValidityState(nsIConstraintValidation::VALIDITY_STATE_VALUE_MISSING,
+                            mValidity);
+
+    if (mNotify && mDocument) {
+      mDocument->ContentStatesChanged(input, nsnull,
+                                      NS_EVENT_STATE_VALID |
+                                      NS_EVENT_STATE_INVALID |
+                                      NS_EVENT_STATE_MOZ_UI_VALID |
+                                      NS_EVENT_STATE_MOZ_UI_INVALID);
+    }
+
+    return NS_OK;
+  }
+
+protected:
+  nsIFormControl* mExcludeElement;
+  nsIDocument* mDocument;
+  bool mValidity;
+  bool mNotify;
 };
 
 nsresult
@@ -4258,8 +4390,8 @@ NS_GetRadioGetCheckedChangedVisitor(PRBool* aCheckedChanged,
 }
 
 /*
- * This method is a factory: it lets callers to create an instance of
- * nsRadioUpdateValueMissing without the class declaration and definition.
+ * These methods are factores: they let callers to create an instance of
+ * a radio group visitor without the class declaration and definition.
  *
  * TODO:
  * Do we really need factories for radio visitors? Or at least, we should move
@@ -4268,9 +4400,19 @@ NS_GetRadioGetCheckedChangedVisitor(PRBool* aCheckedChanged,
  * See bug 586298
  */
 nsIRadioVisitor*
-NS_GetRadioUpdateValueMissingVisitor()
+NS_GetRadioGroupRequiredVisitor(nsIFormControl* aExcludeElement,
+                                bool* aRequired)
 {
-  return new nsRadioUpdateValueMissingVisitor();
+  return new nsRadioGroupRequiredVisitor(aExcludeElement, aRequired);
+}
+
+nsIRadioVisitor*
+NS_SetRadioValueMissingState(nsIFormControl* aExcludeElement,
+                             nsIDocument* aDocument,
+                             bool aValidity, bool aNotify)
+{
+  return new nsRadioSetValueMissingState(aExcludeElement, aDocument, aValidity,
+                                         aNotify);
 }
 
 NS_IMETHODIMP_(PRBool)
@@ -4342,7 +4484,7 @@ nsHTMLInputElement::GetDefaultValueFromContent(nsAString& aValue)
 NS_IMETHODIMP_(PRBool)
 nsHTMLInputElement::ValueChanged() const
 {
-  return GET_BOOLBIT(mBitField, BF_VALUE_CHANGED);
+  return GetValueChanged();
 }
 
 NS_IMETHODIMP_(void)
@@ -4398,7 +4540,8 @@ nsHTMLInputElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotif
   UpdateValueMissingValidityState();
   UpdateBarredFromConstraintValidation();
 
-  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
+             NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
   nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
 }
 
@@ -4439,5 +4582,23 @@ nsHTMLInputElement::GetFilterFromAccept()
   }
 
   return filter;
+}
+
+void
+nsHTMLInputElement::UpdateValidityUIBits(bool aIsFocused)
+{
+  if (aIsFocused) {
+    // If the invalid UI is shown, we should show it while focusing (and
+    // update). Otherwise, we should not.
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI,
+                !IsValid() && ShouldShowValidityUI());
+
+    // If neither invalid UI nor valid UI is shown, we shouldn't show the valid
+    // UI while typing.
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, ShouldShowValidityUI());
+  } else {
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI, PR_TRUE);
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, PR_TRUE);
+  }
 }
 

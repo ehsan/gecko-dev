@@ -67,6 +67,7 @@
 #include "txExprParser.h"
 #include "nsIErrorService.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsJSUtils.h"
 
 using namespace mozilla::dom;
 
@@ -682,10 +683,12 @@ txMozillaXSLTProcessor::TransformToDoc(nsIDOMDocument *aOutputDoc,
                                          mObserver);
     es.mOutputHandlerFactory = &handlerFactory;
 
-    es.init(*sourceNode, &mVariables);
+    nsresult rv = es.init(*sourceNode, &mVariables);
 
     // Process root of XML source document
-    nsresult rv = txXSLTProcessor::execute(es);
+    if (NS_SUCCEEDED(rv)) {
+        rv = txXSLTProcessor::execute(es);
+    }
     
     nsresult endRv = es.end(rv);
     if (NS_SUCCEEDED(rv)) {
@@ -741,10 +744,12 @@ txMozillaXSLTProcessor::TransformToFragment(nsIDOMNode *aSource,
     txToFragmentHandlerFactory handlerFactory(*aResult);
     es.mOutputHandlerFactory = &handlerFactory;
 
-    es.init(*sourceNode, &mVariables);
+    rv = es.init(*sourceNode, &mVariables);
 
     // Process root of XML source document
-    rv = txXSLTProcessor::execute(es);
+    if (NS_SUCCEEDED(rv)) {
+        rv = txXSLTProcessor::execute(es);
+    }
     // XXX setup exception context, bug 204658
     nsresult endRv = es.end(rv);
     if (NS_SUCCEEDED(rv)) {
@@ -1465,10 +1470,8 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
                 JSString *str = JS_ValueToString(cx, OBJECT_TO_JSVAL(jsobj));
                 NS_ENSURE_TRUE(str, NS_ERROR_FAILURE);
 
-                const PRUnichar *strChars =
-                    reinterpret_cast<const PRUnichar*>
-                                    (::JS_GetStringChars(str));
-                nsDependentString value(strChars, ::JS_GetStringLength(str));
+                nsDependentJSString value;
+                NS_ENSURE_TRUE(value.init(cx, str), NS_ERROR_FAILURE);
 
                 *aResult = new StringResult(value, nsnull);
                 if (!*aResult) {

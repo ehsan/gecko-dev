@@ -134,8 +134,7 @@ nsHyperTextAccessible::NativeRole()
   if (tag == nsAccessibilityAtoms::form)
     return nsIAccessibleRole::ROLE_FORM;
 
-  if (tag == nsAccessibilityAtoms::article ||
-      tag == nsAccessibilityAtoms::blockquote ||
+  if (tag == nsAccessibilityAtoms::blockquote ||
       tag == nsAccessibilityAtoms::div ||
       tag == nsAccessibilityAtoms::nav)
     return nsIAccessibleRole::ROLE_SECTION;
@@ -148,6 +147,9 @@ nsHyperTextAccessible::NativeRole()
       tag == nsAccessibilityAtoms::h6)
     return nsIAccessibleRole::ROLE_HEADING;
 
+  if (tag == nsAccessibilityAtoms::article)
+    return nsIAccessibleRole::ROLE_DOCUMENT;
+        
   // Deal with html landmark elements
   if (tag == nsAccessibilityAtoms::header)
     return nsIAccessibleRole::ROLE_HEADER;
@@ -187,6 +189,9 @@ nsHyperTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     if (0 == (flags & nsIPlaintextEditor::eEditorReadonlyMask)) {
       *aExtraState |= nsIAccessibleStates::EXT_STATE_EDITABLE;
     }
+  } else if (mContent->Tag() == nsAccessibilityAtoms::article) {
+    // We want <article> to behave like a document in terms of readonly state.
+    *aState |= nsIAccessibleStates::STATE_READONLY;
   }
 
   PRInt32 childCount;
@@ -277,13 +282,13 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
                                      nsAccessible **aEndAcc)
 {
   if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
-    GetCharacterCount(&aStartOffset);
+    aStartOffset = CharacterCount();
   }
   if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
     GetCaretOffset(&aStartOffset);
   }
   if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
-    GetCharacterCount(&aEndOffset);
+    aEndOffset = CharacterCount();
   }
   if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
     GetCaretOffset(&aEndOffset);
@@ -487,14 +492,7 @@ NS_IMETHODIMP nsHyperTextAccessible::GetCharacterCount(PRInt32 *aCharacterCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 childCount = GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *childAcc = mChildren[childIdx];
-
-    PRInt32 textLength = nsAccUtils::TextLength(childAcc);
-    NS_ENSURE_TRUE(textLength >= 0, nsnull);
-    *aCharacterCount += textLength;
-  }
+  *aCharacterCount = CharacterCount();
   return NS_OK;
 }
 
@@ -869,7 +867,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   }
 
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
-    GetCharacterCount(&aOffset);
+    aOffset = CharacterCount();
   }
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
     GetCaretOffset(&aOffset);
@@ -902,7 +900,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   PRBool needsStart = PR_FALSE;
   switch (aBoundaryType) {
     case BOUNDARY_CHAR:
-      amount = eSelectCharacter;
+      amount = eSelectCluster;
       if (aType == eGetAt)
         aType = eGetAfter; // Avoid returning 2 characters
       break;
@@ -953,8 +951,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
                                        nsnull, getter_AddRefs(startAcc));
 
   if (!startFrame) {
-    PRInt32 textLength;
-    GetCharacterCount(&textLength);
+    PRInt32 textLength = CharacterCount();
     if (aBoundaryType == BOUNDARY_LINE_START && aOffset > 0 && aOffset == textLength) {
       // Asking for start of line, while on last character
       if (startAcc)
@@ -1018,8 +1015,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
         // that the first character is in
         return GetTextHelper(eGetAfter, aBoundaryType, aOffset, aStartOffset, aEndOffset, aText);
       }
-      PRInt32 textLength;
-      GetCharacterCount(&textLength);
+      PRInt32 textLength = CharacterCount();
       if (finalEndOffset < textLength) {
         // This happens sometimes when current character at finalStartOffset 
         // is an embedded object character representing another hypertext, that
@@ -1221,9 +1217,6 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   else if (mContent->Tag() == nsAccessibilityAtoms::footer) 
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
                            NS_LITERAL_STRING("contentinfo"));
-  else if (mContent->Tag() == nsAccessibilityAtoms::article) 
-    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
-                           NS_LITERAL_STRING("main"));
   else if (mContent->Tag() == nsAccessibilityAtoms::aside) 
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::xmlroles,
                            NS_LITERAL_STRING("note"));
@@ -1417,8 +1410,7 @@ NS_IMETHODIMP nsHyperTextAccessible::SetAttributes(PRInt32 aStartPos, PRInt32 aE
 
 NS_IMETHODIMP nsHyperTextAccessible::SetTextContents(const nsAString &aText)
 {
-  PRInt32 numChars;
-  GetCharacterCount(&numChars);
+  PRInt32 numChars = CharacterCount();
   if (numChars == 0 || NS_SUCCEEDED(DeleteText(0, numChars))) {
     return InsertText(aText, 0);
   }
@@ -2114,8 +2106,12 @@ PRInt32
 nsHyperTextAccessible::GetChildOffset(PRUint32 aChildIndex,
                                       PRBool aInvalidateAfter)
 {
-  if (aChildIndex == 0)
+  if (aChildIndex == 0) {
+    if (aInvalidateAfter)
+      mOffsets.Clear();
+
     return aChildIndex;
+  }
 
   PRInt32 count = mOffsets.Length() - aChildIndex;
   if (count > 0) {

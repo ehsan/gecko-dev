@@ -496,6 +496,11 @@ argumentUnboxingTemplates = {
         "    if (!${name}.IsValid())\n"
         "        return JS_FALSE;\n",
 
+    '[utf8string]':
+        "    xpc_qsAUTF8String ${name}(cx, ${argVal}, ${argPtr});\n"
+        "    if (!${name}.IsValid())\n"
+        "        return JS_FALSE;\n",
+
     '[jsval]':
         "    jsval ${name} = ${argVal};\n"
     }
@@ -503,7 +508,8 @@ argumentUnboxingTemplates = {
 # From JSData2Native.
 #
 # Omitted optional arguments are treated as though the caller had passed JS
-# `null`; this behavior is from XPCWrappedNative::CallMethod.
+# `null`; this behavior is from XPCWrappedNative::CallMethod. The 'jsval' type,
+# however, defaults to 'undefined'.
 #
 def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
                           nullBehavior, undefinedBehavior):
@@ -517,13 +523,19 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
     # optional - bool - True if the parameter is optional.
     # rvdeclared - bool - False if no |nsresult rv| has been declared earlier.
 
+    typeName = getBuiltinOrNativeTypeName(type)
+
     isSetter = (i is None)
 
     if isSetter:
         argPtr = "vp"
         argVal = "*vp"
     elif optional:
-        argVal = "(%d < argc ? argv[%d] : JSVAL_NULL)" % (i, i)
+        if typeName == "[jsval]":
+            val = "JSVAL_VOID"
+        else:
+            val = "JSVAL_NULL"
+        argVal = "(%d < argc ? argv[%d] : %s)" % (i, i, val)
         argPtr = "(%d < argc ? &argv[%d] : NULL)" % (i, i)
     else:
         argVal = "argv[%d]" % i
@@ -537,7 +549,6 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
         'undefinedBehavior': undefinedBehavior or 'DefaultUndefinedBehavior'
         }
 
-    typeName = getBuiltinOrNativeTypeName(type)
     if typeName is not None:
         template = argumentUnboxingTemplates.get(typeName)
         if template is not None:
@@ -580,7 +591,7 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
                     "    }\n")
             return True
 
-    warn("Unable to unbox argument of type %s" % type.name)
+    warn("Unable to unbox argument of type %s (native type %s)" % (type.name, typeName))
     if i is None:
         src = '*vp'
     else:
@@ -617,6 +628,10 @@ def writeResultDecl(f, type, varname):
 
 def outParamForm(name, type):
     type = unaliasType(type)
+    # If we start allowing [jsval] return types here, we need to tack
+    # the return value onto the arguments list in the callers,
+    # possibly, and handle properly returning it too.  See bug 604198.
+    assert getBuiltinOrNativeTypeName(type) is not '[jsval]'
     if type.kind == 'builtin':
         return '&' + name
     elif type.kind == 'native':
@@ -1128,20 +1143,33 @@ traceableArgumentConversionTemplates = {
     'double':
           "    jsdouble ${name} = ${argVal};\n",
     '[astring]':
-          "    XPCReadableJSStringWrapper ${name}(${argVal});\n",
+          "    XPCReadableJSStringWrapper ${name};\n"
+          "    if (!${name}.init(cx, ${argVal})) {\n"
+          "${error}",
     '[domstring]':
-          "    XPCReadableJSStringWrapper ${name}(${argVal});\n",
-    '[cstring]':
-          "    NS_ConvertUTF16toUTF8 ${name}("
-          "(const PRUnichar *)JS_GetStringChars(${argVal}), "
-          "JS_GetStringLength(${argVal}));\n",
+          "    XPCReadableJSStringWrapper ${name};\n"
+          "    if (!${name}.init(cx, ${argVal})) {\n"
+          "${error}",
+    '[utf8string]':
+          "    size_t ${name}_length;\n"
+          "    const jschar *${name}_chars = JS_GetStringCharsAndLength(cx, "
+          "${argVal}, &${name}_length);\n"
+          "    if (!${name}_chars) {\n"
+          "${error}"
+          "    NS_ConvertUTF16toUTF8 ${name}(${argVal}_chars, ${argVal}_length);\n",
     'string':
-          "    NS_ConvertUTF16toUTF8 ${name}_utf8("
-          "(const PRUnichar *)JS_GetStringChars(${argVal}), "
-          "JS_GetStringLength(${argVal}));\n"
+          "    size_t ${name}_length;\n"
+          "    const jschar *${name}_chars = JS_GetStringCharsAndLength(cx, "
+          "${argVal}, &${name}_length);\n"
+          "    if (!${name}_chars) {\n"
+          "${error}"
+          "    NS_ConvertUTF16toUTF8 ${name}_utf8(${name}_chars, ${name}_length);\n"
           "    const char *${name} = ${name}_utf8.get();\n",
     'wstring':
-          "    const PRUnichar *${name} = JS_GetStringChars({argVal});\n",
+          "    const jschar *${name}_chars = JS_GetStringCharsZ(cx, {argVal});\n"
+          "    if (!${name}_chars) {\n"
+          "${error}"
+          "    const PRUnichar *${name} = ${name}_chars;\n",
     }
 
 def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
@@ -1150,7 +1178,8 @@ def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
 
     params = {
         'name': name,
-        'argVal': argVal
+        'argVal': argVal,
+        'error': getFailureString(getTraceInfoDefaultReturn(member.realtype), 2)
         }
 
     typeName = getBuiltinOrNativeTypeName(type)
@@ -1179,9 +1208,10 @@ def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
                 f.write("    nsresult rv;\n");
             f.write("    %s *%s;\n" % (type.name, name))
             f.write("    xpc_qsSelfRef %sref;\n" % name)
+            f.write("    js::Anchor<jsval> %sanchor;\n" % name);
             f.write("    rv = xpc_qsUnwrapArg<%s>("
-                    "cx, js::Jsvalify(js::ValueArgToConstRef(%s)), &%s, &%sref.ptr, &vp.array[%d]);\n"
-                    % (type.name, argVal, name, name, 2 + i))
+                    "cx, js::Jsvalify(js::ValueArgToConstRef(%s)), &%s, &%sref.ptr, &%sanchor.get());\n"
+                    % (type.name, argVal, name, name, name))
             f.write("    if (NS_FAILED(rv)) {\n")
             if haveCcx:
                 f.write("        xpc_qsThrowBadArgWithCcx(ccx, rv, %d);\n" % i)
@@ -1246,24 +1276,26 @@ def writeTraceableResultConv(f, type):
         # else fall through; this type isn't supported yet
     elif isInterfaceType(type):
         if isVariantType(type):
-            f.write("    JSBool ok = xpc_qsVariantToJsval(lccx, result, "
-                    "&vp.array[0]);\n")
+            f.write("    jsval returnVal;\n"
+                    "    JSBool ok = xpc_qsVariantToJsval(lccx, result, "
+                    "&returnVal);\n")
         else:
             f.write("    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
                     "    JSObject* wrapper =\n"
-                    "      xpc_GetCachedSlimWrapper(cache, obj, &vp.array[0]);\n"
+                    "      xpc_GetCachedSlimWrapper(cache, obj);\n"
                     "    if (wrapper) {\n"
                     "      return wrapper;\n"
                     "    }\n"
                     "    // After this point do not use 'result'!\n"
                     "    qsObjectHelper helper(result, cache);\n"
+                    "    jsval returnVal;\n"
                     "    JSBool ok = xpc_qsXPCOMObjectToJsval(lccx, "
                     "helper, &NS_GET_IID(%s), &interfaces[k_%s], "
-                    "&vp.array[0]);\n"
+                    "&returnVal);\n"
                     % (type.name, type.name))
         f.write("    if (!ok) {\n");
         writeFailure(f, getTraceInfoDefaultReturn(type), 2)
-        f.write("    return JSVAL_TO_OBJECT(vp.array[0]);\n")
+        f.write("    return JSVAL_TO_OBJECT(returnVal);\n")
         return
 
     warn("Unable to convert result of type %s" % typeName)
@@ -1316,17 +1348,17 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
     else:
         f.write("    %s *self;\n" % customMethodCall['thisType'])
     f.write("    xpc_qsSelfRef selfref;\n")
-    f.write("    xpc_qsArgValArray<%d> vp(cx);\n" % (2 + len(member.params)))
+    f.write("    js::Anchor<jsval> selfanchor;\n")
     if haveCcx:
         f.write("    if (!xpc_qsUnwrapThisFromCcx(ccx, &self, &selfref.ptr, "
-                "&vp.array[1])) {\n")
+                "&selfanchor.get())) {\n")
     elif (member.kind == 'method') and isInterfaceType(member.realtype):
         f.write("    XPCLazyCallContext lccx(JS_CALLER, cx, obj);\n")
         f.write("    if (!xpc_qsUnwrapThis(cx, obj, callee, &self, &selfref.ptr, "
-                "&vp.array[1], &lccx)) {\n")
+                "&selfanchor.get(), &lccx)) {\n")
     else:
         f.write("    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, "
-                "&vp.array[1], nsnull)) {\n")
+                "&selfanchor.get(), nsnull)) {\n")
     writeFailure(f, getTraceInfoDefaultReturn(member.realtype), 2)
 
     argNames = []
@@ -1366,9 +1398,7 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
 
         # Call the method.
         comName = header.methodNativeName(member)
-        if getBuiltinOrNativeTypeName(member.realtype) == '[jsval]':
-            argNames.append("&vp.array[0]")
-        elif not isVoidType(member.realtype):
+        if not isVoidType(member.realtype):
             argNames.append(outParamForm(resultname, member.realtype))
         args = ', '.join(argNames)
 

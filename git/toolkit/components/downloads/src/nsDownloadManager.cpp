@@ -1183,12 +1183,10 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
 #elif defined(ANDROID)
     // Android doesn't have a $HOME directory, and by default we only have
     // write access to /data/data/org.mozilla.{$APP} and /sdcard
-    char* sdcard = getenv("EXTERNAL_STORAGE");
-    if (sdcard) {
-      rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
+    char* downloadDirPath = getenv("DOWNLOADS_DIRECTORY");
+    if (downloadDirPath) {
+      rv = NS_NewNativeLocalFile(nsDependentCString(downloadDirPath),
                                  PR_TRUE, getter_AddRefs(downloadDir));
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = downloadDir->Append(NS_LITERAL_STRING("downloads"));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1514,6 +1512,15 @@ nsDownloadManager::CancelDownload(PRUint32 aID)
     dl->mTempFile->Exists(&exists);
     if (exists)
       dl->mTempFile->Remove(PR_FALSE);
+  }
+
+  nsCOMPtr<nsILocalFile> file;
+  if (NS_SUCCEEDED(dl->GetTargetFile(getter_AddRefs(file))))
+  {
+    PRBool exists;
+    file->Exists(&exists);
+    if (exists)
+      file->Remove(PR_FALSE);
   }
 
   nsresult rv = dl->SetState(nsIDownloadManager::DOWNLOAD_CANCELED);
@@ -2773,12 +2780,6 @@ nsDownload::OpenWithApplication()
   // First move the temporary file to the target location
   nsCOMPtr<nsILocalFile> target;
   nsresult rv = GetTargetFile(getter_AddRefs(target));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Make sure the suggested name is unique since in this case we don't
-  // have a file name that was guaranteed to be unique by going through
-  // the File Save dialog
-  rv = target->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Move the temporary file to the target location

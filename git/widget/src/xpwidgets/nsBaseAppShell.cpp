@@ -93,8 +93,10 @@ nsBaseAppShell::Init()
   return NS_OK;
 }
 
+// Called by nsAppShell's native event callback. Set aAlwaysBlockNative to true
+// to always block native events.
 void
-nsBaseAppShell::NativeEventCallback()
+nsBaseAppShell::NativeEventCallback(PRBool aAlwaysBlockNative)
 {
   PRInt32 hasPending = PR_AtomicSet(&mNativeEventPending, 0);
   if (hasPending == 0)
@@ -116,7 +118,9 @@ nsBaseAppShell::NativeEventCallback()
 
   nsIThread *thread = NS_GetCurrentThread();
   PRBool prevBlockNativeEvent = mBlockNativeEvent;
-  if (mEventloopNestingState == eEventloopOther) {
+  if (aAlwaysBlockNative) {
+    mBlockNativeEvent = PR_TRUE;
+  } else if (mEventloopNestingState == eEventloopOther) {
     if (!NS_HasPendingEvents(thread))
       return;
     // We're in a nested native event loop and have some gecko events to
@@ -136,11 +140,21 @@ nsBaseAppShell::NativeEventCallback()
   // Continue processing pending events later (we don't want to starve the
   // embedders event loop).
   if (NS_HasPendingEvents(thread))
-    OnDispatchedEvent(nsnull);
+    DoProcessMoreGeckoEvents();
 
   --mEventloopNestingLevel;
 }
 
+// Note, this is currently overidden on windows, see comments in nsAppShell for
+// details. 
+void
+nsBaseAppShell::DoProcessMoreGeckoEvents()
+{
+  OnDispatchedEvent(nsnull);
+}
+
+
+// Main thread via OnProcessNextEvent below
 PRBool
 nsBaseAppShell::DoProcessNextNativeEvent(PRBool mayWait)
 {
@@ -255,6 +269,7 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
   if (lastVal == 1)
     return NS_OK;
 
+  // Returns on the main thread in NativeEventCallback above
   ScheduleNativeEventCallback();
   return NS_OK;
 }
@@ -350,7 +365,7 @@ nsBaseAppShell::RunSyncSections()
   // add another synchronous section, so we don't remove elements from
   // mSyncSections until all sections have been run, else we'll screw up
   // our iteration.
-  for (PRUint32 i=0; i<mSyncSections.Count(); i++) {
+  for (PRInt32 i = 0; i < mSyncSections.Count(); i++) {
     mSyncSections[i]->Run();
   }
   mSyncSections.Clear();

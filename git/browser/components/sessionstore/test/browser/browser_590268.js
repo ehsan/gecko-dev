@@ -54,6 +54,7 @@ function test() {
   // fired for them.
   let wasLoaded = { };
   let restoringTabsCount = 0;
+  let restoredTabsCount = 0;
   let uniq2 = { };
   let uniq2Count = 0;
   let state = { windows: [{ tabs: [] }] };
@@ -62,7 +63,7 @@ function test() {
     let uniq = r();
     let tabData = {
       entries: [{ url: "http://example.com/#" + i }],
-      extData: { "uniq": uniq }
+      extData: { "uniq": uniq, "baz": "qux" }
     };
     state.windows[0].tabs.push(tabData);
     wasLoaded[uniq] = false;
@@ -74,12 +75,28 @@ function test() {
     let uniq = ss.getTabValue(aEvent.originalTarget, "uniq");
     wasLoaded[uniq] = true;
 
+    is(ss.getTabValue(aEvent.originalTarget, "foo"), "",
+       "There is no value for 'foo'");
+
     // On the first SSTabRestoring we're going to run the the real test.
     // We'll keep this listener around so we can keep marking tabs as restored.
     if (restoringTabsCount == 1)
       onFirstSSTabRestoring();
     else if (restoringTabsCount == NUM_TABS)
       onLastSSTabRestoring();
+  }
+
+  function onSSTabRestored(aEvent) {
+    if (++restoredTabsCount < NUM_TABS)
+      return;
+    cleanup();
+  }
+
+  function onTabOpen(aEvent) {
+    // To test bug 614708, we'll just set a value on the tab here. This value
+    // would previously cause us to not recognize the values in extData until
+    // much later. So testing "uniq" failed.
+    ss.setTabValue(aEvent.originalTarget, "foo", "bar");
   }
 
   // This does the actual testing. SSTabRestoring should be firing on tabs from
@@ -101,6 +118,17 @@ function test() {
       // to test setting a value "early".
       uniq2[actualUniq] = r();
       ss.setTabValue(tab, "uniq2", uniq2[actualUniq]);
+
+      // Delete the value we have for "baz". This tests that deleteTabValue
+      // will delete "early access" values (c.f. bug 617175). If this doesn't throw
+      // then the test is successful.
+      try {
+        ss.deleteTabValue(tab, "baz");
+      }
+      catch (e) {
+        ok(false, "no error calling deleteTabValue - " + e);
+      }
+
       // This will be used in the final comparison to make sure we checked the
       // same number as we set.
       uniq2Count++;
@@ -119,13 +147,15 @@ function test() {
         checked++;
       }
     }
+    ok(uniq2Count > 0, "at least 1 tab properly checked 'early access'");
     is(checked, uniq2Count, "checked the same number of uniq2 as we set");
-    cleanup();
   }
 
   function cleanup() {
     // remove the event listener and clean up before finishing
     gBrowser.tabContainer.removeEventListener("SSTabRestoring", onSSTabRestoring, false);
+    gBrowser.tabContainer.removeEventListener("SSTabRestored", onSSTabRestored, true);
+    gBrowser.tabContainer.removeEventListener("TabOpen", onTabOpen, false);
     // Put this in an executeSoon because we still haven't called restoreNextTab
     // in sessionstore for the last tab (we'll call it after this). We end up
     // trying to restore the tab (since we then add a closed tab to the array).
@@ -135,8 +165,10 @@ function test() {
     });
   }
 
-  // Add the event listener
+  // Add the event listeners
   gBrowser.tabContainer.addEventListener("SSTabRestoring", onSSTabRestoring, false);
+  gBrowser.tabContainer.addEventListener("SSTabRestored", onSSTabRestored, true);
+  gBrowser.tabContainer.addEventListener("TabOpen", onTabOpen, false);
   // Restore state
   ss.setBrowserState(JSON.stringify(state));
 }

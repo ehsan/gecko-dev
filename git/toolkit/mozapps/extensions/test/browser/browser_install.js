@@ -62,6 +62,9 @@ function installUpgrade(aCallback) {
         is(get_list_item_count(), 1, "Should be only one item in the list");
 
         aInstall.addListener({
+          onDownloadEnded: function() {
+            is(get_list_item_count(), 1, "Should be only one item in the list once the update has started");
+          },
           onInstallEnded: function() {
             executeSoon(aCallback);
           }
@@ -204,7 +207,7 @@ add_test(function() {
 add_test(function() {
   installSearchResult(function() {
     close_manager(gManagerWindow, function() {
-      open_manager(null, function(aWindow) {
+        open_manager("addons://list/extension", function(aWindow) {
         gManagerWindow = aWindow;
         gCategoryUtilities = new CategoryUtilities(gManagerWindow);
         check_undo_install();

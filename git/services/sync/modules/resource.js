@@ -36,20 +36,78 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["Resource", "AsyncResource"];
+const EXPORTED_SYMBOLS = ["Resource", "AsyncResource",
+                          "Auth", "BrokenBasicAuthenticator",
+                          "BasicAuthenticator", "NoOpAuthenticator"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://services-sync/auth.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
+
+Utils.lazy(this, 'Auth', AuthMgr);
+
+// XXX: the authenticator api will probably need to be changed to support
+// other methods (digest, oauth, etc)
+
+function NoOpAuthenticator() {}
+NoOpAuthenticator.prototype = {
+  onRequest: function NoOpAuth_onRequest(headers) {
+    return headers;
+  }
+};
+
+// Warning: This will drop the high unicode bytes from passwords.
+// Use BasicAuthenticator to send non-ASCII passwords UTF8-encoded.
+function BrokenBasicAuthenticator(identity) {
+  this._id = identity;
+}
+BrokenBasicAuthenticator.prototype = {
+  onRequest: function BasicAuth_onRequest(headers) {
+    headers['Authorization'] = 'Basic ' +
+      btoa(this._id.username + ':' + this._id.password);
+    return headers;
+  }
+};
+
+function BasicAuthenticator(identity) {
+  this._id = identity;
+}
+BasicAuthenticator.prototype = {
+  onRequest: function onRequest(headers) {
+    headers['Authorization'] = 'Basic ' +
+      btoa(this._id.username + ':' + this._id.passwordUTF8);
+    return headers;
+  }
+};
+
+function AuthMgr() {
+  this._authenticators = {};
+  this.defaultAuthenticator = new NoOpAuthenticator();
+}
+AuthMgr.prototype = {
+  defaultAuthenticator: null,
+
+  registerAuthenticator: function AuthMgr_register(match, authenticator) {
+    this._authenticators[match] = authenticator;
+  },
+
+  lookupAuthenticator: function AuthMgr_lookup(uri) {
+    for (let match in this._authenticators) {
+      if (uri.match(match))
+        return this._authenticators[match];
+    }
+    return this.defaultAuthenticator;
+  }
+};
+
 
 /*
  * AsyncResource represents a remote network resource, identified by a URI.
@@ -230,7 +288,7 @@ AsyncResource.prototype = {
     // Set some default values in-case there's no response header
     let headers = {};
     let status = 0;
-    let success = true;
+    let success = false;
     try {
       // Read out the response headers if available
       channel.visitResponseHeaders({
@@ -373,7 +431,13 @@ Resource.prototype = {
   //
   // Perform an asynchronous HTTP GET for this resource.
   get: function Res_get() {
-    return this._request("GET");
+    let response = this._request("GET");
+    if (response.status == 0) {
+      // This must be an erroneously cached response. Try again.
+      this._log.debug("Status 0 in Resource.get: retrying once.");
+      response = this._request("GET");
+    }
+    return response;
   },
 
   // ** {{{ Resource.put }}} **
@@ -446,9 +510,24 @@ ChannelListener.prototype = {
     let siStream = Cc["@mozilla.org/scriptableinputstream;1"].
       createInstance(Ci.nsIScriptableInputStream);
     siStream.init(stream);
-
-    this._data += siStream.read(count);
-    this._onProgress();
+    try {
+      this._data += siStream.read(count);
+    } catch (ex) {
+      this._log.warn("Exception thrown reading " + count +
+                     " bytes from " + siStream + ".");
+      throw ex;
+    }
+    
+    try {
+      this._onProgress();
+    } catch (ex) {
+      this._log.warn("Got exception calling onProgress handler during fetch of "
+                     + req.URI.spec);
+      this._log.debug(Utils.exceptionStr(ex));
+      this._log.trace("Rethrowing; expect a failure code from the HTTP channel.");
+      throw ex;
+    }
+    
     this.delayAbort();
   },
 

@@ -55,6 +55,7 @@
 #include "nsICacheListener.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsIURI.h"
+#include "nsIEventTarget.h"
 
 extern PRLogModuleInfo * gWyciwygLog;
 
@@ -73,6 +74,10 @@ public:
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSICACHELISTENER
 
+    friend class nsWyciwygSetCharsetandSourceEvent;
+    friend class nsWyciwygWriteEvent;
+    friend class nsWyciwygCloseEvent;
+
     // nsWyciwygChannel methods:
     nsWyciwygChannel();
     virtual ~nsWyciwygChannel();
@@ -80,16 +85,22 @@ public:
     nsresult Init(nsIURI *uri);
 
 protected:
+    nsresult WriteToCacheEntryInternal(const nsAString& aData, const nsACString& spec);
+    void SetCharsetAndSourceInternal();
+    nsresult CloseCacheEntryInternal(nsresult reason);
+
     nsresult ReadFromCache();
-    nsresult OpenCacheEntry(const nsACString & aCacheKey, nsCacheAccessMode aWriteAccess, PRBool * aDelayFlag = nsnull);
+    nsresult OpenCacheEntry(const nsACString & aCacheKey, nsCacheAccessMode aWriteAccess);
 
     void WriteCharsetAndSourceToCache(PRInt32 aSource,
                                       const nsCString& aCharset);
 
     void NotifyListener();
-       
+    PRBool IsOnCacheIOThread();
+
     nsresult                            mStatus;
     PRPackedBool                        mIsPending;
+    PRPackedBool                        mCharsetAndSourceSet;
     PRPackedBool                        mNeedToWriteCharset;
     PRInt32                             mCharsetSource;
     nsCString                           mCharset;
@@ -111,6 +122,7 @@ protected:
     nsCOMPtr<nsICacheEntryDescriptor>   mCacheEntry;
     nsCOMPtr<nsIOutputStream>           mCacheOutputStream;
     nsCOMPtr<nsIInputStream>            mCacheInputStream;
+    nsCOMPtr<nsIEventTarget>            mCacheIOTarget;
 
     nsCOMPtr<nsISupports>               mSecurityInfo;
 };

@@ -98,7 +98,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     mGeckoAppShellClass = (jclass) jEnv->NewGlobalRef(jGeckoAppShellClass);
 
     jNotifyIME = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIME", "(II)V");
-    jNotifyIMEEnabled = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEEnabled", "(ILjava/lang/String;)V");
+    jNotifyIMEEnabled = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEEnabled", "(ILjava/lang/String;Ljava/lang/String;)V");
     jNotifyIMEChange = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEChange", "(Ljava/lang/String;III)V");
     jEnableAccelerometer = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableAccelerometer", "(Z)V");
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
@@ -107,7 +107,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jNotifyAppShellReady = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onAppShellReady", "()V");
     jNotifyXreExit = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onXreExit", "()V");
     jGetHandlersForMimeType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForMimeType", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
-    jGetHandlersForProtocol = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForProtocol", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
+    jGetHandlersForURL = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForURL", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
     jOpenUriExternal = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "openUriExternal", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z");
     jGetMimeTypeFromExtensions = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getMimeTypeFromExtensions", "(Ljava/lang/String;)Ljava/lang/String;");
     jMoveTaskToBack = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "moveTaskToBack", "()V");
@@ -122,6 +122,9 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jShowInputMethodPicker = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showInputMethodPicker", "()V");
     jHideProgressDialog = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "hideProgressDialog", "()V");
     jPerformHapticFeedback = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "performHapticFeedback", "(Z)V");
+    jSetKeepScreenOn = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setKeepScreenOn", "(Z)V");
+    jIsNetworkLinkUp = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkUp", "()Z");
+    jIsNetworkLinkKnown = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkKnown", "()Z");
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
     jEGL10Class = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGL10"));
@@ -211,17 +214,20 @@ AndroidBridge::NotifyIME(int aType, int aState)
 }
 
 void
-AndroidBridge::NotifyIMEEnabled(int aState, const nsAString& aHint)
+AndroidBridge::NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
+                                const nsAString& aActionHint)
 {
     if (!sBridge)
         return;
 
-    nsPromiseFlatString hint(aHint);
+    nsPromiseFlatString typeHint(aTypeHint);
+    nsPromiseFlatString actionHint(aActionHint);
 
-    jvalue args[2];
+    jvalue args[3];
     AutoLocalJNIFrame jniFrame(1);
     args[0].i = aState;
-    args[1].l = JNI()->NewString(hint.get(), hint.Length());
+    args[1].l = JNI()->NewString(typeHint.get(), typeHint.Length());
+    args[2].l = JNI()->NewString(actionHint.get(), actionHint.Length());
     JNI()->CallStaticVoidMethodA(sBridge->mGeckoAppShellClass,
                                  sBridge->jNotifyIMEEnabled, args);
 }
@@ -349,20 +355,20 @@ AndroidBridge::GetHandlersForMimeType(const char *aMimeType,
 }
 
 PRBool
-AndroidBridge::GetHandlersForProtocol(const char *aScheme,
+AndroidBridge::GetHandlersForURL(const char *aURL,
                                       nsIMutableArray* aHandlersArray,
                                       nsIHandlerApp **aDefaultApp,
                                       const nsAString& aAction)
 {
     AutoLocalJNIFrame jniFrame;
-    NS_ConvertUTF8toUTF16 wScheme(aScheme);
+    NS_ConvertUTF8toUTF16 wScheme(aURL);
     jstring jstrScheme = mJNIEnv->NewString(wScheme.get(), wScheme.Length());
     const PRUnichar* wAction;
     PRUint32 actionLen = NS_StringGetData(aAction, &wAction);
     jstring jstrAction = mJNIEnv->NewString(wAction, actionLen);
 
     jobject obj = mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass,
-                                                  jGetHandlersForProtocol,
+                                                  jGetHandlersForURL,
                                                   jstrScheme, jstrAction);
     jobjectArray arr = static_cast<jobjectArray>(obj);
     if (!arr)
@@ -560,6 +566,18 @@ AndroidBridge::PerformHapticFeedback(PRBool aIsLongPress)
                                     jPerformHapticFeedback, aIsLongPress);
 }
 
+bool
+AndroidBridge::IsNetworkLinkUp()
+{
+    return !!mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass, jIsNetworkLinkUp);
+}
+
+bool
+AndroidBridge::IsNetworkLinkKnown()
+{
+    return !!mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass, jIsNetworkLinkKnown);
+}
+
 void
 AndroidBridge::SetSurfaceView(jobject obj)
 {
@@ -634,6 +652,13 @@ AndroidBridge::GetStaticStringField(const char *className, const char *fieldName
 
     result.Assign(nsJNIString(jstr));
     return true;
+}
+
+void
+AndroidBridge::SetKeepScreenOn(bool on)
+{
+    JNI()->CallStaticVoidMethod(sBridge->mGeckoAppShellClass,
+                                sBridge->jSetKeepScreenOn, on);
 }
 
 // Available for places elsewhere in the code to link to.

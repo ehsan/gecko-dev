@@ -75,9 +75,6 @@ nsDOMStorageDBWrapper::nsDOMStorageDBWrapper()
 
 nsDOMStorageDBWrapper::~nsDOMStorageDBWrapper()
 {
-  if (mFlushTimer) {
-    mFlushTimer->Cancel();
-  }
 }
 
 nsresult
@@ -97,44 +94,26 @@ nsDOMStorageDBWrapper::Init()
   rv = mPrivateBrowsingDB.Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
-                         nsITimer::TYPE_REPEATING_SLACK);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
 nsresult
-nsDOMStorageDBWrapper::EnsureLoadTemporaryTableForStorage(nsDOMStorage* aStorage)
+nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTables(bool force)
 {
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.EnsureLoadTemporaryTableForStorage(aStorage);
-  if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
-    return NS_OK;
-  if (aStorage->SessionOnly())
-    return NS_OK;
+  nsresult rv1, rv2;
+  rv1 = mChromePersistentDB.FlushTemporaryTables(force);
+  rv2 = mPersistentDB.FlushTemporaryTables(force);
 
-  return mPersistentDB.EnsureLoadTemporaryTableForStorage(aStorage);
+  // Everything flushed?  Then no need for a timer.
+  if (!mChromePersistentDB.mTempTableLoads.Count() && 
+      !mPersistentDB.mTempTableLoads.Count())
+    StopTempTableFlushTimer();
+
+  return NS_FAILED(rv1) ? rv1 : rv2;
 }
 
 nsresult
-nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTableForStorage(nsDOMStorage* aStorage)
-{
-  if (aStorage->CanUseChromePersist())
-    return mChromePersistentDB.FlushAndDeleteTemporaryTableForStorage(aStorage);
-  if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
-    return NS_OK;
-  if (aStorage->SessionOnly())
-    return NS_OK;
-
-  return mPersistentDB.FlushAndDeleteTemporaryTableForStorage(aStorage);
-}
-
-nsresult
-nsDOMStorageDBWrapper::GetAllKeys(nsDOMStorage* aStorage,
+nsDOMStorageDBWrapper::GetAllKeys(DOMStorageImpl* aStorage,
                                   nsTHashtable<nsSessionStorageEntry>* aKeys)
 {
   if (aStorage->CanUseChromePersist())
@@ -148,7 +127,7 @@ nsDOMStorageDBWrapper::GetAllKeys(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::GetKeyValue(nsDOMStorage* aStorage,
+nsDOMStorageDBWrapper::GetKeyValue(DOMStorageImpl* aStorage,
                                    const nsAString& aKey,
                                    nsAString& aValue,
                                    PRBool* aSecure)
@@ -164,7 +143,7 @@ nsDOMStorageDBWrapper::GetKeyValue(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::SetKey(nsDOMStorage* aStorage,
+nsDOMStorageDBWrapper::SetKey(DOMStorageImpl* aStorage,
                               const nsAString& aKey,
                               const nsAString& aValue,
                               PRBool aSecure,
@@ -187,7 +166,7 @@ nsDOMStorageDBWrapper::SetKey(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::SetSecure(nsDOMStorage* aStorage,
+nsDOMStorageDBWrapper::SetSecure(DOMStorageImpl* aStorage,
                                  const nsAString& aKey,
                                  const PRBool aSecure)
 {
@@ -202,7 +181,7 @@ nsDOMStorageDBWrapper::SetSecure(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::RemoveKey(nsDOMStorage* aStorage,
+nsDOMStorageDBWrapper::RemoveKey(DOMStorageImpl* aStorage,
                                  const nsAString& aKey,
                                  PRBool aExcludeOfflineFromUsage,
                                  PRInt32 aKeyUsage)
@@ -218,7 +197,7 @@ nsDOMStorageDBWrapper::RemoveKey(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDBWrapper::ClearStorage(nsDOMStorage* aStorage)
+nsDOMStorageDBWrapper::ClearStorage(DOMStorageImpl* aStorage)
 {
   if (aStorage->CanUseChromePersist())
     return mChromePersistentDB.ClearStorage(aStorage);
@@ -306,7 +285,7 @@ nsDOMStorageDBWrapper::RemoveAll()
 }
 
 nsresult
-nsDOMStorageDBWrapper::GetUsage(nsDOMStorage* aStorage,
+nsDOMStorageDBWrapper::GetUsage(DOMStorageImpl* aStorage,
                                 PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage)
 {
   if (aStorage->CanUseChromePersist())
@@ -452,3 +431,30 @@ nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
   ReverseString(reverseDomain, aDomain);
   return NS_OK;
 }
+
+void
+nsDOMStorageDBWrapper::EnsureTempTableFlushTimer()
+{
+  if (!mTempTableFlushTimer) {
+    nsresult rv;
+    mTempTableFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+
+    if (!NS_SUCCEEDED(rv)) {
+      mTempTableFlushTimer = nsnull;
+      return;
+    }
+
+    mTempTableFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
+                               nsITimer::TYPE_REPEATING_SLACK);
+  }
+}
+
+void
+nsDOMStorageDBWrapper::StopTempTableFlushTimer()
+{
+  if (mTempTableFlushTimer) {
+    mTempTableFlushTimer->Cancel();
+    mTempTableFlushTimer = nsnull;
+  }
+}
+

@@ -44,6 +44,10 @@
 #include "jsscript.h"
 #include "jsstr.h"
 
+#ifdef __APPLE__
+#include "sharkctl.h"
+#endif
+
 #include "jsprobes.h"
 #include <sys/types.h>
 
@@ -82,7 +86,7 @@ Probes::FunctionLineNumber(JSContext *cx, const JSFunction *fun)
  *
  *      jsval      returned
  *      -------------------
- *      STRING  -> char *
+ *      STRING  -> void *
  *      INT     -> int
  *      DOUBLE  -> double *
  *      BOOLEAN -> int
@@ -108,9 +112,6 @@ jsprobes_jsvaltovoid(JSContext *cx, const js::Value &argval)
 
     if (argval.isBoolean())
         return (void *)argval.toBoolean();
-
-    if (argval.isString())
-        return (void *)js_GetStringBytes(cx, argval.toString());
 
     if (argval.isNumber()) {
         if (argval.isInt32())
@@ -153,15 +154,35 @@ Probes::FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString *byt
 void
 Probes::enterJSFunImpl(JSContext *cx, JSFunction *fun, JSScript *script)
 {
+    JSAutoByteString funNameBytes;
     JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(script), FunctionClassname(fun),
-                              FunctionName(cx, fun));
+                              FunctionName(cx, fun, &funNameBytes));
 }
 
 void
 Probes::handleFunctionReturn(JSContext *cx, JSFunction *fun, JSScript *script)
 {
+    JSAutoByteString funNameBytes;
     JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(script), FunctionClassname(fun),
-                               FunctionName(cx, fun));
+                               FunctionName(cx, fun, &funNameBytes));
 }
 
 #endif
+
+bool
+Probes::startProfiling()
+{
+#ifdef MOZ_SHARK
+    if (Shark::Start())
+        return true;
+#endif
+    return false;
+}
+
+void
+Probes::stopProfiling()
+{
+#ifdef MOZ_SHARK
+    Shark::Stop();
+#endif
+}

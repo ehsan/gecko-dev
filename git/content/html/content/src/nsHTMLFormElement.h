@@ -172,6 +172,8 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
+  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString* aValue, PRBool aNotify);
 
   /**
    * Forget all information about the current submission (and the fact that we
@@ -295,6 +297,15 @@ public:
    * @param aFormSubmission the form submission object
    */
   nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
+
+  /**
+   * Whether the submission of this form has been ever prevented because of
+   * being invalid.
+   *
+   * @return Whether the submission of this form has been prevented because of
+   * being invalid.
+   */
+  bool HasEverTriedInvalidSubmit() const { return mEverTriedInvalidSubmit; }
 
 protected:
   class RemoveElementRunnable;
@@ -440,6 +451,12 @@ protected:
    * @note Should only be used by UpdateValidity() and GetValidity()!
    */
   PRInt32 mInvalidElementsCount;
+
+  /**
+   * Whether the submission of this form has been ever prevented because of
+   * being invalid.
+   */
+  bool mEverTriedInvalidSubmit;
 
 protected:
   /** Detection of first form to notify observers */

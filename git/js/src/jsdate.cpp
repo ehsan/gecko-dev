@@ -152,7 +152,6 @@ using namespace js;
  * Supporting functions - ECMA 15.9.1.*
  */
 
-#define HalfTimeDomain  8.64e15
 #define HoursPerDay     24.0
 #define MinutesPerDay   (HoursPerDay * MinutesPerHour)
 #define MinutesPerHour  60.0
@@ -482,10 +481,6 @@ msFromTime(jsdouble t)
     return result;
 }
 
-#define TIMECLIP(d) ((JSDOUBLE_IS_FINITE(d) \
-                      && !((d < 0 ? -d : d) > HalfTimeDomain)) \
-                     ? js_DoubleToInteger(d + (+0.)) : js_NaN)
-
 /**
  * end of ECMA 'support' functions
  */
@@ -755,7 +750,7 @@ ndigits(size_t n, size_t *result, const jschar *s, size_t* i, size_t limit)
  */
 
 static JSBool
-date_parseISOString(JSString *str, jsdouble *result, JSContext *cx)
+date_parseISOString(JSLinearString *str, jsdouble *result, JSContext *cx)
 {
     jsdouble msec;
 
@@ -797,7 +792,8 @@ date_parseISOString(JSString *str, jsdouble *result, JSContext *cx)
         if (!ndigits(n, &field, s, &i, limit)) { goto syntax; }     \
     JS_END_MACRO 
 
-    str->getCharsAndLength(s, limit);
+    s = str->chars();
+    limit = str->length();
 
     if (PEEK('+') || PEEK('-')) {
         if (PEEK('-'))
@@ -888,7 +884,7 @@ date_parseISOString(JSString *str, jsdouble *result, JSContext *cx)
 }
 
 static JSBool
-date_parseString(JSString *str, jsdouble *result, JSContext *cx)
+date_parseString(JSLinearString *str, jsdouble *result, JSContext *cx)
 {
     jsdouble msec;
 
@@ -912,7 +908,8 @@ date_parseString(JSString *str, jsdouble *result, JSContext *cx)
     if (date_parseISOString(str, result, cx))
         return JS_TRUE;
 
-    str->getCharsAndLength(s, limit);
+    s = str->chars();
+    limit = str->length();
     if (limit == 0)
         goto syntax;
     while (i < limit) {
@@ -1172,7 +1169,11 @@ date_parse(JSContext *cx, uintN argc, Value *vp)
     if (!str)
         return JS_FALSE;
     vp[2].setString(str);
-    if (!date_parseString(str, &result, cx)) {
+    JSLinearString *linearStr = str->ensureLinear(cx);
+    if (!linearStr)
+        return false;
+
+    if (!date_parseString(linearStr, &result, cx)) {
         vp->setDouble(js_NaN);
         return true;
     }
@@ -2360,11 +2361,10 @@ date_toSource(JSContext *cx, uintN argc, Value *vp)
         return JS_FALSE;
     }
 
-    str = JS_NewString(cx, bytes, strlen(bytes));
-    if (!str) {
-        js_free(bytes);
+    str = JS_NewStringCopyZ(cx, bytes);
+    js_free(bytes);
+    if (!str)
         return JS_FALSE;
-    }
     vp->setString(str);
     return JS_TRUE;
 }
@@ -2383,8 +2383,6 @@ date_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 date_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    JSString *str, *number_str;
-
     /* It is an error to call date_valueOf on a non-date object, but we don't
      * need to check for that explicitly here because every path calls
      * GetUTCTime, which does the check.
@@ -2395,11 +2393,14 @@ date_valueOf(JSContext *cx, uintN argc, Value *vp)
         return date_getTime(cx, argc, vp);
 
     /* Convert to number only if the hint was given, otherwise favor string. */
-    str = js_ValueToString(cx, vp[2]);
+    JSString *str = js_ValueToString(cx, vp[2]);
     if (!str)
         return JS_FALSE;
-    number_str = ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER]);
-    if (js_EqualStrings(str, number_str))
+    JSLinearString *linear_str = str->ensureLinear(cx);
+    if (!linear_str)
+        return JS_FALSE;
+    JSAtom *number_str = cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER];
+    if (EqualStrings(linear_str, number_str))
         return date_getTime(cx, argc, vp);
     return date_toString(cx, argc, vp);
 }
@@ -2493,8 +2494,11 @@ js_Date(JSContext *cx, uintN argc, Value *vp)
             if (!str)
                 return false;
             argv[0].setString(str);
+            JSLinearString *linearStr = str->ensureLinear(cx);
+            if (!linearStr)
+                return false;
 
-            if (!date_parseString(str, &d, cx))
+            if (!date_parseString(linearStr, &d, cx))
                 d = js_NaN;
             else
                 d = TIMECLIP(d);
@@ -2658,135 +2662,6 @@ js_DateGetSeconds(JSContext *cx, JSObject* obj)
         return 0;
 
     return (int) SecFromTime(utctime);
-}
-
-JS_FRIEND_API(void)
-js_DateSetYear(JSContext *cx, JSObject *obj, int year)
-{
-    jsdouble local;
-
-    if (!GetAndCacheLocalTime(cx, obj, NULL, &local))
-        return;
-
-    /* reset date if it was NaN */
-    if (JSDOUBLE_IS_NaN(local))
-        local = 0;
-
-    local = date_msecFromDate(year,
-                              MonthFromTime(local),
-                              DateFromTime(local),
-                              HourFromTime(local),
-                              MinFromTime(local),
-                              SecFromTime(local),
-                              msFromTime(local));
-
-    /* SetUTCTime also invalidates local time cache. */
-    SetUTCTime(cx, obj, UTC(local, cx));
-}
-
-JS_FRIEND_API(void)
-js_DateSetMonth(JSContext *cx, JSObject *obj, int month)
-{
-    jsdouble local;
-
-    JS_ASSERT(month < 12);
-
-    if (!GetAndCacheLocalTime(cx, obj, NULL, &local))
-        return;
-
-    /* bail if date was NaN */
-    if (JSDOUBLE_IS_NaN(local))
-        return;
-
-    local = date_msecFromDate(YearFromTime(local),
-                              month,
-                              DateFromTime(local),
-                              HourFromTime(local),
-                              MinFromTime(local),
-                              SecFromTime(local),
-                              msFromTime(local));
-    SetUTCTime(cx, obj, UTC(local, cx));
-}
-
-JS_FRIEND_API(void)
-js_DateSetDate(JSContext *cx, JSObject *obj, int date)
-{
-    jsdouble local;
-
-    if (!GetAndCacheLocalTime(cx, obj, NULL, &local))
-        return;
-
-    if (JSDOUBLE_IS_NaN(local))
-        return;
-
-    local = date_msecFromDate(YearFromTime(local),
-                              MonthFromTime(local),
-                              date,
-                              HourFromTime(local),
-                              MinFromTime(local),
-                              SecFromTime(local),
-                              msFromTime(local));
-    SetUTCTime(cx, obj, UTC(local, cx));
-}
-
-JS_FRIEND_API(void)
-js_DateSetHours(JSContext *cx, JSObject *obj, int hours)
-{
-    jsdouble local;
-
-    if (!GetAndCacheLocalTime(cx, obj, NULL, &local))
-        return;
-
-    if (JSDOUBLE_IS_NaN(local))
-        return;
-    local = date_msecFromDate(YearFromTime(local),
-                              MonthFromTime(local),
-                              DateFromTime(local),
-                              hours,
-                              MinFromTime(local),
-                              SecFromTime(local),
-                              msFromTime(local));
-    SetUTCTime(cx, obj, UTC(local, cx));
-}
-
-JS_FRIEND_API(void)
-js_DateSetMinutes(JSContext *cx, JSObject *obj, int minutes)
-{
-    jsdouble local;
-
-    if (!GetAndCacheLocalTime(cx, obj, NULL, &local))
-        return;
-
-    if (JSDOUBLE_IS_NaN(local))
-        return;
-    local = date_msecFromDate(YearFromTime(local),
-                              MonthFromTime(local),
-                              DateFromTime(local),
-                              HourFromTime(local),
-                              minutes,
-                              SecFromTime(local),
-                              msFromTime(local));
-    SetUTCTime(cx, obj, UTC(local, cx));
-}
-
-JS_FRIEND_API(void)
-js_DateSetSeconds(JSContext *cx, JSObject *obj, int seconds)
-{
-    jsdouble local;
-
-    if (!GetAndCacheLocalTime(cx, obj, NULL, &local))
-        return;
-
-    if (JSDOUBLE_IS_NaN(local))
-        return;
-    local = date_msecFromDate(YearFromTime(local),
-                              MonthFromTime(local),
-                              DateFromTime(local),
-                              HourFromTime(local),
-                              MinFromTime(local),
-                              seconds,
-                              msFromTime(local));
-    SetUTCTime(cx, obj, UTC(local, cx));
 }
 
 JS_FRIEND_API(jsdouble)

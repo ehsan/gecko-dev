@@ -41,6 +41,7 @@
 #define jsjaeger_valueinfo_h__
 
 #include "jsapi.h"
+#include "jstypes.h"
 #include "methodjit/MachineRegs.h"
 #include "methodjit/RematInfo.h"
 #include "assembler/assembler/MacroAssembler.h"
@@ -122,6 +123,17 @@ class FrameEntry
         return backing() == other->backing();
     }
 
+    bool isCopy() const { return !!copy; }
+    bool isCopied() const { return copied; }
+
+    inline bool initializerArray() {
+        return initArray;
+    }
+
+    inline JSObject *initializerObject() {
+        return initObject;
+    }
+
   private:
     void setType(JSValueType type_) {
         type.setConstant();
@@ -190,17 +202,9 @@ class FrameEntry
             knownType = cv.extractNonDoubleType();
     }
 
-    bool isCopied() const {
-        return copied;
-    }
-
     void setCopied() {
         JS_ASSERT(!isCopy());
         copied = true;
-    }
-
-    bool isCopy() const {
-        return !!copy;
     }
 
     FrameEntry *copyOf() const {
@@ -244,7 +248,12 @@ class FrameEntry
     bool       copied;
     bool       isNumber;
     bool       tracked;
-    char       padding[1];
+    bool       initArray;
+    JSObject   *initObject;
+
+#if (JS_BITS_PER_WORD == 32)
+    void       *padding;
+#endif
 };
 
 } /* namespace mjit */

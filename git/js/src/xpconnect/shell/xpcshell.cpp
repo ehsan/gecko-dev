@@ -78,6 +78,7 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsIXPCSecurityManager.h"
+#include "xpcpublic.h"
 #ifdef XP_MACOSX
 #include "xpcshellMacUtils.h"
 #endif
@@ -449,7 +450,11 @@ Dump(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    JS_FileEscapedString(gOutFile, str, 0);
+    JSAutoByteString bytes(cx, str);
+    if (!bytes)
+        return JS_FALSE;
+    
+    fputs(bytes.ptr(), gOutFile);
     fflush(gOutFile);
     return JS_TRUE;
 }
@@ -820,11 +825,10 @@ Options(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
     }
-    str = JS_NewString(cx, names, strlen(names));
-    if (!str) {
-        free(names);
+    str = JS_NewStringCopyZ(cx, names);
+    free(names);
+    if (!str)
         return JS_FALSE;
-    }
     JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
     return JS_TRUE;
 }
@@ -869,12 +873,6 @@ static JSFunctionSpec glob_functions[] = {
 #ifdef MOZ_IPC
     {"sendCommand",     SendCommand,    1,0},
     {"getChildGlobalObject", GetChildGlobalObject, 0,0},
-#endif
-#ifdef MOZ_SHARK
-    {"startShark",      js_StartShark,      0,0},
-    {"stopShark",       js_StopShark,       0,0},
-    {"connectShark",    js_ConnectShark,    0,0},
-    {"disconnectShark", js_DisconnectShark, 0,0},
 #endif
 #ifdef MOZ_CALLGRIND
     {"startCallgrind",  js_StartCallgrind,  0,0},
@@ -1324,11 +1322,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'm':
             JS_ToggleOptions(cx, JSOPTION_METHODJIT);
             break;
-#ifdef MOZ_SHARK
-        case 'k':
-            JS_ConnectShark();
-            break;
-#endif
         default:
             return usage();
         }
@@ -1899,6 +1892,10 @@ main(int argc, char **argv)
             return 1;
         }
 
+#ifdef MOZ_ENABLE_LIBXUL
+        xpc_LocalizeContext(cx);
+#endif
+
         nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
         if (!xpc) {
             printf("failed to get nsXPConnect service!\n");
@@ -1988,7 +1985,8 @@ main(int argc, char **argv)
                 return 1;
             }
 
-            if (!JS_DefineFunctions(cx, glob, glob_functions)) {
+            if (!JS_DefineFunctions(cx, glob, glob_functions) ||
+                !JS_DefineProfilingFunctions(cx, glob)) {
                 JS_EndRequest(cx);
                 return 1;
             }

@@ -1176,6 +1176,7 @@ nsLocalFile::GetFileSizeOfLink(PRInt64 *aFileSize)
     return NS_OK;
 }
 
+#if defined(USE_LINUX_QUOTACTL)
 /*
  * Searches /proc/self/mountinfo for given device (Major:Minor), 
  * returns exported name from /dev
@@ -1225,6 +1226,7 @@ GetDeviceName(int deviceMajor, int deviceMinor, nsACString &deviceName)
     fclose(f);
     return ret; 
 }
+#endif
 
 NS_IMETHODIMP
 nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
@@ -1264,8 +1266,8 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
      * a non-superuser, minus one as a fudge factor, multiplied by the size
      * of the aforementioned blocks.
      */
-#ifdef SOLARIS
-    /* On Solaris, unit is f_frsize. */
+#if defined(SOLARIS) || defined(XP_MACOSX)
+    /* On Solaris and Mac, unit is f_frsize. */
     *aDiskSpaceAvailable = (PRInt64)fs_buf.f_frsize * (fs_buf.f_bavail - 1);
 #else
     *aDiskSpaceAvailable = (PRInt64)fs_buf.f_bsize * (fs_buf.f_bavail - 1);

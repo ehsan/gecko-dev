@@ -79,6 +79,9 @@ let Change = {
     this._firstBox = document.getElementById("textBox1");
     this._secondBox = document.getElementById("textBox2");
 
+    this._dialog.getButton("finish").disabled = true;
+    this._dialog.getButton("back").hidden = true;
+
     this._stringBundle =
       Services.strings.createBundle("chrome://browser/locale/syncGenericChange.properties");
 
@@ -87,33 +90,35 @@ let Change = {
       case "ResetPassphrase":
         document.getElementById("textBox1Row").hidden = true;
         document.getElementById("textBox2Row").hidden = true;
-        let passphraseLabel = document.getElementById("passphraseLabel");
-        passphraseLabel.value = this._str("new.synckey.label");
+        document.getElementById("passphraseLabel").value
+          = this._str("new.synckey.label");
+        document.getElementById("passphraseSpacer").hidden = false;
 
         if (this._updatingPassphrase) {
-          document.getElementById("passphraseBackupButtons").hidden = true;
-          document.getElementById("generatePassphraseButton").hidden = true;
+          document.getElementById("passphraseHelpBox").hidden = false;
           document.title = this._str("new.synckey.title");
-          introText.textContent = this._str("new.synckey.introText");
-          this._dialog.getButton("accept")
-              .setAttribute("label", this._str("new.synckey.acceptButton"));
+          introText.textContent = this._str("new.synckey2.introText");
+          this._dialog.getButton("finish").label
+            = this._str("new.synckey.acceptButton");
         }
         else {
+          document.getElementById("generatePassphraseButton").hidden = false;
+          document.getElementById("generatePassphraseButton").hidden = false;
+          this._passphraseBox.setAttribute("readonly", "true");
           let pp = Weave.Service.passphrase;
-          if (pp.length == 20)
-            pp = gSyncUtils.hyphenatePassphrase(pp);
-          document.getElementById("passphraseBox").value = pp;
+          if (Weave.Utils.isPassphrase(pp))
+             pp = Weave.Utils.hyphenatePassphrase(pp);
+          this._passphraseBox.value = pp;
+          this._passphraseBox.focus();
           document.title = this._str("change.synckey.title");
-          introText.innerHTML = this._str("change.synckey.introText");
-          introText2.innerHTML = this._str("change.synckey.introText2");
-          warningText.innerHTML = this._str("change.synckey2.warningText");
-          this._dialog.getButton("accept")
-              .setAttribute("label", this._str("change.synckey.acceptButton"));
+          introText.textContent = this._str("change.synckey.introText2");
+          warningText.textContent = this._str("change.synckey2.warningText");
+          this._dialog.getButton("finish").label
+            = this._str("change.synckey.acceptButton");
         }
         break;
       case "ChangePassword":
         document.getElementById("passphraseRow").hidden = true;
-        document.getElementById("passphraseBackupButtons").hidden = true;
         let box1label = document.getElementById("textBox1Label");
         let box2label = document.getElementById("textBox2Label");
         box1label.value = this._str("new.password.label");
@@ -121,8 +126,8 @@ let Change = {
         if (this._currentPasswordInvalid) {
           document.title = this._str("new.password.title");
           introText.textContent = this._str("new.password.introText");
-          this._dialog.getButton("accept")
-              .setAttribute("label", this._str("new.password.acceptButton"));
+          this._dialog.getButton("finish").label
+            = this._str("new.password.acceptButton");
           document.getElementById("textBox2Row").hidden = true;
         }
         else {
@@ -130,11 +135,13 @@ let Change = {
           box2label.value = this._str("new.password.confirm");
           introText.textContent = this._str("change.password2.introText");
           warningText.textContent = this._str("change.password.warningText");
-          this._dialog.getButton("accept")
-              .setAttribute("label", this._str("change.password.acceptButton"));
+          this._dialog.getButton("finish").label
+            = this._str("change.password.acceptButton");
         }
         break;
     }
+    document.getElementById("change-page")
+            .setAttribute("label", document.title);
   },
 
   _clearStatus: function _clearStatus() {
@@ -148,13 +155,12 @@ let Change = {
   
   _updateStatusWithString: function Change__updateStatusWithString(string, state) {
     this._statusRow.hidden = false;
-    document.getElementById("passphraseStrengthRow").hidden = true;
     this._status.value = string;
     this._statusIcon.setAttribute("status", state);
 
     let error = state == "error";
-    this._dialog.getButton("cancel").setAttribute("disabled", !error);
-    this._dialog.getButton("accept").setAttribute("disabled", !error);
+    this._dialog.getButton("cancel").disabled = !error;
+    this._dialog.getButton("finish").disabled = !error;
     document.getElementById("printSyncKeyButton").disabled = !error;
     document.getElementById("saveSyncKeyButton").disabled = !error;
 
@@ -175,15 +181,13 @@ let Change = {
   },
 
   doGeneratePassphrase: function () {
-    let passphrase = gSyncUtils.generatePassphrase();
-    let el = document.getElementById("passphraseBox");
-    el.value = gSyncUtils.hyphenatePassphrase(passphrase);
-    document.getElementById("passphraseStrengthRow").hidden = true;
-    this._dialog.getButton("accept").disabled = false;
+    let passphrase = Weave.Utils.generatePassphrase();
+    this._passphraseBox.value = Weave.Utils.hyphenatePassphrase(passphrase);
+    this._dialog.getButton("finish").disabled = false;
   },
 
   doChangePassphrase: function Change_doChangePassphrase() {
-    let pp = gSyncUtils.normalizePassphrase(this._passphraseBox.value);
+    let pp = Weave.Utils.normalizePassphrase(this._passphraseBox.value);
     if (this._updatingPassphrase) {
       Weave.Service.passphrase = pp;
       if (Weave.Service.login()) {
@@ -229,7 +233,7 @@ let Change = {
     return false;
   },
 
-  validate: function () {
+  validate: function (event) {
     let valid = false;
     let errorString = "";
 
@@ -240,13 +244,10 @@ let Change = {
         [valid, errorString] = gSyncUtils.validatePassword(this._firstBox, this._secondBox);
     }
     else {
-      if (this._updatingPassphrase) {
-        [valid, errorString] = gSyncUtils.validatePassphrase(this._passphraseBox);
-      } else {
-        [valid, errorString] = gSyncUtils.validatePassphrase(this._passphraseBox, true);
-        if (valid)
-          this.displayPassphraseStrength();
-      }
+      if (!this._updatingPassphrase)
+        return;
+
+      valid = this._passphraseBox.value != "";
     }
 
     if (errorString == "")
@@ -255,22 +256,7 @@ let Change = {
       this._updateStatusWithString(errorString, "error");
 
     this._statusRow.hidden = valid;
-    this._dialog.getButton("accept").disabled = !valid;
-  },
-
-  displayPassphraseStrength: function () {
-    let bits = Weave.Utils.passphraseStrength(this._passphraseBox.value);
-    let meter = document.getElementById("passphraseStrength");
-    meter.value = bits;
-    // The generated 20 character passphrase has an entropy of 94 bits
-    // which we consider "strong".
-    if (bits > 94)
-      meter.className = "strong";
-    else if (bits > 47)
-      meter.className = "medium";
-    else
-      meter.className = "";
-    document.getElementById("passphraseStrengthRow").hidden = false;
+    this._dialog.getButton("finish").disabled = !valid;
   },
 
   _str: function Change__string(str) {

@@ -117,6 +117,7 @@ nsSHEntry::nsSHEntry()
   , mParent(nsnull)
   , mViewerBounds(0, 0, 0, 0)
   , mDocShellID(0)
+  , mLastTouched(0)
 {
 }
 
@@ -165,10 +166,10 @@ nsSHEntry::~nsSHEntry()
   mChildren.EnumerateForwards(ClearParentPtr, nsnull);
   mChildren.Clear();
 
-  nsCOMPtr<nsIContentViewer> viewer = mContentViewer;
-  DropPresentationState();
-  if (viewer) {
-    viewer->Destroy();
+  if (mContentViewer) {
+    // RemoveFromBFCacheSync is virtual, so call the nsSHEntry version
+    // explicitly
+    nsSHEntry::RemoveFromBFCacheSync();
   }
 
   mEditorData = nsnull;
@@ -187,8 +188,8 @@ nsSHEntry::~nsSHEntry()
 //    nsSHEntry: nsISupports
 //*****************************************************************************
 
-NS_IMPL_ISUPPORTS4(nsSHEntry, nsISHContainer, nsISHEntry, nsIHistoryEntry,
-                   nsIMutationObserver)
+NS_IMPL_ISUPPORTS5(nsSHEntry, nsISHContainer, nsISHEntry, nsIHistoryEntry,
+                   nsIMutationObserver, nsISHEntryInternal)
 
 //*****************************************************************************
 //    nsSHEntry: nsISHEntry
@@ -254,7 +255,7 @@ nsSHEntry::SetContentViewer(nsIContentViewer *aViewer)
     // the contentviewer
     mDocument = do_QueryInterface(domDoc);
     if (mDocument) {
-      mDocument->SetShellHidden(PR_TRUE);
+      mDocument->SetBFCacheEntry(this);
       mDocument->AddMutationObserver(this);
     }
   }
@@ -747,7 +748,7 @@ nsSHEntry::DropPresentationState()
   nsRefPtr<nsSHEntry> kungFuDeathGrip = this;
 
   if (mDocument) {
-    mDocument->SetShellHidden(PR_FALSE);
+    mDocument->SetBFCacheEntry(nsnull);
     mDocument->RemoveMutationObserver(this);
     mDocument = nsnull;
   }
@@ -810,7 +811,7 @@ nsSHEntry::CharacterDataChanged(nsIDocument* aDocument,
                                 nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo)
 {
-  DocumentMutated();
+  RemoveFromBFCacheAsync();
 }
 
 void
@@ -829,7 +830,7 @@ nsSHEntry::AttributeChanged(nsIDocument* aDocument,
                             nsIAtom* aAttribute,
                             PRInt32 aModType)
 {
-  DocumentMutated();
+  RemoveFromBFCacheAsync();
 }
 
 void
@@ -838,7 +839,7 @@ nsSHEntry::ContentAppended(nsIDocument* aDocument,
                            nsIContent* aFirstNewContent,
                            PRInt32 /* unused */)
 {
-  DocumentMutated();
+  RemoveFromBFCacheAsync();
 }
 
 void
@@ -847,7 +848,7 @@ nsSHEntry::ContentInserted(nsIDocument* aDocument,
                            nsIContent* aChild,
                            PRInt32 /* unused */)
 {
-  DocumentMutated();
+  RemoveFromBFCacheAsync();
 }
 
 void
@@ -857,7 +858,7 @@ nsSHEntry::ContentRemoved(nsIDocument* aDocument,
                           PRInt32 aIndexInContainer,
                           nsIContent* aPreviousSibling)
 {
-  DocumentMutated();
+  RemoveFromBFCacheAsync();
 }
 
 void
@@ -885,10 +886,27 @@ public:
 };
 
 void
-nsSHEntry::DocumentMutated()
+nsSHEntry::RemoveFromBFCacheSync()
 {
   NS_ASSERTION(mContentViewer && mDocument,
-               "we shouldn't still be observing the doc");
+               "we're not in the bfcache!");
+
+  nsCOMPtr<nsIContentViewer> viewer = mContentViewer;
+  DropPresentationState();
+
+  // Warning! The call to DropPresentationState could have dropped the last
+  // reference to this nsSHEntry, so no accessing members beyond here.
+
+  if (viewer) {
+    viewer->Destroy();
+  }
+}
+
+void
+nsSHEntry::RemoveFromBFCacheAsync()
+{
+  NS_ASSERTION(mContentViewer && mDocument,
+               "we're not in the bfcache!");
 
   // Release the reference to the contentviewer asynchronously so that the
   // document doesn't get nuked mid-mutation.
@@ -978,6 +996,21 @@ NS_IMETHODIMP
 nsSHEntry::SetDocshellID(PRUint64 aID)
 {
   mDocShellID = aID;
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsSHEntry::GetLastTouched(PRUint32 *aLastTouched)
+{
+  *aLastTouched = mLastTouched;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSHEntry::SetLastTouched(PRUint32 aLastTouched)
+{
+  mLastTouched = aLastTouched;
   return NS_OK;
 }
 

@@ -140,7 +140,7 @@ nsTypeAheadFind::Init(nsIDocShell* aDocShell)
   SetDocShell(aDocShell);
 
   // ----------- Listen to prefs ------------------
-  nsresult rv = prefInternal->AddObserver("accessibility.browsewithcaret", this, PR_FALSE);
+  nsresult rv = prefInternal->AddObserver("accessibility.browsewithcaret", this, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // ----------- Get initial preferences ----------
@@ -562,7 +562,7 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
         SetSelectionModeAndRepaint(nsISelectionController::SELECTION_ATTENTION);
         selectionController->ScrollSelectionIntoView(
           nsISelectionController::SELECTION_NORMAL, 
-          nsISelectionController::SELECTION_FOCUS_REGION,
+          nsISelectionController::SELECTION_WHOLE_SELECTION,
           nsISelectionController::SCROLL_SYNCHRONOUS);
       }
 

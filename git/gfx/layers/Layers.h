@@ -86,19 +86,30 @@ class SpecificLayerAttributes;
  * useful for shadow layers, because the metrics values are updated
  * atomically with new pixels.
  */
-struct FrameMetrics {
+struct THEBES_API FrameMetrics {
+public:
+  // We use IDs to identify frames across processes.
+  typedef PRUint64 ViewID;
+  static const ViewID NULL_SCROLL_ID;   // This container layer does not scroll.
+  static const ViewID ROOT_SCROLL_ID;   // This is the root scroll frame.
+  static const ViewID START_SCROLL_ID;  // This is the ID that scrolling subframes
+                                        // will begin at.
+
   FrameMetrics()
-    : mViewportSize(0, 0)
+    : mViewport(0, 0, 0, 0)
+    , mContentSize(0, 0)
     , mViewportScrollOffset(0, 0)
+    , mScrollId(NULL_SCROLL_ID)
   {}
 
   // Default copy ctor and operator= are fine
 
   PRBool operator==(const FrameMetrics& aOther) const
   {
-    return (mViewportSize == aOther.mViewportSize &&
+    return (mViewport == aOther.mViewport &&
             mViewportScrollOffset == aOther.mViewportScrollOffset &&
-            mDisplayPort == aOther.mDisplayPort);
+            mDisplayPort == aOther.mDisplayPort &&
+            mScrollId == aOther.mScrollId);
   }
 
   PRBool IsDefault() const
@@ -106,9 +117,21 @@ struct FrameMetrics {
     return (FrameMetrics() == *this);
   }
 
-  nsIntSize mViewportSize;
+  PRBool IsRootScrollable() const
+  {
+    return mScrollId == ROOT_SCROLL_ID;
+  }
+
+  PRBool IsScrollable() const
+  {
+    return mScrollId != NULL_SCROLL_ID;
+  }
+
+  nsIntRect mViewport;
+  nsIntSize mContentSize;
   nsIntPoint mViewportScrollOffset;
   nsIntRect mDisplayPort;
+  ViewID mScrollId;
 };
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \
@@ -190,6 +213,15 @@ public:
     return mKey == aKey ? mValue.get() : nsnull;
   }
 
+  /**
+   * Clear out current user data.
+   */
+  void Clear()
+  {
+    mKey = nsnull;
+    mValue = nsnull;
+  }
+
 private:
   void* mKey;
   nsAutoPtr<LayerUserData> mValue;
@@ -223,10 +255,12 @@ class THEBES_API LayerManager {
 
 public:
   enum LayersBackend {
-    LAYERS_BASIC = 0,
+    LAYERS_NONE = 0,
+    LAYERS_BASIC,
     LAYERS_OPENGL,
     LAYERS_D3D9,
-    LAYERS_D3D10
+    LAYERS_D3D10,
+    LAYERS_LAST
   };
 
   LayerManager() : mDestroyed(PR_FALSE), mSnapEffectiveTransforms(PR_TRUE)
@@ -241,7 +275,7 @@ public:
    * for its widget going away.  After this call, only user data calls
    * are valid on the layer manager.
    */
-  virtual void Destroy() { mDestroyed = PR_TRUE; }
+  virtual void Destroy() { mDestroyed = PR_TRUE; mUserData.Clear(); }
   PRBool IsDestroyed() { return mDestroyed; }
 
   /**
@@ -259,6 +293,18 @@ public:
    * EndTransaction returns.
    */
   virtual void BeginTransactionWithTarget(gfxContext* aTarget) = 0;
+  /**
+   * Attempts to end an "empty transaction". There must have been no
+   * changes to the layer tree since the BeginTransaction().
+   * It's possible for this to fail; ThebesLayers may need to be updated
+   * due to VRAM data being lost, for example. In such cases this method
+   * returns false, and the caller must proceed with a normal layer tree
+   * update and EndTransaction.
+   */
+  virtual bool EndEmptyTransaction()
+  {
+    return false;
+  }
   /**
    * Function called to draw the contents of each ThebesLayer.
    * aRegionToDraw contains the region that needs to be drawn.
@@ -315,8 +361,15 @@ public:
   /**
    * CONSTRUCTION PHASE ONLY
    * Called when a managee has mutated.
+   * Subclasses overriding this method must first call their
+   * superclass's impl
    */
+#ifdef DEBUG
+  // In debug builds, we check some properties of |aLayer|.
+  virtual void Mutated(Layer* aLayer);
+#else
   virtual void Mutated(Layer* aLayer) { }
+#endif
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -473,19 +526,13 @@ public:
      */
     CONTENT_OPAQUE = 0x01,
     /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text at all. If this is set,
-     * CONTENT_NO_TEXT_OVER_TRANSPARENT will also be set.
+     * If this is set, the caller is notifying that the contents of this layer
+     * require per-component alpha for optimal fidelity. However, there is no
+     * guarantee that component alpha will be supported for this layer at
+     * paint time.
+     * This should never be set at the same time as CONTENT_OPAQUE.
      */
-    CONTENT_NO_TEXT = 0x02,
-    /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text over transparent pixels (any text, if present,
-     * is over fully opaque pixels).
-     */
-    CONTENT_NO_TEXT_OVER_TRANSPARENT = 0x04
+    CONTENT_COMPONENT_ALPHA = 0x02
   };
   /**
    * CONSTRUCTION PHASE ONLY
@@ -495,6 +542,9 @@ public:
    */
   void SetContentFlags(PRUint32 aFlags)
   {
+    NS_ASSERTION((aFlags & (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA)) !=
+                 (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA),
+                 "Can't be opaque and require component alpha");
     mContentFlags = aFlags;
     Mutated();
   }
@@ -581,6 +631,39 @@ public:
     Mutated();
   }
 
+  /**
+   * CONSTRUCTION PHASE ONLY
+   *
+   * Define a subrect of this layer that will be used as the source
+   * image for tiling this layer's visible region.  The coordinates
+   * are in the un-transformed space of this layer (i.e. the visible
+   * region of this this layer is tiled before being transformed).
+   * The visible region is tiled "outwards" from the source rect; that
+   * is, the source rect is drawn "in place", then repeated to cover
+   * the layer's visible region.
+   *
+   * The interpretation of the source rect varies depending on
+   * underlying layer type.  For ImageLayers and CanvasLayers, it
+   * doesn't make sense to set a source rect not fully contained by
+   * the bounds of their underlying images.  For ThebesLayers, thebes
+   * content may need to be rendered to fill the source rect.  For
+   * ColorLayers, a source rect for tiling doesn't make sense at all.
+   *
+   * If aRect is null no tiling will be performed. 
+   *
+   * NB: this interface is only implemented for BasicImageLayers, and
+   * then only for source rects the same size as the layers'
+   * underlying images.
+   */
+  void SetTileSourceRect(const nsIntRect* aRect)
+  {
+    mUseTileSourceRect = aRect != nsnull;
+    if (aRect) {
+      mTileSourceRect = *aRect;
+    }
+    Mutated();
+  }
+
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nsnull; }
@@ -592,6 +675,7 @@ public:
   virtual Layer* GetFirstChild() { return nsnull; }
   virtual Layer* GetLastChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
+  const nsIntRect* GetTileSourceRect() { return mUseTileSourceRect ? &mTileSourceRect : nsnull; }
 
   /**
    * DRAWING PHASE ONLY
@@ -607,6 +691,20 @@ public:
   // it will often make painting of antialiased text faster and higher
   // quality.
   PRBool CanUseOpaqueSurface();
+
+  enum SurfaceMode {
+    SURFACE_OPAQUE,
+    SURFACE_SINGLE_CHANNEL_ALPHA,
+    SURFACE_COMPONENT_ALPHA
+  };
+  SurfaceMode GetSurfaceMode()
+  {
+    if (CanUseOpaqueSurface())
+      return SURFACE_OPAQUE;
+    if (mContentFlags & CONTENT_COMPONENT_ALPHA)
+      return SURFACE_COMPONENT_ALPHA;
+    return SURFACE_SINGLE_CHANNEL_ALPHA;
+  }
 
   /**
    * This setter can be used anytime. The user data for all keys is
@@ -737,7 +835,8 @@ protected:
     mImplData(aImplData),
     mOpacity(1.0),
     mContentFlags(0),
-    mUseClipRect(PR_FALSE)
+    mUseClipRect(PR_FALSE),
+    mUseTileSourceRect(PR_FALSE)
     {}
 
   void Mutated() { mManager->Mutated(this); }
@@ -781,8 +880,10 @@ protected:
   gfx3DMatrix mEffectiveTransform;
   float mOpacity;
   nsIntRect mClipRect;
+  nsIntRect mTileSourceRect;
   PRUint32 mContentFlags;
   PRPackedBool mUseClipRect;
+  PRPackedBool mUseTileSourceRect;
 };
 
 /**
@@ -830,7 +931,9 @@ protected:
     , mValidRegion()
     , mXResolution(1.0)
     , mYResolution(1.0)
-  {}
+  {
+    mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
+  }
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
@@ -912,13 +1015,22 @@ public:
    */
   PRBool HasMultipleChildren();
 
+  /**
+   * Returns true if this container supports children with component alpha.
+   * Should only be called while painting a child of this layer.
+   */
+  PRBool SupportsComponentAlphaChildren() { return mSupportsComponentAlphaChildren; }
+
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
       mFirstChild(nsnull),
       mLastChild(nsnull),
-      mUseIntermediateSurface(PR_FALSE)
-  {}
+      mUseIntermediateSurface(PR_FALSE),
+      mSupportsComponentAlphaChildren(PR_FALSE)
+  {
+    mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
+  }
 
   /**
    * A default implementation of ComputeEffectiveTransforms for use by OpenGL
@@ -937,6 +1049,7 @@ protected:
   Layer* mLastChild;
   FrameMetrics mFrameMetrics;
   PRPackedBool mUseIntermediateSurface;
+  PRPackedBool mSupportsComponentAlphaChildren;
 };
 
 /**

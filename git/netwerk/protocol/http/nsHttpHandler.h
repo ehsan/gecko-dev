@@ -107,7 +107,6 @@ public:
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
     PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     PRUint8        GetQoSBits()              { return mQoSBits; }
-    PRUint16       GetIdleSynTimeout()       { return mIdleSynTimeout; }
     
     PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
 
@@ -171,10 +170,7 @@ public:
     }
 
     // for anything that wants to know if we're in private browsing mode.
-    PRBool InPrivateBrowsingMode()
-    {
-      return mInPrivateBrowsingMode;
-    }
+    PRBool InPrivateBrowsingMode();
 
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
@@ -267,7 +263,6 @@ private:
     PRUint16 mIdleTimeout;
     PRUint16 mMaxRequestAttempts;
     PRUint16 mMaxRequestDelay;
-    PRUint16 mIdleSynTimeout;
 
     PRUint16 mMaxConnections;
     PRUint8  mMaxConnectionsPerServer;
@@ -276,9 +271,6 @@ private:
     PRUint8  mMaxPipelinedRequests;
 
     PRUint8  mRedirectionLimit;
-
-    // cached value of whether or not the browser is in private browsing mode.
-    PRBool   mInPrivateBrowsingMode;
 
     // we'll warn the user if we load an URL containing a userpass field
     // unless its length is less than this threshold.  this warning is
@@ -289,6 +281,13 @@ private:
     PRUint8  mQoSBits;
 
     PRPackedBool mPipeliningOverSSL;
+
+    // cached value of whether or not the browser is in private browsing mode.
+    enum {
+        PRIVATE_BROWSING_OFF = PR_FALSE,
+        PRIVATE_BROWSING_ON = PR_TRUE,
+        PRIVATE_BROWSING_UNKNOWN = 2
+    } mInPrivateBrowsingMode;
 
     nsCString mAccept;
     nsCString mAcceptLanguages;

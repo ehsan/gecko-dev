@@ -45,7 +45,7 @@
 
 
 /**
- * XXX to get CAIRO_HAS_DDRAW_SURFACE, CAIRO_HAS_D2D_SURFACE and
+ * XXX to get CAIRO_HAS_D2D_SURFACE and
  * CAIRO_HAS_DWRITE_FONT
  */
 #include "cairo.h"
@@ -227,10 +227,12 @@ public:
 
     static PRInt32 WindowsOSVersion();
 
+    static void GetDLLVersion(PRUnichar *aDLLPath, nsAString& aVersion);
+
     virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 #ifdef CAIRO_HAS_DWRITE_FONT
-    IDWriteFactory *GetDWriteFactory() { return mUseDirectWrite ? mDWriteFactory : nsnull; }
+    IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
     inline PRBool DWriteEnabled() { return mUseDirectWrite; }
 #else
     inline PRBool DWriteEnabled() { return PR_FALSE; }

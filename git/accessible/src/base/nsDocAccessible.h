@@ -41,8 +41,9 @@
 
 #include "nsIAccessibleDocument.h"
 
-#include "nsHyperTextAccessibleWrap.h"
 #include "nsEventShell.h"
+#include "nsHyperTextAccessibleWrap.h"
+#include "NotificationController.h"
 
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
@@ -189,6 +190,41 @@ public:
   nsresult FireDelayedAccessibleEvent(AccEvent* aEvent);
 
   /**
+   * Handle anchor jump when page is loaded.
+   */
+  inline void HandleAnchorJump(nsIContent* aTargetNode)
+  {
+    HandleNotification<nsDocAccessible, nsIContent>
+      (this, &nsDocAccessible::ProcessAnchorJump, aTargetNode);
+  }
+
+  /**
+   * Bind the child document to the tree.
+   */
+  inline void BindChildDocument(nsDocAccessible* aDocument)
+  {
+    mNotificationController->ScheduleChildDocBinding(aDocument);
+  }
+
+  /**
+   * Process the generic notification.
+   *
+   * @note  The caller must guarantee that the given instance still exists when
+   *          notification is processed.
+   * @see   NotificationController::HandleNotification
+   */
+  template<class Class, class Arg>
+  inline void HandleNotification(Class* aInstance,
+                                 typename TNotification<Class, Arg>::Callback aMethod,
+                                 Arg* aArg)
+  {
+    if (mNotificationController) {
+      mNotificationController->HandleNotification<Class, Arg>(aInstance,
+                                                              aMethod, aArg);
+    }
+  }
+
+  /**
    * Return the cached accessible by the given DOM node if it's in subtree of
    * this document accessible or the document accessible itself, otherwise null.
    *
@@ -240,16 +276,16 @@ public:
   void UnbindFromDocument(nsAccessible* aAccessible);
 
   /**
-   * Process the event when the queue of pending events is untwisted. Fire
-   * accessible events as result of the processing.
+   * Notify the document accessible that content was inserted.
    */
-  void ProcessPendingEvent(AccEvent* aEvent);
+  void ContentInserted(nsIContent* aContainerNode,
+                       nsIContent* aStartChildNode,
+                       nsIContent* aEndChildNode);
 
   /**
-   * Update the accessible tree.
+   * Notify the document accessible that content was removed.
    */
-  void UpdateTree(nsIContent* aContainerNode, nsIContent* aStartChildNode,
-                  nsIContent* aEndChildNode, PRBool aIsInsert);
+  void ContentRemoved(nsIContent* aContainerNode, nsIContent* aChildNode);
 
   /**
    * Recreate an accessible, results in hide/show events pair.
@@ -319,7 +355,15 @@ protected:
   void RemoveDependentIDsFor(nsAccessible* aRelProvider,
                              nsIAtom* aRelAttr = nsnull);
 
-    static void ScrollTimerCallback(nsITimer *aTimer, void *aClosure);
+  /**
+   * Update or recreate an accessible depending on a changed attribute.
+   *
+   * @param aElement   [in] the element the attribute was changed on
+   * @param aAttribute [in] the changed attribute
+   * @return            true if an action was taken on the attribute change
+   */
+  bool UpdateAccessibleOnAttrChange(mozilla::dom::Element* aElement,
+                                    nsIAtom* aAttribute);
 
     /**
      * Fires accessible events when attribute is changed.
@@ -358,6 +402,29 @@ protected:
   void FireValueChangeForTextFields(nsAccessible *aAccessible);
 
   /**
+   * Process the event when the queue of pending events is untwisted. Fire
+   * accessible events as result of the processing.
+   */
+  void ProcessPendingEvent(AccEvent* aEvent);
+
+  /**
+   * Process anchor jump notification and fire scrolling end event.
+   */
+  void ProcessAnchorJump(nsIContent* aTargetNode);
+
+  /**
+   * Update the accessible tree for inserted content.
+   */
+  void ProcessContentInserted(nsAccessible* aContainer,
+                              const nsTArray<nsCOMPtr<nsIContent> >* aInsertedContent);
+
+  /**
+   * Update the accessible tree for content insertion or removal.
+   */
+  void UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
+                  PRBool aIsInsert);
+
+  /**
    * Helper for UpdateTree() method. Go down to DOM subtree and updates
    * accessible tree. Return one of these flags.
    */
@@ -370,9 +437,12 @@ protected:
   PRUint32 UpdateTreeInternal(nsAccessible* aContainer,
                               nsIContent* aStartNode,
                               nsIContent* aEndNode,
-                              PRBool aIsInsert,
-                              PRBool aFireEvents,
-                              EIsFromUserInput aFromUserInput);
+                              PRBool aIsInsert);
+
+  /**
+   * Create accessible tree.
+   */
+  void CacheChildrenInSubtree(nsAccessible* aRoot);
 
   /**
    * Remove accessibles in subtree from node to accessible map.
@@ -388,6 +458,14 @@ protected:
   void ShutdownChildrenInSubtree(nsAccessible *aAccessible);
 
   /**
+   * Used to fire scrolling end event after page scroll.
+   *
+   * @param aTimer    [in] the timer object
+   * @param aClosure  [in] the document accessible where scrolling happens
+   */
+  static void ScrollTimerCallback(nsITimer* aTimer, void* aClosure);
+
+  /**
    * Cache of accessibles within this document accessible.
    */
   nsAccessibleHashtable mAccessibleCache;
@@ -400,15 +478,12 @@ protected:
 
 protected:
 
-  nsRefPtr<nsAccEventQueue> mEventQueue;
-
   /**
    * Specifies if the document was loaded, used for error pages only.
    */
   PRPackedBool mIsLoaded;
 
     static PRUint32 gLastFocusedAccessiblesState;
-    static nsIAtom *gLastFocusedFrameType;
 
   nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
 
@@ -448,6 +523,12 @@ protected:
   nsAccessible* mCacheRoot;
   nsTArray<nsIContent*> mInvalidationList;
   PRBool mIsPostCacheProcessing;
+
+  /**
+   * Used to process notification from core and accessible events.
+   */
+  nsRefPtr<NotificationController> mNotificationController;
+  friend class NotificationController;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,

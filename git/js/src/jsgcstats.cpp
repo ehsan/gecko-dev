@@ -279,8 +279,8 @@ DumpArenaStats(JSGCArenaStats *stp, FILE *fp)
 void
 DumpCompartmentStats(JSCompartment *comp, FILE *fp)
 {
-    if (comp->rt->defaultCompartment == comp)
-        fprintf(fp, "\n**** DefaultCompartment Allocation Statistics: %p ****\n\n", (void *) comp);
+    if (comp->rt->atomsCompartment == comp)
+        fprintf(fp, "\n**** AtomsCompartment Allocation Statistics: %p ****\n\n", (void *) comp);
     else
         fprintf(fp, "\n**** Compartment Allocation Statistics: %p ****\n\n", (void *) comp);
 
@@ -362,9 +362,13 @@ GCMarker::dumpConservativeRoots()
           }
           case JSTRACE_STRING: {
             JSString *str = (JSString *) i->thing;
-            char buf[50];
-            PutEscapedString(buf, sizeof buf, str, '"');
-            fprintf(fp, "string %s", buf);
+            if (str->isLinear()) {
+                char buf[50];
+                PutEscapedString(buf, sizeof buf, str->assertIsLinear(), '"');
+                fprintf(fp, "string %s", buf);
+            } else {
+                fprintf(fp, "rope: length %d", (int)str->length());
+            }
             break;
           }
 # if JS_HAS_XML_SUPPORT

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -109,7 +109,7 @@ public class GeckoInputConnection
         try {
             mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: deleteSurroundingText interrupted");
+            Log.e("GeckoAppJava", "IME: deleteSurroundingText interrupted", e);
             return false;
         }
         delStart = mSelectionStart > leftLength ?
@@ -194,13 +194,13 @@ public class GeckoInputConnection
         try {
             text = mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted");
+            Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted", e);
             return false;
         }
 
         switch (id) {
             case R.id.selectAll:
-                setSelection(0, mUpdateExtract.text.length());
+                setSelection(0, text.length());
                 break;
             case R.id.cut:
                 // Fill the clipboard
@@ -224,7 +224,7 @@ public class GeckoInputConnection
                     try {
                         text = mQueryResult.take();
                     } catch (InterruptedException e) {
-                        Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted");
+                        Log.e("GeckoAppJava", "IME: performContextMenuAction interrupted", e);
                         return false;
                     }
                 }
@@ -251,7 +251,7 @@ public class GeckoInputConnection
         try {
             mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getExtractedText interrupted");
+            Log.e("GeckoAppJava", "IME: getExtractedText interrupted", e);
             return null;
         }
         extract.selectionStart = mSelectionStart;
@@ -268,7 +268,7 @@ public class GeckoInputConnection
             return extract;
 
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getExtractedText interrupted");
+            Log.e("GeckoAppJava", "IME: getExtractedText interrupted", e);
             return null;
         }
     }
@@ -282,7 +282,7 @@ public class GeckoInputConnection
         try {
             mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor interrupted");
+            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor interrupted", e);
             return null;
         }
 
@@ -305,7 +305,7 @@ public class GeckoInputConnection
         try {
             return mQueryResult.take();
         } catch (InterruptedException e) {
-            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor: Interrupted!");
+            Log.e("GeckoAppJava", "IME: getTextBefore/AfterCursor: Interrupted!", e);
             return null;
         }
     }
@@ -331,7 +331,7 @@ public class GeckoInputConnection
             try {
                 mQueryResult.take();
             } catch (InterruptedException e) {
-                Log.e("GeckoAppJava", "IME: setComposingText interrupted");
+                Log.e("GeckoAppJava", "IME: setComposingText interrupted", e);
                 return false;
             }
             // Make sure we are in a composition
@@ -488,12 +488,15 @@ public class GeckoInputConnection
         //Log.d("GeckoAppJava", "IME: notifyTextChange");
 
         if (!text.contentEquals(GeckoApp.surfaceView.mEditable))
-            GeckoApp.surfaceView.setupEditable(text);
+            GeckoApp.surfaceView.setEditable(text);
 
         if (mUpdateRequest == null)
             return;
 
         mUpdateExtract.flags = 0;
+
+        // We update from (0, oldEnd) to (0, newEnd) because some Android IMEs
+        // assume that updates start at zero, according to jchen.
         mUpdateExtract.partialStartOffset = 0;
         mUpdateExtract.partialEndOffset = oldEnd;
 
@@ -501,7 +504,7 @@ public class GeckoInputConnection
         mUpdateExtract.selectionStart = newEnd;
         mUpdateExtract.selectionEnd = newEnd;
 
-        mUpdateExtract.text = text;
+        mUpdateExtract.text = text.substring(0, newEnd);
         mUpdateExtract.startOffset = 0;
 
         imm.updateExtractedText(GeckoApp.surfaceView,
@@ -539,14 +542,23 @@ public class GeckoInputConnection
         GeckoAppShell.sendEventToGecko(
             new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start, before));
 
-        if (count == 0)
+        if (count == 0) {
             GeckoAppShell.sendEventToGecko(
                 new GeckoEvent(GeckoEvent.IME_DELETE_TEXT, 0, 0));
-        else
+        } else {
+            // Start and stop composition to force UI updates.
+            finishComposingText();
+            GeckoAppShell.sendEventToGecko(
+                new GeckoEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
+
             GeckoAppShell.sendEventToGecko(
                 new GeckoEvent(0, count,
                                GeckoEvent.IME_RANGE_RAWINPUT, 0, 0, 0,
                                s.subSequence(start, start + count).toString()));
+
+            GeckoAppShell.sendEventToGecko(
+                new GeckoEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
+        }
     }
 
     public void afterTextChanged(Editable s)

@@ -61,6 +61,7 @@
 #include "nsCheapSets.h"
 #include "nsLayoutErrors.h"
 #include "nsHTMLOptionElement.h"
+#include "nsHTMLFormElement.h"
 
 class nsHTMLSelectElement;
 
@@ -267,6 +268,7 @@ public:
 
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
   virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
@@ -301,7 +303,9 @@ public:
                              PRBool aNotify);
   
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
-  virtual PRBool IsDoneAddingChildren();
+  virtual PRBool IsDoneAddingChildren() {
+    return mIsDoneAddingChildren;
+  }
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -348,7 +352,7 @@ protected:
    * and set mSelectedIndex to it.
    * @param aStartIndex the index to start with
    */
-  void FindSelectedIndex(PRInt32 aStartIndex);
+  void FindSelectedIndex(PRInt32 aStartIndex, PRBool aNotify);
   /**
    * Select some option if possible (generally the first non-disabled option).
    * @return true if something was selected, false otherwise
@@ -496,7 +500,7 @@ protected:
   /**
    * Rebuilds the options array from scratch as a fallback in error cases.
    */
-  void RebuildOptionsArray();
+  void RebuildOptionsArray(PRBool aNotify);
 
 #ifdef DEBUG
   void VerifyOptionsArray();
@@ -505,6 +509,30 @@ protected:
   virtual PRBool AcceptAutofocus() const
   {
     return PR_TRUE;
+  }
+
+  nsresult SetSelectedIndexInternal(PRInt32 aIndex, PRBool aNotify);
+
+  void SetSelectionChanged(PRBool aValue, PRBool aNotify);
+
+  /**
+   * Return whether an element should have a validity UI.
+   * (with :-moz-ui-invalid and :-moz-ui-valid pseudo-classes).
+   *
+   * @return Whether the element should have a validity UI.
+   */
+  bool ShouldShowValidityUI() const {
+    /**
+     * Always show the validity UI if the form has already tried to be submitted
+     * but was invalid.
+     *
+     * Otherwise, show the validity UI if the selection has been changed.
+     */
+    if (mForm && mForm->HasEverTriedInvalidSubmit()) {
+      return true;
+    }
+
+    return mSelectionHasChanged;
   }
 
   /** The options[] array */
@@ -521,6 +549,23 @@ protected:
    * True if DoneAddingChildren will get called but shouldn't restore state.
    */
   PRPackedBool    mInhibitStateRestoration;
+  /**
+   * True if the selection has changed since the element's creation.
+   */
+  PRPackedBool    mSelectionHasChanged;
+  /**
+   * True if the default selected option has been set.
+   */
+  PRPackedBool    mDefaultSelectionSet;
+  /**
+   * True if :-moz-ui-invalid can be shown.
+   */
+  PRPackedBool    mCanShowInvalidUI;
+  /**
+   * True if :-moz-ui-valid can be shown.
+   */
+  PRPackedBool    mCanShowValidUI;
+
   /** The number of non-options as children of the select */
   PRUint32  mNonOptionChildren;
   /** The number of optgroups anywhere under the select */

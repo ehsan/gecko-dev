@@ -17,6 +17,7 @@
   <!-- Our SimpleTest/TestRunner.js runs tests inside an iframe which sizes are W=500 H=300.
        'left' and 'top' values need to be set so that the panel (popup) has enough room to display on its 4 sides. -->
   <label id="middle" value="+/- Centered" left="225" top="135"/>
+  <iframe id="frame" src="data:text/html,&lt;input id='input'&gt;" width="100" height="100" left="225" top="180"/>
 </stack>
 
 <panel id="panel" type="arrow" onpopupshown="checkPanelPosition(this)" onpopuphidden="runNextTest.next()">
@@ -44,10 +45,11 @@ function nextTest()
 
   function openPopup(position, anchor, expected, anchorEdge)
   {
-    expectedAnchor = $(anchor);
+    expectedAnchor = anchor instanceof Node ? anchor : $(anchor);
     expectedSide = expected;
     expectedAnchorEdge = anchorEdge;
 
+    panel.removeAttribute("side");
     panel.openPopup(expectedAnchor, position, 0, 0, false, false, null);
   }
 
@@ -95,6 +97,27 @@ function nextTest()
   openPopup("end_before", "bottomright", "right", "bottom");
   yield;
 
+  openPopup("topcenter bottomleft", "bottomleft", "bottom", "center left");
+  yield;
+  openPopup("bottomcenter topleft", "topleft", "top", "center left");
+  yield;
+  openPopup("topcenter bottomright", "bottomright", "bottom", "center right");
+  yield;
+  openPopup("bottomcenter topright", "topright", "top", "center right");
+  yield;
+  openPopup("topcenter bottomleft", "middle", "bottom", "center left");
+  yield;
+  openPopup("bottomcenter topleft", "middle", "top", "center left");
+  yield;
+
+  openPopup("leftcenter topright", "middle", "right", "center top");
+  yield;
+  openPopup("rightcenter bottomleft", "middle", "left", "center bottom");
+  yield;
+
+  openPopup("after_start", frames[0].document.getElementById("input"), "top", "left");
+  yield;
+
   SimpleTest.finish();
   yield;
 }
@@ -120,18 +143,43 @@ function checkPanelPosition(panel)
       break;
   }
 
+  let iscentered = false;
+  if (expectedAnchorEdge.indexOf("center ") == 0) {
+    expectedAnchorEdge = expectedAnchorEdge.substring(7);
+    iscentered = true;
+  }
+
+  let adj = 0, hwinpos = 0, vwinpos = 0;
+  if (anchor.ownerDocument != document) {
+    var framerect = anchor.ownerDocument.defaultView.frameElement.getBoundingClientRect();
+    hwinpos = framerect.left;
+    vwinpos = framerect.top;
+  }
+
   switch (expectedAnchorEdge) {
     case "top":
-      is(panelRect.top, anchorRect.top, "anchored on top");
+      adj = vwinpos + parseInt(getComputedStyle(panel, "").marginTop);
+      if (iscentered)
+        adj += anchorRect.height / 2;
+      is(Math.round(panelRect.top), Math.round(anchorRect.top + adj), "anchored on top");
       break;
     case "bottom":
-      is(panelRect.bottom, anchorRect.bottom, "anchored on bottom");
+      adj = vwinpos + parseInt(getComputedStyle(panel, "").marginBottom);
+      if (iscentered)
+        adj += anchorRect.height / 2;
+      is(Math.round(panelRect.bottom), Math.round(anchorRect.bottom - adj), "anchored on bottom");
       break;
     case "left":
-      is(panelRect.left, anchorRect.left, "anchored on left");
+      adj = hwinpos + parseInt(getComputedStyle(panel, "").marginLeft);
+      if (iscentered)
+        adj += anchorRect.width / 2;
+      is(Math.round(panelRect.left), Math.round(anchorRect.left + adj), "anchored on left ");
       break;
     case "right":
-      is(panelRect.right, anchorRect.right, "anchored on right");
+      adj = hwinpos + parseInt(getComputedStyle(panel, "").marginRight);
+      if (iscentered)
+        adj += anchorRect.width / 2;
+      is(Math.round(panelRect.right), Math.round(anchorRect.right - adj), "anchored on right");
       break;
   }
 

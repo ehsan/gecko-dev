@@ -544,7 +544,7 @@ public:
                             PRBool* aReturn);
   nsresult CloneNode(PRBool aDeep, nsIDOMNode **aResult)
   {
-    return nsNodeUtils::CloneNodeImpl(this, aDeep, aResult);
+    return nsNodeUtils::CloneNodeImpl(this, aDeep, PR_TRUE, aResult);
   }
 
   //----------------------------------------
@@ -976,7 +976,7 @@ protected:
   // Override from nsINode
   virtual nsINode::nsSlots* CreateSlots();
 
-  nsDOMSlots *GetDOMSlots()
+  nsDOMSlots *DOMSlots()
   {
     return static_cast<nsDOMSlots*>(GetSlots());
   }

@@ -44,7 +44,7 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsRegion.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -243,6 +243,9 @@ struct IMEContext {
 
   /* The type of the input if the input is a html input field */
   nsString mHTMLInputType;
+
+  /* A hint for the action that is performed when the input is submitted */
+  nsString mActionHint;
 };
 
 
@@ -258,6 +261,19 @@ class nsIWidget : public nsISupports {
 
   public:
     typedef mozilla::layers::LayerManager LayerManager;
+
+    // Used in UpdateThemeGeometries.
+    struct ThemeGeometry {
+      // The -moz-appearance value for the themed widget
+      PRUint8 mWidgetType;
+      // The device-pixel rect within the window for the themed widget
+      nsIntRect mRect;
+
+      ThemeGeometry(PRUint8 aWidgetType, const nsIntRect& aRect)
+       : mWidgetType(aWidgetType)
+       , mRect(aRect)
+      { }
+    };
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_IID)
 
@@ -507,6 +523,9 @@ class nsIWidget : public nsISupports {
 
     /**
      * Move this widget.
+     *
+     * Coordinates refer to the top-left of the widget.  For toplevel windows
+     * with decorations, this is the top-left of the titlebar and frame .
      *
      * @param aX the new x position expressed in the parent's coordinate system
      * @param aY the new y position expressed in the parent's coordinate system
@@ -1366,6 +1385,8 @@ class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
   public:
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)
 
+    typedef mozilla::layers::LayerManager LayerManager;
+
     /*
      * Notifies the IME if the input context changes.
      *
@@ -1378,6 +1399,41 @@ class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
      * Get IME is 'Enabled' or 'Disabled' or 'Password' and other input context
      */
     NS_IMETHOD GetInputMode(IMEContext& aContext) = 0;
+
+    enum LayerManagerPersistence
+    {
+      LAYER_MANAGER_CURRENT = 0,
+      LAYER_MANAGER_PERSISTENT
+    };
+
+    virtual LayerManager *GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+                                          bool* aAllowRetaining = nsnull) = 0;
+
+    // Hide build warnings about nsIWidget::GetLayerManager being hidden by
+    // our GetLayerManager method above.
+    using nsIWidget::GetLayerManager;
+
+    /**
+     * Called after the LayerManager draws the layer tree
+     *
+     * @param aManager The drawing LayerManager.
+     * @param aRect Current widget rect that is being drawn.
+     */
+    virtual void DrawOver(LayerManager* aManager, nsIntRect aRect) = 0;
+
+    /**
+     * Called when Gecko knows which themed widgets exist in this window.
+     * The passed array contains an entry for every themed widget of the right
+     * type (currently only NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR and
+     * NS_THEME_TOOLBAR) within the window, except for themed widgets which are
+     * transformed or have effects applied to them (e.g. CSS opacity or
+     * filters).
+     * This could sometimes be called during display list construction
+     * outside of painting.
+     * If called during painting, it will be called before we actually
+     * paint anything.
+     */
+    virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget_MOZILLA_2_0_BRANCH, NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)

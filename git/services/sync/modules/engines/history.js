@@ -13,12 +13,15 @@
  *
  * The Original Code is Weave
  *
- * The Initial Developer of the Original Code is Mozilla.
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Dan Mills <thunder@mozilla.com>
+ *   Dan Mills <thunder@mozilla.com>
+ *   Philipp von Weitershausen <philipp@weitershausen.de>
+ *   Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,24 +37,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['HistoryEngine'];
+const EXPORTED_SYMBOLS = ['HistoryEngine', 'HistoryRec'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
+const Cr = Components.results;
 
-const GUID_ANNO = "weave/guid";
+const GUID_ANNO = "sync/guid";
+const HISTORY_TTL = 5184000; // 60 days
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/stores.js");
-Cu.import("resource://services-sync/trackers.js");
-Cu.import("resource://services-sync/type_records/history.js");
+Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/log4moz.js");
 
+function HistoryRec(collection, id) {
+  CryptoWrapper.call(this, collection, id);
+}
+HistoryRec.prototype = {
+  __proto__: CryptoWrapper.prototype,
+  _logName: "Record.History",
+  ttl: HISTORY_TTL
+};
+
+Utils.deferGetSet(HistoryRec, "cleartext", ["histUri", "title", "visits"]);
+
+
 function HistoryEngine() {
   SyncEngine.call(this, "History");
+  this.downloadLimit = MAX_HISTORY_DOWNLOAD;
 }
 HistoryEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -110,14 +127,31 @@ HistoryStore.prototype = {
       "WHERE name IN ('moz_places_temp', 'moz_historyvisits_temp')");
   },
 
+  __haveTempTables: null,
   get _haveTempTables() {
-    if (this.__haveTempTables == null)
+    if (this.__haveTempTables === null)
       this.__haveTempTables = !!Utils.queryAsync(this._haveTempTablesStm,
                                                  ["name"]).length;
     return this.__haveTempTables;
   },
 
+  __haveGUIDColumn: null,
+  get _haveGUIDColumn() {
+    if (this.__haveGUIDColumn !== null) {
+      return this.__haveGUIDColumn;
+    }
+    let stmt;
+    try {
+      stmt = this._db.createStatement("SELECT guid FROM moz_places");
+      stmt.finalize();
+      return this.__haveGUIDColumn = true;
+    } catch(ex) {
+      return this.__haveGUIDColumn = false;
+    }
+  },
+
   get _addGUIDAnnotationNameStm() {
+    // Gecko <2.0 only
     let stmt = this._getStmt(
       "INSERT OR IGNORE INTO moz_anno_attributes (name) VALUES (:anno_name)");
     stmt.params.anno_name = GUID_ANNO;
@@ -125,32 +159,22 @@ HistoryStore.prototype = {
   },
 
   get _checkGUIDPageAnnotationStm() {
-    let base =
+    // Gecko <2.0 only
+    let stmt = this._getStmt(
       "SELECT h.id AS place_id, " +
         "(SELECT id FROM moz_anno_attributes WHERE name = :anno_name) AS name_id, " +
-        "a.id AS anno_id, a.dateAdded AS anno_date ";
-    let stmt;
-    if (this._haveTempTables) {
-      // Gecko <2.0
-      stmt = this._getStmt(base +
-        "FROM (SELECT id FROM moz_places_temp WHERE url = :page_url " +
-              "UNION " +
-              "SELECT id FROM moz_places WHERE url = :page_url) AS h " +
-        "LEFT JOIN moz_annos a ON a.place_id = h.id " +
-                             "AND a.anno_attribute_id = name_id");
-    } else {
-      // Gecko 2.0
-      stmt = this._getStmt(base +
-        "FROM moz_places h " + 
-        "LEFT JOIN moz_annos a ON a.place_id = h.id " +
-                             "AND a.anno_attribute_id = name_id " +
-        "WHERE h.url = :page_url");
-    }
+        "a.id AS anno_id, a.dateAdded AS anno_date " +
+      "FROM (SELECT id FROM moz_places_temp WHERE url = :page_url " +
+            "UNION " +
+            "SELECT id FROM moz_places WHERE url = :page_url) AS h " +
+      "LEFT JOIN moz_annos a ON a.place_id = h.id " +
+                           "AND a.anno_attribute_id = name_id");
     stmt.params.anno_name = GUID_ANNO;
     return stmt;
   },
 
   get _addPageAnnotationStm() {
+    // Gecko <2.0 only
     return this._getStmt(
     "INSERT OR REPLACE INTO moz_annos " +
       "(id, place_id, anno_attribute_id, mime_type, content, flags, " +
@@ -159,12 +183,42 @@ HistoryStore.prototype = {
             ":expiration, :type, :date_added, :last_modified)");
   },
 
+  __setGUIDStm: null,
+  get _setGUIDStm() {
+    if (this.__setGUIDStm !== null) {
+      return this.__setGUIDStm;
+    }
+
+    // Obtains a statement to set the guid iff the guid column exists.
+    let stmt;
+    if (this._haveGUIDColumn) {
+      stmt = this._getStmt(
+        "UPDATE moz_places " +
+        "SET guid = :guid " +
+        "WHERE url = :page_url");
+    } else {
+      stmt = false;
+    }
+
+    return this.__setGUIDStm = stmt;
+  },
+
   // Some helper functions to handle GUIDs
   setGUID: function setGUID(uri, guid) {
     uri = uri.spec ? uri.spec : uri;
 
     if (arguments.length == 1)
       guid = Utils.makeGUID();
+
+    // If we can, set the GUID on moz_places and do not do any other work.
+    let (stmt = this._setGUIDStm) {
+      if (stmt) {
+        stmt.params.guid = guid;
+        stmt.params.page_url = uri;
+        Utils.queryAsync(stmt);
+        return guid;
+      }
+    }
 
     // Ensure annotation name exists
     Utils.queryAsync(this._addGUIDAnnotationNameStm);
@@ -199,29 +253,35 @@ HistoryStore.prototype = {
     return guid;
   },
 
+  __guidStm: null,
   get _guidStm() {
-    let base =
-      "SELECT a.content AS guid " +
-      "FROM moz_annos a " +
-      "JOIN moz_anno_attributes n ON n.id = a.anno_attribute_id ";
-    let stm;
-    if (this._haveTempTables) {
-      // Gecko <2.0
-      stm = this._getStmt(base +
+    if (this.__guidStm) {
+      return this.__guidStm;
+    }
+
+    // Try to first read from moz_places.  Creating the statement will throw
+    // if the column doesn't exist, though so fallback to just reading from
+    // the annotation table.
+    let stmt;
+    if (this._haveGUIDColumn) {
+      stmt = this._getStmt(
+        "SELECT guid " +
+        "FROM moz_places " +
+        "WHERE url = :page_url");
+    } else {
+      stmt = this._getStmt(
+        "SELECT a.content AS guid " +
+        "FROM moz_annos a " +
+        "JOIN moz_anno_attributes n ON n.id = a.anno_attribute_id " +
         "JOIN ( " +
           "SELECT id FROM moz_places_temp WHERE url = :page_url " +
           "UNION " +
           "SELECT id FROM moz_places WHERE url = :page_url " +
         ") AS h ON h.id = a.place_id " +
-        "WHERE n.name = :anno_name");
-    } else {
-      // Gecko 2.0
-      stm = this._getStmt(base +
-        "JOIN moz_places h ON h.id = a.place_id " +
-        "WHERE n.name = :anno_name AND h.url = :page_url");
+        "WHERE n.name = '" + GUID_ANNO + "'");
     }
-    stm.params.anno_name = GUID_ANNO;
-    return stm;
+
+    return this.__guidStmt = stmt;
   },
 
   GUIDForUri: function GUIDForUri(uri, create) {
@@ -230,7 +290,7 @@ HistoryStore.prototype = {
 
     // Use the existing GUID if it exists
     let result = Utils.queryAsync(stm, ["guid"])[0];
-    if (result)
+    if (result && result.guid)
       return result.guid;
 
     // Give the uri a GUID if it doesn't have one
@@ -261,24 +321,37 @@ HistoryStore.prototype = {
       "ORDER BY date DESC LIMIT 10");
   },
 
+  __urlStmt: null,
   get _urlStm() {
-    let where =
-      "WHERE id = (" +
-        "SELECT place_id " +
-        "FROM moz_annos " +
-        "WHERE content = :guid AND anno_attribute_id = (" +
-          "SELECT id " +
-          "FROM moz_anno_attributes " +
-          "WHERE name = '" + GUID_ANNO + "')) ";
-    // Gecko <2.0
-    if (this._haveTempTables)
-      return this._getStmt(
+    if (this.__urlStmt) {
+      return this.__urlStmt;
+    }
+
+    // Try to first read from moz_places.  Creating the statement will throw
+    // if the column doesn't exist, though so fallback to just reading from
+    // the annotation table.
+    let stmt;
+    if (this._haveGUIDColumn) {
+      stmt = this._getStmt(
+        "SELECT url, title, frecency " +
+        "FROM moz_places " +
+        "WHERE guid = :guid");
+    } else {
+      let where =
+        "WHERE id = (" +
+          "SELECT place_id " +
+          "FROM moz_annos " +
+          "WHERE content = :guid AND anno_attribute_id = (" +
+            "SELECT id " +
+            "FROM moz_anno_attributes " +
+            "WHERE name = '" + GUID_ANNO + "')) ";
+      stmt = this._getStmt(
         "SELECT url, title, frecency FROM moz_places_temp " + where +
         "UNION ALL " +
         "SELECT url, title, frecency FROM moz_places " + where + "LIMIT 1");
-    // Gecko 2.0
-    return this._getStmt(
-      "SELECT url, title, frecency FROM moz_places " + where + "LIMIT 1");
+    }
+
+    return this.__urlStmt = stmt;
   },
 
   get _allUrlStm() {
@@ -322,7 +395,7 @@ HistoryStore.prototype = {
   getAllIDs: function HistStore_getAllIDs() {
     // Only get places visited within the last 30 days (30*24*60*60*1000ms)
     this._allUrlStm.params.cutoff_date = (Date.now() - 2592000000) * 1000;
-    this._allUrlStm.params.max_results = 5000;
+    this._allUrlStm.params.max_results = MAX_HISTORY_UPLOAD;
 
     let urls = Utils.queryAsync(this._allUrlStm, "url");
     let self = this;
@@ -367,7 +440,15 @@ HistoryStore.prototype = {
       if (curvisits.every(function(cur) cur.date != date))
         Svc.History.addVisit(uri, date, null, type, type == 5 || type == 6, 0);
 
-    this._hsvc.setPageTitle(uri, record.title);
+    if (record.title) {
+      try {
+        this._hsvc.setPageTitle(uri, record.title);
+      } catch (ex if ex.result == Cr.NS_ERROR_NOT_AVAILABLE) {
+        // There's no entry for the given URI, either because it's a
+        // URI that Places ignores (e.g. javascript:) or there were no
+        // visits.  We can just ignore those cases.
+      }
+    }
   },
 
   itemExists: function HistStore_itemExists(id) {
@@ -383,9 +464,9 @@ HistoryStore.prototype = {
     return url ? this._hsvc.isVisited(url) : false;
   },
 
-  createRecord: function createRecord(guid, uri) {
-    let foo = this._findURLByGUID(guid);
-    let record = new HistoryRec(uri);
+  createRecord: function createRecord(id, collection) {
+    let foo = this._findURLByGUID(id);
+    let record = new HistoryRec(collection, id);
     if (foo) {
       record.histUri = foo.url;
       record.title = foo.title;

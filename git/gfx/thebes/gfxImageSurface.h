@@ -108,12 +108,16 @@ public:
 
     virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
+    virtual PRBool SupportsSelfCopy() { return PR_FALSE; }
+
 protected:
     gfxImageSurface();
     void InitWithData(unsigned char *aData, const gfxIntSize& aSize,
                       long aStride, gfxImageFormat aFormat);
     void InitFromSurface(cairo_surface_t *csurf);
-    long ComputeStride() const;
+    long ComputeStride() const { return ComputeStride(mSize, mFormat); }
+
+    static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 
     gfxIntSize mSize;
     PRBool mOwnsData;

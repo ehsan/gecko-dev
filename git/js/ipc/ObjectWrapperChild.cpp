@@ -50,6 +50,7 @@
 #include "nsTArray.h"
 #include "nsContentUtils.h"
 #include "nsIJSContextStack.h"
+#include "nsJSUtils.h"
 
 using namespace mozilla::jsipc;
 using namespace js;
@@ -62,7 +63,7 @@ namespace {
         JSAutoRequest mRequest;
         JSContext* const mContext;
         const uint32 mSavedOptions;
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     public:
 
@@ -110,7 +111,7 @@ namespace {
 
     class AutoCheckOperation : public ACOBase
     {
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     public:
         AutoCheckOperation(ObjectWrapperChild* owc,
                            OperationStatus* statusPtr
@@ -188,8 +189,12 @@ ObjectWrapperChild::jsval_to_JSVariant(JSContext* cx, jsval from, JSVariant* to)
     case JSTYPE_OBJECT:
         return JSObject_to_JSVariant(cx, JSVAL_TO_OBJECT(from), to);
     case JSTYPE_STRING:
-        *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(from)),
-                                JS_GetStringLength(JSVAL_TO_STRING(from)));
+        {
+            nsDependentJSString depStr;
+            if (!depStr.init(cx, from))
+                return false;
+            *to = depStr;
+        }
         return true;
     case JSTYPE_NUMBER:
         if (JSVAL_IS_INT(from))
@@ -282,10 +287,10 @@ ObjectWrapperChild::Manager()
 static bool
 jsid_to_nsString(JSContext* cx, jsid from, nsString* to)
 {
-    jsval v;
-    if (JS_IdToValue(cx, from, &v) && JSVAL_IS_STRING(v)) {
-        *to = nsDependentString((PRUnichar*)JS_GetStringChars(JSVAL_TO_STRING(v)),
-                                JS_GetStringLength(JSVAL_TO_STRING(v)));
+    if (JSID_IS_STRING(from)) {
+        size_t length;
+        const jschar* chars = JS_GetInternedStringCharsAndLength(JSID_TO_STRING(from), &length);
+        *to = nsDependentString(chars, length);
         return true;
     }
     return false;

@@ -71,8 +71,6 @@ ThebesLayerD3D10::SetVisibleRegion(const nsIntRegion &aRegion)
     return;
   }
 
-  HRESULT hr;
-
   nsIntRegion oldVisibleRegion = mVisibleRegion;
   ThebesLayer::SetVisibleRegion(aRegion);
 
@@ -134,9 +132,7 @@ ThebesLayerD3D10::SetVisibleRegion(const nsIntRegion &aRegion)
                                       oldTexture, 0,
                                       &box);
 
-      if (SUCCEEDED(hr)) {
-        retainedRegion.Or(retainedRegion, *r);
-      }
+      retainedRegion.Or(retainedRegion, *r);
     }
   }
 
@@ -220,6 +216,12 @@ ThebesLayerD3D10::Validate()
   }
 
   if (!mValidRegion.IsEqual(mVisibleRegion)) {
+    LayerManagerD3D10::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
+    if (!cbInfo.Callback) {
+      NS_ERROR("D3D10 should never need to update ThebesLayers in an empty transaction");
+      return;
+    }
+
     /* We use the bounds of the visible region because we draw the bounds of
      * this region when we draw this entire texture. We have to make sure that
      * the areas that aren't filled with content get their background drawn.
@@ -293,6 +295,8 @@ ThebesLayerD3D10::DrawRegion(const nsIntRegion &aRegion)
     context->Paint();
     context->SetOperator(gfxContext::OPERATOR_OVER);
   }
+
+  mD2DSurface->SetSubpixelAntialiasingEnabled(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
 
   LayerManagerD3D10::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
   cbInfo.Callback(this, context, aRegion, nsIntRegion(), cbInfo.CallbackData);

@@ -193,19 +193,28 @@ ifdef MOZ_IPC
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
 endif
 
+ifdef MOZ_THUMB2
+ABI_DIR = armeabi-v7a
+else
+ABI_DIR = armeabi
+endif
+
 PKG_SUFFIX      = .apk
 INNER_MAKE_PACKAGE	= \
-  rm -f $(_ABS_DIST)/gecko.ap_ && \
+  make -C ../embedding/android gecko.ap_ && \
+  cp ../embedding/android/gecko.ap_ $(_ABS_DIST) && \
   ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
     rm -rf lib && \
-    mkdir -p lib/armeabi && \
+    mkdir -p lib/$(ABI_DIR) && \
     cp lib*.so lib && \
-    mv lib/libmozutils.so lib/armeabi && \
+    mv lib/libmozutils.so lib/$(ABI_DIR) && \
     rm -f lib.id && \
     for SOMELIB in lib/*.so ; \
     do \
       printf "`basename $$SOMELIB`:`$(_ABS_DIST)/host/bin/file_id $$SOMELIB`\n" >> lib.id ; \
     done && \
+    unzip -o $(_ABS_DIST)/gecko.ap_ && \
+    rm $(_ABS_DIST)/gecko.ap_ && \
     $(ZIP) -r9D $(_ABS_DIST)/gecko.ap_ $(DIST_FILES) -x $(NON_DIST_FILES) ) && \
   rm -f $(_ABS_DIST)/gecko.apk && \
   $(APKBUILDER) $(_ABS_DIST)/gecko.apk -v $(APKBUILDER_FLAGS) -z $(_ABS_DIST)/gecko.ap_ -f $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/classes.dex && \
@@ -216,7 +225,7 @@ INNER_UNMAKE_PACKAGE	= \
   mkdir $(MOZ_PKG_DIR) && \
   cd $(MOZ_PKG_DIR) && \
   $(UNZIP) $(UNPACKAGE) && \
-  mv lib/armeabi/*.so . && \
+  mv lib/$(ABI_DIR)/*.so . && \
   mv lib/*.so . && \
   rm -rf lib
 endif
@@ -298,9 +307,10 @@ OMNIJAR_FILES	= \
   res \
   defaults \
   greprefs.js \
+  jsloader \
   $(NULL)
 
-NON_OMNIJAR_FILES = \
+NON_OMNIJAR_FILES += \
   chrome/icons/\* \
   defaults/pref/channel-prefs.js \
   res/cursors/\* \
@@ -383,7 +393,6 @@ NO_PKG_FILES += \
 	nsinstall \
 	viewer \
 	TestGtkEmbed \
-	bloaturls.txt \
 	codesighs* \
 	elf-dynstr-gc \
 	mangle* \
@@ -532,6 +541,11 @@ endif # DMG
 endif # MOZ_PKG_MANIFEST
 endif # UNIVERSAL_BINARY
 	$(OPTIMIZE_JARS_CMD) --optimize $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
+ifeq ($(USE_ELF_HACK)$(HOST_OS_ARCH)$(OS_ARCH)$(OS_TARGET),1LinuxLinuxLinux)
+ifneq (,$(filter %86 x86_64 arm,$(OS_TEST)))
+	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . -name "*$(DLL_SUFFIX)" | xargs $(DEPTH)/build/unix/elfhack/elfhack
+endif
+endif
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
 	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
@@ -574,11 +588,14 @@ ifdef MOZ_PKG_REMOVALS
 	$(SYSINSTALL) $(IFLAGS1) $(MOZ_PKG_REMOVALS_GEN) $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
 endif # MOZ_PKG_REMOVALS
 
-make-package: stage-package $(PACKAGE_XULRUNNER)
+make-package: stage-package $(PACKAGE_XULRUNNER) make-sourcestamp-file
 	@echo "Compressing..."
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST) && $(MAKE_PACKAGE)
-	@echo "$(BUILDID) $(MOZ_SOURCE_STAMP)" > $(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt
+
+make-sourcestamp-file::
+	@echo "$(BUILDID)" > $(MOZ_SOURCESTAMP_FILE)
+	@echo "$(MOZ_SOURCE_REPO)/rev/$(MOZ_SOURCE_STAMP)" >> $(MOZ_SOURCESTAMP_FILE)
 
 # The install target will install the application to prefix/lib/appname-version
 # In addition if INSTALL_SDK is set, it will install the development headers,
@@ -674,11 +691,12 @@ UPLOAD_FILES= \
   $(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
   $(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
   $(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
+  $(call QUOTED_WILDCARD,$(DIST)/$(LANGPACK)) \
   $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
   $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
   $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
   $(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
-  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt) \
+  $(call QUOTED_WILDCARD,$(MOZ_SOURCESTAMP_FILE)) \
   $(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 checksum:

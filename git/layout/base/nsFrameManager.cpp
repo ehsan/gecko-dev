@@ -984,7 +984,9 @@ CaptureChange(nsStyleContext* aOldContext, nsStyleContext* aNewContext,
 
   NS_UpdateHint(ourChange, aChangeToAssume);
   if (NS_UpdateHint(aMinChange, ourChange)) {
-    aChangeList->AppendChange(aFrame, aContent, ourChange);
+    if (!(ourChange & nsChangeHint_ReconstructFrame) || aContent) {
+      aChangeList->AppendChange(aFrame, aContent, ourChange);
+    }
   }
   return aMinChange;
 }
@@ -1413,10 +1415,10 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     }
 
     if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
-      A11yNotificationType ourA11yNotification = eDontNotify;
       DesiredA11yNotifications kidsDesiredA11yNotification =
         aDesiredA11yNotifications;
 #ifdef ACCESSIBILITY
+      A11yNotificationType ourA11yNotification = eDontNotify;
       // Notify a11y for primary frame only if it's a root frame of visibility
       // changes or its parent frame was hidden while it stays visible and
       // it is not inside a {ib} split or is the first frame of {ib} split.

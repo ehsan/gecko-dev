@@ -7,6 +7,13 @@ function httpd_setup (handlers) {
   return server;
 }
 
+function httpd_handler(statusCode, status, body) {
+  return function(request, response) {
+    response.setStatusLine(request.httpVersion, statusCode, status);
+    response.bodyOutputStream.write(body, body.length);
+  };
+}
+
 function httpd_basic_auth_handler(body, metadata, response) {
   // no btoa() in xpcshell.  it's guest:guest
   if (metadata.hasHeader("Authorization") &&
@@ -34,34 +41,6 @@ function readBytesFromInputStream(inputStream, count) {
     count = inputStream.available();
   }
   return new BinaryInputStream(inputStream).readBytes(count);
-}
-
-/*
- * Create and upload public + private key pair. You probably want to enable
- * FakeCryptoService first, otherwise this will be very expensive.
- */
-function createAndUploadKeypair() {
-  let storageURL = Svc.Prefs.get("clusterURL") + Svc.Prefs.get("storageAPI")
-                   + "/" + ID.get("WeaveID").username + "/storage/";
-
-  PubKeys.defaultKeyUri = storageURL + "keys/pubkey";
-  PrivKeys.defaultKeyUri = storageURL + "keys/privkey";
-  let keys = PubKeys.createKeypair(ID.get("WeaveCryptoID"),
-                                   PubKeys.defaultKeyUri,
-                                   PrivKeys.defaultKeyUri);
-  PubKeys.uploadKeypair(keys);
-}
-
-/*
- * Create and upload an engine's symmetric key.
- */
-function createAndUploadSymKey(url) {
-  let symkey = Svc.Crypto.generateRandomKey();
-  let pubkey = PubKeys.getDefaultKey();
-  let meta = new CryptoMeta(url);
-  meta.addUnwrappedKey(pubkey, symkey);
-  let res = new Resource(meta.uri);
-  res.put(meta);
 }
 
 /*
@@ -151,8 +130,9 @@ function ServerCollection(wbos) {
 ServerCollection.prototype = {
 
   _inResultSet: function(wbo, options) {
-    return ((!options.ids || (options.ids.indexOf(wbo.id) != -1))
-            && (!options.newer || (wbo.modified > options.newer)));
+    return wbo.payload
+           && (!options.ids || (options.ids.indexOf(wbo.id) != -1))
+           && (!options.newer || (wbo.modified > options.newer));
   },
 
   get: function(options) {
@@ -259,3 +239,66 @@ ServerCollection.prototype = {
   }
 
 };
+
+/*
+ * Test setup helpers.
+ */
+function sync_httpd_setup(handlers) {
+  handlers["/1.0/foo/storage/meta/global"]
+      = (new ServerWBO('global', {})).handler();
+  return httpd_setup(handlers);
+}
+
+/*
+ * Track collection modified times. Return closures.
+ */
+function track_collections_helper() {
+  
+  /*
+   * Our tracking object.
+   */
+  let collections = {};
+
+  /*
+   * Update the timestamp of a collection.
+   */
+  function update_collection(coll) {
+    let timestamp = Date.now() / 1000;
+    collections[coll] = timestamp;
+  }
+
+  /*
+   * Invoke a handler, updating the collection's modified timestamp unless
+   * it's a GET request.
+   */
+  function with_updated_collection(coll, f) {
+    return function(request, response) {
+      if (request.method != "GET")
+        update_collection(coll);
+      f.call(this, request, response);
+    };
+  }
+
+  /*
+   * Return the info/collections object.
+   */
+  function info_collections(request, response) {
+    let body = "Error.";
+    switch(request.method) {
+      case "GET":
+        body = JSON.stringify(collections);
+        break;
+      default:
+        throw "Non-GET on info_collections.";
+    }
+        
+    response.setHeader('X-Weave-Timestamp', ''+Date.now()/1000, false);
+    response.setStatusLine(request.httpVersion, 200, "OK");
+    response.bodyOutputStream.write(body, body.length);
+  }
+  
+  return {"collections": collections,
+          "handler": info_collections,
+          "with_updated_collection": with_updated_collection,
+          "update_collection": update_collection};
+}

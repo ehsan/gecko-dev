@@ -429,31 +429,19 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
 
   PRBool isRootDoc = nsCoreUtils::IsRootDocument(aDocument);
 
-  // Ensure the document container node is accessible, otherwise do not create
-  // document accessible.
-  nsAccessible *outerDocAcc = nsnull;
-  if (isRootDoc) {
-    outerDocAcc = nsAccessNode::GetApplicationAccessible();
-
-  } else {
-    nsIDocument* parentDoc = aDocument->GetParentDocument();
-    if (!parentDoc)
-      return nsnull;
-
-    nsIContent* ownerContent = parentDoc->FindContentForSubDocument(aDocument);
-    if (!ownerContent)
-      return nsnull;
-
+  nsDocAccessible* parentDocAcc = nsnull;
+  if (!isRootDoc) {
     // XXXaaronl: ideally we would traverse the presshell chain. Since there's
     // no easy way to do that, we cheat and use the document hierarchy.
     // GetAccessible() is bad because it doesn't support our concept of multiple
     // presshells per doc. It should be changed to use
     // GetAccessibleInWeakShell().
-    outerDocAcc = GetAccService()->GetAccessible(ownerContent);
+    parentDocAcc = GetDocAccessible(aDocument->GetParentDocument());
+    NS_ASSERTION(parentDocAcc,
+                 "Can't create an accessible for the document!");
+    if (!parentDocAcc)
+      return nsnull;
   }
-
-  if (!outerDocAcc)
-    return nsnull;
 
   // We only create root accessibles for the true root, otherwise create a
   // doc accessible.
@@ -466,20 +454,32 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
   if (!docAcc || !mDocAccessibleCache.Put(aDocument, docAcc))
     return nsnull;
 
-  // Bind the document accessible into tree.
-  if (!outerDocAcc->AppendChild(docAcc)) {
-    mDocAccessibleCache.Remove(aDocument);
-    return nsnull;
-  }
-
-  // Initialize the document accessible. Note, Init() should be called after
-  // the document accessible is bound to the tree.
+  // Initialize the document accessible.
   if (!docAcc->Init()) {
     docAcc->Shutdown();
-    mDocAccessibleCache.Remove(aDocument);
     return nsnull;
   }
   docAcc->SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aDocument));
+
+  // Bind the document to the tree.
+  if (isRootDoc) {
+    nsAccessible* appAcc = nsAccessNode::GetApplicationAccessible();
+    if (!appAcc->AppendChild(docAcc)) {
+      docAcc->Shutdown();
+      return nsnull;
+    }
+
+    // Fire reorder event to notify new accessible document has been attached to
+    // the tree.
+    nsRefPtr<AccEvent> reorderEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_REORDER, appAcc, eAutoDetect,
+                   AccEvent::eCoalesceFromSameSubtree);
+    if (reorderEvent)
+      docAcc->FireDelayedAccessibleEvent(reorderEvent);
+
+  } else {
+    parentDocAcc->BindChildDocument(docAcc);
+  }
 
   NS_LOG_ACCDOCCREATE("document creation finished", aDocument)
 
@@ -491,17 +491,25 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
 // nsAccDocManager static
 
 PLDHashOperator
-nsAccDocManager::ClearDocCacheEntry(const nsIDocument* aKey,
-                                    nsRefPtr<nsDocAccessible>& aDocAccessible,
-                                    void* aUserArg)
+nsAccDocManager::GetFirstEntryInDocCache(const nsIDocument* aKey,
+                                         nsDocAccessible* aDocAccessible,
+                                         void* aUserArg)
 {
   NS_ASSERTION(aDocAccessible,
-               "Calling ClearDocCacheEntry with a NULL pointer!");
+               "No doc accessible for the object in doc accessible cache!");
+  *reinterpret_cast<nsDocAccessible**>(aUserArg) = aDocAccessible;
 
-  if (aDocAccessible)
-    aDocAccessible->Shutdown();
+  return PL_DHASH_STOP;
+}
 
-  return PL_DHASH_REMOVE;
+void
+nsAccDocManager::ClearDocCache()
+{
+  nsDocAccessible* docAcc = nsnull;
+  while (mDocAccessibleCache.EnumerateRead(GetFirstEntryInDocCache, static_cast<void*>(&docAcc))) {
+    if (docAcc)
+      docAcc->Shutdown();
+  }
 }
 
 PLDHashOperator

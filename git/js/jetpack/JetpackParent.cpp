@@ -169,7 +169,6 @@ public:
 
 private:
   nsCOMPtr<nsIJSContextStack> mCXStack;
-  JSContext* mCX;
 };
 
 // We have to delete the JetpackProcessParent on the I/O thread after event
@@ -306,9 +305,19 @@ JetpackParent::OnChannelConnected(int32 pid)
 void
 JetpackParent::DispatchFailureMessage(const nsString& aDumpID)
 {
-  KeyValue kv(NS_LITERAL_STRING("dumpID"), PrimVariant(aDumpID));
+#ifdef MOZ_CRASHREPORTER
+  CrashReporter::AnnotationTable notes;
+  notes.Init();
+  notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("jetpack"));
+  // TODO: Additional per-process annotations.
+  CrashReporter::AppendExtraData(aDumpID, notes);
+#endif
+
   InfallibleTArray<KeyValue> keyvalues;
-  keyvalues.AppendElement(kv);
+  if (!aDumpID.IsEmpty()) {
+    KeyValue kv(NS_LITERAL_STRING("dumpID"), PrimVariant(aDumpID));
+    keyvalues.AppendElement(kv);
+  }
 
   CompVariant object(keyvalues);
 

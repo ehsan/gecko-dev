@@ -183,6 +183,7 @@ const char *const js_common_atom_names[] = {
     "line",                     /* lineAtom                     */
     "Infinity",                 /* InfinityAtom                 */
     "NaN",                      /* NaNAtom                      */
+    "builder",                  /* builderAtom                  */
 
 #if JS_HAS_XML_SUPPORT
     js_etago_str,               /* etagoAtom                    */
@@ -210,7 +211,7 @@ const char *const js_common_atom_names[] = {
 
     "has",                      /* hasAtom                      */
     "hasOwn",                   /* hasOwnAtom                   */
-    "enumerateOwn",             /* enumerateOwnAtom             */
+    "keys",                     /* keysAtom                     */
     "iterate"                   /* iterateAtom                  */
 };
 
@@ -449,25 +450,28 @@ js_SweepAtomState(JSContext *cx)
         AtomEntryType entry = e.front();
         if (AtomEntryFlags(entry) & (ATOM_PINNED | ATOM_INTERNED)) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(AtomEntryToKey(entry)));
-        } else if (IsAboutToBeFinalized(AtomEntryToKey(entry))) {
+            JS_ASSERT(!IsAboutToBeFinalized(cx, AtomEntryToKey(entry)));
+        } else if (IsAboutToBeFinalized(cx, AtomEntryToKey(entry))) {
             e.removeFront();
         }
     }
 }
 
 JSAtom *
-js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
+js_AtomizeString(JSContext *cx, JSString *strArg, uintN flags)
 {
     JS_ASSERT(!(flags & ~(ATOM_PINNED|ATOM_INTERNED|ATOM_TMPSTR|ATOM_NOCOPY)));
     JS_ASSERT_IF(flags & ATOM_NOCOPY, flags & ATOM_TMPSTR);
 
-    if (str->isAtomized())
-        return STRING_TO_ATOM(str);
+    if (strArg->isAtomized())
+        return STRING_TO_ATOM(strArg);
 
-    const jschar *chars;
-    size_t length;
-    str->getCharsAndLength(chars, length);
+    JSLinearString *str = strArg->ensureLinear(cx);
+    if (!str)
+        return NULL;
+
+    const jschar *chars = str->chars();
+    size_t length = str->length();
 
     JSString *staticStr = JSString::lookupStaticString(chars, length);
     if (staticStr)
@@ -476,13 +480,13 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
     JSAtomState *state = &cx->runtime->atomState;
     AtomSet &atoms = state->atoms;
 
-    AutoLockDefaultCompartment lock(cx);
+    AutoLockAtomsCompartment lock(cx);
     AtomSet::AddPtr p = atoms.lookupForAdd(str);
 
     /* Hashing the string should have flattened it if it was a rope. */
     JS_ASSERT(str->isFlat() || str->isDependent());
 
-    JSString *key;
+    JSLinearString *key;
     if (p) {
         key = AtomEntryToKey(*p);
     } else {
@@ -491,7 +495,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
          * compartment.
          */
         bool needNewString = !!(flags & ATOM_TMPSTR) ||
-                             str->asCell()->compartment() != cx->runtime->defaultCompartment;
+                             str->asCell()->compartment() != cx->runtime->atomsCompartment;
 
         /*
          * Unless str is already comes from the default compartment and flat,
@@ -505,16 +509,15 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
             if (needNewString) {
-                SwitchToCompartment sc(cx, cx->runtime->defaultCompartment);
-                jschar *chars = str->chars();
+                SwitchToCompartment sc(cx, cx->runtime->atomsCompartment);
                 if (flags & ATOM_NOCOPY) {
-                    key = js_NewString(cx, chars, length);
+                    key = js_NewString(cx, const_cast<jschar *>(str->flatChars()), length);
                     if (!key)
                         return NULL;
 
                     /* Finish handing off chars to the GC'ed key string. */
                     JS_ASSERT(flags & ATOM_TMPSTR);
-                    str->mChars = NULL;
+                    str->u.chars = NULL;
                 } else {
                     key = js_NewStringCopyN(cx, chars, length);
                     if (!key)
@@ -537,7 +540,6 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
 
     AddAtomEntryFlags(*p, flags & (ATOM_PINNED | ATOM_INTERNED));
 
-    JS_ASSERT(key->isAtomized());
     JSAtom *atom = STRING_TO_ATOM(key);
     return atom;
 }
@@ -587,7 +589,11 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags)
     JSString str;
 
     CHECK_REQUEST(cx);
-    str.initFlat((jschar *)chars, length);
+
+    if (!CheckStringLength(cx, length))
+        return NULL;
+
+    str.initFlatNotTerminated((jschar *)chars, length);
     return js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
 }
 
@@ -603,11 +609,11 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
             return STRING_TO_ATOM(JSString::unitString(c));
     }
 
-    str.initFlat((jschar *)chars, length);
+    str.initFlatNotTerminated((jschar *)chars, length);
     state = &cx->runtime->atomState;
 
     JS_LOCK(cx, &state->lock);
-    AtomSet::Ptr p = state->atoms.lookup(&str);
+    AtomSet::Ptr p = state->atoms.lookup(str.assertIsFlat());
     str2 = p ? AtomEntryToKey(*p) : NULL;
     JS_UNLOCK(cx, &state->lock);
 
@@ -628,7 +634,7 @@ js_DumpAtoms(JSContext *cx, FILE *fp)
         if (entry == 0) {
             fputs("<uninitialized>", fp);
         } else {
-            JSString *key = AtomEntryToKey(entry);
+            JSAtom *key = AtomEntryToKey(entry);
             FileEscapedString(fp, key, '"');
             uintN flags = AtomEntryFlags(entry);
             if (flags != 0) {

@@ -76,7 +76,7 @@ class JS_FRIEND_API(JSWrapper) : public js::JSProxyHandler {
     virtual bool hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
     virtual bool get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, js::Value *vp);
     virtual bool set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, js::Value *vp);
-    virtual bool enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
+    virtual bool keys(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
     virtual bool iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Value *vp);
 
     /* Spidermonkey extensions. */
@@ -103,6 +103,14 @@ class JS_FRIEND_API(JSWrapper) : public js::JSProxyHandler {
     static inline JSObject *wrappedObject(const JSObject *wrapper) {
         return wrapper->getProxyPrivate().toObjectOrNull();
     }
+    static inline JSWrapper *wrapperHandler(const JSObject *wrapper) {
+        return static_cast<JSWrapper *>(wrapper->getProxyHandler());
+    }
+
+    enum {
+        CROSS_COMPARTMENT = 1 << 0,
+        LAST_USED_FLAG = CROSS_COMPARTMENT
+    };
 
     static void *getWrapperFamily();
 };
@@ -130,7 +138,7 @@ class JS_FRIEND_API(JSCrossCompartmentWrapper) : public JSWrapper {
     virtual bool hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
     virtual bool get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, js::Value *vp);
     virtual bool set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, js::Value *vp);
-    virtual bool enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
+    virtual bool keys(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
     virtual bool iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Value *vp);
 
     /* Spidermonkey extensions. */
@@ -160,9 +168,6 @@ class AutoCompartment
     JSFrameRegs regs;
     AutoStringRooter input;
     bool entered;
-#ifdef DEBUG
-    bool wasSane;
-#endif
 
   public:
     AutoCompartment(JSContext *cx, JSObject *target);
