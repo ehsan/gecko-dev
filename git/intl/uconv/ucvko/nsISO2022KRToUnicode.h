@@ -7,6 +7,8 @@
 #include "nsUCSupport.h"
 #include "mozilla/Telemetry.h"
 
+using namespace mozilla;
+ 
 class nsISO2022KRToUnicode : public nsBasicDecoderSupport
 {
 public:
@@ -17,8 +19,7 @@ public:
     mData = 0;
     mEUCKRDecoder = nullptr;
     mRunLength = 0;
-    mozilla::Telemetry::Accumulate(
-      mozilla::Telemetry::DECODER_INSTANTIATED_ISO2022KR, true);
+    Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_ISO2022KR, true);
   }
 
   virtual ~nsISO2022KRToUnicode()

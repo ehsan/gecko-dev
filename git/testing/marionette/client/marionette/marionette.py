@@ -509,8 +509,6 @@ class Marionette(object):
                                 busybox=busybox)
 
     def cleanup(self):
-        if self.session:
-            self.delete_session()
         if self.emulator:
             self.emulator.close()
         if self.instance:

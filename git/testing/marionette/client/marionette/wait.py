@@ -4,7 +4,6 @@
 
 import collections
 import errors
-import sys
 import time
 
 DEFAULT_TIMEOUT = 5
@@ -109,7 +108,7 @@ class Wait(object):
             except (KeyboardInterrupt, SystemExit) as e:
                 raise e
             except self.exceptions as e:
-                last_exc = sys.exc_info()
+                last_exc = e
 
             if isinstance(rv, bool) and not rv:
                 self.clock.sleep(self.interval)
@@ -120,9 +119,11 @@ class Wait(object):
 
             self.clock.sleep(self.interval)
 
+        if last_exc is not None:
+            raise last_exc
+
         raise errors.TimeoutException(
-            "Timed out after %s seconds" % (self.clock.now - start),
-            cause=last_exc)
+            "Timed out after %s seconds" % (self.clock.now - start))
 
 def until_pred(clock, end):
     return clock.now >= end

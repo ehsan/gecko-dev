@@ -56,11 +56,11 @@ FxAccountsUIGlue.prototype = {
     });
 
     let detail = {
-       eventName: "openFlow",
+       method: "openFlow",
        id: id
     };
     log.debug("Send chrome event " + JSON.stringify(detail));
-    this._browser.shell.sendCustomEvent("mozFxAccountsUnsolChromeEvent", detail);
+    this._browser.shell.sendCustomEvent("mozFxAccountsRPChromeEvent", detail);
 
     return deferred.promise;
   },

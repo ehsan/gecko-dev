@@ -447,19 +447,22 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     nconsts = nobjects = nregexps = ntrynotes = nblockscopes = 0;
 
     /* XDR arguments and vars. */
-    uint16_t nargs = 0;
-    uint32_t nvars = 0;
+    uint16_t nargs = 0, nvars = 0;
+    uint32_t argsVars = 0;
     if (mode == XDR_ENCODE) {
         script = scriptp.get();
         JS_ASSERT_IF(enclosingScript, enclosingScript->compartment() == script->compartment());
 
         nargs = script->bindings.numArgs();
         nvars = script->bindings.numVars();
+        argsVars = (nargs << 16) | nvars;
     }
-    if (!xdr->codeUint16(&nargs))
+    if (!xdr->codeUint32(&argsVars))
         return false;
-    if (!xdr->codeUint32(&nvars))
-        return false;
+    if (mode == XDR_DECODE) {
+        nargs = argsVars >> 16;
+        nvars = argsVars & 0xFFFF;
+    }
 
     if (mode == XDR_ENCODE)
         length = script->length();

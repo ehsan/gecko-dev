@@ -93,12 +93,12 @@ nsresult MediaOmxReader::InitOmxDecoder()
     sp<DataSource> dataSource = new MediaStreamSource(mDecoder->GetResource(), mDecoder);
     dataSource->initCheck();
 
-    mExtractor = MediaExtractor::Create(dataSource);
-    if (!mExtractor.get()) {
+    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
+    if (!extractor.get()) {
       return NS_ERROR_FAILURE;
     }
     mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
-    if (!mOmxDecoder->Init(mExtractor)) {
+    if (!mOmxDecoder->Init(extractor)) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -133,9 +133,6 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDecoder->SetMediaDuration(durationUs);
   }
-
-  // Check the MediaExtract flag if the source is seekable.
-  mDecoder->SetMediaSeekable(mExtractor->flags() & MediaExtractor::CAN_SEEK);
 
   if (mOmxDecoder->HasVideo()) {
     int32_t width, height;

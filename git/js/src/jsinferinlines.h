@@ -387,10 +387,8 @@ EnsureTrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
             cx->clearPendingException();
             return;
         }
-        if (!obj->type()->unknownProperties() && !obj->type()->getProperty(cx, id)) {
-            cx->compartment()->types.setPendingNukeTypes(cx);
-            return;
-        }
+        if (!obj->type()->unknownProperties())
+            obj->type()->getProperty(cx, id);
     }
 
     JS_ASSERT(obj->type()->unknownProperties() || TrackPropertyTypes(cx, obj, id));
