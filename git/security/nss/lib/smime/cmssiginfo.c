@@ -38,7 +38,7 @@
 /*
  * CMS signerInfo methods.
  *
- * $Id: cmssiginfo.c,v 1.34 2011/02/07 18:32:19 nelson%bolyard.com Exp $
+ * $Id: cmssiginfo.c,v 1.32.2.1 2010/08/28 19:51:44 nelson%bolyard.com Exp $
  */
 
 #include "cmslocal.h"
@@ -166,8 +166,7 @@ NSS_CMSSignerInfo_Destroy(NSSCMSSignerInfo *si)
  *
  */
 SECStatus
-NSS_CMSSignerInfo_Sign(NSSCMSSignerInfo *signerinfo, SECItem *digest, 
-                       SECItem *contentType)
+NSS_CMSSignerInfo_Sign(NSSCMSSignerInfo *signerinfo, SECItem *digest, SECItem *contentType)
 {
     CERTCertificate *cert;
     SECKEYPrivateKey *privkey = NULL;
@@ -187,8 +186,7 @@ NSS_CMSSignerInfo_Sign(NSSCMSSignerInfo *signerinfo, SECItem *digest,
     case NSSCMSSignerID_IssuerSN:
         cert = signerinfo->cert;
 
-        privkey = PK11_FindKeyByAnyCert(cert, signerinfo->cmsg->pwfn_arg);
-        if (privkey == NULL)
+        if ((privkey = PK11_FindKeyByAnyCert(cert, signerinfo->cmsg->pwfn_arg)) == NULL)
 	    goto loser;
         algID = &cert->subjectPublicKeyInfo.algorithm;
         break;
@@ -274,7 +272,6 @@ NSS_CMSSignerInfo_Sign(NSSCMSSignerInfo *signerinfo, SECItem *digest,
 	rv = SEC_SignData(&signature, encoded_attrs.data, encoded_attrs.len, 
 	                  privkey, signAlgTag);
 	PORT_FreeArena(tmppoolp, PR_FALSE); /* awkward memory management :-( */
-	tmppoolp = 0;
     } else {
 	rv = SGN_Digest(privkey, digestalgtag, &signature, digest);
     }

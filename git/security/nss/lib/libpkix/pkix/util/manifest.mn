@@ -57,5 +57,7 @@ CSRCS = \
 	pkix_errpaths.c \
 	$(NULL)
 
+REQUIRES = dbm
+
 LIBRARY_NAME = pkixutil
 

@@ -505,6 +505,7 @@ endif # !CROSS_COMPILE
 NO_PKG_FILES += \
 	core \
 	bsdecho \
+	gtscc \
 	js \
 	js-config \
 	jscpucfg \

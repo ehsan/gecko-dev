@@ -887,6 +887,11 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
     if (NS_FAILED(rv) || !timingEnabled)
         return;
 
+    TimeStamp channelCreation;
+    rv = aTimedChannel->GetChannelCreation(&channelCreation);
+    if (NS_FAILED(rv))
+        return;
+
     TimeStamp asyncOpen;
     rv = aTimedChannel->GetAsyncOpen(&asyncOpen);
     // We do not check !asyncOpen.IsNull() bellow, prevent ASSERTIONs this way
@@ -967,7 +972,7 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
             Telemetry::HTTP_##prefix##_FIRST_SENT_TO_LAST_RECEIVED,            \
             HISTOGRAM_TIME_DELTA(requestStart, responseEnd));                  \
                                                                                \
-        if (cacheReadStart.IsNull() && !responseStart.IsNull()) {              \
+        if (cacheReadStart.IsNull()) {                                         \
             Telemetry::Accumulate(                                             \
                 Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_RECEIVED,             \
                 HISTOGRAM_TIME_DELTA(asyncOpen, responseStart));               \

@@ -2211,9 +2211,8 @@ CSS_PROP_TEXTRESET(
     text-overflow,
     text_overflow,
     TextOverflow,
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
-    0,
+    CSS_PROPERTY_PARSE_VALUE,
+    VARIANT_HK | VARIANT_STRING,
     kTextOverflowKTable,
     offsetof(nsStyleTextReset, mTextOverflow),
     eStyleAnimType_None)

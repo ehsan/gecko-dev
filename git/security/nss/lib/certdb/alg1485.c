@@ -103,19 +103,12 @@ static const NameToKind name2kinds[] = {
 
 /* legacy keywords */
     { "E",             128, SEC_OID_PKCS9_EMAIL_ADDRESS,SEC_ASN1_IA5_STRING},
-    { "STREET",        128, SEC_OID_AVA_STREET_ADDRESS, SEC_ASN1_DS},
+
+#if 0 /* removed.  Not yet in any IETF draft or RFC. */
     { "pseudonym",      64, SEC_OID_AVA_PSEUDONYM,      SEC_ASN1_DS},
+#endif
 
-/* values defined by the CAB Forum for EV */
-    { "incorporationLocality", 128, SEC_OID_EV_INCORPORATION_LOCALITY,
-                                                        SEC_ASN1_DS},
-    { "incorporationState",    128, SEC_OID_EV_INCORPORATION_STATE,
-                                                        SEC_ASN1_DS},
-    { "incorporationCountry",    2, SEC_OID_EV_INCORPORATION_COUNTRY,
-                                                    SEC_ASN1_PRINTABLE_STRING},
-    { "businessCategory",       64, SEC_OID_BUSINESS_CATEGORY, SEC_ASN1_DS},
-
-    { 0,               256, SEC_OID_UNKNOWN,            0},
+    { 0,           256, SEC_OID_UNKNOWN                      , 0},
 };
 
 /* Table facilitates conversion of ASCII hex to binary. */

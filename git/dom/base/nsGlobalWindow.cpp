@@ -11127,6 +11127,13 @@ nsNavigator::JavaEnabled(PRBool *aReturn)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsNavigator::TaintEnabled(PRBool *aReturn)
+{
+  *aReturn = PR_FALSE;
+  return NS_OK;
+}
+
 void
 nsNavigator::LoadingNewDocument()
 {
