@@ -139,20 +139,17 @@ _newJSDContext(JSRuntime*         jsrt,
 
     JS_BeginRequest(jsdc->dumbContext);
 
-    jsdc->glob = JS_NewCompartmentAndGlobalObject(jsdc->dumbContext, &global_class, NULL);
+    if( scopeobj )
+        call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, scopeobj);
+    jsdc->glob = JS_NewGlobalObject(jsdc->dumbContext, &global_class);
+    if( call )
+        JS_LeaveCrossCompartmentCall(call);
 
     if( ! jsdc->glob )
         goto label_newJSDContext_failure;
 
-    call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
-    if( ! call )
-        goto label_newJSDContext_failure;
-
     if( ! JS_InitStandardClasses(jsdc->dumbContext, jsdc->glob) )
         goto label_newJSDContext_failure;
-
-    if( call )
-        JS_LeaveCrossCompartmentCall(call);
 
     JS_EndRequest(jsdc->dumbContext);
 
