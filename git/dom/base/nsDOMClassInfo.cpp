@@ -463,6 +463,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "nsIDOMMediaQueryList.h"
 
 #include "nsDOMTouchEvent.h"
+#include "nsDOMMutationObserver.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
@@ -1592,6 +1593,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(MediaQueryList, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(MutationObserver, nsDOMMutationObserverSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
+                           nsIXPCScriptable::WANT_ADDPROPERTY)
+  NS_DEFINE_CLASSINFO_DATA(MutationRecord, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
 #ifdef MOZ_B2G_RIL
   NS_DEFINE_CLASSINFO_DATA(Telephony, nsEventTargetSH,
@@ -1683,6 +1689,7 @@ NS_DEFINE_CONTRACT_CTOR(ArchiveReader, NS_ARCHIVEREADER_CONTRACTID)
 NS_DEFINE_CONTRACT_CTOR(XSLTProcessor,
                         "@mozilla.org/document-transformer;1?type=xslt")
 NS_DEFINE_CONTRACT_CTOR(EventSource, NS_EVENTSOURCE_CONTRACTID)
+NS_DEFINE_CONTRACT_CTOR(MutationObserver, NS_DOMMUTATIONOBSERVER_CONTRACTID)
 #ifdef MOZ_SYS_MSG
 NS_DEFINE_CONTRACT_CTOR(MozActivity, NS_DOMACTIVITY_CONTRACTID)
 #endif
@@ -1744,6 +1751,7 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(ArchiveReader, ArchiveReaderCtor)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(XSLTProcessor, XSLTProcessorCtor)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(EventSource, EventSourceCtor)
+  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MutationObserver, MutationObserverCtor)
 #ifdef MOZ_SYS_MSG
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozActivity, MozActivityCtor)
 #endif
@@ -2359,6 +2367,10 @@ nsDOMClassInfo::Init()
 
   nsCOMPtr<nsIXPCFunctionThisTranslator> elt = new nsEventListenerThisTranslator();
   sXPConnect->SetFunctionThisTranslator(NS_GET_IID(nsIDOMEventListener), elt);
+
+  nsCOMPtr<nsIXPCFunctionThisTranslator> mctl = new nsMutationCallbackThisTranslator();
+  sXPConnect->SetFunctionThisTranslator(NS_GET_IID(nsIMutationObserverCallback),
+                                        mctl);
 
   nsCOMPtr<nsIScriptSecurityManager> sm =
     do_GetService("@mozilla.org/scriptsecuritymanager;1", &rv);
@@ -4225,6 +4237,14 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(MediaQueryList, nsIDOMMediaQueryList)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMediaQueryList)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(MutationObserver, nsIDOMMutationObserver)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMutationObserver)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(MutationRecord, nsIDOMMutationRecord)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMutationRecord)
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_B2G_RIL
@@ -7823,6 +7843,37 @@ nsEventTargetSH::PreserveWrapper(nsISupports *aNative)
   nsContentUtils::PreserveWrapper(aNative, target);
 }
 
+// MutationObserver helper
+
+NS_IMETHODIMP
+nsDOMMutationObserverSH::PreCreate(nsISupports* aNativeObj, JSContext* aCx,
+                                   JSObject* aGlobalObj, JSObject** aParentObj)
+{
+  nsDOMMutationObserver* mutationObserver =
+    nsDOMMutationObserver::FromSupports(aNativeObj);
+  nsCOMPtr<nsIScriptGlobalObject> native_parent;
+  mutationObserver->GetParentObject(getter_AddRefs(native_parent));
+  *aParentObj = native_parent ? native_parent->GetGlobalJSObject() : aGlobalObj;
+  return *aParentObj ? NS_OK : NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsDOMMutationObserverSH::AddProperty(nsIXPConnectWrappedNative* aWrapper,
+                                     JSContext* aCx, JSObject* aObj, jsid aId,
+                                     jsval* aVp, bool* aRetVal)
+{
+  nsDOMMutationObserverSH::PreserveWrapper(GetNative(aWrapper, aObj));
+  return NS_OK;
+}
+
+void
+nsDOMMutationObserverSH::PreserveWrapper(nsISupports* aNative)
+{
+  nsDOMMutationObserver* mutationObserver =
+    nsDOMMutationObserver::FromSupports(aNative);
+  nsContentUtils::PreserveWrapper(aNative, mutationObserver);
+}
+
 // IDBFactory helper
 
 /* static */
@@ -10197,6 +10248,22 @@ nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
   nsCOMPtr<nsIDOMEventTarget> target;
   event->GetCurrentTarget(getter_AddRefs(target));
   target.forget(_retval);
+  return NS_OK;
+}
+
+NS_INTERFACE_MAP_BEGIN(nsMutationCallbackThisTranslator)
+  NS_INTERFACE_MAP_ENTRY(nsIXPCFunctionThisTranslator)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_ADDREF(nsMutationCallbackThisTranslator)
+NS_IMPL_RELEASE(nsMutationCallbackThisTranslator)
+
+NS_IMETHODIMP
+nsMutationCallbackThisTranslator::TranslateThis(nsISupports *aInitialThis,
+                                                nsISupports **_retval)
+{
+  NS_IF_ADDREF(*_retval = nsDOMMutationObserver::CurrentObserver());
   return NS_OK;
 }
 
