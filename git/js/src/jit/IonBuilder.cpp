@@ -7385,17 +7385,13 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     current->add(derivedTypedObj);
     current->push(derivedTypedObj);
 
-    // Determine (if possible) the class/proto that `derivedTypedObj` will
-    // have. For derived typed objects, the opacity will be the same as the
-    // incoming object from which the derived typed object is, well, derived.
-    // The prototype will be determined based on the type descriptor (and is
-    // immutable).
+    // Determine (if possible) the class/proto that `derivedTypedObj`
+    // will have. For derived typed objects, the class (transparent vs
+    // opaque) will be the same as the incoming object from which the
+    // derived typed object is, well, derived. The prototype will be
+    // determined based on the type descriptor (and is immutable).
     types::TemporaryTypeSet *objTypes = obj->resultTypeSet();
-    const Class *expectedClass = nullptr;
-    if (const Class *objClass = objTypes ? objTypes->getKnownClass() : nullptr) {
-        MOZ_ASSERT(IsTypedObjectClass(objClass));
-        expectedClass = GetOutlineTypedObjectClass(IsOpaqueTypedObjectClass(objClass));
-    }
+    const Class *expectedClass = objTypes ? objTypes->getKnownClass() : nullptr;
     const TypedProto *expectedProto = derivedPrediction.getKnownPrototype();
     MOZ_ASSERT_IF(expectedClass, IsTypedObjectClass(expectedClass));
 
@@ -8774,7 +8770,7 @@ IonBuilder::jsop_not()
 
 bool
 IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                       bool isGetter, JSObject *foundProto, bool *guardGlobal)
+                                       bool isGetter, JSObject *foundProto)
 {
     // With foundProto a prototype with a getter or setter for name, return
     // whether looking up name on any object in |types| will go through
@@ -8784,7 +8780,6 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
     // No sense looking if we don't know what's going on.
     if (!types || types->unknownObject())
         return false;
-    *guardGlobal = false;
 
     for (unsigned i = 0; i < types->getObjectCount(); i++) {
         if (types->getSingleObject(i) == foundProto)
@@ -8799,14 +8794,8 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
                 return false;
 
             const Class *clasp = type->clasp();
-            if (!ClassHasEffectlessLookup(clasp, name))
+            if (!ClassHasEffectlessLookup(clasp, name) || ClassHasResolveHook(compartment, clasp, name))
                 return false;
-            JSObject *singleton = type->singleton();
-            if (ClassHasResolveHook(compartment, clasp, name)) {
-                if (!singleton || !singleton->is<GlobalObject>())
-                    return false;
-                *guardGlobal = true;
-            }
 
             // Look for a getter/setter on the class itself which may need
             // to be called. Ignore the getGeneric hook for typed arrays, it
@@ -8824,11 +8813,9 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
                 if (!types->empty() || types->nonDataProperty())
                     return false;
             }
-            if (singleton) {
-                if (types::CanHaveEmptyPropertyTypesForOwnProperty(singleton)) {
-                    MOZ_ASSERT(singleton->is<GlobalObject>());
-                    *guardGlobal = true;
-                }
+            if (JSObject *obj = type->singleton()) {
+                if (types::CanHaveEmptyPropertyTypesForOwnProperty(obj))
+                    return false;
             }
 
             if (!type->hasTenuredProto())
@@ -8850,8 +8837,7 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
 
 void
 IonBuilder::freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                               JSObject *foundProto,
-                                               bool allowEmptyTypesforGlobal/* = false*/)
+                                               JSObject *foundProto)
 {
     for (unsigned i = 0; i < types->getObjectCount(); i++) {
         // If we found a Singleton object's own-property, there's nothing to
@@ -8865,7 +8851,7 @@ IonBuilder::freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, P
 
         while (true) {
             types::HeapTypeSetKey property = type->property(NameToId(name));
-            JS_ALWAYS_TRUE(!property.isOwnProperty(constraints(), allowEmptyTypesforGlobal));
+            JS_ALWAYS_TRUE(!property.isOwnProperty(constraints()));
 
             // Don't mark the proto. It will be held down by the shape
             // guard. This allows us to use properties found on prototypes
@@ -8879,34 +8865,21 @@ IonBuilder::freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, P
 
 inline MDefinition *
 IonBuilder::testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName *name,
-                                   bool isGetter, JSObject *foundProto, Shape *lastProperty,
-                                   Shape *globalShape/* = nullptr*/)
+                                   bool isGetter, JSObject *foundProto, Shape *lastProperty)
 {
-    bool guardGlobal;
-
     // Check if all objects being accessed will lookup the name through foundProto.
-    if (!objectsHaveCommonPrototype(types, name, isGetter, foundProto, &guardGlobal) ||
-        (guardGlobal && !globalShape))
-    {
+    if (!objectsHaveCommonPrototype(types, name, isGetter, foundProto))
         return nullptr;
-    }
 
     // We can optimize the getter/setter, so freeze all involved properties to
     // ensure there isn't a lower shadowing getter or setter installed in the
     // future.
-    freezePropertiesForCommonPrototype(types, name, foundProto, guardGlobal);
+    freezePropertiesForCommonPrototype(types, name, foundProto);
 
     // Add a shape guard on the prototype we found the property on. The rest of
-    // the prototype chain is guarded by TI freezes, except when name is a global
-    // name. In this case, we also have to guard on the globals shape to be able
-    // to optimize. Note that a shape guard is good enough here, even in the proxy
-    // case, because we have ensured there are no lookup hooks for this property.
-    if (guardGlobal) {
-        JSObject *obj = &script()->global();
-        MDefinition *globalObj = constant(ObjectValue(*obj));
-        addShapeGuard(globalObj, globalShape, Bailout_ShapeGuard);
-    }
-
+    // the prototype chain is guarded by TI freezes. Note that a shape guard is
+    // good enough here, even in the proxy case, because we have ensured there
+    // are no lookup hooks for this property.
     MInstruction *wrapper = constant(ObjectValue(*foundProto));
     return addShapeGuard(wrapper, lastProperty, Bailout_ShapeGuard);
 }
@@ -9434,14 +9407,13 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
 
     Shape *lastProperty = nullptr;
     JSFunction *commonGetter = nullptr;
-    Shape *globalShape = nullptr;
-    JSObject *foundProto = inspector->commonGetPropFunction(pc, &lastProperty, &commonGetter, &globalShape);
+    JSObject *foundProto = inspector->commonGetPropFunction(pc, &lastProperty, &commonGetter);
     if (!foundProto)
         return true;
 
     types::TemporaryTypeSet *objTypes = obj->resultTypeSet();
     MDefinition *guard = testCommonGetterSetter(objTypes, name, /* isGetter = */ true,
-                                                foundProto, lastProperty, globalShape);
+                                                foundProto, lastProperty);
     if (!guard)
         return true;
 

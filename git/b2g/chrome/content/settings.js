@@ -78,10 +78,6 @@ SettingsListener.observe('debug.console.enabled', true, function(value) {
   Services.prefs.setBoolPref('layout.css.report_errors', value);
 });
 
-SettingsListener.observe('homescreen.manifestURL', 'Sentinel Value' , function(value) {
-  Services.prefs.setCharPref('dom.mozApps.homescreenURL', value);
-});
-
 // =================== Languages ====================
 SettingsListener.observe('language.current', 'en-US', function(value) {
   Services.prefs.setCharPref('general.useragent.locale', value);

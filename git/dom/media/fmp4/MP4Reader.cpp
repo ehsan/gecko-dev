@@ -613,7 +613,7 @@ MP4Reader::Output(TrackType aTrack, MediaData* aSample)
 
   switch (aTrack) {
     case kAudio: {
-      MOZ_ASSERT(aSample->mType == MediaData::AUDIO_DATA);
+      MOZ_ASSERT(aSample->mType == MediaData::AUDIO_SAMPLES);
       AudioData* audioData = static_cast<AudioData*>(aSample);
       AudioQueue().Push(audioData);
       if (audioData->mChannels != mInfo.mAudio.mChannels ||
@@ -626,7 +626,7 @@ MP4Reader::Output(TrackType aTrack, MediaData* aSample)
       break;
     }
     case kVideo: {
-      MOZ_ASSERT(aSample->mType == MediaData::VIDEO_DATA);
+      MOZ_ASSERT(aSample->mType == MediaData::VIDEO_FRAME);
       VideoQueue().Push(static_cast<VideoData*>(aSample));
       break;
     }

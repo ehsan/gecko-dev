@@ -1446,14 +1446,11 @@ HeapTypeSetKey::knownMIRType(CompilerConstraintList *constraints)
 }
 
 bool
-HeapTypeSetKey::isOwnProperty(CompilerConstraintList *constraints,
-                              bool allowEmptyTypesForGlobal/* = false*/)
+HeapTypeSetKey::isOwnProperty(CompilerConstraintList *constraints)
 {
     if (maybeTypes() && (!maybeTypes()->empty() || maybeTypes()->nonDataProperty()))
         return true;
-    JSObject *obj = object()->singleton();
-    MOZ_ASSERT_IF(obj, CanHaveEmptyPropertyTypesForOwnProperty(obj) == obj->is<GlobalObject>());
-    if (obj && !allowEmptyTypesForGlobal) {
+    if (JSObject *obj = object()->singleton()) {
         if (CanHaveEmptyPropertyTypesForOwnProperty(obj))
             return true;
     }

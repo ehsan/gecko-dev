@@ -807,12 +807,11 @@ class IonBuilder
                                      MBasicBlock *bottom);
 
     bool objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                    bool isGetter, JSObject *foundProto, bool *guardGlobal);
+                                    bool isGetter, JSObject *foundProto);
     void freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                            JSObject *foundProto, bool allowEmptyTypesForGlobal = false);
+                                            JSObject *foundProto);
     MDefinition *testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName *name,
-                                        bool isGetter, JSObject *foundProto, Shape *lastProperty,
-                                        Shape *globalShape = nullptr);
+                                        bool isGetter, JSObject *foundProto, Shape *lastProperty);
     bool testShouldDOMCall(types::TypeSet *inTypes,
                            JSFunction *func, JSJitInfo::OpType opType);
 

@@ -314,7 +314,6 @@
     _(CallDOMNative)                \
     _(IsCallable)                   \
     _(IsObject)                     \
-    _(IsObjectAndBranch)            \
     _(HaveSameClass)                \
     _(HasClass)                     \
     _(AsmJSLoadHeap)                \

@@ -1400,18 +1400,21 @@ SpecialPowersAPI.prototype = {
     var self = this;
     let count = 0;
 
-    function genGCCallback(cb) {
-      return function() {
+    function doPreciseGCandCC() {
+      function scheduledGCCallback() {
         self.getDOMWindowUtils(win).cycleCollect();
+
         if (++count < 2) {
-          Cu.schedulePreciseGC(genGCCallback(cb));
+          doPreciseGCandCC();
         } else {
-          cb();
+          callback();
         }
       }
+
+      Cu.schedulePreciseGC(scheduledGCCallback);
     }
 
-    Cu.schedulePreciseGC(genGCCallback(callback));
+    doPreciseGCandCC();
   },
 
   setGCZeal: function(zeal) {

@@ -5539,7 +5539,7 @@ if (SpecialPowers.getBoolPref("layout.css.isolation.enabled")) {
     inherited: false,
     type: CSS_TYPE_LONGHAND,
     initial_values: [ "auto" ],
-    other_values: ["isolate"],
+    other_values: ["isolated"],
     invalid_values: []
   };
 }

@@ -156,7 +156,7 @@ inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
   } else if (aShowingAnonymousContent) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     if (content) {
-      nsIContent* bparent = content->GetFlattenedTreeParent();
+      nsIContent* bparent = content->GetXBLInsertionParent();
       parent = do_QueryInterface(bparent);
     }
   }
