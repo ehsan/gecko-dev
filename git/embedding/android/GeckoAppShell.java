@@ -95,8 +95,8 @@ class GeckoAppShell
     // helper methods
     public static native void setSurfaceView(GeckoSurfaceView sv);
     public static native void putenv(String map);
-    public static native void onResume();
     public static native void onLowMemory();
+    public static native void onCriticalOOM();
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
     public static native void loadLibs(String apkName, boolean shouldExtract);
@@ -133,10 +133,6 @@ class GeckoAppShell
             env = i.getStringExtra("env" + c);
             Log.i("GeckoApp", "env"+ c +": "+ env);
         }
-
-        // On some device, we do not want to ever over-allocate.
-        if (android.os.Build.MODEL.equals("Nexus S") == true)
-            GeckoAppShell.putenv("MALLOC_OPTIONS=o");
 
         File f = new File("/data/data/" + 
                           GeckoApp.mAppContext.getPackageName() + "/tmp");
