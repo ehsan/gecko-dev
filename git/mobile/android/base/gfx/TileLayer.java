@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Patrick Walton <pcwalton@mozilla.com>
- *   Arkady Blyakher <rkadyb@mit.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,6 +43,8 @@ import android.graphics.RectF;
 import android.graphics.Region;
 import android.opengl.GLES20;
 import android.util.Log;
+import javax.microedition.khronos.opengles.GL10;
+import javax.microedition.khronos.opengles.GL11Ext;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -64,14 +65,17 @@ public abstract class TileLayer extends Layer {
     private int[] mTextureIDs;
 
     public TileLayer(boolean repeat, CairoImage image) {
-        super(image.getSize());
-
         mRepeat = repeat;
         mImage = image;
         mSize = new IntSize(0, 0);
         mSkipTextureUpdate = false;
+
+        IntSize bufferSize = mImage.getSize();
         mDirtyRect = new Rect();
     }
+
+    @Override
+    public IntSize getSize() { return mImage.getSize(); }
 
     protected boolean repeats() { return mRepeat; }
     protected int getTextureID() { return mTextureIDs[0]; }
@@ -81,14 +85,6 @@ public abstract class TileLayer extends Layer {
     protected void finalize() throws Throwable {
         if (mTextureIDs != null)
             TextureReaper.get().add(mTextureIDs);
-    }
-
-    @Override
-    public void setPosition(Rect newPosition) {
-        if (newPosition.width() != mImage.getSize().width || newPosition.height() != mImage.getSize().height) {
-            throw new RuntimeException("Error: changing the size of a tile layer is not allowed!");
-        }
-        super.setPosition(newPosition);
     }
 
     /**
@@ -110,7 +106,7 @@ public abstract class TileLayer extends Layer {
         return mImage.getSize().isPositive() && (mTextureIDs == null || !mDirtyRect.isEmpty());
     }
 
-    private void validateTexture() {
+    private void validateTexture(GL10 gl) {
         /* Calculate the ideal texture size. This must be a power of two if
          * the texture is repeated or OpenGL ES 2.0 isn't supported, as
          * OpenGL ES 2.0 is required for NPOT texture support (without
@@ -133,7 +129,7 @@ public abstract class TileLayer extends Layer {
 
                 // Free the texture immediately, so we don't incur a
                 // temporarily increased memory usage.
-                TextureReaper.get().reap();
+                TextureReaper.get().reap(gl);
             }
         }
     }
@@ -148,15 +144,15 @@ public abstract class TileLayer extends Layer {
     }
 
     @Override
-    protected boolean performUpdates(RenderContext context) {
-        super.performUpdates(context);
+    protected boolean performUpdates(GL10 gl, RenderContext context) {
+        super.performUpdates(gl, context);
 
         if (mSkipTextureUpdate) {
             return false;
         }
 
         // Reallocate the texture if the size has changed
-        validateTexture();
+        validateTexture(gl);
 
         // Don't do any work if the image has an invalid size.
         if (!mImage.getSize().isPositive())
@@ -164,9 +160,9 @@ public abstract class TileLayer extends Layer {
 
         // If we haven't allocated a texture, assume the whole region is dirty
         if (mTextureIDs == null) {
-            uploadFullTexture();
+            uploadFullTexture(gl);
         } else {
-            uploadDirtyRect(mDirtyRect);
+            uploadDirtyRect(gl, mDirtyRect);
         }
 
         mDirtyRect.setEmpty();
@@ -174,12 +170,12 @@ public abstract class TileLayer extends Layer {
         return true;
     }
 
-    private void uploadFullTexture() {
+    private void uploadFullTexture(GL10 gl) {
         IntSize bufferSize = mImage.getSize();
-        uploadDirtyRect(new Rect(0, 0, bufferSize.width, bufferSize.height));
+        uploadDirtyRect(gl, new Rect(0, 0, bufferSize.width, bufferSize.height));
     }
 
-    private void uploadDirtyRect(Rect dirtyRect) {
+    private void uploadDirtyRect(GL10 gl, Rect dirtyRect) {
         // If we have nothing to upload, just return for now
         if (dirtyRect.isEmpty())
             return;
@@ -193,7 +189,7 @@ public abstract class TileLayer extends Layer {
 
         if (mTextureIDs == null) {
             mTextureIDs = new int[1];
-            GLES20.glGenTextures(mTextureIDs.length, mTextureIDs, 0);
+            gl.glGenTextures(mTextureIDs.length, mTextureIDs, 0);
             newlyCreated = true;
         }
 
@@ -203,12 +199,20 @@ public abstract class TileLayer extends Layer {
         int cairoFormat = mImage.getFormat();
         CairoGLInfo glInfo = new CairoGLInfo(cairoFormat);
 
-        bindAndSetGLParameters();
+        bindAndSetGLParameters(gl);
 
         if (newlyCreated || dirtyRect.contains(bufferRect)) {
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width,
-                                mSize.height, 0, glInfo.format, glInfo.type, imageBuffer);
-            return;
+            if (mSize.equals(bufferSize)) {
+                gl.glTexImage2D(GL10.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width, mSize.height,
+                                0, glInfo.format, glInfo.type, imageBuffer);
+                return;
+            } else {
+                gl.glTexImage2D(GL10.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width, mSize.height,
+                                0, glInfo.format, glInfo.type, null);
+                gl.glTexSubImage2D(GL10.GL_TEXTURE_2D, 0, 0, 0, bufferSize.width, bufferSize.height,
+                                   glInfo.format, glInfo.type, imageBuffer);
+                return;
+            }
         }
 
         // Make sure that the dirty region intersects with the buffer rect,
@@ -233,21 +237,19 @@ public abstract class TileLayer extends Layer {
         }
 
         viewBuffer.position(position);
-        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, dirtyRect.top, bufferSize.width,
-                               Math.min(bufferSize.height - dirtyRect.top, dirtyRect.height()),
-                               glInfo.format, glInfo.type, viewBuffer);
+        gl.glTexSubImage2D(GL10.GL_TEXTURE_2D, 0, 0, dirtyRect.top, bufferSize.width,
+                           Math.min(bufferSize.height - dirtyRect.top, dirtyRect.height()),
+                           glInfo.format, glInfo.type, viewBuffer);
     }
 
-    private void bindAndSetGLParameters() {
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mTextureIDs[0]);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER,
-                               GLES20.GL_NEAREST);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER,
-                               GLES20.GL_LINEAR);
+    private void bindAndSetGLParameters(GL10 gl) {
+        gl.glBindTexture(GL10.GL_TEXTURE_2D, mTextureIDs[0]);
+        gl.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_MIN_FILTER, GL10.GL_NEAREST);
+        gl.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_MAG_FILTER, GL10.GL_LINEAR);
 
-        int repeatMode = mRepeat ? GLES20.GL_REPEAT : GLES20.GL_CLAMP_TO_EDGE;
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, repeatMode);
-        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, repeatMode);
+        int repeatMode = mRepeat ? GL10.GL_REPEAT : GL10.GL_CLAMP_TO_EDGE;
+        gl.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_WRAP_S, repeatMode);
+        gl.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_WRAP_T, repeatMode);
     }
 }
 

@@ -119,8 +119,7 @@ public class PanZoomController
                          * similar to TOUCHING but after starting a pan */
         PANNING_HOLD_LOCKED, /* like PANNING_HOLD, but axis lock still in effect */
         PINCHING,       /* nth touch-start, where n > 1. this mode allows pan and zoom */
-        ANIMATED_ZOOM,  /* animated zoom to a new rect */
-        BOUNCE          /* in a bounce animation */
+        ANIMATED_ZOOM   /* animated zoom to a new rect */
     }
 
     private final LayerController mController;
@@ -222,12 +221,11 @@ public class PanZoomController
         case FLING:
             mX.stopFling();
             mY.stopFling();
+            mState = PanZoomState.NOTHING;
             // fall through
-        case BOUNCE:
         case ANIMATED_ZOOM:
             // the zoom that's in progress likely makes no sense any more (such as if
             // the screen orientation changed) so abort it
-            mState = PanZoomState.NOTHING;
             // fall through
         case NOTHING:
             // Don't do animations here; they're distracting and can cause flashes on page
@@ -242,7 +240,7 @@ public class PanZoomController
     public void pageSizeUpdated() {
         if (mState == PanZoomState.NOTHING) {
             ViewportMetrics validated = getValidViewportMetrics();
-            if (! (new ViewportMetrics(mController.getViewportMetrics())).fuzzyEquals(validated)) {
+            if (! mController.getViewportMetrics().fuzzyEquals(validated)) {
                 // page size changed such that we are now in overscroll. snap to the
                 // the nearest valid viewport
                 mController.setViewportMetrics(validated);
@@ -256,6 +254,7 @@ public class PanZoomController
      */
 
     private boolean onTouchStart(MotionEvent event) {
+        Log.d(LOGTAG, "onTouchStart in state " + mState);
         // user is taking control of movement, so stop
         // any auto-movement we have going
         stopAnimationTimer();
@@ -265,7 +264,6 @@ public class PanZoomController
         case ANIMATED_ZOOM:
             return false;
         case FLING:
-        case BOUNCE:
         case NOTHING:
             startTouch(event.getX(0), event.getY(0), event.getEventTime());
             return false;
@@ -283,11 +281,11 @@ public class PanZoomController
     }
 
     private boolean onTouchMove(MotionEvent event) {
+        Log.d(LOGTAG, "onTouchMove in state " + mState);
 
         switch (mState) {
         case NOTHING:
         case FLING:
-        case BOUNCE:
             // should never happen
             Log.e(LOGTAG, "Received impossible touch move while in " + mState);
             return false;
@@ -329,11 +327,11 @@ public class PanZoomController
     }
 
     private boolean onTouchEnd(MotionEvent event) {
+        Log.d(LOGTAG, "onTouchEnd in " + mState);
 
         switch (mState) {
         case NOTHING:
         case FLING:
-        case BOUNCE:
             // should never happen
             Log.e(LOGTAG, "Received impossible touch end while in " + mState);
             return false;
@@ -362,6 +360,8 @@ public class PanZoomController
     }
 
     private boolean onTouchCancel(MotionEvent event) {
+        Log.d(LOGTAG, "onTouchCancel in " + mState);
+
         mState = PanZoomState.NOTHING;
         // ensure we snap back if we're overscrolled
         bounce();
@@ -467,7 +467,8 @@ public class PanZoomController
             return;
         }
 
-        mState = PanZoomState.BOUNCE;
+        mState = PanZoomState.FLING;
+        Log.d(LOGTAG, "end bounce at " + metrics);
 
         startAnimationTimer(new BounceRunnable(bounceStartMetrics, metrics));
     }
@@ -580,7 +581,7 @@ public class PanZoomController
              * animation by setting the state to PanZoomState.NOTHING. Handle this case and bail
              * out.
              */
-            if (mState != PanZoomState.BOUNCE) {
+            if (mState != PanZoomState.FLING) {
                 finishAnimation();
                 return;
             }
@@ -772,6 +773,9 @@ public class PanZoomController
         if (GeckoApp.mDOMFullScreen)
             return false;
 
+        if (!mController.getViewportMetrics().getAllowZoom())
+            return false;
+
         if (mState == PanZoomState.ANIMATED_ZOOM)
             return false;
 
@@ -832,18 +836,7 @@ public class PanZoomController
     }
 
     public boolean getRedrawHint() {
-        switch (mState) {
-            case PINCHING:
-            case ANIMATED_ZOOM:
-            case BOUNCE:
-                // don't redraw during these because the zoom is (or might be, in the case
-                // of BOUNCE) be changing rapidly and gecko will have to redraw the entire
-                // display port area. we trigger a force-redraw upon exiting these states.
-                return false;
-            default:
-                // allow redrawing in other states
-                return true;
-        }
+        return (mState == PanZoomState.NOTHING || mState == PanZoomState.FLING);
     }
 
     private void sendPointToGecko(String event, MotionEvent motionEvent) {

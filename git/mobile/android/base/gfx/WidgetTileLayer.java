@@ -19,7 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Patrick Walton <pcwalton@mozilla.com>
+ *   James Willcox <jwillcox@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,31 +37,58 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.gfx.CairoImage;
-import org.mozilla.gecko.gfx.CairoUtils;
-import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.LayerController;
-import org.mozilla.gecko.gfx.TileLayer;
-import android.graphics.PointF;
-import android.graphics.RectF;
+import org.mozilla.gecko.gfx.SingleTileLayer;
+import org.mozilla.gecko.GeckoAppShell;
 import android.opengl.GLES11;
 import android.opengl.GLES11Ext;
+import android.graphics.RectF;
 import android.util.Log;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 import javax.microedition.khronos.opengles.GL10;
 
 /**
- * Encapsulates the logic needed to draw a single textured tile.
- *
- * TODO: Repeating textures really should be their own type of layer.
+ * Encapsulates the logic needed to draw the single-tiled Gecko texture
  */
-public class SingleTileLayer extends TileLayer {
-    public SingleTileLayer(CairoImage image) { this(false, image); }
+public class WidgetTileLayer extends Layer {
+    private static final String LOGTAG = "WidgetTileLayer";
 
-    public SingleTileLayer(boolean repeat, CairoImage image) {
-        super(repeat, image);
+    private int[] mTextureIDs;
+    private CairoImage mImage;
+
+    public WidgetTileLayer(CairoImage image) {
+        mImage = image;
+    }
+
+    protected boolean initialized() { return mTextureIDs != null; }
+
+    @Override
+    public IntSize getSize() { return mImage.getSize(); }
+
+    protected void bindAndSetGLParameters() {
+        GLES11.glBindTexture(GL10.GL_TEXTURE_2D, mTextureIDs[0]);
+        GLES11.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_MIN_FILTER, GL10.GL_NEAREST);
+        GLES11.glTexParameterf(GL10.GL_TEXTURE_2D, GL10.GL_TEXTURE_MAG_FILTER, GL10.GL_LINEAR);
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        if (mTextureIDs != null)
+            TextureReaper.get().add(mTextureIDs);
+    }
+
+    @Override
+    protected boolean performUpdates(GL10 gl, RenderContext context) {
+        super.performUpdates(gl, context);
+
+        if (mTextureIDs == null) {
+            mTextureIDs = new int[1];
+            GLES11.glGenTextures(1, mTextureIDs, 0);
+        }
+
+        bindAndSetGLParameters();
+        GeckoAppShell.bindWidgetTexture();
+
+        return true;
     }
 
     @Override
@@ -71,31 +98,31 @@ public class SingleTileLayer extends TileLayer {
         if (!initialized())
             return;
 
-        GLES11.glBindTexture(GL10.GL_TEXTURE_2D, getTextureID());
+        GLES11.glBindTexture(GL10.GL_TEXTURE_2D, mTextureIDs[0]);
 
         RectF bounds;
         int[] cropRect;
         IntSize size = getSize();
         RectF viewport = context.viewport;
 
-        if (repeats()) {
-            bounds = new RectF(0.0f, 0.0f, viewport.width(), viewport.height());
-            int width = Math.round(viewport.width());
-            int height = Math.round(-viewport.height());
-            cropRect = new int[] { 0, size.height, width, height };
-        } else {
-            bounds = getBounds(context, new FloatSize(size));
-            cropRect = new int[] { 0, size.height, size.width, -size.height };
-        }
+        bounds = getBounds(context, new FloatSize(size));
+        cropRect = new int[] { 0, size.height, size.width, -size.height };
+        bounds.offset(-viewport.left, -viewport.top);
 
         GLES11.glTexParameteriv(GL10.GL_TEXTURE_2D, GLES11Ext.GL_TEXTURE_CROP_RECT_OES, cropRect,
                                 0);
 
-        float height = bounds.height();
-        float left = bounds.left - viewport.left;
-        float top = viewport.height() - (bounds.top + height - viewport.top);
+        float top = viewport.height() - (bounds.top + bounds.height());
 
-        GLES11Ext.glDrawTexfOES(left, top, 0.0f, bounds.width(), height);
+        // There may be errors from a previous GL call, so clear them first because
+        // we want to check for one below
+        while (GLES11.glGetError() != GLES11.GL_NO_ERROR);
+
+        GLES11Ext.glDrawTexfOES(bounds.left, top, 0.0f, bounds.width(), bounds.height());
+        int error = GLES11.glGetError();
+        if (error != GLES11.GL_NO_ERROR) {
+            Log.i(LOGTAG, "Failed to draw texture: " + error);
+        }
     }
 }
 

@@ -164,8 +164,8 @@ Telephony::Create(nsPIDOMWindow* aOwner, nsIRadioInterfaceLayer* aRIL)
 
   nsRefPtr<Telephony> telephony = new Telephony();
 
-  telephony->BindToOwner(aOwner);
-
+  telephony->mOwner = aOwner;
+  telephony->mScriptContext.swap(scriptContext);
   telephony->mRIL = aRIL;
   telephony->mRILTelephonyCallback = new RILTelephonyCallback(telephony);
 
@@ -328,16 +328,12 @@ Telephony::GetActive(jsval* aActive)
     return NS_OK;
   }
 
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+  nsresult rv =
+    nsContentUtils::WrapNative(mScriptContext->GetNativeContext(),
+                               mScriptContext->GetNativeGlobal(),
+                               mActiveCall->ToISupports(), aActive);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (sc) {
-    rv =
-      nsContentUtils::WrapNative(sc->GetNativeContext(),
-                                 sc->GetNativeGlobal(),
-                                 mActiveCall->ToISupports(), aActive);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+
   return NS_OK;
 }
 
@@ -346,24 +342,17 @@ Telephony::GetCalls(jsval* aCalls)
 {
   JSObject* calls = mCallsArray;
   if (!calls) {
-    nsresult rv;
-    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    nsresult rv =
+      nsTArrayToJSArray(mScriptContext->GetNativeContext(),
+                        mScriptContext->GetNativeGlobal(), mCalls, &calls);
     NS_ENSURE_SUCCESS(rv, rv);
-    if (sc) {
-      rv =
-        nsTArrayToJSArray(sc->GetNativeContext(),
-                          sc->GetNativeGlobal(), mCalls, &calls);
-      NS_ENSURE_SUCCESS(rv, rv);
 
-      if (!mRooted) {
-        NS_HOLD_JS_OBJECTS(this, Telephony);
-        mRooted = true;
-      }
-
-      mCallsArray = calls;
-    } else {
-      NS_ENSURE_SUCCESS(rv, rv);
+    if (!mRooted) {
+      NS_HOLD_JS_OBJECTS(this, Telephony);
+      mRooted = true;
     }
+
+    mCallsArray = calls;
   }
 
   aCalls->setObject(*calls);

@@ -19,6 +19,7 @@ self.onmessage = function(e) {
   case "command":
     len.value = 4096;
     var ret = libhardware_legacy.command(data.request, cbuf, len.address());
+    dump("For command " + data.request + " ret is " + ret + "\n");
     var reply = "";
     if (!ret) {
       var reply_len = len.value;

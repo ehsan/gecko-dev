@@ -57,8 +57,6 @@ XPIDLSRCS = \
 EXTRA_COMPONENTS = \
   nsWifiWorker.js \
   nsWifiWorker.manifest \
-  nsDOMWifiManager.js \
-  nsDOMWifiManager.manifest \
   $(NULL)
 
 EXTRA_JS_MODULES = \

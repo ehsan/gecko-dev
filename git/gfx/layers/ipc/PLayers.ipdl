@@ -232,9 +232,7 @@ sync protocol PLayers {
 parent:
   async PLayer();
 
-  // The isFirstPaint flag can be used to indicate that this is the first update
-  // for a particular document.
-  sync Update(Edit[] cset, bool isFirstPaint)
+  sync Update(Edit[] cset)
     returns (EditReply[] reply);
 
   async __delete__();

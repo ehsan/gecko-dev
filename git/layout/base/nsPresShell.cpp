@@ -823,7 +823,6 @@ PresShell::PresShell()
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = false;
   mIsActive = true;
-  mIsFirstPaint = false;
   mFrozen = false;
 #ifdef DEBUG
   mPresArenaAllocCount = 0;
@@ -5373,11 +5372,6 @@ PresShell::Paint(nsIView*           aViewToPaint,
   LayerManager* layerManager =
     aWidgetToPaint->GetLayerManager(&isRetainingManager);
   NS_ASSERTION(layerManager, "Must be in paint event");
-
-  if (mIsFirstPaint) {
-    layerManager->SetIsFirstPaint();
-    mIsFirstPaint = false;
-  }
   layerManager->BeginTransaction();
 
   if (frame && isRetainingManager) {

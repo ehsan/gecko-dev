@@ -68,14 +68,9 @@
 
 #include "sampler.h"
 
-#ifdef MOZ_WIDGET_ANDROID
-#include <android/log.h>
-#endif
-
 namespace mozilla {
 namespace layers {
 
-using namespace mozilla::gfx;
 using namespace mozilla::gl;
 
 #ifdef CHECK_CURRENT_PROGRAM
@@ -682,8 +677,7 @@ void
 LayerManagerOGL::BindAndDrawQuadWithTextureRect(LayerProgram *aProg,
                                                 const nsIntRect& aTexCoordRect,
                                                 const nsIntSize& aTexSize,
-                                                GLenum aWrapMode /* = LOCAL_GL_REPEAT */,
-                                                bool aFlipped /* = false */)
+                                                GLenum aWrapMode)
 {
   GLuint vertAttribIndex =
     aProg->AttribLocation(LayerProgram::VertexAttrib);
@@ -704,24 +698,16 @@ LayerManagerOGL::BindAndDrawQuadWithTextureRect(LayerProgram *aProg,
 
   GLContext::RectTriangles rects;
 
-  nsIntSize realTexSize = aTexSize;
-  if (!mGLContext->CanUploadNonPowerOfTwo()) {
-    realTexSize = nsIntSize(NextPowerOfTwo(aTexSize.width),
-                            NextPowerOfTwo(aTexSize.height));
-  }
-
   if (aWrapMode == LOCAL_GL_REPEAT) {
     rects.addRect(/* dest rectangle */
                   0.0f, 0.0f, 1.0f, 1.0f,
                   /* tex coords */
-                  aTexCoordRect.x / GLfloat(realTexSize.width),
-                  aTexCoordRect.y / GLfloat(realTexSize.height),
-                  aTexCoordRect.XMost() / GLfloat(realTexSize.width),
-                  aTexCoordRect.YMost() / GLfloat(realTexSize.height),
-                  aFlipped);
+                  aTexCoordRect.x / GLfloat(aTexSize.width),
+                  aTexCoordRect.y / GLfloat(aTexSize.height),
+                  aTexCoordRect.XMost() / GLfloat(aTexSize.width),
+                  aTexCoordRect.YMost() / GLfloat(aTexSize.height));
   } else {
-    GLContext::DecomposeIntoNoRepeatTriangles(aTexCoordRect, realTexSize,
-                                              rects, aFlipped);
+    GLContext::DecomposeIntoNoRepeatTriangles(aTexCoordRect, aTexSize, rects);
   }
 
   mGLContext->fVertexAttribPointer(vertAttribIndex, 2,
@@ -802,14 +788,10 @@ LayerManagerOGL::Render()
   mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
-  // Allow widget to render a custom background.
-  mWidget->DrawWindowUnderlay(this, rect);
-
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
                            nsIntPoint(0, 0));
 
-  // Allow widget to render a custom foreground too.
   mWidget->DrawWindowOverlay(this, rect);
 
 #ifdef MOZ_DUMP_PAINTING
