@@ -2566,6 +2566,18 @@ class FunctionCompiler
         return ins;
     }
 
+    template<typename T>
+    MDefinition *simdSplat(MDefinition *v, MIRType type)
+    {
+        if (inDeadCode())
+            return nullptr;
+
+        JS_ASSERT(IsSimdType(type));
+        T *ins = T::New(alloc(), type, v);
+        curBlock_->add(ins);
+        return ins;
+    }
+
     /***************************************************************** Calls */
 
     // The IonMonkey backend maintains a single stack offset (from the stack
@@ -4694,7 +4706,11 @@ CheckSimdCtorCall(FunctionCompiler &f, ParseNode *call, const ModuleCompiler::Gl
     JS_ASSERT(i == length);
 
     *type = simdType;
-    *def = f.constructSimd<MSimdValueX4>(defs[0], defs[1], defs[2], defs[3], type->toMIRType());
+
+    if (defs[1] == defs[0] && defs[2] == defs[0] && defs[3] == defs[0])
+        *def = f.simdSplat<MSimdSplatX4>(defs[0], type->toMIRType());
+    else
+        *def = f.constructSimd<MSimdValueX4>(defs[0], defs[1], defs[2], defs[3], type->toMIRType());
     return true;
 }
 
@@ -7061,7 +7077,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     m.masm().append(AsmJSGlobalAccess(masm.leaRipRelative(callee), globalDataOffset));
 #elif defined(JS_CODEGEN_X86)
     m.masm().append(AsmJSGlobalAccess(masm.movlWithPatch(Imm32(0), callee), globalDataOffset));
-#else
+#elif defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
     masm.computeEffectiveAddress(Address(GlobalReg, globalDataOffset - AsmJSGlobalRegBias), callee);
 #endif
 
