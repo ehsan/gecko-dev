@@ -488,27 +488,15 @@ nsSVGUseElement::UnlinkSource()
 // nsSVGElement methods
 
 /* virtual */ gfxMatrix
-nsSVGUseElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                                          TransformTypes aWhich) const
+nsSVGUseElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
 {
-  NS_ABORT_IF_FALSE(aWhich != eChildToUserSpace || aMatrix.IsIdentity(),
-                    "Skipping eUserSpaceToParent transforms makes no sense");
-
   // 'transform' attribute:
-  gfxMatrix fromUserSpace =
-    nsSVGUseElementBase::PrependLocalTransformsTo(aMatrix, aWhich);
-  if (aWhich == eUserSpaceToParent) {
-    return fromUserSpace;
-  }
-  // our 'x' and 'y' attributes:
+  gfxMatrix matrix = nsSVGUseElementBase::PrependLocalTransformTo(aMatrix);
+
+  // now translate by our 'x' and 'y':
   float x, y;
   const_cast<nsSVGUseElement*>(this)->GetAnimatedLengthValues(&x, &y, nsnull);
-  gfxMatrix toUserSpace = gfxMatrix().Translate(gfxPoint(x, y));
-  if (aWhich == eChildToUserSpace) {
-    return toUserSpace;
-  }
-  NS_ABORT_IF_FALSE(aWhich == eAllTransforms, "Unknown TransformTypes");
-  return toUserSpace * fromUserSpace;
+  return matrix.PreMultiply(gfxMatrix().Translate(gfxPoint(x, y)));
 }
 
 nsSVGElement::LengthAttributesInfo

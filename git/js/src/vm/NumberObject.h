@@ -67,13 +67,14 @@ class NumberObject : public JSObject
      */
     static inline NumberObject *createWithProto(JSContext *cx, jsdouble d, JSObject &proto);
 
-    double unbox() const {
-        return getFixedSlot(PRIMITIVE_VALUE_SLOT).toNumber();
+    Value unbox() const {
+        JS_ASSERT(getSlot(PRIMITIVE_VALUE_SLOT).isNumber());
+        return getSlot(PRIMITIVE_VALUE_SLOT);
     }
 
   private:
     inline void setPrimitiveValue(jsdouble d) {
-        setFixedSlot(PRIMITIVE_VALUE_SLOT, NumberValue(d));
+        setSlot(PRIMITIVE_VALUE_SLOT, NumberValue(d));
     }
 
     /* For access to init, as Number.prototype is special. */

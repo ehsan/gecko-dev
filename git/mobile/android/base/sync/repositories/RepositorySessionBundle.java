@@ -41,7 +41,6 @@ import java.io.IOException;
 
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
 
 import android.util.Log;
@@ -76,11 +75,8 @@ public class RepositorySessionBundle extends ExtendedJSONObject {
   }
 
   public void bumpTimestamp(long timestamp) {
-    long existing = this.getTimestamp();
-    if (timestamp > existing) {
+    if (timestamp > this.getTimestamp()) {
       this.setTimestamp(timestamp);
-    } else {
-      Logger.debug(LOG_TAG, "Timestamp " + timestamp + " not greater than " + existing + "; not bumping.");
     }
   }
 }

@@ -98,4 +98,9 @@ public class TLSSocketFactory extends SSLSocketFactory {
     setEnabledCipherSuites(socket);
     return socket;
   }
+
+  @Override
+  public boolean isSecure(Socket sock) throws IllegalArgumentException {
+    return true;
+  }
 }

@@ -2037,17 +2037,31 @@ nsAnnotationService::Observe(nsISupports *aSubject,
         "DELETE FROM moz_annos WHERE expiration = :expire_session"
       );
       NS_ENSURE_STATE(pageAnnoStmt);
-      nsresult rv = pageAnnoStmt->BindInt32ByName(NS_LITERAL_CSTRING("expire_session"),
-                                                  EXPIRE_SESSION);
-      NS_ENSURE_SUCCESS(rv, rv);
-
       nsCOMPtr<mozIStorageAsyncStatement> itemAnnoStmt = mDB->GetAsyncStatement(
         "DELETE FROM moz_items_annos WHERE expiration = :expire_session"
       );
       NS_ENSURE_STATE(itemAnnoStmt);
-      rv = itemAnnoStmt->BindInt32ByName(NS_LITERAL_CSTRING("expire_session"),
-                                         EXPIRE_SESSION);
-      NS_ENSURE_SUCCESS(rv, rv);
+
+#     define ASYNC_BIND(_stmt) \
+      PR_BEGIN_MACRO \
+      nsCOMPtr<mozIStorageBindingParamsArray> paramsArray; \
+      nsresult rv = _stmt->NewBindingParamsArray(getter_AddRefs(paramsArray)); \
+      NS_ENSURE_SUCCESS(rv, rv); \
+      nsCOMPtr<mozIStorageBindingParams> params; \
+      rv = paramsArray->NewBindingParams(getter_AddRefs(params)); \
+      NS_ENSURE_SUCCESS(rv, rv); \
+      rv = params->BindInt32ByName(NS_LITERAL_CSTRING("expire_session"), EXPIRE_SESSION); \
+      NS_ENSURE_SUCCESS(rv, rv); \
+      rv = paramsArray->AddParams(params); \
+      NS_ENSURE_SUCCESS(rv, rv); \
+      rv = _stmt->BindParameters(paramsArray); \
+      NS_ENSURE_SUCCESS(rv, rv); \
+      PR_END_MACRO
+
+      ASYNC_BIND(pageAnnoStmt);
+      ASYNC_BIND(itemAnnoStmt);
+
+#     undef ASYNC_BIND
 
       mozIStorageBaseStatement *stmts[] = {
         pageAnnoStmt.get()
@@ -2055,8 +2069,8 @@ nsAnnotationService::Observe(nsISupports *aSubject,
       };
 
       nsCOMPtr<mozIStoragePendingStatement> ps;
-      rv = mDB->MainConn()->ExecuteAsync(stmts, ArrayLength(stmts), nsnull,
-                                         getter_AddRefs(ps));
+      nsresult rv = mDB->MainConn()->ExecuteAsync(stmts, ArrayLength(stmts),
+                                                  nsnull, getter_AddRefs(ps));
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }

@@ -203,8 +203,14 @@ obj_setProto(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 
 #endif /* !JS_HAS_OBJ_PROTO_PROP */
 
-static bool
-MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap, JSSharpInfo *value)
+static JSHashNumber
+js_hash_object(const void *key)
+{
+    return JSHashNumber(uintptr_t(key) >> JS_GCTHING_ALIGN);
+}
+
+static JSHashEntry *
+MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap)
 {
     JS_CHECK_RECURSION(cx, return NULL);
 
@@ -212,15 +218,21 @@ MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap, JSSharpInfo *va
 
     JSSharpObjectMap *map = &cx->sharpObjectMap;
     JS_ASSERT(map->depth >= 1);
-    JSSharpInfo sharpid;
-    JSSharpTable::Ptr p = map->table.lookup(obj);
-    if (!p) {
-        if (!map->table.put(obj, sharpid))
-            return false;
+    JSHashTable *table = map->table;
+    JSHashNumber hash = js_hash_object(obj);
+    JSHashEntry **hep = JS_HashTableRawLookup(table, hash, obj);
+    JSHashEntry *he = *hep;
+    if (!he) {
+        jsatomid sharpid = 0;
+        he = JS_HashTableRawAdd(table, hep, hash, obj, (void *) sharpid);
+        if (!he) {
+            JS_ReportOutOfMemory(cx);
+            return NULL;
+        }
 
         ida = JS_Enumerate(cx, obj);
         if (!ida)
-            return false;
+            return NULL;
 
         bool ok = true;
         for (jsint i = 0, length = ida->length; i < length; i++) {
@@ -249,7 +261,7 @@ MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap, JSSharpInfo *va
             if (hasSetter) {
                 /* Mark the getter, then set val to setter. */
                 if (hasGetter && v.value().isObject()) {
-                    ok = MarkSharpObjects(cx, &v.value().toObject(), NULL, NULL);
+                    ok = !!MarkSharpObjects(cx, &v.value().toObject(), NULL);
                     if (!ok)
                         break;
                 }
@@ -259,7 +271,7 @@ MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap, JSSharpInfo *va
                 if (!ok)
                     break;
             }
-            if (v.value().isObject() && !MarkSharpObjects(cx, &v.value().toObject(), NULL, NULL)) {
+            if (v.value().isObject() && !MarkSharpObjects(cx, &v.value().toObject(), NULL)) {
                 ok = false;
                 break;
             }
@@ -267,42 +279,47 @@ MarkSharpObjects(JSContext *cx, JSObject *obj, JSIdArray **idap, JSSharpInfo *va
         if (!ok || !idap)
             JS_DestroyIdArray(cx, ida);
         if (!ok)
-            return false;
+            return NULL;
     } else {
-        if (!p->value.hasGen && !p->value.isSharp) {
-            p->value.hasGen = true;
+        jsatomid sharpid = uintptr_t(he->value);
+        if (sharpid == 0) {
+            sharpid = ++map->sharpgen << SHARP_ID_SHIFT;
+            he->value = (void *) sharpid;
         }
-        sharpid = p->value;
         ida = NULL;
     }
     if (idap)
         *idap = ida;
-    if (value)
-        *value = sharpid;
-    return true;
+    return he;
 }
 
-bool
-js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alreadySeen, bool *isSharp)
+JSHashEntry *
+js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alreadySeen)
 {
     if (!JS_CHECK_OPERATION_LIMIT(cx))
-        return false;
+        return NULL;
 
     *alreadySeen = false;
 
     JSSharpObjectMap *map = &cx->sharpObjectMap;
+    JSHashTable *table = map->table;
+    if (!table) {
+        table = JS_NewHashTable(8, js_hash_object, JS_CompareValues,
+                                JS_CompareValues, NULL, NULL);
+        if (!table) {
+            JS_ReportOutOfMemory(cx);
+            return NULL;
+        }
+        map->table = table;
+        JS_KEEP_ATOMS(cx->runtime);
+    }
 
-    JS_ASSERT_IF(map->depth == 0, map->table.count() == 0);
-    JS_ASSERT_IF(map->table.count() == 0, map->depth == 0);
-
-    JSSharpTable::Ptr p;
-    JSSharpInfo sharpid;
+    JSHashEntry *he;
+    jsatomid sharpid;
     JSIdArray *ida = NULL;
 
     /* From this point the control must flow either through out: or bad:. */
     if (map->depth == 0) {
-        JS_KEEP_ATOMS(cx->runtime);
-
         /*
          * Although MarkSharpObjects tries to avoid invoking getters,
          * it ends up doing so anyway under some circumstances; for
@@ -315,18 +332,21 @@ js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alread
          * ensure that such a call doesn't free the hash table we're
          * still using.
          */
-        map->depth = 1;
-        bool success = MarkSharpObjects(cx, obj, &ida, &sharpid);
-        JS_ASSERT(map->depth == 1);
-        map->depth = 0;
-        if (!success)
+        ++map->depth;
+        he = MarkSharpObjects(cx, obj, &ida);
+        --map->depth;
+        if (!he)
             goto bad;
-        JS_ASSERT(!sharpid.isSharp);
+        JS_ASSERT((uintptr_t(he->value) & SHARP_BIT) == 0);
         if (!idap) {
             JS_DestroyIdArray(cx, ida);
             ida = NULL;
         }
     } else {
+        JSHashNumber hash = js_hash_object(obj);
+        JSHashEntry **hep = JS_HashTableRawLookup(table, hash, obj);
+        he = *hep;
+
         /*
          * It's possible that the value of a property has changed from the
          * first time the object's properties are traversed (when the property
@@ -334,20 +354,24 @@ js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alread
          * converted to strings), i.e., the JSObject::getProperty() call is not
          * idempotent.
          */
-        p = map->table.lookup(obj);
-        if (!p) {
-            if (!map->table.put(obj, sharpid))
+        if (!he) {
+            he = JS_HashTableRawAdd(table, hep, hash, obj, NULL);
+            if (!he) {
+                JS_ReportOutOfMemory(cx);
                 goto bad;
+            }
+            sharpid = 0;
             goto out;
         }
-        sharpid = p->value;
     }
 
-    if (sharpid.isSharp || sharpid.hasGen)
+    sharpid = uintptr_t(he->value);
+    if (sharpid != 0)
         *alreadySeen = true;
 
 out:
-    if (!sharpid.isSharp) {
+    JS_ASSERT(he);
+    if ((sharpid & SHARP_BIT) == 0) {
         if (idap && !ida) {
             ida = JS_Enumerate(cx, obj);
             if (!ida)
@@ -358,17 +382,17 @@ out:
 
     if (idap)
         *idap = ida;
-    *isSharp = sharpid.isSharp;
-    return true;
+    return he;
 
 bad:
     /* Clean up the sharpObjectMap table on outermost error. */
     if (map->depth == 0) {
         JS_UNKEEP_ATOMS(cx->runtime);
         map->sharpgen = 0;
-        map->table.clear();
+        JS_HashTableDestroy(map->table);
+        map->table = NULL;
     }
-    return false;
+    return NULL;
 }
 
 void
@@ -379,7 +403,8 @@ js_LeaveSharpObject(JSContext *cx, JSIdArray **idap)
     if (--map->depth == 0) {
         JS_UNKEEP_ATOMS(cx->runtime);
         map->sharpgen = 0;
-        map->table.clear();
+        JS_HashTableDestroy(map->table);
+        map->table = NULL;
     }
     if (idap) {
         if (JSIdArray *ida = *idap) {
@@ -389,10 +414,18 @@ js_LeaveSharpObject(JSContext *cx, JSIdArray **idap)
     }
 }
 
+static intN
+gc_sharp_table_entry_marker(JSHashEntry *he, intN i, void *arg)
+{
+    MarkObjectRoot((JSTracer *)arg, (JSObject *)he->key, "sharp table entry");
+    return JS_DHASH_NEXT;
+}
+
 void
 js_TraceSharpMap(JSTracer *trc, JSSharpObjectMap *map)
 {
     JS_ASSERT(map->depth > 0);
+    JS_ASSERT(map->table);
 
     /*
      * During recursive calls to MarkSharpObjects a non-native object or
@@ -414,8 +447,7 @@ js_TraceSharpMap(JSTracer *trc, JSSharpObjectMap *map)
      * with otherwise unreachable objects. But this is way too complex
      * to justify spending efforts.
      */
-    for (JSSharpTable::Range r = map->table.all(); !r.empty(); r.popFront())
-        MarkObjectRoot(trc, r.front().key, "sharp table entry");
+    JS_HashTableEnumerateEntries(map->table, gc_sharp_table_entry_marker, trc);
 }
 
 #if JS_HAS_TOSOURCE
@@ -443,8 +475,8 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
 
     JSIdArray *ida;
     bool alreadySeen = false;
-    bool isSharp = false;
-    if (!js_EnterSharpObject(cx, obj, &ida, &alreadySeen, &isSharp))
+    JSHashEntry *he = js_EnterSharpObject(cx, obj, &ida, &alreadySeen);
+    if (!he)
         return false;
 
     if (!ida) {
@@ -459,14 +491,10 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
         vp->setString(str);
         return true;
     }
+    JS_ASSERT(!IS_SHARP(he));
 
-    JS_ASSERT(!isSharp);
-    if (alreadySeen) {
-        JSSharpTable::Ptr p = cx->sharpObjectMap.table.lookup(obj);
-        JS_ASSERT(p);
-        JS_ASSERT(!p->value.isSharp);
-        p->value.isSharp = true;
-    }
+    if (alreadySeen)
+        MAKE_SHARP(he);
 
     /* Automatically call js_LeaveSharpObject when we leave this frame. */
     class AutoLeaveSharpObject {
@@ -509,6 +537,7 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
         JSString *s = ToString(cx, IdToValue(id));
         if (!s || !(idstr = s->ensureLinear(cx)))
             return false;
+        vp->setString(idstr);                           /* local root */
 
         int valcnt = 0;
         if (prop) {
@@ -547,6 +576,7 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
             s = js_QuoteString(cx, idstr, jschar('\''));
             if (!s || !(idstr = s->ensureLinear(cx)))
                 return false;
+            vp->setString(idstr);                       /* local root */
         }
 
         for (int j = 0; j < valcnt; j++) {
@@ -3495,11 +3525,6 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
     types::TypeObject::writeBarrierPost(a->type_, &a->type_);
     types::TypeObject::writeBarrierPost(b->type_, &b->type_);
 #endif
-
-    if (a->inDictionaryMode())
-        a->lastProperty()->listp = &a->shape_;
-    if (b->inDictionaryMode())
-        b->lastProperty()->listp = &b->shape_;
 }
 
 /*
@@ -3570,7 +3595,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
         const Shape *shape = obj->nativeLookup(cx, id);
         if (!shape) {
             uint32_t slot = 2 * JSProto_LIMIT + key;
-            obj->setReservedSlot(slot, v);
+            SetReservedSlot(obj, slot, v);
             if (!obj->addProperty(cx, id, JS_PropertyStub, JS_StrictPropertyStub, slot, attrs, 0, 0))
                 return false;
             AddTypePropertyId(cx, obj, id, v);
@@ -3593,8 +3618,8 @@ SetClassObject(JSObject *obj, JSProtoKey key, JSObject *cobj, JSObject *proto)
     if (!obj->isGlobal())
         return;
 
-    obj->setReservedSlot(key, ObjectOrNullValue(cobj));
-    obj->setReservedSlot(JSProto_LIMIT + key, ObjectOrNullValue(proto));
+    SetReservedSlot(obj, key, ObjectOrNullValue(cobj));
+    SetReservedSlot(obj, JSProto_LIMIT + key, ObjectOrNullValue(proto));
 }
 
 static void
@@ -5862,7 +5887,7 @@ DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
                                  &StringClass,
                                  ATOM_TO_JSID(cx->runtime->atomState.toStringAtom),
                                  js_str_toString)) {
-            *vp = StringValue(obj->asString().unbox());
+            *vp = obj->getPrimitiveThis();
             return true;
         }
 
@@ -5885,9 +5910,7 @@ DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
              ClassMethodIsNative(cx, obj, &NumberClass,
                                  ATOM_TO_JSID(cx->runtime->atomState.valueOfAtom),
                                  js_num_valueOf))) {
-            *vp = obj->isString()
-                  ? StringValue(obj->asString().unbox())
-                  : NumberValue(obj->asNumber().unbox());
+            *vp = obj->getPrimitiveThis();
             return true;
         }
 

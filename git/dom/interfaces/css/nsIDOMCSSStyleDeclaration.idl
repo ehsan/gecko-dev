@@ -60,7 +60,7 @@ interface nsIDOMCSSStyleDeclaration : nsISupports
   DOMString          getPropertyPriority(in DOMString propertyName);
   void               setProperty(in DOMString propertyName, 
                                  in DOMString value, 
-                                 [optional] in DOMString priority)
+                                 in DOMString priority)
                                         raises(DOMException);
   readonly attribute unsigned long    length;
   DOMString          item(in unsigned long index);

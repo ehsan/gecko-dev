@@ -100,6 +100,12 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
+inline JSObject *
+JSObject::getThrowTypeError() const
+{
+    return global().getThrowTypeError();
+}
+
 JSBool
 js_GetArgsValue(JSContext *cx, StackFrame *fp, Value *vp)
 {
@@ -469,8 +475,8 @@ strictargs_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject 
         }
 
         attrs = JSPROP_PERMANENT | JSPROP_GETTER | JSPROP_SETTER | JSPROP_SHARED;
-        getter = CastAsPropertyOp(argsobj.global().getThrowTypeError());
-        setter = CastAsStrictPropertyOp(argsobj.global().getThrowTypeError());
+        getter = CastAsPropertyOp(argsobj.getThrowTypeError());
+        setter = CastAsStrictPropertyOp(argsobj.getThrowTypeError());
     }
 
     Value undef = UndefinedValue();
@@ -524,7 +530,7 @@ args_trace(JSTracer *trc, JSObject *obj)
 {
     ArgumentsObject &argsobj = obj->asArguments();
     ArgumentsData *data = argsobj.data();
-    MarkValue(trc, &data->callee, js_callee_str);
+    MarkValue(trc, data->callee, js_callee_str);
     MarkValueRange(trc, argsobj.initialLength(), data->slots, js_arguments_str);
 
     /*
@@ -1323,7 +1329,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             StrictPropertyOp setter;
             uintN attrs = JSPROP_PERMANENT;
             if (fun->isInterpreted() ? fun->inStrictMode() : fun->isBoundFunction()) {
-                JSObject *throwTypeError = fun->global().getThrowTypeError();
+                JSObject *throwTypeError = fun->getThrowTypeError();
 
                 getter = CastAsPropertyOp(throwTypeError);
                 setter = CastAsStrictPropertyOp(throwTypeError);

@@ -416,11 +416,8 @@ JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
 {
     JS_ASSERT(trc->runtime->gcCurrentCompartment);
 
-    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        Value tmp = e.front().key;
-        MarkValueRoot(trc, &tmp, "cross-compartment wrapper");
-        JS_ASSERT(tmp == e.front().key);
-    }
+    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront())
+        MarkValueRoot(trc, e.front().key, "cross-compartment wrapper");
 }
 
 void

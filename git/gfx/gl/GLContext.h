@@ -541,10 +541,8 @@ public:
               bool aIsOffscreen = false,
               GLContext *aSharedContext = nsnull)
       : mFlushGuaranteesResolve(false),
-        mUserBoundDrawFBO(0),
-        mUserBoundReadFBO(0),
-        mInternalBoundDrawFBO(0),
-        mInternalBoundReadFBO(0),
+        mBoundDrawFBO(0),
+        mBoundReadFBO(0),
         mOffscreenFBOsDirty(false),
         mInitialized(false),
         mIsOffscreen(aIsOffscreen),
@@ -864,67 +862,23 @@ public:
 
 
 private:
-    GLuint mUserBoundDrawFBO;
-    GLuint mUserBoundReadFBO;
-    GLuint mInternalBoundDrawFBO;
-    GLuint mInternalBoundReadFBO;
+    GLuint mBoundDrawFBO;
+    GLuint mBoundReadFBO;
 
 public:
     void fBindFramebuffer(GLenum target, GLuint framebuffer) {
         switch (target) {
-          case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
-            mUserBoundDrawFBO = framebuffer;
-
-            if (framebuffer == 0) {
-                mInternalBoundDrawFBO = mOffscreenDrawFBO;
-            } else {
-                mInternalBoundDrawFBO = mUserBoundDrawFBO;
-            }
-
-            raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT,
-                                 mInternalBoundDrawFBO);
-            break;
-
-          case LOCAL_GL_READ_FRAMEBUFFER_EXT:
-            mUserBoundReadFBO = framebuffer;
-
-            if (framebuffer == 0) {
-                mInternalBoundReadFBO = mOffscreenReadFBO;
-            } else {
-                mInternalBoundReadFBO = mUserBoundReadFBO;
-            }
-
-            raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT,
-                                 mInternalBoundReadFBO);
-            break;
-
           case LOCAL_GL_FRAMEBUFFER:
-            mUserBoundDrawFBO = mUserBoundReadFBO = framebuffer;
-
-            if (framebuffer == 0) {
-                mInternalBoundDrawFBO = mOffscreenDrawFBO;
-                mInternalBoundReadFBO = mOffscreenReadFBO;
-            } else {
-                mInternalBoundDrawFBO = mUserBoundDrawFBO;
-                mInternalBoundReadFBO = mUserBoundReadFBO;
-            }
-
-            if (SupportsOffscreenSplit()) {
-                raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT,
-                                     mInternalBoundDrawFBO);
-                raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT,
-                                     mInternalBoundReadFBO);
-            } else {
-                raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
-                                     mInternalBoundDrawFBO);
-            }
-
+            mBoundDrawFBO = mBoundReadFBO = framebuffer;
             break;
-
-          default:
-            raw_fBindFramebuffer(target, framebuffer);
+          case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
+            mBoundDrawFBO = framebuffer;
+            break;
+          case LOCAL_GL_READ_FRAMEBUFFER_EXT:
+            mBoundReadFBO = framebuffer;
             break;
         }
+        raw_fBindFramebuffer(target, framebuffer);
     }
 
     GLuint GetBoundDrawFBO() {
@@ -932,38 +886,32 @@ public:
         GLint ret = 0;
         // Don't need a branch here, because:
         // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT == LOCAL_GL_FRAMEBUFFER_BINDING == 0x8CA6
-        // We use raw_ here because this is debug code and we need to see what
-        // the driver thinks.
-        raw_fGetIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, &ret);
+        fGetIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, &ret);
 
-        if (mInternalBoundDrawFBO != (GLuint)ret) {
-          printf_stderr("!!! Draw FBO mismatch: Was: %d, Expected: %d\n", ret, mInternalBoundDrawFBO);
+        if (mBoundDrawFBO != (GLuint)ret) {
+          printf_stderr("!!! Draw FBO mismatch: Was: %d, Expected: %d\n", ret, mBoundDrawFBO);
           NS_ABORT();
         }
 #endif
 
-        // We only ever expose the user's bound FBOs
-        return mUserBoundDrawFBO;
+        return mBoundDrawFBO;
     }
 
     GLuint GetBoundReadFBO() {
 #ifdef DEBUG
         GLint ret = 0;
-        // We use raw_ here because this is debug code and we need to see what
-        // the driver thinks.
         if (SupportsOffscreenSplit())
-            raw_fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, &ret);
+            fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, &ret);
         else
-            raw_fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
+            fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
 
-        if (mInternalBoundReadFBO != (GLuint)ret) {
-          printf_stderr("!!! Read FBO mismatch: Was: %d, Expected: %d\n", ret, mInternalBoundReadFBO);
+        if (mBoundReadFBO != (GLuint)ret) {
+          printf_stderr("!!! Read FBO mismatch: Was: %d, Expected: %d\n", ret, mBoundReadFBO);
           NS_ABORT();
         }
 #endif
 
-        // We only ever expose the user's bound FBOs
-        return mUserBoundReadFBO;
+        return mBoundReadFBO;
     }
 
     void BindDrawFBO(GLuint name) {
@@ -1006,6 +954,8 @@ public:
     }
 
 private:
+    GLuint mPrevDrawFBOBinding;
+    GLuint mPrevReadFBOBinding;
     bool mOffscreenFBOsDirty;
 
     void GetShaderPrecisionFormatNonES2(GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision) {
@@ -1030,29 +980,40 @@ private:
         }
     }
 
-    // Do whatever setup is necessary to draw to our offscreen FBO, if it's
-    // bound.
     void BeforeGLDrawCall() {
-        if (mInternalBoundDrawFBO != mOffscreenDrawFBO)
+        // Record and rebind if necessary
+        mPrevDrawFBOBinding = GetBoundDrawFBO();
+        if (mPrevDrawFBOBinding == 0) {
+            BindDrawFBO(mOffscreenDrawFBO);
+        } else if (mPrevDrawFBOBinding != mOffscreenDrawFBO)
             return;
 
+        // Must be after binding the proper FBO
         if (mOffscreenDrawFBO == mOffscreenReadFBO)
+            return;
+
+        // If we're already dirty, no need to set it again
+        if (mOffscreenFBOsDirty)
             return;
 
         mOffscreenFBOsDirty = true;
     }
 
-    // Do whatever tear-down is necessary after drawing to our offscreen FBO,
-    // if it's bound.
     void AfterGLDrawCall() {
+        if (mPrevDrawFBOBinding == 0) {
+            BindDrawFBO(0);
+        }
     }
 
-    // Do whatever setup is necessary to read from our offscreen FBO, if it's
-    // bound.
     void BeforeGLReadCall() {
-        if (mInternalBoundReadFBO != mOffscreenReadFBO)
+        // Record and rebind if necessary
+        mPrevReadFBOBinding = GetBoundReadFBO();
+        if (mPrevReadFBOBinding == 0) {
+            BindReadFBO(mOffscreenReadFBO);
+        } else if (mPrevReadFBOBinding != mOffscreenReadFBO)
             return;
 
+        // Must be after binding the proper FBO
         if (mOffscreenDrawFBO == mOffscreenReadFBO)
             return;
 
@@ -1066,7 +1027,7 @@ private:
 
         // flip read/draw for blitting
         GLuint prevDraw = SwapBoundDrawFBO(mOffscreenReadFBO);
-        GLuint prevRead = SwapBoundReadFBO(mOffscreenDrawFBO);
+        BindReadFBO(mOffscreenDrawFBO); // We know that Read must already be mOffscreenRead, so no need to write that down
 
         GLint width = mOffscreenActualSize.width;
         GLint height = mOffscreenActualSize.height;
@@ -1076,7 +1037,7 @@ private:
                              LOCAL_GL_NEAREST);
 
         BindDrawFBO(prevDraw);
-        BindReadFBO(prevRead);
+        BindReadFBO(mOffscreenReadFBO);
 
         if (scissor)
             fEnable(LOCAL_GL_SCISSOR_TEST);
@@ -1084,9 +1045,10 @@ private:
         mOffscreenFBOsDirty = false;
     }
 
-    // Do whatever tear-down is necessary after reading from our offscreen FBO,
-    // if it's bound.
     void AfterGLReadCall() {
+        if (mPrevReadFBOBinding == 0) {
+            BindReadFBO(0);
+        }
     }
 
 public:
@@ -2035,32 +1997,10 @@ public:
         return retval;
     }
 
-private:
-    void raw_fGetIntegerv(GLenum pname, GLint *params) {
+    void fGetIntegerv(GLenum pname, GLint *params) {
         BEFORE_GL_CALL;
         mSymbols.fGetIntegerv(pname, params);
         AFTER_GL_CALL;
-    }
-
-public:
-    void fGetIntegerv(GLenum pname, GLint *params) {
-        switch (pname)
-        {
-            // LOCAL_GL_FRAMEBUFFER_BINDING is equal to
-            // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, so we don't need two
-            // cases.
-            case LOCAL_GL_FRAMEBUFFER_BINDING:
-                *params = GetBoundDrawFBO();
-                break;
-
-            case LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT:
-                *params = GetBoundReadFBO();
-                break;
-
-            default:
-                raw_fGetIntegerv(pname, params);
-                break;
-        }
     }
 
     void fGetFloatv(GLenum pname, GLfloat *params) {

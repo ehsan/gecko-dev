@@ -65,12 +65,8 @@
 
 #include "gc/Barrier.h"
 #include "js/TemplateLib.h"
-
-#include "vm/BooleanObject.h"
 #include "vm/GlobalObject.h"
-#include "vm/NumberObject.h"
 #include "vm/RegExpStatics.h"
-#include "vm/StringObject.h"
 
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
@@ -438,6 +434,20 @@ JSObject::setReservedSlot(uintN index, const js::Value &v)
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     setSlot(index, v);
+}
+
+inline const js::Value &
+JSObject::getPrimitiveThis() const
+{
+    JS_ASSERT(isPrimitive());
+    return getFixedSlot(JSSLOT_PRIMITIVE_THIS);
+}
+
+inline void
+JSObject::setPrimitiveThis(const js::Value &pthis)
+{
+    JS_ASSERT(isPrimitive());
+    setFixedSlot(JSSLOT_PRIMITIVE_THIS, pthis);
 }
 
 inline bool
@@ -1906,7 +1916,6 @@ class PrimitiveBehavior<JSString *> {
   public:
     static inline bool isType(const Value &v) { return v.isString(); }
     static inline JSString *extract(const Value &v) { return v.toString(); }
-    static inline JSString *extract(JSObject &obj) { return obj.asString().unbox(); }
     static inline Class *getClass() { return &StringClass; }
 };
 
@@ -1915,7 +1924,6 @@ class PrimitiveBehavior<bool> {
   public:
     static inline bool isType(const Value &v) { return v.isBoolean(); }
     static inline bool extract(const Value &v) { return v.toBoolean(); }
-    static inline bool extract(JSObject &obj) { return obj.asBoolean().unbox(); }
     static inline Class *getClass() { return &BooleanClass; }
 };
 
@@ -1924,7 +1932,6 @@ class PrimitiveBehavior<double> {
   public:
     static inline bool isType(const Value &v) { return v.isNumber(); }
     static inline double extract(const Value &v) { return v.toNumber(); }
-    static inline double extract(JSObject &obj) { return obj.asNumber().unbox(); }
     static inline Class *getClass() { return &NumberClass; }
 };
 
@@ -1961,7 +1968,7 @@ BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, Native native, T *v, boo
     if (!NonGenericMethodGuard(cx, args, native, Behavior::getClass(), ok))
         return false;
 
-    *v = Behavior::extract(thisv.toObject());
+    *v = Behavior::extract(thisv.toObject().getPrimitiveThis());
     return true;
 }
 

@@ -44,7 +44,7 @@
 #import <OpenGL/OpenGL.h>
 
 class gfxASurface;
-struct _CGLContextObject;
+class _CGLContextObject;
 
 typedef _CGLContextObject* CGLContextObj;
 typedef uint32_t IOSurfaceID;

@@ -1434,22 +1434,23 @@ JSObject::makeDenseArraySlow(JSContext *cx)
 class ArraySharpDetector
 {
     JSContext *cx;
-    bool success;
+    JSHashEntry *he;
     bool alreadySeen;
     bool sharp;
 
   public:
     ArraySharpDetector(JSContext *cx)
       : cx(cx),
-        success(false),
+        he(NULL),
         alreadySeen(false),
         sharp(false)
     {}
 
     bool init(JSObject *obj) {
-        success = js_EnterSharpObject(cx, obj, NULL, &alreadySeen, &sharp);
-        if (!success)
+        he = js_EnterSharpObject(cx, obj, NULL, &alreadySeen);
+        if (!he)
             return false;
+        sharp = IS_SHARP(he);
         return true;
     }
 
@@ -1459,7 +1460,7 @@ class ArraySharpDetector
     }
 
     ~ArraySharpDetector() {
-        if (success && !sharp)
+        if (he && !sharp)
             js_LeaveSharpObject(cx, NULL);
     }
 };
