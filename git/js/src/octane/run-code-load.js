@@ -1,4 +1,4 @@
-// Copyright 2008 the V8 project authors. All rights reserved.
+// Copyright 2014 the V8 project authors. All rights reserved.
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -26,15 +26,9 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-load('base.js');
-load('richards.js');
-load('deltablue.js');
-load('crypto.js');
-load('raytrace.js');
-load('earley-boyer.js');
-load('regexp.js');
-load('splay.js');
-load('navier-stokes.js');
+var base_dir = '';
+load(base_dir + 'base.js');
+load(base_dir + 'code-load.js');
 
 var success = true;
 
@@ -56,6 +50,9 @@ function PrintScore(score) {
   }
 }
 
+
+BenchmarkSuite.config.doWarmup = undefined;
+BenchmarkSuite.config.doDeterministic = undefined;
 
 BenchmarkSuite.RunSuites({ NotifyResult: PrintResult,
                            NotifyError: PrintError,

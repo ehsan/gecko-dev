@@ -1,4 +1,4 @@
-// Copyright 2008 the V8 project authors. All rights reserved.
+// Copyright 2014 the V8 project authors. All rights reserved.
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -26,8 +26,10 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-load('base.js');
-load('regexp.js');
+var base_dir = '';
+load(base_dir + 'base.js');
+load(base_dir + 'zlib.js');
+load(base_dir + 'zlib-data.js');
 
 var success = true;
 
@@ -49,6 +51,9 @@ function PrintScore(score) {
   }
 }
 
+
+BenchmarkSuite.config.doWarmup = undefined;
+BenchmarkSuite.config.doDeterministic = undefined;
 
 BenchmarkSuite.RunSuites({ NotifyResult: PrintResult,
                            NotifyError: PrintError,

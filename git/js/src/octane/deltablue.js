@@ -23,8 +23,8 @@
 // more like a JavaScript program.
 
 
-var DeltaBlue = new BenchmarkSuite('DeltaBlue', 66118, [
-  new Benchmark('DeltaBlue', deltaBlue)
+var DeltaBlue = new BenchmarkSuite('DeltaBlue', [66118], [
+  new Benchmark('DeltaBlue', true, false, 4400, deltaBlue)
 ]);
 
 
@@ -46,12 +46,15 @@ var DeltaBlue = new BenchmarkSuite('DeltaBlue', 66118, [
 
 /* --- O b j e c t   M o d e l --- */
 
-Object.prototype.inheritsFrom = function (shuper) {
-  function Inheriter() { }
-  Inheriter.prototype = shuper.prototype;
-  this.prototype = new Inheriter();
-  this.superConstructor = shuper;
-}
+Object.defineProperty(Object.prototype, "inheritsFrom", {
+  
+  value: function (shuper) {
+    function Inheriter() { }
+    Inheriter.prototype = shuper.prototype;
+    this.prototype = new Inheriter();
+    this.superConstructor = shuper;
+  }
+});
 
 function OrderedCollection() {
   this.elms = new Array();
