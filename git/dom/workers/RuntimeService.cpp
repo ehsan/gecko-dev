@@ -45,10 +45,6 @@
 #include "Worker.h"
 #include "WorkerPrivate.h"
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -897,14 +893,6 @@ public:
   NS_IMETHOD
   Run()
   {
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-      NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                   "NuwaMarkCurrentThread is undefined!");
-      NuwaMarkCurrentThread(nullptr, nullptr);
-      NuwaFreezeCurrentThread();
-    }
-#endif
     WorkerPrivate* workerPrivate = mWorkerPrivate;
     mWorkerPrivate = nullptr;
 

@@ -14,13 +14,14 @@
 #include "jit/IonFrames.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#ifdef JS_ION_PERF
-# include "jit/PerfSpewer.h"
-#endif
 #include "jit/VMFunctions.h"
 #include "jit/x86/BaselineHelpers-x86.h"
 
 #include "jsscriptinlines.h"
+
+#ifdef JS_ION_PERF
+# include "jit/PerfSpewer.h"
+#endif
 
 using namespace js;
 using namespace js::jit;

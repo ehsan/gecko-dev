@@ -166,9 +166,9 @@ GrallocTextureSourceOGL::GetFormat() const {
 }
 
 void
-GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
+GrallocTextureSourceOGL::SetCompositableQuirks(CompositableQuirks* aQuirks)
 {
-  mCompositableBackendData = aBackendData;
+  mQuirks = aQuirks;
 
   if (!mCompositor) {
     return;
@@ -326,16 +326,16 @@ GrallocTextureSourceOGL::GetAsSurface() {
 GLuint
 GrallocTextureSourceOGL::GetGLTexture()
 {
-  mCompositableBackendData->SetCompositor(mCompositor);
-  return static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->GetTexture();
+  mQuirks->SetCompositor(mCompositor);
+  return static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
 }
 
 void
-GrallocTextureHostOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
+GrallocTextureHostOGL::SetCompositableQuirks(CompositableQuirks* aQuirks)
 {
-  mCompositableBackendData = aBackendData;
+  mQuirks = aQuirks;
   if (mTextureSource) {
-    mTextureSource->SetCompositableBackendSpecificData(aBackendData);
+    mTextureSource->SetCompositableQuirks(aQuirks);
   }
 }
 

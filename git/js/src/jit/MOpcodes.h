@@ -165,8 +165,7 @@ namespace jit {
     _(IteratorEnd)                                                          \
     _(StringLength)                                                         \
     _(ArgumentsLength)                                                      \
-    _(GetFrameArgument)                                                     \
-    _(SetFrameArgument)                                                     \
+    _(GetArgument)                                                          \
     _(RunOncePrologue)                                                      \
     _(Rest)                                                                 \
     _(Floor)                                                                \

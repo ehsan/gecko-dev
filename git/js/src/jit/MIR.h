@@ -218,13 +218,12 @@ class AliasSet {
         FixedSlot         = 1 << 3, // A member of obj->fixedSlots().
         TypedArrayElement = 1 << 4, // A typed array element.
         DOMProperty       = 1 << 5, // A DOM property
-        FrameArgument     = 1 << 6, // An argument kept on the stack frame
-        AsmJSGlobalVar    = 1 << 7, // An asm.js global var
-        AsmJSHeap         = 1 << 8, // An asm.js heap load
+        AsmJSGlobalVar    = 1 << 6, // An asm.js global var
+        AsmJSHeap         = 1 << 7, // An asm.js heap load
         Last              = AsmJSHeap,
         Any               = Last | (Last - 1),
 
-        NumCategories     = 9,
+        NumCategories     = 8,
 
         // Indicates load or store.
         Store_            = 1 << 31
@@ -7744,25 +7743,22 @@ class MArgumentsLength : public MNullaryInstruction
 };
 
 // This MIR instruction is used to get an argument from the actual arguments.
-class MGetFrameArgument
+class MGetArgument
   : public MUnaryInstruction,
     public IntPolicy<0>
 {
-    bool scriptHasSetArg_;
-
-    MGetFrameArgument(MDefinition *idx, bool scriptHasSetArg)
-      : MUnaryInstruction(idx),
-        scriptHasSetArg_(scriptHasSetArg)
+    MGetArgument(MDefinition *idx)
+      : MUnaryInstruction(idx)
     {
         setResultType(MIRType_Value);
         setMovable();
     }
 
   public:
-    INSTRUCTION_HEADER(GetFrameArgument)
+    INSTRUCTION_HEADER(GetArgument)
 
-    static MGetFrameArgument *New(MDefinition *idx, bool scriptHasSetArg) {
-        return new MGetFrameArgument(idx, scriptHasSetArg);
+    static MGetArgument *New(MDefinition *idx) {
+        return new MGetArgument(idx);
     }
 
     MDefinition *index() const {
@@ -7776,47 +7772,7 @@ class MGetFrameArgument
         return congruentIfOperandsEqual(ins);
     }
     AliasSet getAliasSet() const {
-        // If the script doesn't have any JSOP_SETARG ops, then this instruction is never
-        // aliased.
-        if (scriptHasSetArg_)
-            return AliasSet::Load(AliasSet::FrameArgument);
         return AliasSet::None();
-    }
-};
-
-// This MIR instruction is used to set an argument value in the frame.
-class MSetFrameArgument
-  : public MUnaryInstruction
-{
-    uint32_t argno_;
-
-    MSetFrameArgument(uint32_t argno, MDefinition *value)
-      : MUnaryInstruction(value),
-        argno_(argno)
-    {
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(SetFrameArgument)
-
-    static MSetFrameArgument *New(uint32_t argno, MDefinition *value) {
-        return new MSetFrameArgument(argno, value);
-    }
-
-    uint32_t argno() const {
-        return argno_;
-    }
-
-    MDefinition *value() const {
-        return getOperand(0);
-    }
-
-    bool congruentTo(MDefinition *ins) const {
-        return false;
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::FrameArgument);
     }
 };
 

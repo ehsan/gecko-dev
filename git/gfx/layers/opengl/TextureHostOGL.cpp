@@ -41,11 +41,11 @@ namespace layers {
 
 class Compositor; 
 
-TemporaryRef<CompositableBackendSpecificData>
-CreateCompositableBackendSpecificDataOGL()
+TemporaryRef<CompositableQuirks>
+CreateCompositableQuirksOGL()
 {
 #ifdef MOZ_WIDGET_GONK
-  return new CompositableDataGonkOGL();
+  return new CompositableQuirksGonkOGL();
 #else
   return nullptr;
 #endif
@@ -166,27 +166,27 @@ WrapMode(gl::GLContext *aGl, bool aAllowRepeat)
   return LOCAL_GL_CLAMP_TO_EDGE;
 }
 
-CompositableDataGonkOGL::CompositableDataGonkOGL()
+CompositableQuirksGonkOGL::CompositableQuirksGonkOGL()
  : mTexture(0)
 {
 }
-CompositableDataGonkOGL::~CompositableDataGonkOGL()
+CompositableQuirksGonkOGL::~CompositableQuirksGonkOGL()
 {
   DeleteTextureIfPresent();
 }
 
 gl::GLContext*
-CompositableDataGonkOGL::gl() const
+CompositableQuirksGonkOGL::gl() const
 {
   return mCompositor ? mCompositor->gl() : nullptr;
 }
 
-void CompositableDataGonkOGL::SetCompositor(Compositor* aCompositor)
+void CompositableQuirksGonkOGL::SetCompositor(Compositor* aCompositor)
 {
   mCompositor = static_cast<CompositorOGL*>(aCompositor);
 }
 
-GLuint CompositableDataGonkOGL::GetTexture()
+GLuint CompositableQuirksGonkOGL::GetTexture()
 {
   if (!mTexture) {
     gl()->MakeCurrent();
@@ -196,7 +196,7 @@ GLuint CompositableDataGonkOGL::GetTexture()
 }
 
 void
-CompositableDataGonkOGL::DeleteTextureIfPresent()
+CompositableQuirksGonkOGL::DeleteTextureIfPresent()
 {
   if (mTexture) {
     gl()->MakeCurrent();
@@ -507,7 +507,7 @@ TextureImageDeprecatedTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage
   }
 
 #ifdef MOZ_WIDGET_GONK
-  if (mCompositableBackendData) {
+  if (mQuirks) {
     // on gonk, this class is used as a fallback from gralloc buffer.
     // There is a case this class is used with GrallocDeprecatedTextureHostOGL
     // under same CompositableHost. if it happens, a gralloc buffer of
@@ -515,7 +515,7 @@ TextureImageDeprecatedTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage
     // when the gralloc buffer is not rendered.
     // Establish the unbound by deleting the texture.
     // See Bug 916264.
-    static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->DeleteTextureIfPresent();
+    static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->DeleteTextureIfPresent();
   }
 #endif
 
@@ -1268,8 +1268,8 @@ GrallocDeprecatedTextureHostOGL::GetRenderState()
 GLuint
 GrallocDeprecatedTextureHostOGL::GetGLTexture()
 {
-  mCompositableBackendData->SetCompositor(mCompositor);
-  return static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->GetTexture();
+  mQuirks->SetCompositor(mCompositor);
+  return static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
 }
 
 #endif // MOZ_WIDGET_GONK

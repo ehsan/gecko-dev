@@ -18,9 +18,7 @@
 #include "frontend/BytecodeCompiler.h"
 #include "jit/AsmJSModule.h"
 #include "jit/Ion.h"
-#ifdef JS_ION_PERF
-# include "jit/PerfSpewer.h"
-#endif
+#include "jit/PerfSpewer.h"
 
 #include "jsobjinlines.h"
 

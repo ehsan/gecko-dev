@@ -5,7 +5,6 @@
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
-  <script type="text/javascript" src="head_plain.js"></script>
 </head>
 <body>
 Browser context menu tests.
@@ -704,7 +703,14 @@ function runTest(testNum) {
                          ].concat(inspectItems));
         closeContextMenu();
         SpecialPowers.clearUserPref("plugins.click_to_play");
-        getTestPlugin().enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+        var ph = SpecialPowers.Cc["@mozilla.org/plugin/host;1"]
+                                 .getService(SpecialPowers.Ci.nsIPluginHost);
+        var tags = ph.getPluginTags();
+        for (var tag of tags) {
+          if (tag.name == "Test Plug-in") {
+            tag.enabledState = SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED;
+          }
+        }
         openContextMenuFor(longdesc);
         return;
 
@@ -875,7 +881,14 @@ if (isOSXMtnLion) {
   todo(false, "Mountain Lion doesn't like this test (bug 792304)");
 } else {
   SpecialPowers.setBoolPref("plugins.click_to_play", true);
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY);
+  var ph = SpecialPowers.Cc["@mozilla.org/plugin/host;1"]
+                           .getService(SpecialPowers.Ci.nsIPluginHost);
+  var tags = ph.getPluginTags();
+  for (var tag of tags) {
+    if (tag.name == "Test Plug-in") {
+      tag.enabledState = SpecialPowers.Ci.nsIPluginTag.STATE_CLICKTOPLAY;
+    }
+  }
 
   var subwindow = window.open("./subtst_contextmenu.html", "contextmenu-subtext", "width=600,height=800");
   subwindow.addEventListener("MozAfterPaint", waitForEvents, false);

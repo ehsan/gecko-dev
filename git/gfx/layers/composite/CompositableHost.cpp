@@ -55,7 +55,7 @@ CompositableHost::AddTextureHost(TextureHost* aTexture)
   RefPtr<TextureHost> second = mFirstTexture;
   mFirstTexture = aTexture;
   aTexture->SetNextSibling(second);
-  aTexture->SetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
+  aTexture->SetCompositableQuirks(GetCompositableQuirks());
 }
 
 void
@@ -164,7 +164,7 @@ CompositableHost::RemoveMaskEffect()
 }
 
 // implemented in TextureHostOGL.cpp
-TemporaryRef<CompositableBackendSpecificData> CreateCompositableBackendSpecificDataOGL();
+TemporaryRef<CompositableQuirks> CreateCompositableQuirksOGL();
 
 /* static */ TemporaryRef<CompositableHost>
 CompositableHost::Create(const TextureInfo& aTextureInfo)
@@ -196,8 +196,8 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
     MOZ_CRASH("Unknown CompositableType");
   }
   if (result) {
-    RefPtr<CompositableBackendSpecificData> data = CreateCompositableBackendSpecificDataOGL();
-    result->SetCompositableBackendSpecificData(data);
+    RefPtr<CompositableQuirks> quirks = CreateCompositableQuirksOGL();
+    result->SetCompositableQuirks(quirks);
   }
   return result;
 }

@@ -361,10 +361,6 @@ ConnectImageBridgeInChildProcess(Transport* aTransport,
                                    ipc::ChildSide);
 }
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 static void ReleaseImageClientNow(ImageClient* aClient)
 {
   MOZ_ASSERT(InImageBridgeChildThread());
@@ -525,7 +521,7 @@ ImageBridgeChild::EndTransaction()
 }
 
 
-PImageBridgeChild*
+bool
 ImageBridgeChild::StartUpInChildProcess(Transport* aTransport,
                                         ProcessId aOtherProcess)
 {
@@ -533,23 +529,13 @@ ImageBridgeChild::StartUpInChildProcess(Transport* aTransport,
 
   ProcessHandle processHandle;
   if (!base::OpenProcessHandle(aOtherProcess, &processHandle)) {
-    return nullptr;
+    return false;
   }
 
   sImageBridgeChildThread = new Thread("ImageBridgeChild");
   if (!sImageBridgeChildThread->Start()) {
-    return nullptr;
+    return false;
   }
-
-#ifdef MOZ_NUWA_PROCESS
-  if (IsNuwaProcess()) {
-    sImageBridgeChildThread
-      ->message_loop()->PostTask(FROM_HERE,
-                                 NewRunnableFunction(NuwaMarkCurrentThread,
-                                                     (void (*)(void *))nullptr,
-                                                     (void *)nullptr));
-  }
-#endif
 
   sImageBridgeChildSingleton = new ImageBridgeChild();
   sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
@@ -557,7 +543,7 @@ ImageBridgeChild::StartUpInChildProcess(Transport* aTransport,
     NewRunnableFunction(ConnectImageBridgeInChildProcess,
                         aTransport, processHandle));
 
-  return sImageBridgeChildSingleton;
+  return true;
 }
 
 void ImageBridgeChild::ShutDown()

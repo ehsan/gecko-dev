@@ -39,7 +39,6 @@ class TestShellParent;
 
 namespace jsipc {
 class JavaScriptParent;
-class PJavaScriptParent;
 }
 
 namespace layers {
@@ -91,8 +90,6 @@ public:
      * Create a subprocess suitable for use as a preallocated app process.
      */
     static already_AddRefed<ContentParent> PreallocateAppProcess();
-
-    static void RunNuwaProcess();
 
     /**
      * Get or create a content process for the given TabContext.  aFrameElement
@@ -174,48 +171,9 @@ public:
      */
     void FriendlyName(nsAString& aName);
 
-    virtual void OnChannelError() MOZ_OVERRIDE;
-
-    virtual PIndexedDBParent* AllocPIndexedDBParent() MOZ_OVERRIDE;
-    virtual bool
-    RecvPIndexedDBConstructor(PIndexedDBParent* aActor) MOZ_OVERRIDE;
-
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(const NativeThreadId& tid,
-                        const uint32_t& processType) MOZ_OVERRIDE;
-    virtual bool
-    RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                  const NativeThreadId& tid,
-                                  const uint32_t& processType) MOZ_OVERRIDE;
-
-    virtual PNeckoParent* AllocPNeckoParent() MOZ_OVERRIDE;
-    virtual bool RecvPNeckoConstructor(PNeckoParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPNeckoConstructor(aActor);
-    }
-
-    virtual PHalParent* AllocPHalParent() MOZ_OVERRIDE;
-    virtual bool RecvPHalConstructor(PHalParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPHalConstructor(aActor);
-    }
-
-    virtual PStorageParent* AllocPStorageParent() MOZ_OVERRIDE;
-    virtual bool RecvPStorageConstructor(PStorageParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPStorageConstructor(aActor);
-    }
-
-    virtual PJavaScriptParent*
-    AllocPJavaScriptParent() MOZ_OVERRIDE;
-    virtual bool
-    RecvPJavaScriptConstructor(PJavaScriptParent* aActor) MOZ_OVERRIDE {
-        return PContentParent::RecvPJavaScriptConstructor(aActor);
-    }
-
-    virtual bool SendNuwaFork();
-
 protected:
     void OnChannelConnected(int32_t pid) MOZ_OVERRIDE;
     virtual void ActorDestroy(ActorDestroyReason why);
-    void OnNuwaForkTimeout();
 
     bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
 
@@ -249,19 +207,7 @@ private:
                   bool aIsForBrowser,
                   bool aIsForPreallocated,
                   ChildPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT,
-                  hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND,
-                  bool aIsNuwaProcess = false);
-
-#ifdef MOZ_NUWA_PROCESS
-    ContentParent(ContentParent* aTemplate,
-                  const nsAString& aAppManifestURL,
-                  base::ProcessHandle aPid,
-                  const nsTArray<ProtocolFdMapping>& aFds,
-                  ChildPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT);
-#endif
-
-    // The common initialization for the constructors.
-    void InitializeMembers();
+                  hal::ProcessPriority aInitialPriority = hal::PROCESS_PRIORITY_FOREGROUND);
 
     virtual ~ContentParent();
 
@@ -304,10 +250,10 @@ private:
      */
     void ShutDownProcess(bool aCloseWithError);
 
-    PCompositorParent*
+    bool
     AllocPCompositorParent(mozilla::ipc::Transport* aTransport,
                            base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-    PImageBridgeParent*
+    bool
     AllocPImageBridgeParent(mozilla::ipc::Transport* aTransport,
                             base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
@@ -316,6 +262,7 @@ private:
                                           bool* aIsForBrowser) MOZ_OVERRIDE;
     virtual bool RecvGetXPCOMProcessAttributes(bool* aIsOffline) MOZ_OVERRIDE;
 
+    virtual mozilla::jsipc::PJavaScriptParent* AllocPJavaScriptParent();
     virtual bool DeallocPJavaScriptParent(mozilla::jsipc::PJavaScriptParent*);
 
     virtual PBrowserParent* AllocPBrowserParent(const IPCTabContext& aContext,
@@ -328,14 +275,25 @@ private:
     virtual PBlobParent* AllocPBlobParent(const BlobConstructorParams& aParams);
     virtual bool DeallocPBlobParent(PBlobParent*);
 
+    virtual PCrashReporterParent* AllocPCrashReporterParent(const NativeThreadId& tid,
+                                                            const uint32_t& processType);
     virtual bool DeallocPCrashReporterParent(PCrashReporterParent* crashreporter);
+    virtual bool RecvPCrashReporterConstructor(PCrashReporterParent* actor,
+                                               const NativeThreadId& tid,
+                                               const uint32_t& processType);
 
     virtual bool RecvGetRandomValues(const uint32_t& length,
                                      InfallibleTArray<uint8_t>* randomValues);
 
+    virtual PHalParent* AllocPHalParent() MOZ_OVERRIDE;
     virtual bool DeallocPHalParent(PHalParent*) MOZ_OVERRIDE;
 
+    virtual PIndexedDBParent* AllocPIndexedDBParent();
+
     virtual bool DeallocPIndexedDBParent(PIndexedDBParent* aActor);
+
+    virtual bool
+    RecvPIndexedDBConstructor(PIndexedDBParent* aActor);
 
     virtual PMemoryReportRequestParent* AllocPMemoryReportRequestParent();
     virtual bool DeallocPMemoryReportRequestParent(PMemoryReportRequestParent* actor);
@@ -343,6 +301,7 @@ private:
     virtual PTestShellParent* AllocPTestShellParent();
     virtual bool DeallocPTestShellParent(PTestShellParent* shell);
 
+    virtual PNeckoParent* AllocPNeckoParent();
     virtual bool DeallocPNeckoParent(PNeckoParent* necko);
 
     virtual PExternalHelperAppParent* AllocPExternalHelperAppParent(
@@ -361,6 +320,7 @@ private:
     virtual PTelephonyParent* AllocPTelephonyParent();
     virtual bool DeallocPTelephonyParent(PTelephonyParent*);
 
+    virtual PStorageParent* AllocPStorageParent();
     virtual bool DeallocPStorageParent(PStorageParent* aActor);
 
     virtual PBluetoothParent* AllocPBluetoothParent();
@@ -470,11 +430,6 @@ private:
     virtual bool RecvRecordingDeviceEvents(const nsString& aRecordingStatus);
 
     virtual bool RecvSystemMessageHandled() MOZ_OVERRIDE;
-
-    virtual bool RecvNuwaReady() MOZ_OVERRIDE;
-
-    virtual bool RecvAddNewProcess(const uint32_t& aPid,
-                                   const InfallibleTArray<ProtocolFdMapping>& aFds) MOZ_OVERRIDE;
 
     virtual bool RecvCreateFakeVolume(const nsString& fsName, const nsString& mountPoint) MOZ_OVERRIDE;
 

@@ -1027,17 +1027,10 @@ class Protocol(ipdl.ast.Protocol):
     def fqListenerName(self):
       return 'mozilla::ipc::MessageListener'
 
-    def fqBaseClass(self):
-        return 'mozilla::ipc::IProtocol'
-
     def managerInterfaceType(self, ptr=0):
         return Type('mozilla::ipc::IProtocolManager',
                     ptr=ptr,
-                    T=Type(self.fqBaseClass()))
-
-    def openedProtocolInterfaceType(self, ptr=0):
-        return Type('mozilla::ipc::IToplevelProtocol',
-                    ptr=ptr)
+                    T=Type(self.fqListenerName()))
 
     def _ipdlmgrtype(self):
         assert 1 == len(self.decl.type.managers)
@@ -1105,12 +1098,6 @@ class Protocol(ipdl.ast.Protocol):
         if actorThis is not None:
             fn = ExprSelect(actorThis, '->', fn.name)
         return ExprCall(fn)
-
-    def cloneManagees(self):
-        return ExprVar('CloneManagees')
-
-    def cloneProtocol(self):
-        return ExprVar('CloneProtocol')
 
     def processingErrorVar(self):
         assert self.decl.type.isToplevel()
@@ -1185,9 +1172,7 @@ class Protocol(ipdl.ast.Protocol):
         assert not self.decl.type.isToplevel()
         return ExprVar('mId')
 
-    def stateVar(self, actorThis=None):
-        if actorThis is not None:
-            return ExprSelect(actorThis, '->', 'mState')
+    def stateVar(self):
         return ExprVar('mState')
 
     def fqStateType(self):
@@ -2467,16 +2452,13 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
     def standardTypedefs(self):
         return [
-            Typedef(Type(self.protocol.fqBaseClass()), 'ProtocolBase'),
             Typedef(Type('IPC::Message'), 'Message'),
             Typedef(Type(self.protocol.channelName()), 'Channel'),
             Typedef(Type(self.protocol.fqListenerName()), 'ChannelListener'),
             Typedef(Type('base::ProcessHandle'), 'ProcessHandle'),
             Typedef(Type('mozilla::ipc::MessageChannel'), 'MessageChannel'),
             Typedef(Type('mozilla::ipc::SharedMemory'), 'SharedMemory'),
-            Typedef(Type('mozilla::ipc::Trigger'), 'Trigger'),
-            Typedef(Type('mozilla::ipc::ProtocolCloneContext'),
-                    'ProtocolCloneContext')
+            Typedef(Type('mozilla::ipc::Trigger'), 'Trigger')
         ]
 
 
@@ -2622,10 +2604,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             CppDirective('include', '"'+ p.channelHeaderFile() +'"'),
             Whitespace.NL ])
 
-        optinherits = []
-        if ptype.isToplevel():
-            optinherits.append(Inherit(p.openedProtocolInterfaceType(),
-                                      viz='public'))
         if ptype.isToplevel() and self.side is 'parent':
             self.hdrfile.addthings([
                     _makeForwardDeclForQClass('nsIFile', []),
@@ -2634,9 +2612,8 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         self.cls = Class(
             self.clsname,
-            inherits=[ Inherit(Type(p.fqBaseClass()), viz='public'),
-                       Inherit(p.managerInterfaceType(), viz='protected') ] +
-            optinherits,
+            inherits=[ Inherit(Type(p.fqListenerName()), viz='protected'),
+                       Inherit(p.managerInterfaceType(), viz='protected') ],
             abstract=True)
 
         bridgeActorsCreated = ProcessGraph.bridgeEndpointsOf(ptype, self.side)
@@ -2738,7 +2715,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 _allocMethod(actor.ptype, actor.side).name,
                 params=[ Decl(Type('Transport', ptr=1), 'transport'),
                          Decl(Type('ProcessId'), 'otherProcess') ],
-                ret=actortype,
+                ret=Type.BOOL,
                 virtual=1, pure=1)))
 
         # optional ActorDestroy() method; default is no-op
@@ -2801,10 +2778,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 ExprMemberInit(p.stateVar(),
                                [ p.startState() ])
             ]
-            if ptype.isToplevel():
-                ctor.memberinits = [ExprMemberInit(
-                    p.openedProtocolInterfaceType(),
-                    [ _protocolId(ptype) ])] + ctor.memberinits
         else:
             ctor.memberinits = [
                 ExprMemberInit(p.idVar(), [ ExprLiteral.ZERO ]),
@@ -3397,7 +3370,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         self.cls.addstmt(StmtDecl(Decl(p.channelType(), 'mChannel')))
         if ptype.isToplevel():
             self.cls.addstmts([
-                StmtDecl(Decl(Type('IDMap', T=Type('ProtocolBase')),
+                StmtDecl(Decl(Type('IDMap', T=Type('ChannelListener')),
                               p.actorMapVar().name)),
                 StmtDecl(Decl(_actorIdType(), p.lastActorIdVar().name)),
                 StmtDecl(Decl(Type('ProcessHandle'),
@@ -3433,28 +3406,22 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         sizevar = ExprVar('aSize')
         typevar = ExprVar('aType')
         unsafevar = ExprVar('aUnsafe')
-        protocolbase = Type('ProtocolBase', ptr=1)
-        sourcevar = ExprVar('aSource')
-        ivar = ExprVar('i')
-        kidsvar = ExprVar('kids')
-        ithkid = ExprIndex(kidsvar, ivar)
-        clonecontexttype = Type('ProtocolCloneContext', ptr=1)
-        clonecontextvar = ExprVar('aCtx')
+        listenertype = Type('ChannelListener', ptr=1)
 
         register = MethodDefn(MethodDecl(
             p.registerMethod().name,
-            params=[ Decl(protocolbase, routedvar.name) ],
+            params=[ Decl(listenertype, routedvar.name) ],
             ret=_actorIdType(), virtual=1))
         registerid = MethodDefn(MethodDecl(
             p.registerIDMethod().name,
-            params=[ Decl(protocolbase, routedvar.name),
+            params=[ Decl(listenertype, routedvar.name),
                      Decl(_actorIdType(), idvar.name) ],
             ret=_actorIdType(),
             virtual=1))
         lookup = MethodDefn(MethodDecl(
             p.lookupIDMethod().name,
             params=[ Decl(_actorIdType(), idvar.name) ],
-            ret=protocolbase, virtual=1))
+            ret=listenertype, virtual=1))
         unregister = MethodDefn(MethodDecl(
             p.unregisterMethod().name,
             params=[ Decl(_actorIdType(), idvar.name) ],
@@ -3498,19 +3465,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         getchannel = MethodDefn(MethodDecl(
             p.getChannelMethod().name,
             ret=Type('MessageChannel', ptr=1),
-            virtual=1))
-
-        clonemanagees = MethodDefn(MethodDecl(
-            p.cloneManagees().name,
-            params=[ Decl(protocolbase, sourcevar.name),
-                     Decl(clonecontexttype, clonecontextvar.name) ],
-            virtual=1))
-
-        cloneprotocol = MethodDefn(MethodDecl(
-            p.cloneProtocol().name,
-            params=[ Decl(Type('Channel', ptr=True), 'aChannel'),
-                     Decl(clonecontexttype, clonecontextvar.name) ],
-            ret=Type(p.fqBaseClass(), ptr=1),
             virtual=1))
 
         if p.decl.type.isToplevel():
@@ -3729,82 +3683,13 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 p.callOtherProcess(p.managerVar())))
             getchannel.addstmt(StmtReturn(p.channelVar()))
 
-        cloneprotocol.addstmts([
-            _runtimeAbort('Clone() for ' +
-                          p.name +
-                          ' has not yet been implemented'),
-            StmtReturn(ExprLiteral.NULL)
-        ])
-
-        othervar = ExprVar('other')
-        managertype = Type(_actorName(p.name, self.side), ptr=1)
-        otherstmt = StmtDecl(Decl(managertype,
-                                  othervar.name),
-                             init=ExprCast(sourcevar,
-                                           managertype,
-                                           static=1))
-        clonemanagees.addstmt(otherstmt)
-        actorvar = ExprVar('actor')
-        for managee in p.managesStmts:
-            block = StmtBlock()
-            manageeipdltype = managee.decl.type
-            actortype = ipdl.type.ActorType(manageeipdltype)
-            manageecxxtype = _cxxBareType(actortype, self.side)
-            manageearray = p.managedVar(manageeipdltype, self.side)
-            abortstmt = StmtIf(ExprBinary(actorvar, '==', ExprLiteral.NULL))
-            abortstmt.addifstmts([
-                _runtimeAbort('can not clone an ' + actortype.name() + ' actor'),
-                StmtReturn()])
-            forstmt = StmtFor(
-                init=Param(Type.UINT32, ivar.name, ExprLiteral.ZERO),
-                cond=ExprBinary(ivar, '<', _callCxxArrayLength(kidsvar)),
-                update=ExprPrefixUnop(ivar, '++'))
-            forstmt.addstmts([
-                StmtExpr(ExprAssn(
-                    actorvar,
-                    ExprCast(
-                        ExprCall(
-                            ExprSelect(ithkid,
-                                       '->',
-                                       p.cloneProtocol().name),
-                            args=[ p.channelForSubactor(),
-                                   clonecontextvar ]),
-                        manageecxxtype,
-                        static=1))),
-                abortstmt,
-                StmtExpr(ExprAssn(_actorId(actorvar), _actorId(ithkid))),
-                StmtExpr(ExprAssn(_actorManager(actorvar), ExprVar.THIS)),
-                StmtExpr(ExprAssn(
-                    _actorChannel(actorvar),
-                    p.channelForSubactor())),
-                StmtExpr(ExprAssn(_actorState(actorvar), _actorState(ithkid))),
-                StmtExpr(_callCxxArrayInsertSorted(manageearray, actorvar)),
-                StmtExpr(ExprCall(p.registerIDMethod(),
-                                  args=[actorvar, _actorId(actorvar)])),
-                StmtExpr(ExprCall(
-                    ExprSelect(actorvar,
-                               '->',
-                               p.cloneManagees().name),
-                    args=[ ithkid, clonecontextvar ]))
-                ])
-            block.addstmts([
-                StmtDecl(Decl(_cxxArrayType(manageecxxtype, ref=0),
-                              kidsvar.name)),
-                StmtExpr(ExprAssn(kidsvar,
-                                  ExprSelect(othervar,
-                                             '->',
-                                             manageearray.name))),
-                StmtDecl(Decl(manageecxxtype, actorvar.name)),
-                forstmt])
-            clonemanagees.addstmt(block)
-
         # all protocols share the "same" RemoveManagee() implementation
         pvar = ExprVar('aProtocolId')
         listenervar = ExprVar('aListener')
         removemanagee = MethodDefn(MethodDecl(
             p.removeManageeMethod().name,
             params=[ Decl(_protocolIdType(), pvar.name),
-                     Decl(protocolbase, listenervar.name) ],
+                     Decl(listenertype, listenervar.name) ],
             virtual=1))
 
         if not len(p.managesStmts):
@@ -3850,8 +3735,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                  destroyshmem,
                  otherprocess,
                  getchannel,
-                 clonemanagees,
-                 cloneprotocol,
                  Whitespace.NL ]
 
     def makeShmemIface(self):
@@ -4085,30 +3968,15 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                          args=[ tdvar, modevar ]))))
             iffailopen.addifstmt(StmtReturn(_Result.ValuError))
 
-            pvar = ExprVar('p')
-            iffailalloc = StmtIf(ExprNot(ExprAssn(
-                pvar,
-                ExprCall(
-                    _allocMethod(actor.ptype, actor.side),
-                    args=[ tvar, pidvar ]))))
+            iffailalloc = StmtIf(ExprNot(ExprCall(
+                _allocMethod(actor.ptype, actor.side),
+                args=[ tvar, pidvar ])))
             iffailalloc.addifstmt(StmtReturn(_Result.ProcessingError))
-
-            settrans = StmtExpr(ExprCall(
-                ExprSelect(pvar, '->', 'IToplevelProtocol::SetTransport'),
-                args=[tvar]))
-
-            addopened = StmtExpr(ExprCall(
-                ExprVar('IToplevelProtocol::AddOpenedActor'),
-                args=[pvar]))
 
             case.addstmts([
                 StmtDecl(Decl(Type('Transport', ptr=1), tvar.name)),
-                StmtDecl(Decl(Type(_actorName(actor.ptype.name(), self.side),
-                                   ptr=1), pvar.name)),
                 iffailopen,
                 iffailalloc,
-                settrans,
-                addopened,
                 StmtBreak()
             ])
             label = _messageStartName(actor.ptype)

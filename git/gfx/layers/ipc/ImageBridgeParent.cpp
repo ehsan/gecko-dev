@@ -102,12 +102,12 @@ ConnectImageBridgeInParentProcess(ImageBridgeParent* aBridge,
   aBridge->Open(aTransport, aOtherProcess, XRE_GetIOMessageLoop(), ipc::ParentSide);
 }
 
-/*static*/ PImageBridgeParent*
+/*static*/ bool
 ImageBridgeParent::Create(Transport* aTransport, ProcessId aOtherProcess)
 {
   ProcessHandle processHandle;
   if (!base::OpenProcessHandle(aOtherProcess, &processHandle)) {
-    return nullptr;
+    return false;
   }
 
   MessageLoop* loop = CompositorParent::CompositorLoop();
@@ -116,7 +116,7 @@ ImageBridgeParent::Create(Transport* aTransport, ProcessId aOtherProcess)
   loop->PostTask(FROM_HERE,
                  NewRunnableFunction(ConnectImageBridgeInParentProcess,
                                      bridge.get(), aTransport, processHandle));
-  return bridge.get();
+  return true;
 }
 
 bool ImageBridgeParent::RecvStop()
@@ -183,24 +183,6 @@ ImageBridgeParent::DeferredDestroy()
 {
   mSelfRef = nullptr;
   // |this| was just destroyed, hands off
-}
-
-IToplevelProtocol*
-ImageBridgeParent::CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
-                                 base::ProcessHandle aPeerProcess,
-                                 mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  for (unsigned int i = 0; i < aFds.Length(); i++) {
-    if (aFds[i].protocolId() == (int)GetProtocolId()) {
-      Transport* transport = OpenDescriptor(aFds[i].fd(),
-                                            Transport::MODE_SERVER);
-      PImageBridgeParent* bridge = Create(transport, base::GetProcId(aPeerProcess));
-      bridge->CloneManagees(this, aCtx);
-      bridge->IToplevelProtocol::SetTransport(transport);
-      return bridge;
-    }
-  }
-  return nullptr;
 }
 
 } // layers

@@ -42,7 +42,6 @@ class BytecodeAnalysis
 
     bool usesScopeChain_;
     bool hasTryFinally_;
-    bool hasSetArg_;
 
   public:
     explicit BytecodeAnalysis(JSScript *script);
@@ -60,16 +59,12 @@ class BytecodeAnalysis
         return nullptr;
     }
 
-    bool usesScopeChain() const {
+    bool usesScopeChain() {
         return usesScopeChain_;
     }
 
-    bool hasTryFinally() const {
+    bool hasTryFinally() {
         return hasTryFinally_;
-    }
-
-    bool hasSetArg() const {
-        return hasSetArg_;
     }
 };
 

@@ -78,7 +78,7 @@ protected:
   // depending on its textual content
   bool SetTextStyle();
 
-  void MarkTextFramesAsTokenMathML();
+  void ForceTrimChildTextFrames();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

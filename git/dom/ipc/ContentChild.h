@@ -77,10 +77,10 @@ public:
     void SetProcessName(const nsAString& aName);
     const void GetProcessName(nsAString& aName);
 
-    PCompositorChild*
+    bool
     AllocPCompositorChild(mozilla::ipc::Transport* aTransport,
                           base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-    PImageBridgeChild*
+    bool
     AllocPImageBridgeChild(mozilla::ipc::Transport* aTransport,
                            base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
@@ -215,8 +215,6 @@ public:
                                       const int32_t& aMountGeneration,
                                       const bool& aIsMediaPresent,
                                       const bool& aIsSharing);
-
-    virtual bool RecvNuwaFork() MOZ_OVERRIDE;
 
     virtual bool RecvNotifyProcessPriorityChanged(const hal::ProcessPriority& aPriority);
     virtual bool RecvMinimizeMemoryUsage();

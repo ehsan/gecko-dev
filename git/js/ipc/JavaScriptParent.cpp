@@ -19,7 +19,6 @@ using namespace js;
 using namespace JS;
 using namespace mozilla;
 using namespace mozilla::jsipc;
-using namespace mozilla::dom;
 
 JavaScriptParent::JavaScriptParent()
   : refcount_(1),
@@ -683,15 +682,4 @@ JavaScriptParent::domInstanceOf(JSObject *obj, int prototypeID, int depth, bool 
         return false;
 
     return true;
-}
-
-mozilla::ipc::IProtocol*
-JavaScriptParent::CloneProtocol(Channel* aChannel, ProtocolCloneContext* aCtx)
-{
-    ContentParent *contentParent = aCtx->GetContentParent();
-    nsAutoPtr<PJavaScriptParent> actor(contentParent->AllocPJavaScriptParent());
-    if (!actor || !contentParent->RecvPJavaScriptConstructor(actor)) {
-        return nullptr;
-    }
-    return actor.forget();
 }
