@@ -254,6 +254,7 @@ HTMLVideoElement::GetVideoPlaybackQuality()
   uint64_t totalFrames = 0;
   uint64_t droppedFrames = 0;
   uint64_t corruptedFrames = 0;
+  double totalFrameDelay = 0.0;
 
   if (sVideoStatsEnabled) {
     nsPIDOMWindow* window = OwnerDoc()->GetInnerWindow();
@@ -269,12 +270,13 @@ HTMLVideoElement::GetVideoPlaybackQuality()
       totalFrames = stats.GetParsedFrames();
       droppedFrames = totalFrames - stats.GetPresentedFrames();
       corruptedFrames = totalFrames - stats.GetDecodedFrames();
+      totalFrameDelay = stats.GetTotalFrameDelay();
     }
   }
 
   nsRefPtr<VideoPlaybackQuality> playbackQuality =
     new VideoPlaybackQuality(this, creationTime, totalFrames, droppedFrames,
-                             corruptedFrames);
+                             corruptedFrames, totalFrameDelay);
   return playbackQuality.forget();
 }
 

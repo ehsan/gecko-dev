@@ -99,7 +99,7 @@ ScrollFrameTo(nsIScrollableFrame* aFrame, const CSSPoint& aPoint, bool& aSuccess
   aSuccessOut = false;
 
   if (!aFrame) {
-    return aPoint;
+    return CSSPoint();
   }
 
   // If the scrollable frame is currently in the middle of an async or smooth

@@ -233,6 +233,13 @@ xpc::SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 
 }
 
+NS_EXPORT_(void)
+xpc::SystemErrorReporterExternal(JSContext *cx, const char *message,
+                                 JSErrorReport *rep)
+{
+    return SystemErrorReporter(cx, message, rep);
+}
+
 
 /***************************************************************************/
 
@@ -1214,7 +1221,7 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt)
 #endif //#ifdef MOZ_JSDEBUGGER
 
 
-void
+NS_EXPORT_(void)
 xpc_ActivateDebugMode()
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
@@ -1303,7 +1310,7 @@ nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObjectArg,
 
 namespace xpc {
 
-bool
+NS_EXPORT_(bool)
 Base64Encode(JSContext *cx, HandleValue val, MutableHandleValue out)
 {
     MOZ_ASSERT(cx);
@@ -1329,7 +1336,7 @@ Base64Encode(JSContext *cx, HandleValue val, MutableHandleValue out)
     return true;
 }
 
-bool
+NS_EXPORT_(bool)
 Base64Decode(JSContext *cx, HandleValue val, MutableHandleValue out)
 {
     MOZ_ASSERT(cx);

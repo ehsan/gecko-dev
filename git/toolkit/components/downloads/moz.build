@@ -57,4 +57,3 @@ LOCAL_INCLUDES += [
     '../protobuf',
 ]
 
-DEFINES['GOOGLE_PROTOBUF_NO_RTTI'] = True
