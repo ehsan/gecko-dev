@@ -37,49 +37,69 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#include "nsIIDBObjectStore.idl"
 
-interface nsIVariant;
-interface nsIIDBObjectStoreRequest;
+interface nsIIDBIndexRequest;
+interface nsIIDBKeyRange;
 interface nsIIDBRequest;
-interface nsIIDBTransaction;
-interface nsIDOMDOMStringList;
+interface nsIVariant;
 
 /**
- * IDBDatabase interface.  See
- * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBDatabase
+ * nsIIDBObjectStoreRequest interface.  See
+ * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-nsIIDBObjectStoreRequest
  * for more information.
  */
-[scriptable, uuid(e258ad44-3306-427f-ac17-c528060c661a)]
-interface nsIIDBDatabase : nsISupports
+[scriptable, uuid(ce65fbc2-06a0-4f1c-89e4-0d9a636179c7)]
+interface nsIIDBObjectStoreRequest : nsIIDBObjectStore
 {
-  readonly attribute DOMString name;
-
-  readonly attribute DOMString description;
-
-  readonly attribute DOMString version;
-
-  readonly attribute nsIDOMDOMStringList objectStoreNames;
-
+  // Success fires IDBTransactionEvent, result == value for key
   nsIIDBRequest
-  createObjectStore(in AString name,
-                    in AString keyPath,
-                    [optional /* false */] in boolean autoIncrement);
+  get(in nsIVariant key);
 
-  nsIIDBRequest
-  removeObjectStore(in AString name);
-
-  nsIIDBRequest
-  setVersion(in AString version);
-
+  // Success fires IDBTransactionEvent, result == array of values for given keys
   [optional_argc]
-  nsIIDBTransaction
-  transaction(in nsIVariant storeNames, // js array of strings
-              [optional /* READ_ONLY */] in unsigned short mode,
-              [optional /* 5000ms */] in unsigned long timeout);
+  nsIIDBRequest
+  getAll([optional /* null */] in nsIIDBKeyRange key,
+         [optional /* unlimited */] in unsigned long limit);
 
+  // Success fires IDBTransactionEvent, result == key
+  nsIIDBRequest
+  add(in nsIVariant value,
+      [optional /* null */] in nsIVariant key);
+
+  // Success fires IDBTransactionEvent, result == key
+  nsIIDBRequest
+  modify(in nsIVariant value,
+         [optional /* null */] in nsIVariant key);
+
+  // Success fires IDBTransactionEvent, result == key
+  nsIIDBRequest
+  addOrModify(in nsIVariant value,
+              [optional /* null */] in nsIVariant key);
+
+  // Success fires IDBTransactionEvent, result == null
+  nsIIDBRequest
+  remove(in nsIVariant key);
+
+  // Success fires IDBTransactionEvent, result == IDBCursorRequest or
+  // IDBCursorPreloadedRequest if preload == true. result == null if no match.
   [optional_argc]
-  nsIIDBObjectStoreRequest
-  objectStore(in AString name,
-              [optional /* READ_ONLY */] in unsigned short mode);
+  nsIIDBRequest
+  openCursor([optional /* null */] in nsIIDBKeyRange range,
+             [optional /* NEXT */] in unsigned short direction,
+             [optional /* false */] in boolean preload);
+
+  // Success fires IDBTransactionEvent, result == IDBIndexRequest
+  nsIIDBRequest
+  createIndex(in AString name,
+              in AString keyPath,
+              [optional /* false */] in boolean unique);
+
+  // Returns object immediately
+  nsIIDBIndexRequest
+  index(in AString name);
+
+  // Success fires IDBTransactionEvent, result == null
+  nsIIDBRequest
+  removeIndex(in AString name);
 };

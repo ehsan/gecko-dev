@@ -40,7 +40,7 @@
 #include "nsISupports.idl"
 
 interface nsIDOMEventListener;
-interface nsIIDBObjectStore;
+interface nsIIDBObjectStoreRequest;
 interface nsIIDBRequest;
 interface nsIIDBDatabase;
 interface nsIDOMDOMStringList;
@@ -67,7 +67,7 @@ interface nsIIDBTransaction : nsISupports
 
   readonly attribute nsIDOMDOMStringList objectStoreNames;
 
-  nsIIDBObjectStore
+  nsIIDBObjectStoreRequest
   objectStore(in AString name);
 
   // Don't commit the transaction.

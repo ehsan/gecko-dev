@@ -37,11 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_indexeddb_idbcursor_h__
-#define mozilla_dom_indexeddb_idbcursor_h__
+#ifndef mozilla_dom_indexeddb_idbcursorrequest_h__
+#define mozilla_dom_indexeddb_idbcursorrequest_h__
 
-#include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "nsIIDBCursor.h"
+#include "mozilla/dom/indexedDB/IDBObjectStoreRequest.h"
+#include "nsIIDBCursorRequest.h"
 
 #include "jsapi.h"
 
@@ -49,9 +49,9 @@ class nsIRunnable;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class IDBIndex;
+class IDBIndexRequest;
 class IDBRequest;
-class IDBObjectStore;
+class IDBObjectStoreRequest;
 class IDBTransaction;
 
 struct KeyValuePair
@@ -68,36 +68,37 @@ struct KeyKeyPair
 
 class ContinueRunnable;
 
-class IDBCursor : public IDBRequest::Generator,
-                  public nsIIDBCursor
+class IDBCursorRequest : public IDBRequest::Generator,
+                         public nsIIDBCursorRequest
 {
   friend class ContinueRunnable;
 
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIIDBCURSOR
+  NS_DECL_NSIIDBCURSORREQUEST
 
   static
-  already_AddRefed<IDBCursor>
+  already_AddRefed<IDBCursorRequest>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
-         IDBObjectStore* aObjectStore,
+         IDBObjectStoreRequest* aObjectStore,
          PRUint16 aDirection,
          nsTArray<KeyValuePair>& aData);
 
   static
-  already_AddRefed<IDBCursor>
+  already_AddRefed<IDBCursorRequest>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
-         IDBIndex* aIndex,
+         IDBIndexRequest* aIndex,
          PRUint16 aDirection,
          nsTArray<KeyKeyPair>& aData);
 
   static
-  already_AddRefed<IDBCursor>
+  already_AddRefed<IDBCursorRequest>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
-         IDBIndex* aIndex,
+         IDBIndexRequest* aIndex,
          PRUint16 aDirection,
          nsTArray<KeyValuePair>& aData);
 
@@ -109,19 +110,19 @@ public:
   };
 
 protected:
-  IDBCursor();
-  ~IDBCursor();
+  IDBCursorRequest();
+  ~IDBCursorRequest();
 
   static
-  already_AddRefed<IDBCursor>
+  already_AddRefed<IDBCursorRequest>
   CreateCommon(IDBRequest* aRequest,
                IDBTransaction* aTransaction,
                PRUint16 aDirection);
 
   nsRefPtr<IDBRequest> mRequest;
   nsRefPtr<IDBTransaction> mTransaction;
-  nsRefPtr<IDBObjectStore> mObjectStore;
-  nsRefPtr<IDBIndex> mIndex;
+  nsRefPtr<IDBObjectStoreRequest> mObjectStore;
+  nsRefPtr<IDBIndexRequest> mIndex;
 
   PRUint16 mDirection;
 
@@ -140,4 +141,4 @@ protected:
 
 END_INDEXEDDB_NAMESPACE
 
-#endif // mozilla_dom_indexeddb_idbcursor_h__
+#endif // mozilla_dom_indexeddb_idbcursorrequest_h__

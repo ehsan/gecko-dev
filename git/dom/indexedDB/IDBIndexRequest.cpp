@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-#include "IDBIndex.h"
+#include "IDBIndexRequest.h"
 
 #include "nsIIDBDatabaseException.h"
 #include "nsIIDBKeyRange.h"
@@ -48,9 +48,9 @@
 #include "mozilla/storage.h"
 
 #include "AsyncConnectionHelper.h"
-#include "IDBCursor.h"
+#include "IDBCursorRequest.h"
 #include "IDBEvents.h"
-#include "IDBObjectStore.h"
+#include "IDBObjectStoreRequest.h"
 #include "IDBTransaction.h"
 #include "DatabaseInfo.h"
 
@@ -150,7 +150,7 @@ class OpenCursorHelper : public AsyncConnectionHelper
 public:
   OpenCursorHelper(IDBTransaction* aTransaction,
                    IDBRequest* aRequest,
-                   IDBIndex* aIndex,
+                   IDBIndexRequest* aIndex,
                    PRInt64 aId,
                    bool aUnique,
                    bool aAutoIncrement,
@@ -170,7 +170,7 @@ public:
 
 private:
   // In-params.
-  nsRefPtr<IDBIndex> mIndex;
+  nsRefPtr<IDBIndexRequest> mIndex;
   const PRInt64 mId;
   const bool mUnique;
   const bool mAutoIncrement;
@@ -189,7 +189,7 @@ class OpenObjectCursorHelper : public AsyncConnectionHelper
 public:
   OpenObjectCursorHelper(IDBTransaction* aTransaction,
                          IDBRequest* aRequest,
-                         IDBIndex* aIndex,
+                         IDBIndexRequest* aIndex,
                          PRInt64 aId,
                          bool aUnique,
                          bool aAutoIncrement,
@@ -209,7 +209,7 @@ public:
 
 private:
   // In-params.
-  nsRefPtr<IDBIndex> mIndex;
+  nsRefPtr<IDBIndexRequest> mIndex;
   const PRInt64 mId;
   const bool mUnique;
   const bool mAutoIncrement;
@@ -226,15 +226,15 @@ private:
 } // anonymous namespace
 
 // static
-already_AddRefed<IDBIndex>
-IDBIndex::Create(IDBObjectStore* aObjectStore,
-                 const IndexInfo* aIndexInfo)
+already_AddRefed<IDBIndexRequest>
+IDBIndexRequest::Create(IDBObjectStoreRequest* aObjectStore,
+                        const IndexInfo* aIndexInfo)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aObjectStore, "Null pointer!");
   NS_ASSERTION(aIndexInfo, "Null pointer!");
 
-  nsRefPtr<IDBIndex> index = new IDBIndex();
+  nsRefPtr<IDBIndexRequest> index = new IDBIndexRequest();
 
   index->mObjectStore = aObjectStore;
   index->mId = aIndexInfo->id;
@@ -246,7 +246,7 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
   return index.forget();
 }
 
-IDBIndex::IDBIndex()
+IDBIndexRequest::IDBIndexRequest()
 : mId(LL_MININT),
   mUnique(false),
   mAutoIncrement(false)
@@ -254,24 +254,25 @@ IDBIndex::IDBIndex()
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 }
 
-IDBIndex::~IDBIndex()
+IDBIndexRequest::~IDBIndexRequest()
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 }
 
-NS_IMPL_ADDREF(IDBIndex)
-NS_IMPL_RELEASE(IDBIndex)
+NS_IMPL_ADDREF(IDBIndexRequest)
+NS_IMPL_RELEASE(IDBIndexRequest)
 
-NS_INTERFACE_MAP_BEGIN(IDBIndex)
+NS_INTERFACE_MAP_BEGIN(IDBIndexRequest)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, IDBRequest::Generator)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBIndexRequest)
   NS_INTERFACE_MAP_ENTRY(nsIIDBIndex)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBIndex)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBIndexRequest)
 NS_INTERFACE_MAP_END
 
-DOMCI_DATA(IDBIndex, IDBIndex)
+DOMCI_DATA(IDBIndexRequest, IDBIndexRequest)
 
 NS_IMETHODIMP
-IDBIndex::GetName(nsAString& aName)
+IDBIndexRequest::GetName(nsAString& aName)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 
@@ -280,7 +281,7 @@ IDBIndex::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-IDBIndex::GetStoreName(nsAString& aStoreName)
+IDBIndexRequest::GetStoreName(nsAString& aStoreName)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 
@@ -288,7 +289,7 @@ IDBIndex::GetStoreName(nsAString& aStoreName)
 }
 
 NS_IMETHODIMP
-IDBIndex::GetKeyPath(nsAString& aKeyPath)
+IDBIndexRequest::GetKeyPath(nsAString& aKeyPath)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 
@@ -297,7 +298,7 @@ IDBIndex::GetKeyPath(nsAString& aKeyPath)
 }
 
 NS_IMETHODIMP
-IDBIndex::GetUnique(PRBool* aUnique)
+IDBIndexRequest::GetUnique(PRBool* aUnique)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 
@@ -306,15 +307,15 @@ IDBIndex::GetUnique(PRBool* aUnique)
 }
 
 NS_IMETHODIMP
-IDBIndex::Get(nsIVariant* aKey,
-              nsIIDBRequest** _retval)
+IDBIndexRequest::Get(nsIVariant* aKey,
+                     nsIIDBRequest** _retval)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 
   NS_WARNING("Using a slow path for Get! Fix this now!");
 
   Key key;
-  nsresult rv = IDBObjectStore::GetKeyFromVariant(aKey, key);
+  nsresult rv = IDBObjectStoreRequest::GetKeyFromVariant(aKey, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (key.IsUnset() || key.IsNull()) {
@@ -335,15 +336,15 @@ IDBIndex::Get(nsIVariant* aKey,
 }
 
 NS_IMETHODIMP
-IDBIndex::GetObject(nsIVariant* aKey,
-                    nsIIDBRequest** _retval)
+IDBIndexRequest::GetObject(nsIVariant* aKey,
+                           nsIIDBRequest** _retval)
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
 
   NS_WARNING("Using a slow path for Get! Fix this now!");
 
   Key key;
-  nsresult rv = IDBObjectStore::GetKeyFromVariant(aKey, key);
+  nsresult rv = IDBObjectStoreRequest::GetKeyFromVariant(aKey, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (key.IsUnset() || key.IsNull()) {
@@ -364,15 +365,15 @@ IDBIndex::GetObject(nsIVariant* aKey,
 }
 
 NS_IMETHODIMP
-IDBIndex::GetAll(nsIVariant* aKey,
-                 PRUint32 aLimit,
-                 PRUint8 aOptionalArgCount,
-                 nsIIDBRequest** _retval)
+IDBIndexRequest::GetAll(nsIVariant* aKey,
+                        PRUint32 aLimit,
+                        PRUint8 aOptionalArgCount,
+                        nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   Key key;
-  nsresult rv = IDBObjectStore::GetKeyFromVariant(aKey, key);
+  nsresult rv = IDBObjectStoreRequest::GetKeyFromVariant(aKey, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (key.IsNull()) {
@@ -397,15 +398,15 @@ IDBIndex::GetAll(nsIVariant* aKey,
 }
 
 NS_IMETHODIMP
-IDBIndex::GetAllObjects(nsIVariant* aKey,
-                        PRUint32 aLimit,
-                        PRUint8 aOptionalArgCount,
-                        nsIIDBRequest** _retval)
+IDBIndexRequest::GetAllObjects(nsIVariant* aKey,
+                               PRUint32 aLimit,
+                               PRUint8 aOptionalArgCount,
+                               nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   Key key;
-  nsresult rv = IDBObjectStore::GetKeyFromVariant(aKey, key);
+  nsresult rv = IDBObjectStoreRequest::GetKeyFromVariant(aKey, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (key.IsNull()) {
@@ -430,11 +431,11 @@ IDBIndex::GetAllObjects(nsIVariant* aKey,
 }
 
 NS_IMETHODIMP
-IDBIndex::OpenCursor(nsIIDBKeyRange* aKeyRange,
-                     PRUint16 aDirection,
-                     PRBool aPreload,
-                     PRUint8 aOptionalArgCount,
-                     nsIIDBRequest** _retval)
+IDBIndexRequest::OpenCursor(nsIIDBKeyRange* aKeyRange,
+                            PRUint16 aDirection,
+                            PRBool aPreload,
+                            PRUint8 aOptionalArgCount,
+                            nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -454,13 +455,13 @@ IDBIndex::OpenCursor(nsIIDBKeyRange* aKeyRange,
     rv = aKeyRange->GetLeft(getter_AddRefs(variant));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = IDBObjectStore::GetKeyFromVariant(variant, leftKey);
+    rv = IDBObjectStoreRequest::GetKeyFromVariant(variant, leftKey);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = aKeyRange->GetRight(getter_AddRefs(variant));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = IDBObjectStore::GetKeyFromVariant(variant, rightKey);
+    rv = IDBObjectStoreRequest::GetKeyFromVariant(variant, rightKey);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -497,11 +498,11 @@ IDBIndex::OpenCursor(nsIIDBKeyRange* aKeyRange,
 }
 
 NS_IMETHODIMP
-IDBIndex::OpenObjectCursor(nsIIDBKeyRange* aKeyRange,
-                           PRUint16 aDirection,
-                           PRBool aPreload,
-                           PRUint8 aOptionalArgCount,
-                           nsIIDBRequest** _retval)
+IDBIndexRequest::OpenObjectCursor(nsIIDBKeyRange* aKeyRange,
+                                  PRUint16 aDirection,
+                                  PRBool aPreload,
+                                  PRUint8 aOptionalArgCount,
+                                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -521,13 +522,13 @@ IDBIndex::OpenObjectCursor(nsIIDBKeyRange* aKeyRange,
     rv = aKeyRange->GetLeft(getter_AddRefs(variant));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = IDBObjectStore::GetKeyFromVariant(variant, leftKey);
+    rv = IDBObjectStoreRequest::GetKeyFromVariant(variant, leftKey);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = aKeyRange->GetRight(getter_AddRefs(variant));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = IDBObjectStore::GetKeyFromVariant(variant, rightKey);
+    rv = IDBObjectStoreRequest::GetKeyFromVariant(variant, rightKey);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1139,8 +1140,9 @@ OpenCursorHelper::GetSuccessResult(nsIWritableVariant* aResult)
     return OK;
   }
 
-  nsRefPtr<IDBCursor> cursor =
-    IDBCursor::Create(mRequest, mTransaction, mIndex, mDirection, mData);
+  nsRefPtr<IDBCursorRequest> cursor =
+    IDBCursorRequest::Create(mRequest, mTransaction, mIndex, mDirection,
+                             mData);
   NS_ENSURE_TRUE(cursor, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   aResult->SetAsISupports(static_cast<IDBRequest::Generator*>(cursor));
@@ -1340,8 +1342,9 @@ OpenObjectCursorHelper::GetSuccessResult(nsIWritableVariant* aResult)
     return OK;
   }
 
-  nsRefPtr<IDBCursor> cursor =
-    IDBCursor::Create(mRequest, mTransaction, mIndex, mDirection, mData);
+  nsRefPtr<IDBCursorRequest> cursor =
+    IDBCursorRequest::Create(mRequest, mTransaction, mIndex, mDirection,
+                             mData);
   NS_ENSURE_TRUE(cursor, nsIIDBDatabaseException::UNKNOWN_ERR);
 
   aResult->SetAsISupports(static_cast<IDBRequest::Generator*>(cursor));

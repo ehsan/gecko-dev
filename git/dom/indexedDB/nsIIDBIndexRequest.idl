@@ -37,81 +37,46 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_indexeddb_databaseinfo_h__
-#define mozilla_dom_indexeddb_databaseinfo_h__
+#include "nsIIDBIndex.idl"
 
-// Only meant to be included in IndexedDB source files, not exported.
-#include "IndexedDatabase.h"
+interface nsIIDBKeyRange;
+interface nsIIDBRequest;
+interface nsIVariant;
 
-#include "IDBObjectStoreRequest.h"
-
-BEGIN_INDEXEDDB_NAMESPACE
-
-struct DatabaseInfo
+/**
+ * IDBIndexRequest interface.  See
+ * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-IDBIndexRequest for more
+ * information.
+ */
+[scriptable, uuid(8c21dfc3-62fa-470e-bc92-7d115b0fac97)]
+interface nsIIDBIndexRequest : nsIIDBIndex
 {
-  nsString name;
-  nsString description;
-  nsString version;
-  PRUint32 id;
-  nsString filePath;
+  nsIIDBRequest
+  get(in nsIVariant key);
 
-  nsAutoRefCnt referenceCount;
+  nsIIDBRequest
+  getObject(in nsIVariant key);
 
-  DatabaseInfo()
-  : id(0) { }
+  [optional_argc]
+  nsIIDBRequest
+  getAll([optional /* null */] in nsIVariant key,
+         [optional /* unlimited */] in unsigned long limit);
 
-  static bool Get(PRUint32 aId,
-                  DatabaseInfo** aInfo);
+  [optional_argc]
+  nsIIDBRequest
+  getAllObjects([optional /* null */] in nsIVariant key,
+                [optional /* unlimited */] in unsigned long limit);
 
-  static bool Put(DatabaseInfo* aInfo);
+  [optional_argc]
+  nsIIDBRequest
+  openCursor([optional /* null */] in nsIIDBKeyRange range,
+             [optional /* nsIIDBCursor::NEXT */] in unsigned short direction,
+             [optional /* false */] in boolean preload);
 
-  static void Remove(PRUint32 aId);
-
-  bool GetObjectStoreNames(nsTArray<nsString>& aNames);
-  bool ContainsStoreName(const nsAString& aName);
+  [optional_argc]
+  nsIIDBRequest
+  openObjectCursor([optional /* null */] in nsIIDBKeyRange range,
+                   [optional /* nsIIDBCursor::NEXT */]
+                   in unsigned short direction,
+                   [optional /* false */] in boolean preload);
 };
-
-struct IndexInfo
-{
-  IndexInfo()
-  : id(LL_MININT), unique(false), autoIncrement(false) { }
-
-  PRInt64 id;
-  nsString name;
-  nsString keyPath;
-  bool unique;
-  bool autoIncrement;
-};
-
-struct ObjectStoreInfo
-{
-  nsString name;
-  PRInt64 id;
-  nsString keyPath;
-  bool autoIncrement;
-  PRUint32 databaseId;
-  nsTArray<IndexInfo> indexes;
-
-  ObjectStoreInfo()
-  : id(0), autoIncrement(false), databaseId(0) { }
-
-  static bool Get(PRUint32 aDatabaseId,
-                  const nsAString& aName,
-                  ObjectStoreInfo** aInfo);
-
-  static bool Put(ObjectStoreInfo* aInfo);
-
-  static void Remove(PRUint32 aDatabaseId,
-                     const nsAString& aName);
-};
-
-struct IndexUpdateInfo
-{
-  IndexInfo info;
-  Key value;
-};
-
-END_INDEXEDDB_NAMESPACE
-
-#endif // mozilla_dom_indexeddb_databaseinfo_h__
-

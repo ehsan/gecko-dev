@@ -49,7 +49,7 @@
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
 #include "IDBEvents.h"
-#include "IDBObjectStore.h"
+#include "IDBObjectStoreRequest.h"
 #include "IDBTransaction.h"
 #include "IDBFactory.h"
 #include "LazyIdleThread.h"
@@ -625,7 +625,7 @@ NS_IMETHODIMP
 IDBDatabase::ObjectStore(const nsAString& aName,
                          PRUint16 aMode,
                          PRUint8 aOptionalArgCount,
-                         nsIIDBObjectStore** _retval)
+                         nsIIDBObjectStoreRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -767,7 +767,7 @@ CreateObjectStoreHelper::GetSuccessResult(nsIWritableVariant* aResult)
   }
   info.forget();
 
-  nsCOMPtr<nsIIDBObjectStore> result;
+  nsCOMPtr<nsIIDBObjectStoreRequest> result;
   nsresult rv = mTransaction->ObjectStore(mName, getter_AddRefs(result));
   NS_ENSURE_SUCCESS(rv, nsIIDBDatabaseException::UNKNOWN_ERR);
 
