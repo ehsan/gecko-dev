@@ -48,12 +48,22 @@
 
 NS_IMPL_ISUPPORTS1(nsSVGRenderingObserver, nsIMutationObserver)
 
+#ifdef _MSC_VER
+// Disable "warning C4355: 'this' : used in base member initializer list".
+// We can ignore that warning because we know that mElement's constructor 
+// doesn't dereference the pointer passed to it.
+#pragma warning(push)
+#pragma warning(disable:4355)
+#endif
 nsSVGRenderingObserver::nsSVGRenderingObserver(nsIURI *aURI,
                                                nsIFrame *aFrame)
   : mElement(this), mFrame(aFrame),
     mFramePresShell(aFrame->PresContext()->PresShell()),
     mReferencedFrame(nsnull),
     mReferencedFramePresShell(nsnull)
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 {
   // Start watching the target element
   mElement.Reset(aFrame->GetContent(), aURI);
@@ -355,6 +365,9 @@ nsSVGEffects::EffectProperties::GetMaskFrame(PRBool *aOK)
 void
 nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
 {
+  NS_ASSERTION(aFrame->GetContent()->IsNodeOfType(nsINode::eELEMENT),
+               "aFrame's content should be an element");
+
   aFrame->DeleteProperty(nsGkAtoms::filter);
   aFrame->DeleteProperty(nsGkAtoms::mask);
   aFrame->DeleteProperty(nsGkAtoms::clipPath);
@@ -382,10 +395,12 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
                       CreateMarkerProperty);
   }
 
-  nsIFrame *aKid = aFrame->GetFirstChild(nsnull);
-  while (aKid) {
-    UpdateEffects(aKid);
-    aKid = aKid->GetNextSibling();
+  nsIFrame *kid = aFrame->GetFirstChild(nsnull);
+  while (kid) {
+    if (kid->GetContent()->IsNodeOfType(nsINode::eELEMENT)) {
+      UpdateEffects(kid);
+    }
+    kid = kid->GetNextSibling();
   }
 }
 

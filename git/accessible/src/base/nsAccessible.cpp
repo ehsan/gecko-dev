@@ -71,7 +71,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
-#include "nsIViewManager.h"
+#include "nsIView.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScrollableFrame.h"
 #include "nsFocusManager.h"
@@ -690,10 +690,6 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
   if (!shell) 
     return PR_FALSE;
 
-  nsIViewManager* viewManager = shell->GetViewManager();
-  if (!viewManager)
-    return PR_FALSE;
-
   nsIFrame *frame = GetFrame();
   if (!frame) {
     return PR_FALSE;
@@ -705,45 +701,24 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
       return PR_FALSE;
   }
 
-  nsPresContext *presContext = shell->GetPresContext();
-  if (!presContext)
-    return PR_FALSE;
-
-  // Get the bounds of the current frame, relative to the current view.
   // We don't use the more accurate GetBoundsRect, because that is more expensive
   // and the STATE_OFFSCREEN flag that this is used for only needs to be a rough
   // indicator
+  nsSize frameSize = frame->GetSize();
+  nsRectVisibility rectVisibility =
+    shell->GetRectVisibility(frame, nsRect(nsPoint(0,0), frameSize),
+                             nsPresContext::CSSPixelsToAppUnits(kMinPixels));
 
-  nsRect relFrameRect = frame->GetRect();
-  nsIView *containingView = frame->GetViewExternal();
-  if (containingView) {
-    // When frame itself has a view, it has the same bounds as the view
-    relFrameRect.x = relFrameRect.y = 0;
-  }
-  else {
-    nsPoint frameOffset;
-    frame->GetOffsetFromView(frameOffset, &containingView);
-    if (!containingView)
-      return PR_FALSE;  // no view -- not visible
-    relFrameRect.x = frameOffset.x;
-    relFrameRect.y = frameOffset.y;
-  }
+  if (frame->GetRect().IsEmpty()) {
+    PRBool isEmpty = PR_TRUE;
 
-  nsRectVisibility rectVisibility;
-  viewManager->GetRectVisibility(containingView, relFrameRect,
-                                 nsPresContext::CSSPixelsToAppUnits(kMinPixels),
-                                 &rectVisibility);
-
-  if (rectVisibility == nsRectVisibility_kZeroAreaRect) {
     nsIAtom *frameType = frame->GetType();
     if (frameType == nsAccessibilityAtoms::textFrame) {
       // Zero area rects can occur in the first frame of a multi-frame text flow,
       // in which case the rendered text is not empty and the frame should not be marked invisible
       nsAutoString renderedText;
       frame->GetRenderedText (&renderedText, nsnull, nsnull, 0, 1);
-      if (!renderedText.IsEmpty()) {
-        rectVisibility = nsRectVisibility_kVisible;
-      }
+      isEmpty = renderedText.IsEmpty();
     }
     else if (frameType == nsAccessibilityAtoms::inlineFrame) {
       // Yuck. Unfortunately inline frames can contain larger frames inside of them,
@@ -751,26 +726,17 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
       // GetBounds() will do that for us.
       PRInt32 x, y, width, height;
       GetBounds(&x, &y, &width, &height);
-      if (width > 0 && height > 0) {
-        rectVisibility = nsRectVisibility_kVisible;    
-      }
+      isEmpty = width == 0 || height == 0;
+    }
+
+    if (isEmpty && !(frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+      // Consider zero area objects hidden unless they are absolutely positioned
+      // or floating and may have descendants that have a non-zero size
+      return PR_FALSE;
     }
   }
 
-  if (rectVisibility == nsRectVisibility_kZeroAreaRect && frame && 
-      0 == (frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-    // Consider zero area objects hidden unless they are absoultely positioned
-    // or floating and may have descendants that have a non-zero size
-    return PR_FALSE;
-  }
-  
-  // Currently one of:
-  // nsRectVisibility_kVisible, 
-  // nsRectVisibility_kAboveViewport, 
-  // nsRectVisibility_kBelowViewport, 
-  // nsRectVisibility_kLeftOfViewport, 
-  // nsRectVisibility_kRightOfViewport
-  // This view says it is visible, but we need to check the parent view chain :(
+  // The frame intersects the viewport, but we need to check the parent view chain :(
   nsCOMPtr<nsIDOMDocument> domDoc;
   mDOMNode->GetOwnerDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
@@ -778,7 +744,10 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
     return PR_FALSE;
   }
 
-  PRBool isVisible = CheckVisibilityInParentChain(doc, containingView);
+  nsIFrame* frameWithView =
+    frame->HasView() ? frame : frame->GetAncestorWithViewExternal();
+  nsIView* view = frameWithView->GetViewExternal();
+  PRBool isVisible = CheckVisibilityInParentChain(doc, view);
   if (isVisible && rectVisibility == nsRectVisibility_kVisible) {
     *aIsOffscreen = PR_FALSE;
   }
@@ -1675,29 +1644,12 @@ nsAccessible::GroupPosition(PRInt32 *aGroupLevel,
   if (!content)
     return NS_OK;
 
-  nsAutoString value;
-  PRInt32 error = NS_OK;
-
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_level, value);
-  if (!value.IsEmpty()) {
-    PRInt32 level = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aGroupLevel = level;
-  }
-
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_posinset, value);
-  if (!value.IsEmpty()) {
-    PRInt32 posInSet = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aPositionInGroup = posInSet;
-  }
-
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_setsize, value);
-  if (!value.IsEmpty()) {
-    PRInt32 sizeSet = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aSimilarItemsInGroup = sizeSet;
-  }
+  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_level,
+                           aGroupLevel);
+  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_posinset,
+                           aPositionInGroup);
+  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_setsize,
+                           aSimilarItemsInGroup);
 
   // If ARIA is missed and the accessible is visible then calculate group
   // position from hierarchy.
@@ -3325,9 +3277,6 @@ nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
       role != nsIAccessibleRole::ROLE_GRID_CELL)
     return;
 
-  PRInt32 positionInGroup = 0;
-  PRInt32 setSize = 0;
-
   PRUint32 baseRole = role;
   if (role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
       role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
@@ -3336,36 +3285,70 @@ nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
   nsAccessible* parent = GetParent();
   NS_ENSURE_TRUE(parent,);
 
-  PRBool foundCurrent = PR_FALSE;
-  PRInt32 siblingCount = parent->GetChildCount();
-  for (PRInt32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
-    nsAccessible* sibling = parent->GetChildAt(siblingIdx);
+  PRInt32 indexInParent = parent->GetIndexOf(this);
+  PRInt32 level = nsAccUtils::GetARIAOrDefaultLevel(this);
+
+  // Compute 'posinset'.
+  PRInt32 positionInGroup = 1;
+  for (PRInt32 idx = indexInParent - 1; idx >= 0; idx--) {
+    nsAccessible* sibling = parent->GetChildAt(idx);
 
     PRUint32 siblingRole = siblingRole = nsAccUtils::Role(sibling);
+
+    // If the sibling is separator then the group is ended.
+    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR)
+      break;
+
     PRUint32 siblingBaseRole = siblingRole;
     if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
         siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
       siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
 
-    // If sibling is visible and has the same base role.
+    // If sibling is visible and has the same base role
     if (siblingBaseRole == baseRole &&
         !(nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
-      ++ setSize;
-      if (!foundCurrent) {
-        ++ positionInGroup;
-        if (sibling == this)
-          foundCurrent = PR_TRUE;
-      }
-    }
 
-    // If the sibling is separator
-    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR) {
-      if (foundCurrent) // the our group is ended
+      // and check if it's hierarchical flatten structure, i.e. if the sibling
+      // level is lesser than this one then group is ended, if the sibling level
+      // is greater than this one then the group is splited by some child
+      // elements (group will be continued).
+      PRInt32 siblingLevel = nsAccUtils::GetARIAOrDefaultLevel(sibling);
+      if (siblingLevel < level)
         break;
+      else if (level == siblingLevel)
+        ++ positionInGroup;
+    }
+  }
 
-      // not our group, continue the searching
-      positionInGroup = 0;
-      setSize = 0;
+  // Compute 'setsize'.
+  PRInt32 setSize = positionInGroup;
+
+  PRInt32 siblingCount = parent->GetChildCount();
+  for (PRInt32 idx = indexInParent + 1; idx < siblingCount; idx++) {
+    nsAccessible* sibling = parent->GetChildAt(idx);
+    NS_ENSURE_TRUE(sibling,);
+
+    PRUint32 siblingRole = nsAccUtils::Role(sibling);
+
+    // If the sibling is separator then the group is ended.
+    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR)
+      break;
+
+    PRUint32 siblingBaseRole = siblingRole;
+    if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+        siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
+      siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
+
+    // If sibling is visible and has the same base role
+    if (siblingBaseRole == baseRole &&
+        !(nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
+
+      // and check if it's hierarchical flatten structure.
+      PRInt32 siblingLevel = nsAccUtils::GetARIAOrDefaultLevel(sibling);
+      if (siblingLevel < level)
+        break;
+      else if (level == siblingLevel)
+        ++ setSize;
     }
   }
 
@@ -3376,6 +3359,8 @@ nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
 PRInt32
 nsAccessible::GetLevelInternal()
 {
+  PRInt32 level = nsAccUtils::GetDefaultLevel(this);
+
   PRUint32 role = nsAccUtils::Role(this);
   nsAccessible* parent = GetParent();
 
@@ -3383,7 +3368,8 @@ nsAccessible::GetLevelInternal()
     // Always expose 'level' attribute for 'outlineitem' accessible. The number
     // of nested 'grouping' accessibles containing 'outlineitem' accessible is
     // its level.
-    PRInt32 level = 1;
+    level = 1;
+
     while (parent) {
       PRUint32 parentRole = nsAccUtils::Role(parent);
 
@@ -3395,17 +3381,14 @@ nsAccessible::GetLevelInternal()
       parent = parent->GetParent();
     }
 
-    return level;
-  }
-
-  if (role == nsIAccessibleRole::ROLE_LISTITEM) {
+  } else if (role == nsIAccessibleRole::ROLE_LISTITEM) {
     // Expose 'level' attribute on nested lists. We assume nested list is a last
     // child of listitem of parent list. We don't handle the case when nested
     // lists have more complex structure, for example when there are accessibles
     // between parent listitem and nested list.
 
     // Calculate 'level' attribute based on number of parent listitems.
-    PRInt32 level = 0;
+    level = 0;
 
     while (parent) {
       PRUint32 parentRole = nsAccUtils::Role(parent);
@@ -3436,16 +3419,7 @@ nsAccessible::GetLevelInternal()
     } else {
       ++ level; // level is 1-index based
     }
-
-    return level;
   }
 
-  if (role == nsIAccessibleRole::ROLE_ROW &&
-      nsAccUtils::Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
-    // It is a row inside flatten treegrid. Group level is always 1 until it is
-    // overriden by aria-level attribute.
-    return 1;
-  }
-
-  return 0;
+  return level;
 }

@@ -62,9 +62,8 @@
 #include "nsINameSpaceManager.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
-#include "nsIScrollableView.h"
 #include "nsIViewManager.h"
-#include "nsIView.h"
+#include "nsIScrollableFrame.h"
 #include "nsUnicharUtils.h"
 #include "nsIURI.h"
 #include "nsIWebNavigation.h"
@@ -725,31 +724,24 @@ void nsDocAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aRelativeFrame)
     if (!presShell) {
       return;
     }
-    nsIViewManager* vm = presShell->GetViewManager();
-    if (!vm) {
-      return;
-    }
 
-    nsIScrollableView* scrollableView = nsnull;
-    vm->GetRootScrollableView(&scrollableView);
-
-    nsRect viewBounds(0, 0, 0, 0);
-    if (scrollableView) {
-      viewBounds = scrollableView->View()->GetBounds();
-    }
-    else {
-      nsIView *view;
-      vm->GetRootView(view);
-      if (view) {
-        viewBounds = view->GetBounds();
-      }
+    nsRect scrollPort;
+    nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollableExternal();
+    if (sf) {
+      scrollPort = sf->GetScrollPortRect();
+    } else {
+      scrollPort = presShell->GetRootFrame()->GetRect();
     }
 
     if (parentDoc) {  // After first time thru loop
-      aBounds.IntersectRect(viewBounds, aBounds);
+      // XXXroc bogus code! scrollPort is relative to the viewport of
+      // this document, but we're intersecting rectangles derived from
+      // multiple documents and assuming they're all in the same coordinate
+      // system. See bug 514117.
+      aBounds.IntersectRect(scrollPort, aBounds);
     }
     else {  // First time through loop
-      aBounds = viewBounds;
+      aBounds = scrollPort;
     }
 
     document = parentDoc = document->GetParentDocument();
@@ -877,7 +869,7 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
   treeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRoot));
 
   if (isFinished) {
-    // Need to wait until scrollable view is available
+    // Need to wait until scrollable frame is available
     AddScrollListener();
     nsRefPtr<nsAccessible> acc(GetParent());
     if (acc) {
@@ -947,45 +939,37 @@ void nsDocAccessible::ScrollTimerCallback(nsITimer *aTimer, void *aClosure)
 void nsDocAccessible::AddScrollListener()
 {
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
+  if (!presShell)
+    return;
 
-  nsIViewManager* vm = nsnull;
-  if (presShell)
-    vm = presShell->GetViewManager();
-
-  nsIScrollableView* scrollableView = nsnull;
-  if (vm)
-    vm->GetRootScrollableView(&scrollableView);
-
-  if (scrollableView)
-    scrollableView->AddScrollPositionListener(this);
+  nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollableExternal();
+  if (sf) {
+    sf->AddScrollPositionListener(this);
+  }
 }
 
 // nsDocAccessible protected member
 void nsDocAccessible::RemoveScrollListener()
 {
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
-
-  nsIViewManager* vm = nsnull;
-  if (presShell)
-    vm = presShell->GetViewManager();
-
-  nsIScrollableView* scrollableView = nsnull;
-  if (vm)
-    vm->GetRootScrollableView(&scrollableView);
-
-  if (scrollableView)
-    scrollableView->RemoveScrollPositionListener(this);
+  if (!presShell)
+    return;
+ 
+  nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollableExternal();
+  if (sf) {
+    sf->RemoveScrollPositionListener(this);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIScrollPositionListener
 
-NS_IMETHODIMP nsDocAccessible::ScrollPositionWillChange(nsIScrollableView *aView, nscoord aX, nscoord aY)
+NS_IMETHODIMP nsDocAccessible::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
   return NS_OK;
 }
 
-NS_IMETHODIMP nsDocAccessible::ScrollPositionDidChange(nsIScrollableView *aScrollableView, nscoord aX, nscoord aY)
+NS_IMETHODIMP nsDocAccessible::ScrollPositionDidChange(nscoord aX, nscoord aY)
 {
   // Start new timer, if the timer cycles at least 1 full cycle without more scroll position changes,
   // then the ::Notify() method will fire the accessibility event for scroll position changes

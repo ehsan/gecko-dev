@@ -67,6 +67,7 @@
 #include "nsISelectionController.h"
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
+#include "nsIView.h"
 
 #include "nsContentCID.h"
 #include "nsComponentManagerUtils.h"
@@ -419,7 +420,7 @@ nsCoreUtils::ScrollFrameToPoint(nsIFrame *aScrollableFrame,
   nsPoint scrollPoint = scrollableFrame->GetScrollPosition();
   scrollPoint -= deltaPoint;
 
-  scrollableFrame->ScrollTo(scrollPoint);
+  scrollableFrame->ScrollTo(scrollPoint, nsIScrollableFrame::INSTANT);
 }
 
 void
@@ -578,6 +579,23 @@ nsCoreUtils::GetID(nsIContent *aContent, nsAString& aID)
 {
   nsIAtom *idAttribute = aContent->GetIDAttributeName();
   return idAttribute ? aContent->GetAttr(kNameSpaceID_None, idAttribute, aID) : PR_FALSE;
+}
+
+PRBool
+nsCoreUtils::GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr, PRInt32 *aUInt)
+{
+  nsAutoString value;
+  aContent->GetAttr(kNameSpaceID_None, aAttr, value);
+  if (!value.IsEmpty()) {
+    PRInt32 error = NS_OK;
+    PRInt32 integer = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error) && integer > 0) {
+      *aUInt = integer;
+      return PR_TRUE;
+    }
+  }
+
+  return PR_FALSE;
 }
 
 PRBool

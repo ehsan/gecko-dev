@@ -1138,6 +1138,7 @@ JSScope::newDictionaryProperty(JSContext *cx, const JSScopeProperty &child,
 
     dprop->childp = NULL;
     insertDictionaryProperty(dprop, childp);
+    updateFlags(dprop);
     return dprop;
 }
 
@@ -1228,7 +1229,6 @@ JSScope::addProperty(JSContext *cx, jsid id,
     JS_ASSERT(!JSVAL_IS_NULL(id));
     JS_ASSERT_IF(attrs & JSPROP_GETTER, getter);
     JS_ASSERT_IF(attrs & JSPROP_SETTER, setter);
-
     JS_ASSERT_IF(!cx->runtime->gcRegenShapes,
                  hasRegenFlag(cx->runtime->gcRegenShapesScopeFlag));
 
@@ -1810,11 +1810,11 @@ JSScopeProperty::trace(JSTracer *trc)
 
 #if JS_HAS_GETTER_SETTER
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
-        if (attrs & JSPROP_GETTER) {
+        if ((attrs & JSPROP_GETTER) && getter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 0);
             JS_CallTracer(trc, getterObject(), JSTRACE_OBJECT);
         }
-        if (attrs & JSPROP_SETTER) {
+        if ((attrs & JSPROP_SETTER) && setter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 1);
             JS_CallTracer(trc, setterObject(), JSTRACE_OBJECT);
         }

@@ -487,7 +487,7 @@ TraceRecorder::slurpDownFrames(jsbytecode* return_pc)
             rval_ins = lir->insLoad(LIR_ld, lirbuf->sp, exit->sp_adj - sizeof(double));
             break;
           case TT_DOUBLE:
-            rval_ins = lir->insLoad(LIR_ldq, lirbuf->sp, exit->sp_adj - sizeof(double));
+            rval_ins = lir->insLoad(LIR_ldf, lirbuf->sp, exit->sp_adj - sizeof(double));
             break;
           case TT_FUNCTION:
           case TT_OBJECT:
@@ -625,7 +625,7 @@ TraceRecorder::downRecursion()
     lirbuf->rp = lir->ins2(LIR_piadd, lirbuf->rp, lir->insImmWord(sizeof(FrameInfo*)));
     lir->insStorei(lirbuf->rp, lirbuf->state, offsetof(InterpState, rp));
     --callDepth;
-    clearFrameSlotsFromTracker(nativeFrameTracker);
+    clearCurrentFrameSlotsFromTracker(nativeFrameTracker);
 
     /*
      * If the callee and caller have identical call sites, this is a down-

@@ -42,6 +42,7 @@
 #include "nsSMILParserUtils.h"
 #include "nsSMILNullType.h"
 #include "nsISMILAnimationElement.h"
+#include "nsSMILTimedElement.h"
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
@@ -189,7 +190,7 @@ nsSMILAnimationFunction::SampleAt(nsSMILTime aSampleTime,
                                   PRUint32 aRepeatIteration)
 {
   if (mHasChanged || mLastValue || mSampleTime != aSampleTime ||
-      mSimpleDuration.CompareTo(aSimpleDuration) ||
+      mSimpleDuration != aSimpleDuration ||
       mRepeatIteration != aRepeatIteration) {
     mHasChanged = PR_TRUE;
   }
@@ -249,14 +250,12 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   if (mErrorFlags != 0)
     return;
 
-  // If this interval is active, we must have a non-negative
-  // mSampleTime and a resolved or indefinite mSimpleDuration.
-  // (Otherwise, we're probably just frozen.)
-  if (mIsActive) {
-    NS_ENSURE_TRUE(mSampleTime >= 0,);
-    NS_ENSURE_TRUE(mSimpleDuration.IsResolved() ||
-                   mSimpleDuration.IsIndefinite(),);
-  }
+  // If this interval is active, we must have a non-negative mSampleTime
+  NS_ABORT_IF_FALSE(mSampleTime >= 0 || !mIsActive,
+      "Negative sample time for active animation");
+  NS_ABORT_IF_FALSE(mSimpleDuration.IsResolved() ||
+      mSimpleDuration.IsIndefinite() || mLastValue,
+      "Unresolved simple duration for active or frozen animation");
 
   nsSMILValue result(aResult.mType);
 
@@ -319,18 +318,26 @@ nsSMILAnimationFunction::CompareTo(const nsSMILAnimationFunction* aOther) const
   if (mBeginTime != aOther->GetBeginTime())
     return mBeginTime > aOther->GetBeginTime() ? 1 : -1;
 
-  // XXX When syncbase timing is implemented, we next need to sort based on
-  // dependencies
+  // Next sort based on syncbase dependencies: the dependent element sorts after
+  // its syncbase
+  const nsSMILTimedElement& thisTimedElement =
+    mAnimationElement->TimedElement();
+  const nsSMILTimedElement& otherTimedElement =
+    aOther->mAnimationElement->TimedElement();
+  if (thisTimedElement.IsTimeDependent(otherTimedElement))
+    return 1;
+  if (otherTimedElement.IsTimeDependent(thisTimedElement))
+    return -1;
 
   // Animations that appear later in the document sort after those earlier in
   // the document
-  nsIContent &thisElement = mAnimationElement->Content();
-  nsIContent &otherElement = aOther->mAnimationElement->Content();
+  nsIContent& thisContent = mAnimationElement->Content();
+  nsIContent& otherContent = aOther->mAnimationElement->Content();
 
-  NS_ASSERTION(&thisElement != &otherElement,
-             "Two animations cannot have the same animation content element!");
+  NS_ABORT_IF_FALSE(&thisContent != &otherContent,
+      "Two animations cannot have the same animation content element!");
 
-  return (nsContentUtils::PositionIsBefore(&thisElement, &otherElement))
+  return (nsContentUtils::PositionIsBefore(&thisContent, &otherContent))
           ? -1 : 1;
 }
 

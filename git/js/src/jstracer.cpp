@@ -88,10 +88,8 @@ using namespace nanojit;
 #if JS_HAS_XML_SUPPORT
 #define RETURN_VALUE_IF_XML(val, ret)                                         \
     JS_BEGIN_MACRO                                                            \
-        if (!JSVAL_IS_PRIMITIVE(val) &&                                       \
-            OBJECT_IS_XML(BOGUS_CX, JSVAL_TO_OBJECT(val))) {                  \
+        if (!JSVAL_IS_PRIMITIVE(val) && JSVAL_TO_OBJECT(val)->isXML())        \
             RETURN_VALUE("xml detected", ret);                                \
-        }                                                                     \
     JS_END_MACRO
 #else
 #define RETURN_IF_XML(val, ret) ((void) 0)
@@ -109,6 +107,7 @@ using namespace nanojit;
 #define JSVAL_IS_BOOLEAN(x) JS_STATIC_ASSERT(0)
 
 JS_STATIC_ASSERT(sizeof(JSTraceType) == 1);
+JS_STATIC_ASSERT(offsetof(TraceNativeStorage, stack_global_buf) % 16 == 0);
 
 /* Map to translate a type tag into a printable representation. */
 static const char typeChar[] = "OIDXSNBF";
@@ -3327,6 +3326,11 @@ struct ArgClosureTraits
     // See also UpvarArgTraits.
     static inline uint32 adj_slot(JSStackFrame* fp, uint32 slot) { return 2 + slot; }
 
+    // Generate the adj_slot computation in LIR.
+    static inline LIns* adj_slot_lir(LirWriter* lir, LIns* fp_ins, unsigned slot) {
+        return lir->insImm(2 + slot);
+    }
+
     // Get the right frame slots to use our slot index with.
     // See also UpvarArgTraits.
     static inline jsval* slots(JSStackFrame* fp) { return fp->argv; }
@@ -3361,6 +3365,11 @@ struct VarClosureTraits
     // should be doing.
     // See also UpvarVarTraits.
     static inline uint32 adj_slot(JSStackFrame* fp, uint32 slot) { return 3 + fp->argc + slot; }
+
+    static inline LIns* adj_slot_lir(LirWriter* lir, LIns* fp_ins, unsigned slot) {
+        LIns *argc_ins = lir->insLoad(LIR_ld, fp_ins, offsetof(JSStackFrame, argc));
+        return lir->ins2(LIR_add, lir->insImm(3 + slot), argc_ins);
+    }
 
     // See also UpvarVarTraits.
     static inline jsval* slots(JSStackFrame* fp) { return fp->slots; }
@@ -3496,7 +3505,7 @@ TraceRecorder::import(LIns* base, ptrdiff_t offset, jsval* p, JSTraceType t,
     } else {
         JS_ASSERT_IF(t != TT_JSVAL, isNumber(*p) == (t == TT_DOUBLE));
         if (t == TT_DOUBLE) {
-            ins = lir->insLoad(LIR_ldq, base, offset);
+            ins = lir->insLoad(LIR_ldf, base, offset);
         } else if (t == TT_PSEUDOBOOLEAN) {
             ins = lir->insLoad(LIR_ld, base, offset);
         } else {
@@ -3762,7 +3771,7 @@ TraceRecorder::set(jsval* p, LIns* i, bool initializing, bool demote)
             x = writeBack(i, lirbuf->sp, nativespOffset(p), demote);
         nativeFrameTracker.set(p, x);
     } else {
-        JS_ASSERT(x->isop(LIR_sti) || x->isop(LIR_stqi));
+        JS_ASSERT(x->isop(LIR_sti) || x->isop(LIR_stqi) || x->isop(LIR_stfi));
 
         int disp;
         LIns *base = x->oprnd2();
@@ -4001,6 +4010,7 @@ TraceRecorder::determineSlotType(jsval* vp)
         } else {
             m = importTypeMap[nativeStackSlot(vp)];
         }
+        JS_ASSERT(m != TT_IGNORE);
     } else if (JSVAL_IS_OBJECT(*vp)) {
         if (JSVAL_IS_NULL(*vp))
             m = TT_NULL;
@@ -5168,11 +5178,13 @@ TraceRecorder::emitTreeCall(TreeFragment* inner, VMSideExit* exit, LIns* inner_s
 #endif
 
     /*
-     * Flush values from the tracker which could have been invalidated by the
-     * inner tree. This means variables local to this frame and global slots.
-     * It's safe to keep the offset cache around, we just want to force reloads.
+     * Clear anything from the tracker that the inner tree could have written.
+     * This includes the current frame (which has variables that are local in
+     * the inner tree), the entry frame (which can be written to when upvars
+     * are set), and the globals.
      */
-    clearFrameSlotsFromTracker(tracker);
+    clearEntryFrameSlotsFromTracker(tracker);
+    clearCurrentFrameSlotsFromTracker(tracker);
     SlotList& gslots = *tree->globalSlots;
     for (unsigned i = 0; i < gslots.length(); i++) {
         unsigned slot = gslots[i];
@@ -5180,43 +5192,17 @@ TraceRecorder::emitTreeCall(TreeFragment* inner, VMSideExit* exit, LIns* inner_s
         tracker.set(vp, NULL);
     }
 
-    /*
-     * Begin the complicated process of building a usable typemap by looking
-     * at all stack slots.
-     */
-    TypeMap stackTypeMap(NULL);
-    stackTypeMap.setLength(NativeStackSlots(cx, callDepth));
-    CaptureTypesVisitor visitor(cx, stackTypeMap.data());
-    VisitStackSlots(visitor, cx, callDepth);
-    JS_ASSERT(stackTypeMap.length() >= exit->numStackSlots);
-
-    /*
-     * The import map layout looks like:
-     * -------------
-     * Initial Frame   (callDepth=0)
-     * ...
-     * ...
-     * ...
-     * Current Frame   (callDepth=N)
-     * -------------
-     *
-     * Anything in between the innermost and outermost frames must be in the
-     * tracker at this point, so it's kind of pointless to make sure it's
-     * in the typemap. It'd be a pain to have separate typemaps for each
-     * "hole" though, so make one big one knowing that the holes won't be
-     * read.
-     *
-     * NOTE: It's important that setLength() doesn't mess up stuff below the
-     * current frame. It has to shrink safely.
-     */
-    importTypeMap.setLength(stackTypeMap.length());
-    unsigned startOfInnerFrame = stackTypeMap.length() - exit->numStackSlots;
+    /* Set stack slots from the innermost frame. */
+    importTypeMap.setLength(NativeStackSlots(cx, callDepth));
 #ifdef DEBUG
-    for (unsigned i = importStackSlots; i < startOfInnerFrame; i++)
-        stackTypeMap[i] = TT_IGNORE;
+    for (unsigned i = importStackSlots; i < importTypeMap.length(); i++)
+        importTypeMap[i] = TT_IGNORE;
 #endif
+    unsigned startOfInnerFrame = importTypeMap.length() - exit->numStackSlots;
     for (unsigned i = 0; i < exit->numStackSlots; i++)
         importTypeMap[startOfInnerFrame + i] = exit->stackTypeMap()[i];
+    importStackSlots = importTypeMap.length();
+    JS_ASSERT(importStackSlots == NativeStackSlots(cx, callDepth));
 
     /*
      * Bug 502604 - It is illegal to extend from the outer typemap without
@@ -5224,7 +5210,6 @@ TraceRecorder::emitTreeCall(TreeFragment* inner, VMSideExit* exit, LIns* inner_s
      */
     BuildGlobalTypeMapFromInnerTree(importTypeMap, exit);
 
-    importStackSlots = stackTypeMap.length();
     importGlobalSlots = importTypeMap.length() - importStackSlots;
     JS_ASSERT(importGlobalSlots == tree->globalSlots->length());
 
@@ -6144,6 +6129,19 @@ TraceRecorder::attemptTreeCall(TreeFragment* f, uintN& inlineCallCount)
 
     JSContext *localCx = cx;
 
+    // Refresh the import type map so the tracker can reimport values after the
+    // call with their correct types. The inner tree must not change the type of
+    // any variable in a frame above the current one (i.e., upvars). 
+    //
+    // Note that DetermineTypesVisitor may call determineSlotType, which may
+    // read from the (current, stale) import type map, but this is safe here.
+    // The reason is that determineSlotType will read the import type map only
+    // if there is not a tracker instruction for that value, which means that
+    // value has not been written yet, so that type map entry is up to date.
+    importTypeMap.setLength(NativeStackSlots(cx, callDepth));
+    DetermineTypesVisitor visitor(*this, importTypeMap.data());
+    VisitStackSlots(visitor, cx, callDepth);
+
     VMSideExit* innermostNestedGuard = NULL;
     VMSideExit* lr = ExecuteTree(cx, f, inlineCallCount, &innermostNestedGuard);
 
@@ -6456,10 +6454,10 @@ JS_ALWAYS_INLINE
 InterpState::InterpState(JSContext* cx, JSTraceMonitor* tm, TreeFragment* f,
                          uintN& inlineCallCount, VMSideExit** innermostNestedGuardp)
   : cx(cx),
-    stackBase(tm->storage.stack()),
+    stackBase(tm->storage->stack()),
     sp(stackBase + f->nativeStackBase / sizeof(double)),
-    eos(tm->storage.global()),
-    callstackBase(tm->storage.callstack()),
+    eos(tm->storage->global()),
+    callstackBase(tm->storage->callstack()),
     sor(callstackBase),
     rp(callstackBase),
     eor(callstackBase + JS_MIN(MAX_CALL_STACK_ENTRIES,
@@ -6496,8 +6494,8 @@ InterpState::InterpState(JSContext* cx, JSTraceMonitor* tm, TreeFragment* f,
      * Cannot 0xCD-fill global frame since it may overwrite a bailed outer
      * ExecuteTree's 0xdeadbeefdeadbeef marker.
      */
-    memset(tm->storage.stack(), 0xCD, MAX_NATIVE_STACK_SLOTS * sizeof(double));
-    memset(tm->storage.callstack(), 0xCD, MAX_CALL_STACK_ENTRIES * sizeof(FrameInfo*));
+    memset(tm->storage->stack(), 0xCD, MAX_NATIVE_STACK_SLOTS * sizeof(double));
+    memset(tm->storage->callstack(), 0xCD, MAX_CALL_STACK_ENTRIES * sizeof(FrameInfo*));
 #endif
 }
 
@@ -6592,8 +6590,8 @@ ExecuteTree(JSContext* cx, TreeFragment* f, uintN& inlineCallCount,
 
     /* Initialize trace state. */
     InterpState state(cx, tm, f, inlineCallCount, innermostNestedGuardp);
-    double* stack = tm->storage.stack();
-    double* global = tm->storage.global();
+    double* stack = tm->storage->stack();
+    double* global = tm->storage->global();
     JSObject* globalObj = f->globalObj;
     unsigned ngslots = f->globalSlots->length();
     uint16* gslots = f->globalSlots->data();
@@ -6611,7 +6609,7 @@ ExecuteTree(JSContext* cx, TreeFragment* f, uintN& inlineCallCount,
                       f->code());
 
     debug_only_stmt(uint32 globalSlots = STOBJ_NSLOTS(globalObj);)
-    debug_only_stmt(*(uint64*)&tm->storage.global()[globalSlots] = 0xdeadbeefdeadbeefLL;)
+    debug_only_stmt(*(uint64*)&tm->storage->global()[globalSlots] = 0xdeadbeefdeadbeefLL;)
 
     /* Execute trace. */
 #ifdef MOZ_TRACEVIS
@@ -6620,7 +6618,7 @@ ExecuteTree(JSContext* cx, TreeFragment* f, uintN& inlineCallCount,
     VMSideExit* lr = ExecuteTrace(cx, f, state);
 #endif
 
-    JS_ASSERT(*(uint64*)&tm->storage.global()[globalSlots] == 0xdeadbeefdeadbeefLL);
+    JS_ASSERT(*(uint64*)&tm->storage->global()[globalSlots] == 0xdeadbeefdeadbeefLL);
     JS_ASSERT_IF(lr->exitType == LOOP_EXIT, !lr->calldepth);
 
     /* Restore interpreter state. */
@@ -7644,6 +7642,7 @@ js_InitJIT(JSTraceMonitor *tm)
     tm->reTempAlloc = new VMAllocator();
     tm->codeAlloc = new CodeAlloc();
     tm->frameCache = new FrameInfoCache(tm->dataAlloc);
+    tm->storage = new TraceNativeStorage();
     tm->flush();
     verbose_only( tm->branches = NULL; )
 
@@ -7774,6 +7773,11 @@ js_FinishJIT(JSTraceMonitor *tm)
     if (tm->reTempAlloc) {
         delete tm->reTempAlloc;
         tm->reTempAlloc = NULL;
+    }
+
+    if (tm->storage) {
+        delete tm->storage;
+        tm->storage = NULL;
     }
 }
 
@@ -8348,7 +8352,7 @@ TraceRecorder::alu(LOpcode v, jsdouble v0, jsdouble v1, LIns* s0, LIns* s1)
          * that will inform the oracle and cause a non-demoted trace to be
          * attached that uses floating-point math for this operation.
          */
-        if (!result->isconst() && (!IsOverflowSafe(v, d0) || !IsOverflowSafe(v, d1))) {
+        if (!result->isconst() && result->isop(v) && (!IsOverflowSafe(v, d0) || !IsOverflowSafe(v, d1))) {
             exit = snapshot(OVERFLOW_EXIT);
             guard(false, lir->ins1(LIR_ov, result), exit);
             if (v == LIR_mul) // make sure we don't lose a -0
@@ -8388,7 +8392,7 @@ TraceRecorder::f2i(LIns* f)
         }
         if (ci == &js_String_p_charCodeAt0_ci) {
             // Use a fast path builtin for a charCodeAt that converts to an int right away.
-            LIns* args[] = { fcallarg(f, 1) };
+            LIns* args[] = { fcallarg(f, 0) };
             return lir->insCall(&js_String_p_charCodeAt0_int_ci, args);
         }
         if (ci == &js_String_p_charCodeAt_ci) {
@@ -9804,8 +9808,11 @@ TraceRecorder::guardNotGlobalObject(JSObject* obj, LIns* obj_ins)
     return RECORD_CONTINUE;
 }
 
+// Helper for clearXEntryFrameSlotsFromTracker.
+// Clear out slots of the given frame in the NativeFrameTracker. All argument slots
+// are cleared. |nslots| local slots are cleared.
 JS_REQUIRES_STACK void
-TraceRecorder::clearFrameSlotsFromTracker(Tracker& which)
+TraceRecorder::clearFrameSlotsFromTracker(Tracker& which, JSStackFrame* fp, unsigned nslots)
 {
     /*
      * Clear out all slots of this frame in the nativeFrameTracker. Different
@@ -9814,7 +9821,6 @@ TraceRecorder::clearFrameSlotsFromTracker(Tracker& which)
      * we have to make sure we map those in to the cache with the right
      * offsets.
      */
-    JSStackFrame* fp = cx->fp;
     jsval* vp;
     jsval* vpstop;
 
@@ -9831,9 +9837,34 @@ TraceRecorder::clearFrameSlotsFromTracker(Tracker& which)
         which.set(&fp->argsobj, (LIns*)0);
     }
     vp = &fp->slots[0];
-    vpstop = &fp->slots[fp->script->nslots];
+    vpstop = &fp->slots[nslots];
     while (vp < vpstop)
         which.set(vp++, (LIns*)0);
+}
+
+JS_REQUIRES_STACK JSStackFrame*
+TraceRecorder::entryFrame() const
+{
+    JSStackFrame *fp = cx->fp;
+    for (unsigned i = 0; i < callDepth; ++i)
+        fp = fp->down;
+    return fp;
+}
+
+JS_REQUIRES_STACK void
+TraceRecorder::clearEntryFrameSlotsFromTracker(Tracker& which)
+{
+    JSStackFrame *fp = entryFrame();
+
+    // Clear only slots that are not also used by the next frame up.
+    clearFrameSlotsFromTracker(which, fp, fp->script->nfixed);
+}
+
+JS_REQUIRES_STACK void
+TraceRecorder::clearCurrentFrameSlotsFromTracker(Tracker& which)
+{
+    // Clear out all local slots.
+    clearFrameSlotsFromTracker(which, cx->fp, cx->fp->script->nslots);
 }
 
 /*
@@ -10067,7 +10098,7 @@ TraceRecorder::record_JSOP_RETURN()
     debug_only_printf(LC_TMTracer,
                       "returning from %s\n",
                       js_AtomToPrintableString(cx, cx->fp->fun->atom));
-    clearFrameSlotsFromTracker(nativeFrameTracker);
+    clearCurrentFrameSlotsFromTracker(nativeFrameTracker);
 
     return ARECORD_CONTINUE;
 }
@@ -10386,7 +10417,7 @@ TraceRecorder::record_JSOP_NEG()
             (!JSVAL_IS_DOUBLE(v) || !JSDOUBLE_IS_NEGZERO(*JSVAL_TO_DOUBLE(v))) &&
             -asNumber(v) == (int)-asNumber(v)) {
             a = lir->ins1(LIR_neg, ::demote(lir, a));
-            if (!a->isconst()) {
+            if (!a->isconst() && a->isop(LIR_neg)) {
                 VMSideExit* exit = snapshot(OVERFLOW_EXIT);
                 guard(false, lir->ins1(LIR_ov, a), exit);
                 guard(false, lir->ins2i(LIR_eq, a, 0), exit);
@@ -11496,6 +11527,52 @@ TraceRecorder::setCallProp(JSObject *callobj, LIns *callobj_ins, JSScopeProperty
     else
         RETURN_STOP("can't trace special CallClass setter");
 
+    // Even though the frame is out of range, later we might be called as an
+    // inner trace such that the target variable is defined in the outer trace
+    // entry frame. In that case, we must store to the native stack area for
+    // that frame.
+
+    LIns *fp_ins = lir->insLoad(LIR_ldp, cx_ins, offsetof(JSContext, fp));
+    LIns *fpcallobj_ins = lir->insLoad(LIR_ldp, fp_ins, offsetof(JSStackFrame, callobj));
+    LIns *br1 = lir->insBranch(LIR_jf, lir->ins2(LIR_peq, fpcallobj_ins, callobj_ins), NULL);
+
+    // Case 1: storing to native stack area.
+
+    // Compute native stack slot and address offset we are storing to.
+    unsigned slot = uint16(sprop->shortid);
+    LIns *slot_ins;
+    if (sprop->setter == SetCallArg)
+        slot_ins = ArgClosureTraits::adj_slot_lir(lir, fp_ins, slot);
+    else
+        slot_ins = VarClosureTraits::adj_slot_lir(lir, fp_ins, slot);
+    LIns *offset_ins = lir->ins2(LIR_mul, slot_ins, INS_CONST(sizeof(double)));
+
+    // Guard that we are not changing the type of the slot we are storing to.
+    LIns *callstackBase_ins = lir->insLoad(LIR_ldp, lirbuf->state, 
+                                           offsetof(InterpState, callstackBase));
+    LIns *frameInfo_ins = lir->insLoad(LIR_ldp, callstackBase_ins, 0);
+    LIns *typemap_ins = lir->ins2(LIR_addp, frameInfo_ins, INS_CONSTWORD(sizeof(FrameInfo)));
+    LIns *type_ins = lir->insLoad(LIR_ldcb, 
+                                  lir->ins2(LIR_addp, typemap_ins, lir->ins_u2p(slot_ins)), 0);
+    JSTraceType type = getCoercedType(v);
+    if (type == TT_INT32 && !isPromoteInt(v_ins))
+        type = TT_DOUBLE;
+    guard(true,
+          addName(lir->ins2(LIR_eq, type_ins, lir->insImm(type)),
+                  "guard(type-stable set upvar)"),
+          BRANCH_EXIT);
+
+    // Store to the native stack slot.
+    LIns *stackBase_ins = lir->insLoad(LIR_ldp, lirbuf->state, 
+                                       offsetof(InterpState, stackBase));
+    LIns *storeValue_ins = isPromoteInt(v_ins) ? demote(lir, v_ins) : v_ins;
+    lir->insStorei(storeValue_ins, 
+                   lir->ins2(LIR_addp, stackBase_ins, lir->ins_u2p(offset_ins)), 0);
+    LIns *br2 = lir->insBranch(LIR_j, NULL, NULL);
+
+    // Case 2: calling builtin.
+    LIns *label1 = lir->ins0(LIR_label);
+    br1->setTarget(label1);
     LIns* args[] = {
         box_jsval(v, v_ins),
         INS_CONST(SPROP_USERID(sprop)),
@@ -11504,6 +11581,10 @@ TraceRecorder::setCallProp(JSObject *callobj, LIns *callobj_ins, JSScopeProperty
     };
     LIns* call_ins = lir->insCall(ci, args);
     guard(false, addName(lir->ins_eq0(call_ins), "guard(set upvar)"), STATUS_EXIT);
+
+    LIns *label2 = lir->ins0(LIR_label);
+    br2->setTarget(label2);
+    
     return RECORD_CONTINUE;
 }
 
@@ -11889,7 +11970,7 @@ TraceRecorder::record_JSOP_GETELEM()
         }
         RETURN_STOP_A("can't reach arguments object's frame");
     }
-    if (js_IsDenseArray(obj)) {
+    if (obj->isDenseArray()) {
         // Fast path for dense arrays accessed with a integer index.
         jsval* vp;
         LIns* addr_ins;
@@ -12199,7 +12280,7 @@ LIns* TraceRecorder::stackLoad(LIns* base, uint8 type)
     LOpcode loadOp;
     switch (type) {
       case TT_DOUBLE:
-        loadOp = LIR_ldq;
+        loadOp = LIR_ldf;
         break;
       case TT_OBJECT:
       case TT_STRING:
@@ -13142,7 +13223,11 @@ TraceRecorder::record_JSOP_NEWINIT()
     CHECK_STATUS_A(getClassPrototype(key, proto_ins));
 
     LIns* args[] = { proto_ins, cx_ins };
-    const CallInfo *ci = (key == JSProto_Array) ? &js_NewEmptyArray_ci : &js_Object_tn_ci;
+    const CallInfo *ci = (key == JSProto_Array)
+                         ? &js_NewEmptyArray_ci
+                         : (cx->fp->regs->pc[JSOP_NEWINIT_LENGTH] != JSOP_ENDINIT)
+                         ? &js_NonEmptyObject_ci
+                         : &js_Object_tn_ci;
     LIns* v_ins = lir->insCall(ci, args);
     guard(false, lir->ins_peq0(v_ins), OOM_EXIT);
     stack(0, v_ins);
@@ -14420,7 +14505,7 @@ TraceRecorder::record_JSOP_STOP()
     } else {
         rval_ins = INS_CONST(JSVAL_TO_SPECIAL(JSVAL_VOID));
     }
-    clearFrameSlotsFromTracker(nativeFrameTracker);
+    clearCurrentFrameSlotsFromTracker(nativeFrameTracker);
     return ARECORD_CONTINUE;
 }
 

@@ -55,7 +55,6 @@
 #include "nsStyleContext.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
-#include "nsIScrollableView.h"
 #include "nsIScrollableFrame.h"
 #include "nsPresContext.h"
 #include "nsCRT.h"
@@ -1422,7 +1421,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(aChild);
     aChild = placeholder->GetOutOfFlowFrame();
     NS_ASSERTION(aChild, "No out of flow frame?");
-    if (!aChild || aChild->GetType() == nsGkAtoms::menuPopupFrame)
+    if (!aChild || nsLayoutUtils::IsPopup(aChild))
       return NS_OK;
     // update for the new child
     disp = aChild->GetStyleDisplay();
@@ -2253,14 +2252,11 @@ NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext,
   }
 
   if (scrollFrame) {
-    nsIView* capturingView = scrollFrame->GetScrollableView()->View();
-    if (capturingView) {
-      // Get the view that aEvent->point is relative to. This is disgusting.
-      nsIView* eventView = nsnull;
-      nsPoint pt = nsLayoutUtils::GetEventCoordinatesForNearestView(aEvent, this,
-                                                                    &eventView);
-      nsPoint capturePt = pt + eventView->GetOffsetTo(capturingView);
-      frameselection->StartAutoScrollTimer(capturingView, capturePt, 30);
+    nsIFrame* capturingFrame = scrollFrame->GetScrolledFrame();
+    if (capturingFrame) {
+      nsPoint pt =
+        nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, capturingFrame);
+      frameselection->StartAutoScrollTimer(capturingFrame, pt, 30);
     }
   }
 
@@ -3425,12 +3421,6 @@ nsIFrame* nsIFrame::GetTailContinuation()
   }
   NS_POSTCONDITION(frame, "illegal state in continuation chain.");
   return frame;
-}
-
-nsIView*
-nsIFrame::GetParentViewForChildFrame(nsIFrame* aFrame) const
-{
-  return GetClosestView();
 }
 
 // Associated view object
@@ -5599,7 +5589,7 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
     if (presContext->GetTheme()->
           GetWidgetOverflow(presContext->DeviceContext(), this,
                             disp->mAppearance, &r)) {
-      aOverflowArea->UnionRect(*aOverflowArea, r);
+      aOverflowArea->UnionRectIncludeEmpty(*aOverflowArea, r);
     }
   }
   
@@ -5643,8 +5633,8 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
   }
 
   PRBool overflowChanged;
-  if (*aOverflowArea != nsRect(nsPoint(0, 0), aNewSize)) {
-    overflowChanged = *aOverflowArea != GetOverflowRect();
+  if (!aOverflowArea->IsExactEqual(nsRect(nsPoint(0, 0), aNewSize))) {
+    overflowChanged = !aOverflowArea->IsExactEqual(GetOverflowRect());
     SetOverflowRect(*aOverflowArea);
   }
   else {

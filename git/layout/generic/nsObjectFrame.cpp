@@ -76,7 +76,6 @@
 #include "nsIPluginTagInfo.h"
 #include "plstr.h"
 #include "nsILinkHandler.h"
-#include "nsIScrollableView.h"
 #include "nsIScrollPositionListener.h"
 #include "nsITimer.h"
 #include "nsIDocShellTreeItem.h"
@@ -119,6 +118,7 @@
 #include "nsFrameManager.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIObserverService.h"
+#include "nsIScrollableFrame.h"
 
 // headers for plugin scriptability
 #include "nsIScriptGlobalObject.h"
@@ -331,10 +331,9 @@ public:
   void SendIdleEvent();
 
   // nsIScrollPositionListener interface
-  NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
-  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable,
-                                     nsTArray<nsIWidget::Configuration>* aConfigurations) {}
-  NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
+  NS_IMETHOD ScrollPositionWillChange(nscoord aX, nscoord aY);
+  virtual void ViewPositionDidChange(nsTArray<nsIWidget::Configuration>* aConfigurations) {}
+  NS_IMETHOD ScrollPositionDidChange(nscoord aX, nscoord aY);
 
   //locals
 
@@ -3560,7 +3559,7 @@ nsPluginInstanceOwner::GetEventloopNestingLevel()
   return currentLevel;
 }
 
-nsresult nsPluginInstanceOwner::ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
+nsresult nsPluginInstanceOwner::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
 #ifdef MAC_CARBON_PLUGINS
   if (GetEventModel() != NPEventModelCarbon)
@@ -3587,7 +3586,7 @@ nsresult nsPluginInstanceOwner::ScrollPositionWillChange(nsIScrollableView* aScr
   return NS_OK;
 }
 
-nsresult nsPluginInstanceOwner::ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
+nsresult nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 {
 #ifdef MAC_CARBON_PLUGINS
   if (GetEventModel() != NPEventModelCarbon)
@@ -4720,15 +4719,12 @@ nsPluginInstanceOwner::PrepareToStop(PRBool aDelayedStop)
   }
 #endif
 
-  // Unregister scroll position listener
-  nsIFrame* parentWithView = mObjectFrame->GetAncestorWithView();
-  nsIView* curView = parentWithView ? parentWithView->GetView() : nsnull;
-  while (curView) {
-    nsIScrollableView* scrollingView = curView->ToScrollableView();
-    if (scrollingView)
-      scrollingView->RemoveScrollPositionListener((nsIScrollPositionListener *)this);
-    
-    curView = curView->GetParent();
+  // Unregister scroll position listeners
+  for (nsIFrame* f = mObjectFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+    nsIScrollableFrame* sf = do_QueryFrame(f);
+    if (sf) {
+      sf->RemoveScrollPositionListener(this);
+    }
   }
 }
 
@@ -5475,17 +5471,14 @@ nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,
     target->AddEventListener(NS_LITERAL_STRING("dragend"), listener, PR_TRUE);
   }
   
-  // Register scroll position listener
-  // We need to register a scroll pos listener on every scrollable
-  // view up to the top
-  nsIFrame* parentWithView = mObjectFrame->GetAncestorWithView();
-  nsIView* curView = parentWithView ? parentWithView->GetView() : nsnull;
-  while (curView) {
-    nsIScrollableView* scrollingView = curView->ToScrollableView();
-    if (scrollingView)
-      scrollingView->AddScrollPositionListener((nsIScrollPositionListener *)this);
-    
-    curView = curView->GetParent();
+  // Register scroll position listeners
+  // We need to register a scroll position listener on every scrollable
+  // frame up to the top
+  for (nsIFrame* f = mObjectFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+    nsIScrollableFrame* sf = do_QueryFrame(f);
+    if (sf) {
+      sf->RemoveScrollPositionListener(this);
+    }
   }
 
   return NS_OK; 
