@@ -196,8 +196,10 @@ WeaveSvc.prototype = {
 
   get userPath() { return ID.get('WeaveID').username; },
 
-  get isLoggedIn() {
-    return this._loggedIn;
+  get currentUser() {
+    if (this._loggedIn)
+      return this.username;
+    return null;
   },
 
   get enabled() {
@@ -497,36 +499,22 @@ WeaveSvc.prototype = {
 
   // These are global (for all engines)
 
-  verifyLogin: function WeaveSync_verifyLogin(username, password) {
-    this._localLock(this._notify("verify-login", this._verifyLogin, username, password)).async(this, null);
+  login: function WeaveSync_login(onComplete, password, passphrase, verifyonly) {
+    this._localLock(this._notify("login", this._login,
+                                 password, passphrase, verifyonly)).async(this, onComplete);
   },
-
-  _verifyLogin: function WeaveSync__verifyLogin(username, password) {
-    let self = yield;
-    this._log.debug("Verifying login for user " + username);
-
-    DAV.baseURL = Utils.prefs.getCharPref("serverURL");
-    DAV.defaultPrefix = "user/" + username;
-
-    DAV.checkLogin.async(DAV, self.cb, username, password);
-    let resultMsg = yield;
-
-    // If we got an error message, throw it. [need to throw to cause the
-    // _notify() wrapper to generate an error notification for observers].
-    if (resultMsg) {
-      this._log.debug("Login verification: " + resultMsg);
-      throw resultMsg;
-    }
-
-  },
-
-  login: function WeaveSync_login(onComplete) {
-    this._localLock(this._notify("login", this._login)).async(this, onComplete);
-  },
-  _login: function WeaveSync__login() {
+  _login: function WeaveSync__login(password, passphrase, verifyonly) {
     let self = yield;
 
-    this._log.debug("Logging in user " + this.username);
+    // cache password & passphrase
+    // if null, we'll try to get them from the pw manager below
+    ID.get('WeaveID').setTempPassword(password);
+    ID.get('WeaveCryptoID').setTempPassword(passphrase);
+
+    if(verifyonly)
+       this._log.debug("Verifying login");
+    else
+       this._log.debug("Logging in");
 
     if (!this.username)
       throw "No username set, login failed";
@@ -535,6 +523,29 @@ WeaveSvc.prototype = {
 
     DAV.baseURL = Utils.prefs.getCharPref("serverURL");
     DAV.defaultPrefix = "user/" + this.userPath;
+
+    DAV.checkLogin.async(DAV, self.cb, this.username, this.password);
+    let success = yield;
+    if (!success) {
+      try {
+        // FIXME: This code may not be needed any more, due to the way
+        // that the server is expected to create the user dir for us.
+        this._checkUserDir.async(this, self.cb);
+        yield;
+      } catch (e) { /* FIXME: tmp workaround for services.m.c */ }
+      DAV.checkLogin.async(DAV, self.cb, this.username, this.password);
+      let success = yield;
+      if (!success)
+        throw "Login failed";
+    }
+
+    // If being called from the Wizard to verify credentials, stop here.
+    if (verifyonly) {
+      this._log.debug("Login verified");
+      self.done(true);
+      return;
+    }
+    // Otherwise, setup the user session.
 
     this._log.info("Using server URL: " + DAV.baseURL + DAV.defaultPrefix);
 
@@ -688,8 +699,8 @@ WeaveSvc.prototype = {
       engine._tracker.resetScore();
     } catch(e) {
       this._log.error(Utils.exceptionStr(e));
-      if (e.trace)
-        this._log.trace(Utils.stackTrace(e.trace));
+      if (e.traceback)
+        this._log.trace(e.traceback);
     }
   },
 

@@ -301,32 +301,21 @@ DAVCollection.prototype = {
 
   // Login / Logout
 
-  checkLogin: function DC_checkLogin(username, password) {
+  checkLogin: function DC_checkLogin() {
     let self = yield;
 
-    this._log.debug("checkLogin called for user " + username);
-
-    let headers = {
-                    'Content-type'  : 'text/plain',
-                    'Authorization' : 'Basic ' + btoa(username + ":" + password)
-                  };
-    let lock = DAVLocks['default'];
-    if (lock)
-      headers['If'] = "<" + lock.URL + "> (<" + lock.token + ">)";
+    this._log.debug("Checking login");
 
     // Make a call to make sure it's working
-    this._makeRequest.async(this, self.cb, "GET", "", headers);
+    this.GET("", self.cb);
     let resp = yield;
 
-    this._log.debug("checkLogin got response status " + resp.status);
-    // XXX would be nice if 404 == invalid username, 401 == invalid password.
-    let retmsg = "";
-    if (resp.status == 401)
-      retmsg = "invalid username or password";
-    else if (resp.status < 200 || resp.status >= 300)
-      retmsg = "server error";
+    if (resp.status < 200 || resp.status >= 300) {
+      self.done(false);
+      return;
+    }
 
-    self.done(retmsg);
+    self.done(true);
   },
 
   // Locking
