@@ -1142,7 +1142,7 @@ ScanBaseShape(GCMarker *gcmarker, BaseShape *base)
 
     if (JSObject *parent = base->getObjectParent()) {
         MaybePushMarkStackBetweenSlices(gcmarker, parent);
-    } else if (GlobalObject *global = base->compartment()->unsafeUnbarrieredMaybeGlobal()) {
+    } else if (GlobalObject *global = base->compartment()->maybeGlobal()) {
         PushMarkStack(gcmarker, global);
     }
 
@@ -1406,7 +1406,7 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
     if (type->singleton() && !type->lazy())
         PushMarkStack(gcmarker, type->singleton());
 
-    if (type->newScript()) {
+    if (type->hasNewScript()) {
         PushMarkStack(gcmarker, type->newScript()->fun);
         PushMarkStack(gcmarker, type->newScript()->templateObject);
     }
@@ -1431,7 +1431,7 @@ gc::MarkChildren(JSTracer *trc, types::TypeObject *type)
     if (type->singleton() && !type->lazy())
         MarkObject(trc, &type->singletonRaw(), "type_singleton");
 
-    if (type->newScript()) {
+    if (type->hasNewScript()) {
         MarkObject(trc, &type->newScript()->fun, "type_new_function");
         MarkObject(trc, &type->newScript()->templateObject, "type_new_template");
     }
@@ -1961,12 +1961,9 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 JS_FRIEND_API(bool)
 JS::UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind)
 {
-    JSRuntime *rt = static_cast<Cell *>(thing)->runtimeFromMainThread();
+    JS_ASSERT(kind != JSTRACE_SHAPE);
 
-    // When the ReadBarriered type is used in a HashTable, it is difficult or
-    // impossible to suppress the implicit cast operator while iterating for GC.
-    if (rt->isHeapBusy())
-        return false;
+    JSRuntime *rt = static_cast<Cell *>(thing)->runtimeFromMainThread();
 
     bool unmarkedArg = false;
     if (!IsInsideNursery(static_cast<Cell *>(thing))) {

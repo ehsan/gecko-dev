@@ -460,7 +460,8 @@ NfcContentHelper.prototype = {
     }
 
     let requestId = atob(result.requestId);
-    this.fireRequestSuccess(requestId, new GetDetailsNDEFResponse(result));
+    let result = new GetDetailsNDEFResponse(result);
+    this.fireRequestSuccess(requestId, result);
   },
 
   handleCheckP2PRegistrationResponse: function handleCheckP2PRegistrationResponse(result) {

@@ -10,7 +10,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/BluetoothAdapter2Binding.h"
-#include "mozilla/dom/BluetoothDeviceEvent.h"
 #include "mozilla/dom/Promise.h"
 #include "BluetoothCommon.h"
 #include "nsCOMPtr.h"
@@ -100,17 +99,12 @@ public:
   already_AddRefed<Promise> StartDiscovery(ErrorResult& aRv);
   already_AddRefed<Promise> StopDiscovery(ErrorResult& aRv);
 
-  already_AddRefed<Promise>
+  already_AddRefed<DOMRequest>
     Pair(const nsAString& aDeviceAddress, ErrorResult& aRv);
-  already_AddRefed<Promise>
+  already_AddRefed<DOMRequest>
     Unpair(const nsAString& aDeviceAddress, ErrorResult& aRv);
-
-  /**
-   * Get a list of paired bluetooth devices.
-   *
-   * @param aDevices [out] Devices array to return
-   */
-  void GetPairedDevices(nsTArray<nsRefPtr<BluetoothDevice> >& aDevices);
+  already_AddRefed<DOMRequest>
+    GetPairedDevices(ErrorResult& aRv);
 
   already_AddRefed<Promise> EnableDisable(bool aEnable, ErrorResult& aRv);
   already_AddRefed<Promise> Enable(ErrorResult& aRv);
@@ -150,11 +144,10 @@ public:
 
   IMPL_EVENT_HANDLER(a2dpstatuschanged);
   IMPL_EVENT_HANDLER(hfpstatuschanged);
+  IMPL_EVENT_HANDLER(pairedstatuschanged);
   IMPL_EVENT_HANDLER(requestmediaplaystatus);
   IMPL_EVENT_HANDLER(scostatuschanged);
   IMPL_EVENT_HANDLER(attributechanged);
-  IMPL_EVENT_HANDLER(devicepaired);
-  IMPL_EVENT_HANDLER(deviceunpaired);
 
   nsPIDOMWindow* GetParentObject() const
   {
@@ -168,7 +161,7 @@ private:
   BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
   ~BluetoothAdapter();
 
-  already_AddRefed<Promise>
+  already_AddRefed<mozilla::dom::DOMRequest>
     PairUnpair(bool aPair, const nsAString& aDeviceAddress, ErrorResult& aRv);
 
   bool IsAdapterAttributeChanged(BluetoothAdapterAttribute aType,
@@ -183,36 +176,6 @@ private:
 
   void HandleDeviceFound(const BluetoothValue& aValue);
   void HandlePairingRequest(const BluetoothValue& aValue);
-
-  /**
-   * Handle DEVICE_PAIRED_ID bluetooth signal.
-   *
-   * @param aValue [in] Properties array of the paired device.
-   *                    The array should contain two properties:
-   *                    - nsString  'Address'
-   *                    - bool      'Paired'
-   */
-  void HandleDevicePaired(const BluetoothValue& aValue);
-
-  /**
-   * Handle DEVICE_UNPAIRED_ID bluetooth signal.
-   *
-   * @param aValue [in] Properties array of the unpaired device.
-   *                    The array should contain two properties:
-   *                    - nsString  'Address'
-   *                    - bool      'Paired'
-   */
-  void HandleDeviceUnpaired(const BluetoothValue& aValue);
-
-  /**
-   * Fire BluetoothDeviceEvent to trigger
-   * ondeviceparied/ondeviceunpaired event handler.
-   *
-   * @param aType [in] Event type to fire
-   * @param aInit [in] Event initialization value
-   */
-  void DispatchDeviceEvent(const nsAString& aType,
-                           const BluetoothDeviceEventInit& aInit);
 
   /**
    * mDevices holds references of all created device objects.

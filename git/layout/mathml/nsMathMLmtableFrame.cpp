@@ -119,7 +119,7 @@ static nsresult ReportParseError(nsIFrame* aFrame, const char16_t* aAttribute,
     { aValue, aAttribute, content->Tag()->GetUTF16String() };
 
   return nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                         NS_LITERAL_CSTRING("Layout: MathML"),
+                                         NS_LITERAL_CSTRING("MathML"),
                                          content->OwnerDoc(),
                                          nsContentUtils::eMATHML_PROPERTIES,
                                          "AttributeParsingError", params, 3);

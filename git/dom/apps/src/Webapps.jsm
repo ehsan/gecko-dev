@@ -883,10 +883,6 @@ this.DOMApplicationRegistry = {
       activitiesToRegister.push.apply(activitiesToRegister,
         this._createActivitiesToRegister(manifest, app, null, aRunUpdate));
 
-      if (aRunUpdate) {
-        cpmm.sendAsyncMessage("Activities:UnregisterAll", app.manifestURL);
-      }
-
       if (!manifest.entry_points) {
         return;
       }

@@ -100,7 +100,6 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
   mCheckedBaseProto(false),
   mKeyHandlersRegistered(false),
   mChromeOnlyContent(false),
-  mBindToUntrustedContent(false),
   mResources(nullptr),
   mBaseNameSpaceID(kNameSpaceID_None)
 {
@@ -214,10 +213,6 @@ nsXBLPrototypeBinding::SetBindingElement(nsIContent* aElement)
   mChromeOnlyContent = mBinding->AttrValueIs(kNameSpaceID_None,
                                              nsGkAtoms::chromeOnlyContent,
                                              nsGkAtoms::_true, eCaseMatters);
-
-  mBindToUntrustedContent = mBinding->AttrValueIs(kNameSpaceID_None,
-                                                  nsGkAtoms::bindToUntrustedContent,
-                                                  nsGkAtoms::_true, eCaseMatters);
 }
 
 bool

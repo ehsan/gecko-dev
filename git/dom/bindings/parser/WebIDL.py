@@ -669,6 +669,22 @@ class IDLInterface(IDLObjectWithScope):
                               [self.location])
         assert not parent or isinstance(parent, IDLInterface)
 
+        if self.getExtendedAttribute("FeatureDetectible"):
+            if not (self.getExtendedAttribute("Func") or
+                    self.getExtendedAttribute("AvailableIn") or
+                    self.getExtendedAttribute("CheckPermissions")):
+                raise WebIDLError("[FeatureDetectible] is only allowed in combination "
+                                  "with [Func], [AvailableIn] or [CheckPermissions]",
+                                  [self.location])
+            if self.getExtendedAttribute("Pref"):
+                raise WebIDLError("[FeatureDetectible] must not be specified "
+                                  "in combination with [Pref]",
+                                  [self.location])
+            if not self.hasInterfaceObject():
+                raise WebIDLError("[FeatureDetectible] not allowed on interface "
+                                  "with [NoInterfaceObject]",
+                                  [self.location])
+
         self.parent = parent
 
         assert iter(self.members)
@@ -1191,7 +1207,8 @@ class IDLInterface(IDLObjectWithScope):
                   identifier == "OverrideBuiltins" or
                   identifier == "ChromeOnly" or
                   identifier == "Unforgeable" or
-                  identifier == "LegacyEventInit"):
+                  identifier == "LegacyEventInit" or
+                  identifier == "FeatureDetectible"):
                 # Known extended attributes that do not take values
                 if not attr.noArguments():
                     raise WebIDLError("[%s] must take no arguments" % identifier,
@@ -3157,6 +3174,18 @@ class IDLAttribute(IDLInterfaceMember):
             raise WebIDLError("An attribute with [SameObject] must have an "
                               "interface type as its type", [self.location])
 
+        if self.getExtendedAttribute("FeatureDetectible"):
+            if not (self.getExtendedAttribute("Func") or
+                    self.getExtendedAttribute("AvailableIn") or
+                    self.getExtendedAttribute("CheckPermissions")):
+                raise WebIDLError("[FeatureDetectible] is only allowed in combination "
+                                  "with [Func], [AvailableIn] or [CheckPermissions]",
+                                  [self.location])
+            if self.getExtendedAttribute("Pref"):
+                raise WebIDLError("[FeatureDetectible] must not be specified "
+                                  "in combination with [Pref]",
+                                  [self.location])
+
     def validate(self):
         IDLInterfaceMember.validate(self)
 
@@ -3295,7 +3324,8 @@ class IDLAttribute(IDLInterfaceMember):
               identifier == "Frozen" or
               identifier == "AvailableIn" or
               identifier == "NewObject" or
-              identifier == "CheckPermissions"):
+              identifier == "CheckPermissions" or
+              identifier == "FeatureDetectible"):
             # Known attributes that we don't need to do anything with here
             pass
         else:
@@ -3700,6 +3730,18 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
     def finish(self, scope):
         IDLInterfaceMember.finish(self, scope)
 
+        if self.getExtendedAttribute("FeatureDetectible"):
+            if not (self.getExtendedAttribute("Func") or
+                    self.getExtendedAttribute("AvailableIn") or
+                    self.getExtendedAttribute("CheckPermissions")):
+                raise WebIDLError("[FeatureDetectible] is only allowed in combination "
+                                  "with [Func], [AvailableIn] or [CheckPermissions]",
+                                  [self.location])
+            if self.getExtendedAttribute("Pref"):
+                raise WebIDLError("[FeatureDetectible] must not be specified "
+                                  "in combination with [Pref]",
+                                  [self.location])
+
         overloadWithPromiseReturnType = None
         overloadWithoutPromiseReturnType = None
         for overload in self._overloads:
@@ -3880,7 +3922,8 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             convertExposedAttrToGlobalNameSet(attr, self._exposureGlobalNames)
         elif (identifier == "Pure" or
               identifier == "CrossOriginCallable" or
-              identifier == "WebGLHandlesContextLoss"):
+              identifier == "WebGLHandlesContextLoss" or
+              identifier == "FeatureDetectible"):
             # Known no-argument attributes.
             if not attr.noArguments():
                 raise WebIDLError("[%s] must take no arguments" % identifier,
