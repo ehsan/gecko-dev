@@ -143,9 +143,7 @@
           this._value = aValue;
           var returnValue = aValue;
           var action = this._parseActionUrl(aValue);
-          // Don't put back the action if we are invoked while override actions
-          // is active.
-          if (action && this._numNoActionsKeys <= 0) {
+          if (action) {
             returnValue = action.param;
             this.setAttribute("actiontype", action.type);
           } else {

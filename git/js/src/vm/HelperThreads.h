@@ -333,7 +333,7 @@ class AutoLockHelperThreadState
 
 #ifdef JS_THREADSAFE
   public:
-    explicit AutoLockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    AutoLockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         HelperThreadState().lock();
@@ -357,7 +357,7 @@ class AutoUnlockHelperThreadState
 
   public:
 
-    explicit AutoUnlockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    AutoUnlockHelperThreadState(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef JS_THREADSAFE

@@ -61,7 +61,6 @@
 #include "TabChild.h"
 #include "LoadContext.h"
 #include "nsNetCID.h"
-#include "gfxPrefs.h"
 #include <algorithm>
 
 using namespace mozilla::dom;
@@ -1889,7 +1888,9 @@ bool
 TabParent::UseAsyncPanZoom()
 {
   bool usingOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
-  return (usingOffMainThreadCompositing && gfxPrefs::AsyncPanZoomEnabled() &&
+  bool asyncPanZoomEnabled =
+    Preferences::GetBool("layers.async-pan-zoom.enabled", false);
+  return (usingOffMainThreadCompositing && asyncPanZoomEnabled &&
           GetScrollingBehavior() == ASYNC_PAN_ZOOM);
 }
 

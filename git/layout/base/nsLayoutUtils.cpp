@@ -1604,21 +1604,6 @@ nsLayoutUtils::IsFixedPosFrameInDisplayPort(const nsIFrame* aFrame, nsRect* aDis
   return ViewportHasDisplayPort(aFrame->PresContext(), aDisplayPort);
 }
 
-NS_DECLARE_FRAME_PROPERTY(ScrollbarThumbLayerized, nullptr)
-
-/* static */ void
-nsLayoutUtils::SetScrollbarThumbLayerization(nsIFrame* aThumbFrame, bool aLayerize)
-{
-  aThumbFrame->Properties().Set(ScrollbarThumbLayerized(),
-    reinterpret_cast<void*>(intptr_t(aLayerize)));
-}
-
-static bool
-IsScrollbarThumbLayerized(nsIFrame* aThumbFrame)
-{
-  return reinterpret_cast<intptr_t>(aThumbFrame->Properties().Get(ScrollbarThumbLayerized()));
-}
-
 static nsIFrame*
 GetAnimatedGeometryRootForFrame(nsIFrame* aFrame,
                                 const nsIFrame* aStopAtAncestor)
@@ -1640,11 +1625,10 @@ GetAnimatedGeometryRootForFrame(nsIFrame* aFrame,
     if (!parent)
       break;
     nsIAtom* parentType = parent->GetType();
-    // Treat the slider thumb as being as an active scrolled root when it wants
-    // its own layer so that it can move without repainting.
-    if (parentType == nsGkAtoms::sliderFrame && IsScrollbarThumbLayerized(f)) {
+    // Treat the slider thumb as being as an active scrolled root
+    // so that it can move without repainting.
+    if (parentType == nsGkAtoms::sliderFrame)
       break;
-    }
     // Sticky frames are active if their nearest scrollable frame
     // is also active, just keep a record of sticky frames that we
     // encounter for now.
@@ -6655,15 +6639,14 @@ nsLayoutUtils::CalculateExpandedScrollableRect(nsIFrame* aFrame)
 /* static */ bool
 nsLayoutUtils::WantSubAPZC()
 {
-  // TODO Turn this on for inprocess OMTC on all platforms
-  bool wantSubAPZC = gfxPrefs::AsyncPanZoomEnabled() &&
-                     gfxPrefs::APZSubframeEnabled();
+   // TODO Turn this on for inprocess OMTC on all platforms
+   bool wantSubAPZC = gfxPrefs::APZSubframeEnabled();
 #ifdef MOZ_WIDGET_GONK
-  if (XRE_GetProcessType() != GeckoProcessType_Content) {
-    wantSubAPZC = false;
-  }
+   if (XRE_GetProcessType() != GeckoProcessType_Content) {
+     wantSubAPZC = false;
+   }
 #endif
-  return wantSubAPZC;
+   return wantSubAPZC;
 }
 
 /* static */ void

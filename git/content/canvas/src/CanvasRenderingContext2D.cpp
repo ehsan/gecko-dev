@@ -70,7 +70,6 @@
 #include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CheckedInt.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/PBrowserParent.h"
@@ -4007,9 +4006,7 @@ void
 CanvasRenderingContext2D::PutImageData(ImageData& imageData, double dx,
                                        double dy, ErrorResult& error)
 {
-  dom::Uint8ClampedArray arr;
-  DebugOnly<bool> inited = arr.Init(imageData.GetDataObject());
-  MOZ_ASSERT(inited);
+  dom::Uint8ClampedArray arr(imageData.GetDataObject());
 
   error = PutImageData_explicit(JS_DoubleToInt32(dx), JS_DoubleToInt32(dy),
                                 imageData.Width(), imageData.Height(),
@@ -4023,9 +4020,7 @@ CanvasRenderingContext2D::PutImageData(ImageData& imageData, double dx,
                                        double dirtyHeight,
                                        ErrorResult& error)
 {
-  dom::Uint8ClampedArray arr;
-  DebugOnly<bool> inited = arr.Init(imageData.GetDataObject());
-  MOZ_ASSERT(inited);
+  dom::Uint8ClampedArray arr(imageData.GetDataObject());
 
   error = PutImageData_explicit(JS_DoubleToInt32(dx), JS_DoubleToInt32(dy),
                                 imageData.Width(), imageData.Height(),

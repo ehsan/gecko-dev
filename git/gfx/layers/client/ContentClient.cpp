@@ -347,11 +347,10 @@ ContentClientRemoteBuffer::SwapBuffers(const nsIntRegion& aFrontUpdatedRegion)
 void
 ContentClientDoubleBuffered::DestroyFrontBuffer()
 {
-  if (mFrontClient) {
-    mOldTextures.AppendElement(mFrontClient);
-    mFrontClient = nullptr;
-  }
+  MOZ_ASSERT(mFrontClient);
 
+  mOldTextures.AppendElement(mFrontClient);
+  mFrontClient = nullptr;
   if (mFrontClientOnWhite) {
     mOldTextures.AppendElement(mFrontClientOnWhite);
     mFrontClientOnWhite = nullptr;
@@ -459,9 +458,6 @@ ContentClientDoubleBuffered::FinalizeFrame(const nsIntRegion& aRegionToDraw)
     return;
   }
   MOZ_ASSERT(mFrontClient);
-  if (!mFrontClient) {
-    return;
-  }
 
   MOZ_LAYERS_LOG(("BasicShadowableThebes(%p): reading back <x=%d,y=%d,w=%d,h=%d>",
                   this,

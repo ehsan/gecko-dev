@@ -61,7 +61,7 @@ private:
     float       mTagFloat;
     Address     mTagAddress;
     uintptr_t   mTagOffset;
-    int         mTagInt;
+    int         mTagLine;
     char        mTagChar;
   };
   char mTagName;

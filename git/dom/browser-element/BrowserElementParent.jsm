@@ -40,6 +40,26 @@ function getIntPref(prefName, def) {
   }
 }
 
+function exposeAll(obj) {
+  // Filter for Objects and Arrays.
+  if (typeof obj !== "object" || !obj)
+    return;
+
+  // Recursively expose our children.
+  Object.keys(obj).forEach(function(key) {
+    exposeAll(obj[key]);
+  });
+
+  // If we're not an Array, generate an __exposedProps__ object for ourselves.
+  if (obj instanceof Array)
+    return;
+  var exposed = {};
+  Object.keys(obj).forEach(function(key) {
+    exposed[key] = 'rw';
+  });
+  obj.__exposedProps__ = exposed;
+}
+
 function defineAndExpose(obj, name, value) {
   obj[name] = value;
   if (!('__exposedProps__' in obj))
@@ -479,7 +499,7 @@ BrowserElementParent.prototype = {
     // This will have to change if we ever want to send a CustomEvent with null
     // detail.  For now, it's OK.
     if (detail !== undefined && detail !== null) {
-      detail = Cu.cloneInto(detail, this._window);
+      exposeAll(detail);
       return new this._window.CustomEvent('mozbrowser' + evtName,
                                           { bubbles: true,
                                             cancelable: cancelable,
