@@ -222,7 +222,6 @@ class EqualityICLinker : public LinkerHelper
             return false;
         JS_ASSERT(!f.regs.inlined());
         if (!f.chunk()->execPools.append(pool)) {
-            markVerified();
             pool->release();
             js_ReportOutOfMemory(cx);
             return false;
@@ -439,7 +438,6 @@ NativeStubLinker::init(JSContext *cx)
     stub.pool = pool;
     stub.jump = locationOf(done);
     if (!chunk->nativeCallStubs.append(stub)) {
-        markVerified();
         pool->release();
         return false;
     }

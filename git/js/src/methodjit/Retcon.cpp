@@ -362,8 +362,6 @@ ClearAllFrames(JSCompartment *compartment)
 
     ExpandInlineFrames(compartment);
 
-    compartment->types.recompilations++;
-
     for (VMFrame *f = compartment->jaegerCompartment()->activeFrame();
          f != NULL;
          f = f->previous) {

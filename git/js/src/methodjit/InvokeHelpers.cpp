@@ -298,8 +298,7 @@ UncachedInlineCall(VMFrame &f, InitialFrameFlags initial,
     bool newType = construct && cx->typeInferenceEnabled() &&
         types::UseNewType(cx, f.script(), f.pc());
 
-    if (!types::TypeMonitorCall(cx, args, construct))
-        return false;
+    types::TypeMonitorCall(cx, args, construct);
 
     /* Try to compile if not already compiled. */
     CompileStatus status = CanMethodJIT(cx, newscript, newscript->code, construct, CompileRequest_Interpreter);
