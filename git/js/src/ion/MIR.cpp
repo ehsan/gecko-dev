@@ -28,7 +28,7 @@ using mozilla::BitwiseCast;
 void
 MDefinition::PrintOpcodeName(FILE *fp, MDefinition::Opcode op)
 {
-    static const char * const names[] =
+    static const char *names[] =
     {
 #define NAME(x) #x,
         MIR_OPCODE_LIST(NAME)

@@ -43,7 +43,7 @@ js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes)
     return js_ValueToPrintable(cx, StringValue(atom), bytes);
 }
 
-const char * const js::TypeStrings[] = {
+const char * js::TypeStrings[] = {
     js_undefined_str,
     js_object_str,
     js_function_str,

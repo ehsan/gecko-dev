@@ -8,6 +8,9 @@
 
 #include "js/CharacterEncoding.h"
 
+#include "jscntxtinlines.h"
+#include "jsscriptinlines.h"
+
 using namespace JS;
 
 Latin1CharsZ

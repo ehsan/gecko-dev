@@ -10,8 +10,12 @@
 /*
  * JS parser definitions.
  */
+#include "jsversion.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jsatom.h"
+#include "jsscript.h"
+#include "jswin.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/FullParseHandler.h"

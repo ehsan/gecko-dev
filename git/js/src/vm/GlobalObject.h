@@ -7,16 +7,19 @@
 #ifndef GlobalObject_h___
 #define GlobalObject_h___
 
+#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jsexn.h"
 #include "jsfun.h"
+#include "jsiter.h"
 #include "jsnum.h"
 
-#include "builtin/RegExp.h"
 #include "js/Vector.h"
+
+#include "builtin/RegExp.h"
 
 extern JSObject *
 js_InitObjectClass(JSContext *cx, js::HandleObject obj);

@@ -157,12 +157,12 @@ public:
     // Describes an memory operand given by a pointer.  For regular load & store
     // operations an unwrapped void* will be used, rather than using this.
     struct AbsoluteAddress {
-        explicit AbsoluteAddress(const void* ptr)
+        explicit AbsoluteAddress(void* ptr)
             : m_ptr(ptr)
         {
         }
 
-        const void* m_ptr;
+        void* m_ptr;
     };
 
     // TrustedImmPtr:
@@ -408,12 +408,12 @@ public:
         {
         }
         
-        void link(AbstractMacroAssembler<AssemblerType>* masm) const
+        void link(AbstractMacroAssembler<AssemblerType>* masm)
         {
             masm->m_assembler.linkJump(m_jmp, masm->m_assembler.label());
         }
         
-        void linkTo(Label label, AbstractMacroAssembler<AssemblerType>* masm) const
+        void linkTo(Label label, AbstractMacroAssembler<AssemblerType>* masm)
         {
             masm->m_assembler.linkJump(m_jmp, label.m_label);
         }

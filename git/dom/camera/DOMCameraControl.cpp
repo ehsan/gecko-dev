@@ -400,11 +400,7 @@ nsDOMCameraControl::ReleaseHardware(nsICameraReleaseCallback* onSuccess, nsICame
 class GetCameraResult : public nsRunnable
 {
 public:
-  GetCameraResult(nsDOMCameraControl* aDOMCameraControl,
-    nsresult aResult,
-    const nsMainThreadPtrHandle<nsICameraGetCameraCallback>& onSuccess,
-    const nsMainThreadPtrHandle<nsICameraErrorCallback>& onError,
-    uint64_t aWindowId)
+  GetCameraResult(nsDOMCameraControl* aDOMCameraControl, nsresult aResult, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId)
     : mDOMCameraControl(aDOMCameraControl)
     , mResult(aResult)
     , mOnSuccessCb(onSuccess)
@@ -419,11 +415,11 @@ public:
     if (nsDOMCameraManager::IsWindowStillActive(mWindowId)) {
       DOM_CAMERA_LOGT("%s : this=%p -- BEFORE CALLBACK\n", __func__, this);
       if (NS_FAILED(mResult)) {
-        if (mOnErrorCb.get()) {
+        if (mOnErrorCb) {
           mOnErrorCb->HandleEvent(NS_LITERAL_STRING("FAILURE"));
         }
       } else {
-        if (mOnSuccessCb.get()) {
+        if (mOnSuccessCb) {
           mOnSuccessCb->HandleEvent(mDOMCameraControl);
         }
       }
@@ -446,16 +442,13 @@ protected:
    */
   nsDOMCameraControl* mDOMCameraControl;
   nsresult mResult;
-  nsMainThreadPtrHandle<nsICameraGetCameraCallback> mOnSuccessCb;
-  nsMainThreadPtrHandle<nsICameraErrorCallback> mOnErrorCb;
+  nsCOMPtr<nsICameraGetCameraCallback> mOnSuccessCb;
+  nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
   uint64_t mWindowId;
 };
 
 nsresult
-nsDOMCameraControl::Result(nsresult aResult,
-                           const nsMainThreadPtrHandle<nsICameraGetCameraCallback>& onSuccess,
-                           const nsMainThreadPtrHandle<nsICameraErrorCallback>& onError,
-                           uint64_t aWindowId)
+nsDOMCameraControl::Result(nsresult aResult, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId)
 {
   nsCOMPtr<GetCameraResult> getCameraResult = new GetCameraResult(this, aResult, onSuccess, onError, aWindowId);
   return NS_DispatchToMainThread(getCameraResult);

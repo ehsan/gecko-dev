@@ -13,7 +13,6 @@
 #include "nsDOMString.h"
 #include "nsWrapperCache.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/BindingDeclarations.h"
 
 namespace mozilla {
 class ErrorResult;
@@ -60,9 +59,7 @@ public:
   bool Contains(const nsAString& aToken, mozilla::ErrorResult& aError);
   void Add(const nsAString& aToken, mozilla::ErrorResult& aError);
   void Remove(const nsAString& aToken, mozilla::ErrorResult& aError);
-  bool Toggle(const nsAString& aToken,
-              const mozilla::dom::Optional<bool>& force,
-              mozilla::ErrorResult& aError);
+  bool Toggle(const nsAString& aToken, mozilla::ErrorResult& aError);
   void Stringify(nsAString& aResult);
 
 protected:

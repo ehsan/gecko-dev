@@ -3275,7 +3275,7 @@ void DEBUG_ReportShadowedMembers(XPCNativeSet* set,
     // We just want to skip some classes...
     if (si) {
         // Add any classnames to skip to this (null terminated) array...
-        static const char* const skipClasses[] = {
+        static const char* skipClasses[] = {
             "Window",
             "HTMLDocument",
             "HTMLCollection",
