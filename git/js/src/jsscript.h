@@ -368,7 +368,7 @@ class JSScript : public js::gc::Cell
 
     js::HeapPtrAtom *atoms;     /* maps immediate index to literal struct */
 
-    void            *principalsPad;
+    JSCompartment   *compartment_;
     JSPrincipals    *originPrincipals; /* see jsapi.h 'originPrincipals' comment */
 
     /* Persistent type information retained across GCs. */
@@ -386,6 +386,14 @@ class JSScript : public js::gc::Cell
     // For callsite clones, which cannot have enclosing scopes, the original
     // function; otherwise the enclosing scope
     js::HeapPtrObject   enclosingScopeOrOriginalFunction_;
+
+  public:
+    // We should be able to remove this soon.
+    js::HeapPtr<JSObject> asmJS;
+
+#if JS_BYTES_PER_WORD == 4
+    uint32_t        PADDING32;
+#endif
 
     // 32-bit fields.
 
@@ -542,6 +550,8 @@ class JSScript : public js::gc::Cell
                                      js::frontend::BytecodeEmitter *bce);
 
     inline JSPrincipals *principals();
+
+    JSCompartment *compartment() const { return compartment_; }
 
     void setVersion(JSVersion v) { version = v; }
 

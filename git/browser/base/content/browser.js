@@ -1137,9 +1137,6 @@ var gBrowserInit = {
     gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
 
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
-#ifdef XP_MACOSX
-    gBrowser.addEventListener("npapi-carbon-event-model-failure", gPluginHandler, true);
-#endif
 
     Services.obs.addObserver(gPluginHandler.pluginCrashed, "plugin-crashed", false);
 
@@ -7200,7 +7197,6 @@ let gPrivateBrowsingUI = {
     // temporary fix until bug 463607 is fixed
     document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
 
-    // Adjust the window's title
     if (window.location.href == getBrowserURL()) {
 #ifdef XP_MACOSX
       if (!PrivateBrowsingUtils.permanentPrivateBrowsing) {
@@ -7208,6 +7204,7 @@ let gPrivateBrowsingUI = {
       }
 #endif
 
+      // Adjust the window's title
       let docElement = document.documentElement;
       docElement.setAttribute("title",
         docElement.getAttribute("title_privatebrowsing"));
@@ -7216,6 +7213,23 @@ let gPrivateBrowsingUI = {
       docElement.setAttribute("privatebrowsingmode",
         PrivateBrowsingUtils.permanentPrivateBrowsing ? "permanent" : "temporary");
       gBrowser.updateTitlebar();
+
+      if (PrivateBrowsingUtils.permanentPrivateBrowsing) {
+        // Adjust the New Window menu entries
+        [
+          { normal: "menu_newNavigator", private: "menu_newPrivateWindow" },
+          { normal: "appmenu_newNavigator", private: "appmenu_newPrivateWindow" },
+        ].forEach(function(menu) {
+          let newWindow = document.getElementById(menu.normal);
+          let newPrivateWindow = document.getElementById(menu.private);
+          if (newWindow && newPrivateWindow) {
+            newPrivateWindow.hidden = true;
+            newWindow.label = newPrivateWindow.label;
+            newWindow.accessKey = newPrivateWindow.accessKey;
+            newWindow.command = newPrivateWindow.command;
+          }
+        });
+      }
     }
 
     if (gURLBar) {
