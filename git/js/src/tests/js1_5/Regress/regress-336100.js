@@ -45,11 +45,11 @@ var expect;
 printBugNumber(BUGNUMBER);
 printStatus (summary);
 
-expect = '[object Arguments]';
+expect = '[object Object]';
 actual = (function(){return (arguments + '');})(); 
 reportCompare(expect, actual, summary);
 
 // see bug 336100 comment 29
-expect = typeof window == 'undefined' ? '' : '[object Arguments]';
+expect = typeof window == 'undefined' ? '' : '[object Object]';
 actual = (function(){with (this) return(arguments + '');})();
 reportCompare(expect, actual, summary);
