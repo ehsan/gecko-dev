@@ -50,6 +50,7 @@ addTest(testAddAttribute);
 addTest(testChangeAttribute);
 addTest(testRemoveAttribute);
 
+
 function setupAttrTest() {
   attrNode = gInspectee.querySelector("#a")
   promiseDone(gWalker.querySelector(gWalker.rootNode, "#a").then(node => {
