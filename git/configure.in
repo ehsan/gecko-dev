@@ -2642,7 +2642,7 @@ ia64*-hpux*)
     DSO_LDOPTS='-Zdll'
     BIN_FLAGS='-Zlinker /ST:0x100000'
     IMPLIB='emximp -o'
-    FILTER='emxexp -o'
+    FILTER='true'
     LDFLAGS='-Zmap'
     WARNINGS_AS_ERRORS='-Werror'
     MOZ_DEBUG_FLAGS="-g -fno-inline"
@@ -2678,9 +2678,8 @@ ia64*-hpux*)
                         [return 0;],
                         ac_os2_declspec="yes",
                         ac_os2_declspec="no")])
-    if test "$ac_os2_declspec" = "yes"; then
-        FILTER='true'
-        MOZ_OS2_USE_DECLSPEC='1'
+    if test "$ac_os2_declspec" != "yes"; then
+        AC_MSG_ERROR([Compiler does not support __declspec(dllexport), install GCC-4.3.2 or newer])
     fi
     ;;
 
@@ -5495,7 +5494,7 @@ then
 
     PKG_CHECK_MODULES(_PANGOCHK, pango >= $PANGO_VERSION)
 
-    PKG_CHECK_MODULES(MOZ_PANGO, pango >= $PANGO_VERSION pangoft2 >= $PANGO_VERSION)
+    PKG_CHECK_MODULES(MOZ_PANGO, pango >= $PANGO_VERSION pangoft2 >= $PANGO_VERSION pangocairo >= $PANGO_VERSION)
     AC_SUBST(MOZ_PANGO_CFLAGS)
     AC_SUBST(MOZ_PANGO_LIBS)
     if test "$MOZ_PANGO"
@@ -5512,7 +5511,7 @@ if test "$MOZ_ENABLE_QT"
 then
     if test "$MOZ_PANGO"
     then
-        PKG_CHECK_MODULES(MOZ_PANGO, [pango >= $PANGO_VERSION pangoft2 >= $PANGO_VERSION],
+        PKG_CHECK_MODULES(MOZ_PANGO, [pango >= $PANGO_VERSION pangoft2 >= $PANGO_VERSION pangocairo >= $PANGO_VERSION],
         [
             AC_SUBST(MOZ_PANGO_CFLAGS)
             AC_SUBST(MOZ_PANGO_LIBS)
@@ -6106,7 +6105,7 @@ if test -n "$MOZ_WEBM" -a -z "$MOZ_NATIVE_LIBVPX"; then
         dnl opcodes; actual arch detection is done at runtime.
         VPX_ASFLAGS="-march=armv7-a -mfpu=neon"
         VPX_DASH_C_FLAG="-c"
-        VPX_AS_CONVERSION="$PERL ${srcdir}/media/libvpx/build/make/ads2gas.pl"
+        VPX_AS_CONVERSION='$(PERL) $(topsrcdir)/media/libvpx/build/make/ads2gas.pl'
         VPX_ASM_SUFFIX="$ASM_SUFFIX"
         VPX_ARM_ASM=1
       fi
@@ -6515,14 +6514,17 @@ MOZ_ARG_ENABLE_BOOL(tree-freetype,
     MOZ_TREE_FREETYPE=1,
     MOZ_TREE_FREETYPE= )
 if test -n "$MOZ_TREE_FREETYPE"; then
+   if test -n "$_WIN32_MSVC"; then
+      AC_ERROR("building with in-tree freetype is not supported on MSVC")
+   fi
    AC_DEFINE(MOZ_TREE_FREETYPE)
    AC_SUBST(MOZ_TREE_FREETYPE)
    MOZ_ENABLE_CAIRO_FT=1       
    FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
    FT2_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
    CAIRO_FT_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
-   FT2_LIBS='$(call EXPAND_LIBNAME_PATH,freetype2,$(LIBXUL_DIST)/lib)'
-   CAIRO_FT_LIBS='$(call EXPAND_LIBNAME_PATH,freetype2,$(LIBXUL_DIST)/lib)'
+   FT2_LIBS='$(call EXPAND_LIBNAME_PATH,freetype,$(DEPTH)/modules/freetype2/.libs)'
+   CAIRO_FT_LIBS='$(call EXPAND_LIBNAME_PATH,freetype,$(DEPTH)/modules/freetype2/.libs)'
    AC_DEFINE(HAVE_FT_BITMAP_SIZE_Y_PPEM)
    AC_DEFINE(HAVE_FT_GLYPHSLOT_EMBOLDEN)
    AC_DEFINE(HAVE_FT_LOAD_SFNT_TABLE)
@@ -8934,7 +8936,6 @@ AC_SUBST(USE_DEPENDENT_LIBS)
 
 AC_SUBST(MOZ_BUILD_ROOT)
 AC_SUBST(MOZ_OS2_TOOLS)
-AC_SUBST(MOZ_OS2_USE_DECLSPEC)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
@@ -9368,6 +9369,18 @@ if test "$CAIRO_FEATURES_H"; then
   else
     rm -f "$CAIRO_FEATURES_H".orig 2> /dev/null
   fi
+fi
+
+# Run freetype configure script
+
+if test "$MOZ_TREE_FREETYPE"; then
+   export CFLAGS="$CFLAGS -std=c99"
+   export CPPFLAGS="$CPPFLAGS"
+   export CXXFLAGS="$CXXFLAGS"
+   export LDFLAGS="$LDFLAGS"
+   export CONFIG_FILES="unix-cc.mk:unix-cc.in unix-def.mk:unix-def.in freetype-config freetype2.pc:freetype2.in"
+   ac_configure_args="$ac_configure_args --host=$target --disable-shared --with-pic=yes"
+   AC_OUTPUT_SUBDIRS(modules/freetype2)
 fi
 
 dnl ========================================================
