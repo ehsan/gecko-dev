@@ -9,6 +9,7 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
+#include "nsIXPCSecurityManager.h"
 #include "nsCOMPtr.h"
 #include "nsIChannelEventSink.h"
 #include "nsIObserver.h"
@@ -44,6 +45,7 @@ public:
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCRIPTSECURITYMANAGER
+    NS_DECL_NSIXPCSECURITYMANAGER
     NS_DECL_NSICHANNELEVENTSINK
     NS_DECL_NSIOBSERVER
 

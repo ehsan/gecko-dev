@@ -97,13 +97,14 @@ class IonSpewer
 {
   private:
     MIRGraph *graph;
+    JS::HandleScript function;
     C1Spewer c1Spewer;
     JSONSpewer jsonSpewer;
     bool inited_;
 
   public:
     IonSpewer()
-      : graph(nullptr), inited_(false)
+      : graph(nullptr), function(NullPtr()), inited_(false)
     { }
 
     // File output is terminated safely upon destruction.

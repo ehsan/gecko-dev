@@ -12,7 +12,6 @@
 #include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLFormControlsCollection.h"
 #include "mozilla/dom/HTMLFormElementBinding.h"
-#include "mozilla/Move.h"
 #include "nsIHTMLDocument.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
@@ -1512,7 +1511,7 @@ HTMLFormElement::FlushPendingSubmission()
   if (mPendingSubmission) {
     // Transfer owning reference so that the submissioin doesn't get deleted
     // if we reenter
-    nsAutoPtr<nsFormSubmission> submission = Move(mPendingSubmission);
+    nsAutoPtr<nsFormSubmission> submission = mPendingSubmission;
 
     SubmitSubmission(submission);
   }
