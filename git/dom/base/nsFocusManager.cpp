@@ -1800,8 +1800,7 @@ nsFocusManager::ScrollIntoView(nsIPresShell* aPresShell,
   if (!(aFlags & FLAG_NOSCROLL))
     aPresShell->ScrollContentIntoView(aContent,
                                       NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                      NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                      nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                      NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
 }
 
 

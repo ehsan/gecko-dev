@@ -5325,7 +5325,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
 
           nsIEventStateManager* esm =
             aVisitor.mPresContext->EventStateManager();
-          nsEventStateManager::SetActiveManager(
+          nsEventStateManager::SetGlobalActiveContent(
             static_cast<nsEventStateManager*>(esm), this);
         }
       }

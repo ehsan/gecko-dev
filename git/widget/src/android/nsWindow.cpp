@@ -663,10 +663,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
     if (!AndroidBridge::Bridge())
         return;
 
-    nsWindow *win = TopWindow();
-    if (!win)
-        return;
-
     switch (ae->Type()) {
         case AndroidGeckoEvent::SIZE_CHANGED: {
             int nw = ae->P0().x;
@@ -690,12 +686,12 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
         }
 
         case AndroidGeckoEvent::MOTION_EVENT: {
-            win->UserActivity();
+            TopWindow()->UserActivity();
             if (!gTopLevelWindows.IsEmpty()) {
                 nsIntPoint pt(ae->P0());
                 pt.x = NS_MIN(NS_MAX(pt.x, 0), gAndroidBounds.width - 1);
                 pt.y = NS_MIN(NS_MAX(pt.y, 0), gAndroidBounds.height - 1);
-                nsWindow *target = win->FindWindowForPoint(pt);
+                nsWindow *target = TopWindow()->FindWindowForPoint(pt);
 
 #if 0
                 ALOG("MOTION_EVENT %f,%f -> %p (visible: %d children: %d)", ae->P0().x, ae->P0().y, (void*)target,
@@ -716,22 +712,23 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
         }
 
         case AndroidGeckoEvent::KEY_EVENT:
-            win->UserActivity();
+            TopWindow()->UserActivity();
             if (gFocusedWindow)
                 gFocusedWindow->OnKeyEvent(ae);
             break;
 
         case AndroidGeckoEvent::DRAW:
-            win->OnDraw(ae);
+            if (TopWindow())
+                TopWindow()->OnDraw(ae);
             break;
 
         case AndroidGeckoEvent::IME_EVENT:
-            win->UserActivity();
+            TopWindow()->UserActivity();
             if (gFocusedWindow) {
                 gFocusedWindow->OnIMEEvent(ae);
             } else {
                 NS_WARNING("Sending unexpected IME event to top window");
-                win->OnIMEEvent(ae);
+                TopWindow()->OnIMEEvent(ae);
             }
             break;
 

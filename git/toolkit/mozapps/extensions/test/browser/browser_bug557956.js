@@ -119,8 +119,7 @@ function open_compatibility_window(aInactiveAddonIds, aCallback) {
     info("Compatibility dialog opened");
 
     function page_shown(aEvent) {
-      if (aEvent.target.pageid)
-        info("Page " + aEvent.target.pageid + " shown");
+      info("Page " + aEvent.target.id + " shown");
     }
 
     win.addEventListener("pageshow", page_shown, false);

@@ -2074,7 +2074,6 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
         PRBool dragStarted = DoDefaultDragStart(aPresContext, event, dataTransfer,
                                                 targetContent, isSelection);
         if (dragStarted) {
-          sActiveESM = nsnull;
           aEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
         }
       }
@@ -2936,6 +2935,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             if (par)
               activeContent = par;
           }
+          SetGlobalActiveContent(this, activeContent);
         }
       }
       else {
@@ -2943,12 +2943,11 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // any of our own processing of a drag. Workaround for bug 43258.
         StopTrackingDragGesture();
       }
-      SetActiveManager(this, activeContent);
     }
     break;
   case NS_MOUSE_BUTTON_UP:
     {
-      ClearGlobalActiveContent(this);
+      ClearGlobalActiveContent();
       if (IsMouseEventReal(aEvent)) {
         if (!mCurrentTarget) {
           nsIFrame* targ;
@@ -3207,7 +3206,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                                            targetContent, &status);
         }
       }
-      ClearGlobalActiveContent(this);
       break;
     }
   case NS_DRAGDROP_EXIT:
@@ -4708,25 +4706,22 @@ nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
 }
 
 void
-nsEventStateManager::SetActiveManager(nsEventStateManager* aNewESM,
-                                      nsIContent* aContent)
+nsEventStateManager::SetGlobalActiveContent(nsEventStateManager* aNewESM,
+                                            nsIContent* aContent)
 {
   if (sActiveESM && aNewESM != sActiveESM) {
     sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
   }
   sActiveESM = aNewESM;
-  if (sActiveESM && aContent) {
+  if (sActiveESM) {
     sActiveESM->SetContentState(aContent, NS_EVENT_STATE_ACTIVE);
   }
 }
 
 void
-nsEventStateManager::ClearGlobalActiveContent(nsEventStateManager* aClearer)
+nsEventStateManager::ClearGlobalActiveContent()
 {
-  if (aClearer) {
-    aClearer->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-  }
-  if (sActiveESM && aClearer != sActiveESM) {
+  if (sActiveESM) {
     sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
   }
   sActiveESM = nsnull;

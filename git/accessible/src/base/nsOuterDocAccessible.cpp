@@ -169,7 +169,7 @@ nsOuterDocAccessible::Shutdown()
   if (childAcc) {
     NS_LOG_ACCDOCDESTROY("outerdoc's child document shutdown",
                          childAcc->GetDocumentNode())
-    childAcc->Shutdown();
+    GetAccService()->ShutdownDocAccessiblesInTree(childAcc->GetDocumentNode());
   }
 
   nsAccessibleWrap::Shutdown();

@@ -16,7 +16,6 @@ function get_item(items, name) {
       return items[i];
   }
   ok(false, "Item for " + name + " was not listed");
-  return null;
 }
 
 function confirm_install(window) {

@@ -145,7 +145,6 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
         nsXULPrototypeCache *p = result;
         obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
         obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
-        obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
     }
 
     return rv;
@@ -411,6 +410,10 @@ nsXULPrototypeCache::AbortFastLoads()
     NS_BREAK();
 #endif
 
+    // Save a strong ref to the FastLoad file, so we can remove it after we
+    // close open streams to it.
+    nsCOMPtr<nsIFile> file = gFastLoadFile;
+
     // Flush the XUL cache for good measure, in case we cached a bogus/downrev
     // script, somehow.
     Flush();
@@ -418,42 +421,29 @@ nsXULPrototypeCache::AbortFastLoads()
     // Clear the FastLoad set
     mFastLoadURITable.Clear();
 
-    nsCOMPtr<nsIFastLoadService> fastLoadService = gFastLoadService;
-    nsCOMPtr<nsIFile> file = gFastLoadFile;
-
-    nsresult rv;
-
-    if (! fastLoadService) {
-        fastLoadService = do_GetFastLoadService();
-        if (! fastLoadService)
-            return;
-
-        rv = fastLoadService->NewFastLoadFile(XUL_FASTLOAD_FILE_BASENAME,
-                                              getter_AddRefs(file));
-        if (NS_FAILED(rv))
-            return;
-    }
+    if (! gFastLoadService)
+        return;
 
     // Fetch the current input (if FastLoad file existed) or output (if we're
     // creating the FastLoad file during this app startup) stream.
     nsCOMPtr<nsIObjectInputStream> objectInput;
     nsCOMPtr<nsIObjectOutputStream> objectOutput;
-    fastLoadService->GetInputStream(getter_AddRefs(objectInput));
-    fastLoadService->GetOutputStream(getter_AddRefs(objectOutput));
+    gFastLoadService->GetInputStream(getter_AddRefs(objectInput));
+    gFastLoadService->GetOutputStream(getter_AddRefs(objectOutput));
 
     if (objectOutput) {
-        fastLoadService->SetOutputStream(nsnull);
+        gFastLoadService->SetOutputStream(nsnull);
 
         if (NS_SUCCEEDED(objectOutput->Close()) && gChecksumXULFastLoadFile)
-            fastLoadService->CacheChecksum(file,
-                                           objectOutput);
+            gFastLoadService->CacheChecksum(gFastLoadFile,
+                                            objectOutput);
     }
 
     if (objectInput) {
         // If this is the last of one or more XUL master documents loaded
         // together at app startup, close the FastLoad service's singleton
         // input stream now.
-        fastLoadService->SetInputStream(nsnull);
+        gFastLoadService->SetInputStream(nsnull);
         objectInput->Close();
     }
 
@@ -472,15 +462,13 @@ nsXULPrototypeCache::AbortFastLoads()
         }
         file->MoveToNative(nsnull, NS_LITERAL_CSTRING("Aborted.mfasl"));
 #else
-        rv = file->Remove(PR_FALSE);
-        if (NS_FAILED(rv))
-            NS_WARNING("Failed to remove fastload file, fastload data may be outdated");
+        file->Remove(PR_FALSE);
 #endif
     }
 
     // If the list is empty now, the FastLoad process is done.
-    NS_IF_RELEASE(gFastLoadService);
-    NS_IF_RELEASE(gFastLoadFile);
+    NS_RELEASE(gFastLoadService);
+    NS_RELEASE(gFastLoadFile);
 }
 
 

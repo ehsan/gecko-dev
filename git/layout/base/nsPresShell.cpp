@@ -26,7 +26,6 @@
  *   Dan Rosen <dr@netscape.com>
  *   Daniel Glazman <glazman@netscape.com>
  *   Mats Palmgren <matspal@gmail.com>
- *   Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -774,8 +773,7 @@ public:
 
   virtual NS_HIDDEN_(nsresult) ScrollContentIntoView(nsIContent* aContent,
                                                      PRIntn      aVPercent,
-                                                     PRIntn      aHPercent,
-                                                     PRUint32    aFlags);
+                                                     PRIntn      aHPercent);
   virtual PRBool ScrollFrameRectIntoView(nsIFrame*     aFrame,
                                          const nsRect& aRect,
                                          PRIntn        aVPercent,
@@ -1007,8 +1005,7 @@ protected:
   // Helper for ScrollContentIntoView
   void DoScrollContentIntoView(nsIContent* aContent,
                                PRIntn      aVPercent,
-                               PRIntn      aHPercent,
-                               PRUint32    aFlags);
+                               PRIntn      aHPercent);
 
   friend struct AutoRenderingStateSaveRestore;
   friend struct RenderingState;
@@ -3909,8 +3906,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
   if (content) {
     if (aScroll) {
       rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_TOP,
-                                 NS_PRESSHELL_SCROLL_ANYWHERE,
-                                 SCROLL_OVERFLOW_HIDDEN);
+                                 NS_PRESSHELL_SCROLL_ANYWHERE);
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsIScrollableFrame* rootScroll = GetRootScrollFrameAsScrollable();
@@ -4017,8 +4013,7 @@ PresShell::ScrollToAnchor()
     return NS_OK;
 
   nsresult rv = ScrollContentIntoView(mLastAnchorScrolledTo, NS_PRESSHELL_SCROLL_TOP,
-                                      NS_PRESSHELL_SCROLL_ANYWHERE,
-                                      SCROLL_OVERFLOW_HIDDEN);
+                                      NS_PRESSHELL_SCROLL_ANYWHERE);
   mLastAnchorScrolledTo = nsnull;
   return rv;
 }
@@ -4201,8 +4196,7 @@ static void ScrollToShowRect(nsIScrollableFrame* aScrollFrame,
 nsresult
 PresShell::ScrollContentIntoView(nsIContent* aContent,
                                  PRIntn      aVPercent,
-                                 PRIntn      aHPercent,
-                                 PRUint32    aFlags)
+                                 PRIntn      aHPercent)
 {
   nsCOMPtr<nsIContent> content = aContent; // Keep content alive while flushing.
   NS_ENSURE_TRUE(content, NS_ERROR_NULL_POINTER);
@@ -4227,7 +4221,7 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   // than a single best-effort scroll followed by one final scroll on the first
   // completed reflow.
   if (mContentToScrollTo) {
-    DoScrollContentIntoView(content, aVPercent, aHPercent, aFlags);
+    DoScrollContentIntoView(content, aVPercent, aHPercent);
   }
   return NS_OK;
 }
@@ -4235,8 +4229,7 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
 void
 PresShell::DoScrollContentIntoView(nsIContent* aContent,
                                    PRIntn      aVPercent,
-                                   PRIntn      aHPercent,
-                                   PRUint32    aFlags)
+                                   PRIntn      aHPercent)
 {
   NS_ASSERTION(mDidInitialReflow, "should have done initial reflow by now");
 
@@ -4279,7 +4272,7 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
   } while ((frame = frame->GetNextContinuation()));
 
   ScrollFrameRectIntoView(container, frameBounds, aVPercent, aHPercent,
-                          aFlags);
+                          SCROLL_OVERFLOW_HIDDEN);
 }
 
 PRBool
@@ -4880,8 +4873,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       if (ProcessReflowCommands(aType < Flush_Layout) && mContentToScrollTo) {
         // We didn't get interrupted.  Go ahead and scroll to our content
         DoScrollContentIntoView(mContentToScrollTo, mContentScrollVPosition,
-                                mContentScrollHPosition,
-                                SCROLL_OVERFLOW_HIDDEN);
+                                mContentScrollHPosition);
         mContentToScrollTo = nsnull;
       }
     }
@@ -7169,8 +7161,7 @@ PresShell::PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTarge
     // an edit box below the current view, you'll get the edit box aligned with
     // the top of the window. This is arguably better behavior anyway.
     rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                        SCROLL_OVERFLOW_HIDDEN);
+                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
     NS_ENSURE_SUCCESS(rv, PR_FALSE);
     frame = content->GetPrimaryFrame();
     NS_WARN_IF_FALSE(frame, "No frame for focused content?");
@@ -7233,8 +7224,7 @@ PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
 {
   nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(aCurrentEl));
   ScrollContentIntoView(focusedContent, NS_PRESSHELL_SCROLL_ANYWHERE,
-                                        NS_PRESSHELL_SCROLL_ANYWHERE,
-                                        SCROLL_OVERFLOW_HIDDEN);
+                                        NS_PRESSHELL_SCROLL_ANYWHERE);
 
   nsPresContext* presContext = GetPresContext();
 
