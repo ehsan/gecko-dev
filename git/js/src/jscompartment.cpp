@@ -85,7 +85,6 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 #ifdef JS_METHODJIT
     jaegerCompartment_(NULL),
 #endif
-    regExps(rt),
     propertyTree(thisForCtor()),
     emptyTypeObject(NULL),
     debugModeBits(rt->debugMode ? DebugFromC : 0),
@@ -120,9 +119,6 @@ JSCompartment::init(JSContext *cx)
     newObjectCache.reset();
 
     if (!crossCompartmentWrappers.init())
-        return false;
-
-    if (!regExps.init(cx))
         return false;
 
     if (!scriptFilenameTable.init())
@@ -553,7 +549,6 @@ void
 JSCompartment::purge(JSContext *cx)
 {
     arenas.purge();
-    regExps.purge();
     dtoaCache.purge();
 
     /*

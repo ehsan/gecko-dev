@@ -104,6 +104,8 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     protected final void enterUrl(String url) {
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
+
         Activity awesomeBarActivity = clickOnAwesomeBar();
         Element urlbar = mDriver.findElement(awesomeBarActivity, "awesomebar_text");
         mActions.sendKeys(url);

@@ -50,7 +50,6 @@
 #include "jsobj.h"
 #include "jsscope.h"
 #include "vm/GlobalObject.h"
-#include "vm/RegExpObject.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -244,8 +243,6 @@ struct JSCompartment
 
     size_t sizeOfMjitCode() const;
 #endif
-
-    js::RegExpCompartment        regExps;
 
     size_t sizeOfShapeTable(JSMallocSizeOfFun mallocSizeOf);
     void sizeOfTypeInferenceData(JSContext *cx, JS::TypeInferenceSizes *stats,

@@ -440,9 +440,7 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGGlyphFrame::GetCoveredRegion()
 {
-  // See bug 614732 comment 32:
-  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-  return mCoveredRegion;
+  return mRect;
 }
 
 NS_IMETHODIMP
@@ -450,9 +448,13 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
 {
   mRect.SetEmpty();
 
-  // XXX here we have tmpCtx use its default identity matrix, but does this
-  // function call anything that will call GetCanvasTM and break things?
+  gfxMatrix matrix = GetCanvasTM();
+  if (matrix.IsSingular()) {
+    return NS_ERROR_FAILURE;
+  }
+
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
+  tmpCtx->Multiply(matrix);
 
   bool hasStroke = HasStroke();
   if (hasStroke) {
@@ -485,18 +487,12 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
   // calls to record and then reset the stroke width.
   gfxRect extent = tmpCtx->GetUserPathExtent();
   if (hasStroke) {
-    extent =
-      nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this, gfxMatrix());
+    extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
   }
 
   if (!extent.IsEmpty()) {
-    mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
-              PresContext()->AppUnitsPerDevPixel());
+    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
   }
-
-  // See bug 614732 comment 32.
-  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(), PresContext());
 
   return NS_OK;
 }
@@ -624,9 +620,7 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   if ((aFlags & nsSVGUtils::eBBoxIncludeStroke) != 0 &&
       ((aFlags & nsSVGUtils::eBBoxIgnoreStrokeIfNone) == 0 || HasStroke())) {
     bbox =
-      bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
-                                                           this,
-                                                           aToBBoxUserspace));
+      bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents, this));
   }
 
   return bbox;

@@ -124,12 +124,18 @@ struct ArgumentsData;
 struct Class;
 
 class RegExpObject;
+class RegExpMatcher;
 class RegExpObjectBuilder;
 class RegExpShared;
 class RegExpStatics;
 class MatchPairs;
 
-namespace detail { class RegExpCode; }
+namespace detail {
+
+class RegExpCode;
+class RegExpCacheValue;
+
+} /* namespace detail */
 
 enum RegExpFlag
 {

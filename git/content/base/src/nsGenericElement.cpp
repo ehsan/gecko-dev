@@ -4415,8 +4415,8 @@ nsGenericElement::MarkUserDataHandler(void* aObject, nsIAtom* aKey,
   xpc_UnmarkGrayObject(wjs);
 }
 
-void
-nsGenericElement::MarkNodeChildren(nsINode* aNode)
+static void
+MarkNodeChildren(nsINode* aNode)
 {
   JSObject* o = GetJSObjectChild(aNode);
   xpc_UnmarkGrayObject(o);
@@ -4616,17 +4616,6 @@ ShouldClearPurple(nsIContent* aContent)
   return aContent->HasProperties();
 }
 
-// If aNode is not optimizable, but is an element
-// with a frame in a document which has currently active presshell,
-// we can act as if it was optimizable. When the primary frame dies, aNode
-// will end up to the purple buffer because of the refcount change.
-bool
-NodeHasActiveFrame(nsIDocument* aCurrentDoc, nsINode* aNode)
-{
-  return aCurrentDoc->GetShell() && aNode->IsElement() &&
-         aNode->AsElement()->GetPrimaryFrame();
-}
-
 // CanSkip checks if aNode is black, and if it is, returns
 // true. If aNode is in a black DOM tree, CanSkip may also remove other objects
 // from purple buffer and unmark event listeners and user data.
@@ -4641,16 +4630,17 @@ nsGenericElement::CanSkip(nsINode* aNode)
     return false;
   }
 
-  bool unoptimizable = UnoptimizableCCNode(aNode);
+  // Bail out early if aNode is somewhere in anonymous content,
+  // or otherwise unusual.
+  if (UnoptimizableCCNode(aNode)) {
+    return false;
+  }
+
   nsIDocument* currentDoc = aNode->GetCurrentDoc();
   if (currentDoc &&
-      nsCCUncollectableMarker::InGeneration(currentDoc->GetMarkedCCGeneration()) &&
-      (!unoptimizable || NodeHasActiveFrame(currentDoc, aNode))) {
+      nsCCUncollectableMarker::InGeneration(currentDoc->GetMarkedCCGeneration())) {
     MarkNodeChildren(aNode);
     return true;
-  }
-  if (unoptimizable) {
-    return false;
   }
 
   nsINode* root = currentDoc ? static_cast<nsINode*>(currentDoc) :
@@ -4704,15 +4694,12 @@ nsGenericElement::CanSkip(nsINode* aNode)
     }
   }
 
-  if (!currentDoc || !foundBlack) { 
+  if (!foundBlack) {
     if (!gPurpleRoots) {
       gPurpleRoots = new nsAutoTArray<nsINode*, 1020>();
     }
     root->SetIsPurpleRoot(true);
     gPurpleRoots->AppendElement(root);
-  }
-
-  if (!foundBlack) {
     return false;
   }
 
@@ -4796,31 +4783,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
       tmp->OwnerDoc()->GetDocumentURI()->GetSpec(uri);
     }
 
-    nsAutoString id;
-    nsIAtom* idAtom = tmp->GetID();
-    if (idAtom) {
-      id.AppendLiteral(" id='");
-      id.Append(nsDependentAtomString(idAtom));
-      id.AppendLiteral("'");
+    if (nsid < ArrayLength(kNSURIs)) {
+      PR_snprintf(name, sizeof(name), "nsGenericElement%s %s %s", kNSURIs[nsid],
+                  localName.get(), uri.get());
     }
-
-    nsAutoString classes;
-    const nsAttrValue* classAttrValue = tmp->GetClasses();
-    if (classAttrValue) {
-      classes.AppendLiteral(" class='");
-      nsAutoString classString;
-      classAttrValue->ToString(classString);
-      classes.Append(classString);
-      classes.AppendLiteral("'");
+    else {
+      PR_snprintf(name, sizeof(name), "nsGenericElement %s %s",
+                  localName.get(), uri.get());
     }
-
-    const char* nsuri = nsid < ArrayLength(kNSURIs) ? kNSURIs[nsid] : "";
-    PR_snprintf(name, sizeof(name), "nsGenericElement%s %s%s%s %s",
-                nsuri,
-                localName.get(),
-                NS_ConvertUTF16toUTF8(id).get(),
-                NS_ConvertUTF16toUTF8(classes).get(),
-                uri.get());
     cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsGenericElement),
                               name);
   }

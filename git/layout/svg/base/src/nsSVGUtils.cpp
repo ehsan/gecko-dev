@@ -1010,10 +1010,8 @@ nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
       if (!aDirtyRect->Intersects(filterFrame->GetFilterBBox(aFrame, nsnull)))
         return;
     } else {
-      nsRect leafBounds = nsSVGUtils::TransformFrameRectToOuterSVG(
-        aFrame->GetRect(), GetCanvasTM(aFrame), aFrame->PresContext());
       nsRect rect = aDirtyRect->ToAppUnits(aFrame->PresContext()->AppUnitsPerDevPixel());
-      if (!rect.Intersects(leafBounds))
+      if (!rect.Intersects(aFrame->GetRect()))
         return;
     }
   }
@@ -1180,33 +1178,22 @@ nsSVGUtils::GetCoveredRegion(const nsFrameList &aFrames)
   return rect;
 }
 
-nsPoint
-nsSVGUtils::TransformOuterSVGPointToChildFrame(nsPoint aPoint,
-                                               const gfxMatrix& aFrameToCanvasTM,
-                                               nsPresContext* aPresContext)
+nsRect
+nsSVGUtils::ToAppPixelRect(nsPresContext *aPresContext,
+                           double xmin, double ymin,
+                           double xmax, double ymax)
 {
-  gfxMatrix devToUser = aFrameToCanvasTM;
-  devToUser.Invert();
-  NS_ABORT_IF_FALSE(!devToUser.IsSingular(), "should not get here");
-  gfxPoint devPt = gfxPoint(aPoint.x, aPoint.y) /
-    aPresContext->AppUnitsPerDevPixel();
-  gfxPoint userPt = devToUser.Transform(devPt).Round();
-  gfxPoint appPt = userPt * aPresContext->AppUnitsPerCSSPixel();
-  userPt.x = clamped(appPt.x, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
-  userPt.y = clamped(appPt.y, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
-  // now guaranteed to be safe:
-  return nsPoint(nscoord(userPt.x), nscoord(userPt.y));
+  return ToAppPixelRect(aPresContext,
+                        gfxRect(xmin, ymin, xmax - xmin, ymax - ymin));
 }
 
 nsRect
-nsSVGUtils::TransformFrameRectToOuterSVG(const nsRect& aRect,
-                                         const gfxMatrix& aMatrix,
-                                         nsPresContext* aPresContext)
+nsSVGUtils::ToAppPixelRect(nsPresContext *aPresContext, const gfxRect& rect)
 {
-  gfxRect r(aRect.x, aRect.y, aRect.width, aRect.height);
-  r.Scale(1.0 / nsPresContext::AppUnitsPerCSSPixel());
-  return nsLayoutUtils::RoundGfxRectToAppRect(
-    aMatrix.TransformBounds(r), aPresContext->AppUnitsPerDevPixel());
+  return nsRect(aPresContext->DevPixelsToAppUnits(NSToIntFloor(rect.X())),
+                aPresContext->DevPixelsToAppUnits(NSToIntFloor(rect.Y())),
+                aPresContext->DevPixelsToAppUnits(NSToIntCeil(rect.XMost()) - NSToIntFloor(rect.X())),
+                aPresContext->DevPixelsToAppUnits(NSToIntCeil(rect.YMost()) - NSToIntFloor(rect.Y())));
 }
 
 gfxIntSize
@@ -1508,14 +1495,15 @@ nsSVGUtils::WritePPM(const char *fname, gfxImageSurface *aSurface)
 static gfxRect
 PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
                               nsSVGGeometryFrame* aFrame,
-                              double styleExpansionFactor,
-                              const gfxMatrix& aMatrix)
+                              double styleExpansionFactor)
 {
   double style_expansion =
     styleExpansionFactor * aFrame->GetStrokeWidth();
 
-  double dx = style_expansion * (fabs(aMatrix.xx) + fabs(aMatrix.xy));
-  double dy = style_expansion * (fabs(aMatrix.yy) + fabs(aMatrix.yx));
+  gfxMatrix ctm = aFrame->GetCanvasTM();
+
+  double dx = style_expansion * (fabs(ctm.xx) + fabs(ctm.xy));
+  double dy = style_expansion * (fabs(ctm.yy) + fabs(ctm.yx));
 
   gfxRect strokeExtents = aPathExtents;
   strokeExtents.Inflate(dx, dy);
@@ -1524,16 +1512,14 @@ PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
 
 /*static*/ gfxRect
 nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
-                                          nsSVGGeometryFrame* aFrame,
-                                          const gfxMatrix& aMatrix)
+                                          nsSVGGeometryFrame* aFrame)
 {
-  return ::PathExtentsToMaxStrokeExtents(aPathExtents, aFrame, 0.5, aMatrix);
+  return ::PathExtentsToMaxStrokeExtents(aPathExtents, aFrame, 0.5);
 }
 
 /*static*/ gfxRect
 nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
-                                          nsSVGPathGeometryFrame* aFrame,
-                                          const gfxMatrix& aMatrix)
+                                          nsSVGPathGeometryFrame* aFrame)
 {
   double styleExpansionFactor = 0.5;
 
@@ -1553,8 +1539,7 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
 
   return ::PathExtentsToMaxStrokeExtents(aPathExtents,
                                          aFrame,
-                                         styleExpansionFactor,
-                                         aMatrix);
+                                         styleExpansionFactor);
 }
 
 // ----------------------------------------------------------------------

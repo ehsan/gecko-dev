@@ -3310,9 +3310,6 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
   }
   sLastCCEndTime = now;
 
-  Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
-                        sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
-
   if (sPostGCEventsToConsole) {
     PRTime delta = 0;
     if (sFirstCollectionTime) {
@@ -3385,20 +3382,25 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
       return;
     }
     
-    PRTime startTime = PR_Now();
+    PRTime startTime;
+    if (sPostGCEventsToConsole) {
+      startTime = PR_Now();
+    }
     nsCycleCollector_forgetSkippable();
     sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
     sCleanupSinceLastGC = true;
-    PRTime delta = PR_Now() - startTime;
-    if (sMinForgetSkippableTime > delta) {
-      sMinForgetSkippableTime = delta;
+    if (sPostGCEventsToConsole) {
+      PRTime delta = PR_Now() - startTime;
+      if (sMinForgetSkippableTime > delta) {
+        sMinForgetSkippableTime = delta;
+      }
+      if (sMaxForgetSkippableTime < delta) {
+        sMaxForgetSkippableTime = delta;
+      }
+      sTotalForgetSkippableTime += delta;
+      sRemovedPurples += (suspected - sPreviousSuspectedCount);
+      ++sForgetSkippableBeforeCC;
     }
-    if (sMaxForgetSkippableTime < delta) {
-      sMaxForgetSkippableTime = delta;
-    }
-    sTotalForgetSkippableTime += delta;
-    sRemovedPurples += (suspected - sPreviousSuspectedCount);
-    ++sForgetSkippableBeforeCC;
   } else {
     sPreviousSuspectedCount = 0;
     nsJSContext::KillCCTimer();

@@ -1552,13 +1552,14 @@ bool
 HttpBaseChannel::ShouldRewriteRedirectToGET(PRUint32 httpStatus,
                                             nsHttpAtom method)
 {
-  // for 301 and 302, only rewrite POST
+  // always rewrite for 301 and 302, but see bug 598304
+  // and  RFC 2616, Section 8.3.
   if (httpStatus == 301 || httpStatus == 302)
-    return method == nsHttp::Post;
+    return true;
 
-  // rewrite for 303 unless it was HEAD
+  // always rewrite for 303
   if (httpStatus == 303)
-    return method != nsHttp::Head;
+    return true;
 
   // otherwise, such as for 307, do not rewrite
   return false;

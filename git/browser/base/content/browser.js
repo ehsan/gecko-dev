@@ -5865,7 +5865,7 @@ function hrefAndLinkNodeForClickEvent(event)
 function contentAreaClick(event, isPanelClick)
 {
   if (!event.isTrusted || event.defaultPrevented || event.button == 2)
-    return;
+    return true;
 
   let [href, linkNode] = hrefAndLinkNodeForClickEvent(event);
   if (!href) {
@@ -5876,7 +5876,7 @@ function contentAreaClick(event, isPanelClick)
       middleMousePaste(event);
       event.preventDefault();
     }
-    return;
+    return true;
   }
 
   // This code only applies if we have a linkNode (i.e. clicks on real anchor
@@ -5893,7 +5893,7 @@ function contentAreaClick(event, isPanelClick)
       if (linkNode.getAttribute("onclick") ||
           href.substr(0, 11) === "javascript:" ||
           href.substr(0, 5) === "data:")
-        return;
+        return true;
 
       try {
         urlSecurityCheck(href, linkNode.ownerDocument.nodePrincipal);
@@ -5901,16 +5901,16 @@ function contentAreaClick(event, isPanelClick)
       catch(ex) {
         // Prevent loading unsecure destinations.
         event.preventDefault();
-        return;
+        return true;
       }
 
       let postData = {};
       let url = getShortcutOrURI(href, postData);
       if (!url)
-        return;
+        return true;
       loadURI(url, null, postData.value, false);
       event.preventDefault();
-      return;
+      return true;
     }
 
     if (linkNode.getAttribute("rel") == "sidebar") {
@@ -5927,7 +5927,7 @@ function contentAreaClick(event, isPanelClick)
                                                      , "keyword" ]
                                        }, window);
       event.preventDefault();
-      return;
+      return true;
     }
   }
 
@@ -5940,6 +5940,8 @@ function contentAreaClick(event, isPanelClick)
   try {
     PlacesUIUtils.markPageAsFollowedLink(href);
   } catch (ex) { /* Skip invalid URIs. */ }
+
+  return true;
 }
 
 /**

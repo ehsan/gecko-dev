@@ -603,11 +603,6 @@ public class GeckoAppShell
                 imm, text, start, end, newEnd);
     }
 
-    public static void notifyScreenShot(ByteBuffer data, int tabId, int width, int height) {
-        // this stub is never called in XUL Fennec, but we need it so that the JNI code
-        // shared between XUL and Native Fennec doesn't die.
-    }
-
     private static CountDownLatch sGeckoPendingAcks = null;
 
     // Block the current thread until the Gecko event loop is caught up

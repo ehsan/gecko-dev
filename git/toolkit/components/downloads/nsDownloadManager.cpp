@@ -111,12 +111,11 @@ static const PRInt64 gUpdateInterval = 400 * PR_USEC_PER_MSEC;
 ////////////////////////////////////////////////////////////////////////////////
 //// nsDownloadManager
 
-NS_IMPL_ISUPPORTS4(
+NS_IMPL_ISUPPORTS3(
   nsDownloadManager
 , nsIDownloadManager
 , nsINavHistoryObserver
 , nsIObserver
-, nsISupportsWeakReference
 )
 
 nsDownloadManager *nsDownloadManager::gDownloadManagerService = nsnull;
@@ -887,19 +886,23 @@ nsDownloadManager::Init()
   // completely initialized), but the observerservice would still keep a reference
   // to us and notify us about shutdown, which may cause crashes.
   // failure to add an observer is not critical
-  (void)mObserverService->AddObserver(this, "quit-application", true);
-  (void)mObserverService->AddObserver(this, "quit-application-requested", true);
-  (void)mObserverService->AddObserver(this, "offline-requested", true);
-  (void)mObserverService->AddObserver(this, "sleep_notification", true);
-  (void)mObserverService->AddObserver(this, "wake_notification", true);
-  (void)mObserverService->AddObserver(this, "profile-before-change", true);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, true);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, true);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, true);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
+  //
+  // These observers will be cleaned up automatically at app shutdown.  We do
+  // not bother explicitly breaking the observers because we are a singleton
+  // that lives for the duration of the app.
+  (void)mObserverService->AddObserver(this, "quit-application", false);
+  (void)mObserverService->AddObserver(this, "quit-application-requested", false);
+  (void)mObserverService->AddObserver(this, "offline-requested", false);
+  (void)mObserverService->AddObserver(this, "sleep_notification", false);
+  (void)mObserverService->AddObserver(this, "wake_notification", false);
+  (void)mObserverService->AddObserver(this, "profile-before-change", false);
+  (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, false);
+  (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, false);
+  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, false);
+  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, false);
 
   if (history)
-    (void)history->AddObserver(this, true);
+    (void)history->AddObserver(this, false);
 
   return NS_OK;
 }

@@ -180,12 +180,6 @@ RadioInterfaceLayer.prototype = {
         // This one will handle its own notifications.
         this.handleEnumerateCalls(message.calls);
         break;
-      case "registrationstatechange":
-        this.currentState.registrationState = message.registrationState;
-        break;
-      case "gprsregistrationstatechange":
-        this.currentState.gprsRegistrationState = message.gprsRegistrationState;
-        break;
       case "signalstrengthchange":
         this.currentState.signalStrength = message.signalStrength;
         break;
@@ -202,7 +196,7 @@ RadioInterfaceLayer.prototype = {
         this.handleSmsReceived(message);
         return;
       case "datacallstatechange":
-        this.handleDataCallState(message.datacall);
+        this.handleDataCallState(message);
         break;
       case "datacalllist":
         this.handleDataCallList(message);
@@ -313,9 +307,10 @@ RadioInterfaceLayer.prototype = {
   /**
    * Handle data call state changes.
    */
-  handleDataCallState: function handleDataCallState(datacall) {
+  handleDataCallState: function handleDataCallState(message) {
+    let ifname = message.ifname ? message.ifname : "";
     this._deliverDataCallCallback("dataCallStateChanged",
-                                  [datacall.cid, datacall.ifname, datacall.state]);
+                                  [message.cid, ifname, message.state]);
   },
 
   /**
@@ -392,7 +387,7 @@ RadioInterfaceLayer.prototype = {
     gAudioManager.phoneState = nsIAudioManager.PHONE_STATE_IN_CALL; // XXX why is this needed?
     let force = value ? nsIAudioManager.FORCE_SPEAKER :
                         nsIAudioManager.FORCE_NONE;
-    gAudioManager.setForceForUse(nsIAudioManager.USE_COMMUNICATION, force);
+    gAudioManager.setForceUse(nsIAudioManager.USE_COMMUNICATION, force);
   },
 
   getNumberOfMessagesForText: function getNumberOfMessagesForText(text) {
@@ -520,7 +515,7 @@ RadioInterfaceLayer.prototype = {
     }
   },
 
-  setupDataCall: function setupDataCall(radioTech, apn, user, passwd, chappap, pdptype) {
+  setupDataCall: function(radioTech, apn, user, passwd, chappap, pdptype) {
     this.worker.postMessage({type: "setupDataCall",
                              radioTech: radioTech,
                              apn: apn,
@@ -528,12 +523,19 @@ RadioInterfaceLayer.prototype = {
                              passwd: passwd,
                              chappap: chappap,
                              pdptype: pdptype});
+    this._deliverDataCallCallback("dataCallStateChanged",
+                                  [message.cid, "",
+                                   RIL.GECKO_DATACALL_STATE_CONNECTING]);
   },
 
-  deactivateDataCall: function deactivateDataCall(cid, reason) {
+  deactivateDataCall: function(cid, reason) {
     this.worker.postMessage({type: "deactivateDataCall",
                              cid: cid,
                              reason: reason});
+    this._deliverDataCallCallback("dataCallStateChanged",
+                                  [message.cid,
+                                   "",
+                                   RIL.GECKO_DATACALL_STATE_DISCONNECTING]);
   },
 
   getDataCallList: function getDataCallList() {

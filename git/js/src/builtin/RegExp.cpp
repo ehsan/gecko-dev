@@ -38,7 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jscntxt.h"
+#include "jsinfer.h"
 
 #include "builtin/RegExp.h"
 
@@ -126,13 +126,13 @@ CreateRegExpMatchResult(JSContext *cx, JSString *input, const jschar *chars, siz
 
 template <class T>
 bool
-ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, T &re, JSLinearString *input,
+ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, T *re, JSLinearString *input,
                   const jschar *chars, size_t length,
                   size_t *lastIndex, RegExpExecType type, Value *rval)
 {
     LifoAllocScope allocScope(&cx->tempLifoAlloc());
     MatchPairs *matchPairs = NULL;
-    RegExpRunStatus status = re.execute(cx, chars, length, lastIndex, &matchPairs);
+    RegExpRunStatus status = re->execute(cx, chars, length, lastIndex, allocScope, &matchPairs);
 
     switch (status) {
       case RegExpRunStatus_Error:
@@ -159,15 +159,15 @@ ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, T &re, JSLinearString *inpu
 }
 
 bool
-js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpShared &shared, JSLinearString *input,
+js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, const RegExpMatcher &matcher, JSLinearString *input,
                   const jschar *chars, size_t length,
                   size_t *lastIndex, RegExpExecType type, Value *rval)
 {
-    return ExecuteRegExpImpl(cx, res, shared, input, chars, length, lastIndex, type, rval);
+    return ExecuteRegExpImpl(cx, res, &matcher, input, chars, length, lastIndex, type, rval);
 }
 
 bool
-js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpObject &reobj, JSLinearString *input,
+js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpObject *reobj, JSLinearString *input,
                   const jschar *chars, size_t length,
                   size_t *lastIndex, RegExpExecType type, Value *rval)
 {
@@ -175,8 +175,8 @@ js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpObject &reobj, JSLine
 }
 
 /* Note: returns the original if no escaping need be performed. */
-static JSAtom *
-EscapeNakedForwardSlashes(JSContext *cx, JSAtom *unescaped)
+static JSLinearString *
+EscapeNakedForwardSlashes(JSContext *cx, JSLinearString *unescaped)
 {
     size_t oldLen = unescaped->length();
     const jschar *oldChars = unescaped->chars();
@@ -203,7 +203,7 @@ EscapeNakedForwardSlashes(JSContext *cx, JSAtom *unescaped)
             return NULL;
     }
 
-    return sb.empty() ? unescaped : sb.finishAtom();
+    return sb.empty() ? unescaped : sb.finishString();
 }
 
 /*
@@ -230,46 +230,25 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     }
 
     Value sourceValue = args[0];
-
-    /*
-     * If we get passed in an object whose internal [[Class]] property is
-     * "RegExp", return a new object with the same source/flags.
-     */
     if (IsObjectWithClass(sourceValue, ESClass_RegExp, cx)) {
         /*
-         * Beware, sourceObj may be a (transparent) proxy to a RegExp, so only
-         * use generic (proxyable) operations on sourceObj that do not assume
-         * sourceObj.isRegExp().
+         * If we get passed in a |RegExpObject| source we return a new
+         * object with the same source/flags.
+         *
+         * Note: the regexp static flags are not taken into consideration here.
          */
         JSObject &sourceObj = sourceValue.toObject();
-
         if (args.length() >= 2 && !args[1].isUndefined()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NEWREGEXP_FLAGGED);
             return false;
         }
 
-        /*
-         * Only extract the 'flags' out of sourceObj; do not reuse the
-         * RegExpShared since it may be from a different compartment.
-         */
-        RegExpFlag flags;
-        {
-            RegExpShared *shared = RegExpToShared(cx, sourceObj);
-            if (!shared)
-                return false;
-
-            flags = shared->getFlags();
-        }
-
-        /*
-         * 'toSource' is a permanent read-only property, so this is equivalent
-         * to executing RegExpObject::getSource on the unwrapped object.
-         */
-        Value v;
-        if (!sourceObj.getProperty(cx, cx->runtime->atomState.sourceAtom, &v))
+        RegExpShared *shared = RegExpToShared(cx, sourceObj);
+        if (!shared)
             return false;
 
-        RegExpObject *reobj = builder.build(&v.toString()->asAtom(), flags);
+        shared->incref(cx);
+        RegExpObject *reobj = builder.build(AlreadyIncRefed<RegExpShared>(shared));
         if (!reobj)
             return false;
 
@@ -277,17 +256,16 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
         return true;
     }
 
-    JSAtom *source;
+    JSLinearString *sourceStr;
     if (sourceValue.isUndefined()) {
-        source = cx->runtime->emptyString;
+        sourceStr = cx->runtime->emptyString;
     } else {
         /* Coerce to string and compile. */
         JSString *str = ToString(cx, sourceValue);
         if (!str)
             return false;
-
-        source = js_AtomizeString(cx, str);
-        if (!source)
+        sourceStr = str->ensureLinear(cx);
+        if (!sourceStr)
             return false;
     }
 
@@ -301,11 +279,11 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
             return false;
     }
 
-    JSAtom *escapedSourceStr = EscapeNakedForwardSlashes(cx, source);
+    JSLinearString *escapedSourceStr = EscapeNakedForwardSlashes(cx, sourceStr);
     if (!escapedSourceStr)
         return false;
 
-    if (!js::detail::RegExpCode::checkSyntax(cx, NULL, escapedSourceStr))
+    if (!CheckRegExpSyntax(cx, escapedSourceStr))
         return false;
 
     RegExpStatics *res = cx->regExpStatics();
@@ -522,39 +500,6 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj)
     return proto;
 }
 
-
-static const jschar GreedyStarChars[] = {'.', '*'};
-
-static inline bool
-StartsWithGreedyStar(JSAtom *source)
-{
-    return false;
-
-#if 0
-    if (source->length() < 3)
-        return false;
-
-    const jschar *chars = source->chars();
-    return chars[0] == GreedyStarChars[0] &&
-           chars[1] == GreedyStarChars[1] &&
-           chars[2] != '?';
-#endif
-}
-
-static inline RegExpShared *
-GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags)
-{
-    if (RegExpShared *hit = cx->compartment->regExps.lookupHack(cx, source, flags))
-        return hit;
-
-    JSAtom *hackedSource = js_AtomizeChars(cx, source->chars() + ArrayLength(GreedyStarChars),
-                                           source->length() - ArrayLength(GreedyStarChars));
-    if (!hackedSource)
-        return NULL;
-
-    return cx->compartment->regExps.getHack(cx, source, hackedSource, flags);
-}
-
 /*
  * ES5 15.10.6.2 (and 15.10.6.3, which calls 15.10.6.2).
  *
@@ -574,16 +519,17 @@ ExecuteRegExp(JSContext *cx, Native native, uintN argc, Value *vp)
 
     RegExpObject &reobj = obj->asRegExp();
 
-    RegExpShared *shared;
-    if (StartsWithGreedyStar(reobj.getSource()))
-        shared = GetSharedForGreedyStar(cx, reobj.getSource(), reobj.getFlags());
-    else
-        shared = reobj.getShared(cx);
+    RegExpMatcher matcher(cx);
+    if (reobj.startsWithAtomizedGreedyStar()) {
+        if (!matcher.initWithTestOptimized(reobj))
+            return false;
+    } else {
+        RegExpShared *shared = reobj.getShared(cx);
+        if (!shared)
+            return false;
+        matcher.init(NeedsIncRef<RegExpShared>(shared));
+    }
 
-    if (!shared)
-        return false;
-
-    RegExpShared::Guard re(*shared);
     RegExpStatics *res = cx->regExpStatics();
 
     /* Step 2. */
@@ -607,7 +553,7 @@ ExecuteRegExp(JSContext *cx, Native native, uintN argc, Value *vp)
         return false;
 
     /* Steps 6-7 (with sticky extension). */
-    if (!re->global() && !re->sticky())
+    if (!matcher.global() && !matcher.sticky())
         i = 0;
 
     /* Step 9a. */
@@ -620,13 +566,13 @@ ExecuteRegExp(JSContext *cx, Native native, uintN argc, Value *vp)
     /* Steps 8-21. */
     RegExpExecType execType = (native == regexp_test) ? RegExpTest : RegExpExec;
     size_t lastIndexInt(i);
-    if (!ExecuteRegExp(cx, res, *re, linearInput, chars, length, &lastIndexInt, execType,
+    if (!ExecuteRegExp(cx, res, matcher, linearInput, chars, length, &lastIndexInt, execType,
                        &args.rval())) {
         return false;
     }
 
     /* Step 11 (with sticky extension). */
-    if (re->global() || (!args.rval().isNull() && re->sticky())) {
+    if (matcher.global() || (!args.rval().isNull() && matcher.sticky())) {
         if (args.rval().isNull())
             reobj.zeroLastIndex();
         else

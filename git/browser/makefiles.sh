@@ -67,7 +67,6 @@ browser/components/shell/Makefile
 browser/components/shell/public/Makefile
 browser/components/shell/src/Makefile
 browser/components/tabview/Makefile
-browser/components/thumbnails/Makefile
 browser/devtools/Makefile
 browser/devtools/debugger/Makefile
 browser/devtools/highlighter/Makefile
@@ -76,7 +75,6 @@ browser/devtools/shared/Makefile
 browser/devtools/sourceeditor/Makefile
 browser/devtools/styleeditor/Makefile
 browser/devtools/styleinspector/Makefile
-browser/devtools/tilt/Makefile
 browser/devtools/webconsole/Makefile
 browser/fuel/Makefile
 browser/fuel/public/Makefile
@@ -124,7 +122,6 @@ fi
 if [ "$ENABLE_TESTS" ]; then
   add_makefiles "
     browser/base/content/test/Makefile
-    browser/base/content/test/newtab/Makefile
     browser/components/certerror/test/Makefile
     browser/components/dirprovider/tests/Makefile
     browser/components/preferences/tests/Makefile
@@ -140,7 +137,6 @@ if [ "$ENABLE_TESTS" ]; then
     browser/components/privatebrowsing/test/browser/Makefile
     browser/components/tabview/test/Makefile
     browser/components/test/Makefile
-    browser/components/thumbnails/test/Makefile
     browser/devtools/debugger/test/Makefile
     browser/devtools/highlighter/test/Makefile
     browser/devtools/scratchpad/test/Makefile
@@ -148,7 +144,6 @@ if [ "$ENABLE_TESTS" ]; then
     browser/devtools/sourceeditor/test/Makefile
     browser/devtools/styleeditor/test/Makefile
     browser/devtools/styleinspector/test/Makefile
-    browser/devtools/tilt/test/Makefile
     browser/devtools/webconsole/test/Makefile
     browser/fuel/test/Makefile
     browser/modules/test/Makefile

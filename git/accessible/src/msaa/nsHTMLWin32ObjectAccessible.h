@@ -39,6 +39,7 @@
 #ifndef _nsHTMLWin32ObjectAccessible_H_
 #define _nsHTMLWin32ObjectAccessible_H_
 
+#include "nsIAccessibleWin32Object.h"
 #include "nsBaseWidgetAccessible.h"
 
 struct IAccessible;
@@ -81,7 +82,8 @@ protected:
   *   object returned by us in Accessible::NewAccessible() that gets the IAccessible
   *   from the windows system from the window handle.
   */
-class nsHTMLWin32ObjectAccessible : public nsLeafAccessible
+class nsHTMLWin32ObjectAccessible : public nsLeafAccessible,
+                                    public nsIAccessibleWin32Object
 {
 public:
 
@@ -89,8 +91,7 @@ public:
   virtual ~nsHTMLWin32ObjectAccessible() {}
 
   NS_DECL_ISUPPORTS_INHERITED
-
-  NS_IMETHOD GetNativeInterface(void** aNativeAccessible) MOZ_OVERRIDE;
+  NS_DECL_NSIACCESSIBLEWIN32OBJECT
 
 protected:
   void* mHwnd;
