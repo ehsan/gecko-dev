@@ -260,7 +260,7 @@ class FrameState
      * Allocates a register for a FrameEntry's data, such that the compiler
      * can modify it in-place. The actual FE is not modified.
      */
-    RegisterID copyDataIntoReg(FrameEntry *fe);
+    RegisterID copyData(FrameEntry *fe);
 
     /*
      * Types don't always have to be in registers, sometimes the compiler
@@ -343,6 +343,11 @@ class FrameState
      * branching opcodes.
      */
     void forgetEverything();
+
+    /*
+     * Throw away the entire frame state, without syncing anything.
+     */
+    void throwaway();
 
     /*
      * Mark an existing slot with a type.
@@ -430,14 +435,14 @@ class FrameState
   private:
     inline RegisterID allocReg(FrameEntry *fe, RematInfo::RematType type, bool weak);
     inline void forgetReg(RegisterID reg);
-    RegisterID evictSomeReg(uint32 mask);
+    RegisterID evictSomething(uint32 mask);
     void evictReg(RegisterID reg);
     inline FrameEntry *rawPush();
     inline FrameEntry *addToTracker(uint32 index);
     inline void syncType(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline void syncData(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline FrameEntry *getLocal(uint32 slot);
-    inline void forgetAllRegs(FrameEntry *fe);
+    inline void forgetRegs(FrameEntry *fe);
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
     inline uint32 localIndex(uint32 n);
     void pushCopyOf(uint32 index);
@@ -460,8 +465,8 @@ class FrameState
         regstate[reg].fe = newFe;
     }
 
-    RegisterID evictSomeReg() {
-        return evictSomeReg(Registers::AvailRegs);
+    RegisterID evictSomething() {
+        return evictSomething(Registers::AvailRegs);
     }
 
     uint32 indexOf(int32 depth) {

@@ -80,7 +80,7 @@ FrameState::allocReg()
     if (!freeRegs.empty())
         reg = freeRegs.takeAnyReg();
     else
-        reg = evictSomeReg();
+        reg = evictSomething();
     regstate[reg].fe = NULL;
     return reg;
 }
@@ -92,7 +92,7 @@ FrameState::allocReg(uint32 mask)
     if (freeRegs.hasRegInMask(mask))
         reg = freeRegs.takeRegInMask(mask);
     else
-        reg = evictSomeReg(mask);
+        reg = evictSomething(mask);
     regstate[reg].fe = NULL;
     return reg;
 }
@@ -104,7 +104,7 @@ FrameState::allocReg(FrameEntry *fe, RematInfo::RematType type, bool weak)
     if (!freeRegs.empty())
         reg = freeRegs.takeAnyReg();
     else
-        reg = evictSomeReg();
+        reg = evictSomething();
     regstate[reg] = RegisterState(fe, type, weak);
     return reg;
 }
@@ -118,7 +118,7 @@ FrameState::pop()
     if (!fe)
         return;
 
-    forgetAllRegs(fe);
+    forgetRegs(fe);
 }
 
 inline void
@@ -492,7 +492,7 @@ FrameState::unpinReg(RegisterID reg)
 }
 
 inline void
-FrameState::forgetAllRegs(FrameEntry *fe)
+FrameState::forgetRegs(FrameEntry *fe)
 {
     if (fe->type.inRegister())
         forgetReg(fe->type.reg());
@@ -566,7 +566,7 @@ FrameState::enterBlock(uint32 n)
 inline void
 FrameState::eviscerate(FrameEntry *fe)
 {
-    forgetAllRegs(fe);
+    forgetRegs(fe);
     fe->type.invalidate();
     fe->data.invalidate();
     fe->setNotCopied();

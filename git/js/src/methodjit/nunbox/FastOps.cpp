@@ -333,7 +333,7 @@ mjit::Compiler::jsop_globalinc(JSOp op, uint32 index)
         FrameEntry *fe = frame.peek(-1);
         Jump notInt = frame.testInt32(Assembler::NotEqual, fe);
         stubcc.linkExit(notInt);
-        data = frame.copyDataIntoReg(fe);
+        data = frame.copyData(fe);
     } else {
         Jump notInt = masm.testInt32(Assembler::NotEqual, addr);
         stubcc.linkExit(notInt);
@@ -482,7 +482,7 @@ mjit::Compiler::jsop_binary(JSOp op, VoidStub stub)
             rhs = tmp;
         }
 
-        reg = frame.copyDataIntoReg(lhs);
+        reg = frame.copyData(lhs);
         if (swapped && op == JSOP_SUB) {
             masm.neg32(reg);
             op = JSOP_ADD;
@@ -1031,7 +1031,7 @@ mjit::Compiler::jsop_setelem()
     }
 
     /* obj.isDenseArray() */
-    RegisterID objReg = frame.copyDataIntoReg(obj);
+    RegisterID objReg = frame.copyData(obj);
     Jump guardDense = masm.branchPtr(Assembler::NotEqual,
                                       Address(objReg, offsetof(JSObject, clasp)),
                                       ImmPtr(&js_ArrayClass));
@@ -1072,7 +1072,7 @@ mjit::Compiler::jsop_setelem()
                 masm.storeTypeTag(frame.tempRegForType(fe), slot);
         }
     } else {
-        RegisterID idReg = frame.copyDataIntoReg(id);
+        RegisterID idReg = frame.copyData(id);
         Jump inRange = masm.branch32(Assembler::AboveOrEqual,
                                      idReg,
                                      masm.payloadOf(Address(objReg, -int(sizeof(Value)))));
@@ -1135,7 +1135,7 @@ mjit::Compiler::jsop_getelem()
     }
 
     /* obj.isDenseArray() */
-    RegisterID objReg = frame.copyDataIntoReg(obj);
+    RegisterID objReg = frame.copyData(obj);
     Jump guardDense = masm.branchPtr(Assembler::NotEqual,
                                       Address(objReg, offsetof(JSObject, clasp)),
                                       ImmPtr(&js_ArrayClass));
@@ -1165,7 +1165,7 @@ mjit::Compiler::jsop_getelem()
         frame.freeReg(objReg);
         frame.push(slot);
     } else {
-        RegisterID idReg = frame.copyDataIntoReg(id);
+        RegisterID idReg = frame.copyData(id);
         Jump inRange = masm.branch32(Assembler::AboveOrEqual,
                                      idReg,
                                      masm.payloadOf(Address(objReg, -int(sizeof(Value)))));
