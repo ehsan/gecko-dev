@@ -13,11 +13,3 @@ EXPORTS += [
 
 LIBRARY_NAME = 'mozexpat_s'
 
-CSRCS += [
-    'xmlparse.c',
-    'xmlrole.c',
-    'xmltok.c',
-]
-
-MSVC_ENABLE_PGO = True
-

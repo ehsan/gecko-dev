@@ -48,7 +48,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'nsWebBrowser_s'
 
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-

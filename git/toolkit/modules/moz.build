@@ -21,32 +21,12 @@ EXTRA_JS_MODULES += [
     'PrivateBrowsingUtils.jsm',
     'Promise.jsm',
     'PropertyListUtils.jsm',
-    'RemoteAddonsChild.jsm',
-    'RemoteAddonsParent.jsm',
-    'RemoteController.jsm',
     'RemoteSecurityUI.jsm',
-    'RemoteWebNavigation.jsm',
     'RemoteWebProgress.jsm',
-    'SelectContentHelper.jsm',
-    'SelectParentHelper.jsm',
     'Sqlite.jsm',
     'Task.jsm',
     'TelemetryTimestamps.jsm',
     'Timer.jsm',
     'debug.js',
 ]
-
-EXTRA_PP_JS_MODULES += [
-    'CertUtils.jsm',
-    'ResetProfile.jsm',
-    'Services.jsm',
-    'Troubleshoot.jsm',
-    'UpdateChannel.jsm',
-    'WindowDraggingUtils.jsm',
-]
-
-if 'Android' != CONFIG['OS_TARGET']:
-    EXTRA_PP_JS_MODULES += [
-        'LightweightThemeConsumer.jsm',
-    ]
 

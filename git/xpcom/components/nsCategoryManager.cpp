@@ -402,20 +402,14 @@ CategoryEnumerator::enumfunc_createenumerator(const char* aStr, CategoryNode* aN
 
 NS_IMPL_QUERY_INTERFACE1(nsCategoryManager, nsICategoryManager)
 
-class XPCOMCategoryManagerReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-    XPCOMCategoryManagerReporter()
-      : MemoryReporterBase("explicit/xpcom/category-manager",
-                           KIND_HEAP, UNITS_BYTES,
-                           "Memory used for the XPCOM category manager.")
-    {}
-private:
-    int64_t Amount() MOZ_OVERRIDE
-    {
-        return nsCategoryManager::SizeOfIncludingThis(MallocSizeOf);
-    }
-};
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(CategoryManagerMallocSizeOf)
+
+NS_MEMORY_REPORTER_IMPLEMENT(CategoryManager,
+    "explicit/xpcom/category-manager",
+    KIND_HEAP,
+    nsIMemoryReporter::UNITS_BYTES,
+    nsCategoryManager::GetCategoryManagerSize,
+    "Memory used for the XPCOM category manager.")
 
 NS_IMETHODIMP_(nsrefcnt)
 nsCategoryManager::AddRef()
@@ -469,13 +463,14 @@ nsCategoryManager::nsCategoryManager()
 void
 nsCategoryManager::InitMemoryReporter()
 {
-  mReporter = new XPCOMCategoryManagerReporter();
+  mReporter = new NS_MEMORY_REPORTER_NAME(CategoryManager);
   NS_RegisterMemoryReporter(mReporter);
 }
 
 nsCategoryManager::~nsCategoryManager()
 {
-  NS_UnregisterMemoryReporter(mReporter);
+  (void)::NS_UnregisterMemoryReporter(mReporter);
+  mReporter = nullptr;
 
   // the hashtable contains entries that must be deleted before the arena is
   // destroyed, or else you will have PRLocks undestroyed and other Really
@@ -495,12 +490,11 @@ nsCategoryManager::get_category(const char* aName) {
 }
 
 /* static */ int64_t
-nsCategoryManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsCategoryManager::GetCategoryManagerSize()
 {
-  return nsCategoryManager::gCategoryManager
-       ? nsCategoryManager::gCategoryManager->SizeOfIncludingThisHelper(
-          aMallocSizeOf)
-       : 0;
+  MOZ_ASSERT(nsCategoryManager::gCategoryManager);
+  return nsCategoryManager::gCategoryManager->SizeOfIncludingThis(
+           CategoryManagerMallocSizeOf);
 }
 
 static size_t
@@ -515,7 +509,7 @@ SizeOfCategoryManagerTableEntryExcludingThis(nsDepCharHashKey::KeyType aKey,
 }
 
 size_t
-nsCategoryManager::SizeOfIncludingThisHelper(MallocSizeOf aMallocSizeOf)
+nsCategoryManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
 {
   size_t n = aMallocSizeOf(this);
 

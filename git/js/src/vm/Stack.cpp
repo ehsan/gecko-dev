@@ -4,19 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/Stack-inl.h"
+#include "vm/Stack.h"
 
 #include "mozilla/PodOperations.h"
 
-#include "jsautooplen.h"
 #include "jscntxt.h"
 
 #include "gc/Marking.h"
 #ifdef JS_ION
-#include "jit/BaselineFrame.h"
-#include "jit/IonCompartment.h"
+#include "ion/BaselineFrame.h"
+#include "ion/IonCompartment.h"
 #endif
+
 #include "vm/Interpreter-inl.h"
+#include "vm/Stack-inl.h"
 #include "vm/Probes-inl.h"
 
 using namespace js;
@@ -190,11 +191,7 @@ StackFrame::createRestParameter(JSContext *cx)
     unsigned nformal = fun()->nargs - 1, nactual = numActualArgs();
     unsigned nrest = (nactual > nformal) ? nactual - nformal : 0;
     Value *restvp = argv() + nformal;
-    JSObject *obj = NewDenseCopiedArray(cx, nrest, restvp, NULL);
-    if (!obj)
-        return NULL;
-    types::FixRestArgumentsType(cx, obj);
-    return obj;
+    return NewDenseCopiedArray(cx, nrest, restvp, NULL);
 }
 
 static inline void
@@ -451,19 +448,6 @@ js::MarkInterpreterActivations(JSRuntime *rt, JSTracer *trc)
 
 /*****************************************************************************/
 
-// Unlike the other methods of this calss, this method is defined here so that
-// we don't have to #include jsautooplen.h in vm/Stack.h.
-void
-FrameRegs::setToEndOfScript()
-{
-    JSScript *script = fp()->script();
-    sp = fp()->base();
-    pc = script->code + script->length - JSOP_STOP_LENGTH;
-    JS_ASSERT(*pc == JSOP_STOP);
-}
-
-/*****************************************************************************/
-
 StackFrame *
 InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFrameFlags initial,
                                   FrameGuard *fg)
@@ -561,7 +545,7 @@ ScriptFrameIter::settleOnActivation()
 
 #ifdef JS_ION
         if (activation->isJit()) {
-            data_.ionFrames_ = jit::IonFrameIterator(data_.activations_);
+            data_.ionFrames_ = ion::IonFrameIterator(data_.activations_);
 
             // Stop at the first scripted frame.
             while (!data_.ionFrames_.isScripted() && !data_.ionFrames_.done())
@@ -635,7 +619,7 @@ ScriptFrameIter::Data::Data(const ScriptFrameIter::Data &other)
 ScriptFrameIter::ScriptFrameIter(JSContext *cx, SavedOption savedOption)
   : data_(cx, &cx->runtime()->mainThread, savedOption, CURRENT_CONTEXT)
 #ifdef JS_ION
-    , ionInlineFrames_(cx, (js::jit::IonFrameIterator*) NULL)
+    , ionInlineFrames_(cx, (js::ion::IonFrameIterator*) NULL)
 #endif
 {
     settleOnActivation();
@@ -644,7 +628,7 @@ ScriptFrameIter::ScriptFrameIter(JSContext *cx, SavedOption savedOption)
 ScriptFrameIter::ScriptFrameIter(JSContext *cx, ContextOption contextOption, SavedOption savedOption)
   : data_(cx, &cx->runtime()->mainThread, savedOption, contextOption)
 #ifdef JS_ION
-    , ionInlineFrames_(cx, (js::jit::IonFrameIterator*) NULL)
+    , ionInlineFrames_(cx, (js::ion::IonFrameIterator*) NULL)
 #endif
 {
     settleOnActivation();
@@ -762,7 +746,7 @@ ScriptFrameIter::copyData() const
      * This doesn't work for optimized Ion frames since ionInlineFrames_ is
      * not copied.
      */
-    JS_ASSERT(data_.ionFrames_.type() != jit::IonFrame_OptimizedJS);
+    JS_ASSERT(data_.ionFrames_.type() != ion::IonFrame_OptimizedJS);
 #endif
     return data_.cx_->new_<Data>(data_);
 }
@@ -935,8 +919,8 @@ ScriptFrameIter::updatePcQuadratic()
       case JIT:
 #ifdef JS_ION
         if (data_.ionFrames_.isBaselineJS()) {
-            jit::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
-            jit::JitActivation *activation = data_.activations_.activation()->asJit();
+            ion::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
+            ion::JitActivation *activation = data_.activations_.activation()->asJit();
 
             // ActivationIterator::ionTop_ may be invalid, so create a new
             // activation iterator.
@@ -945,7 +929,7 @@ ScriptFrameIter::updatePcQuadratic()
                 ++data_.activations_;
 
             // Look for the current frame.
-            data_.ionFrames_ = jit::IonFrameIterator(data_.activations_);
+            data_.ionFrames_ = ion::IonFrameIterator(data_.activations_);
             while (!data_.ionFrames_.isBaselineJS() || data_.ionFrames_.baselineFrame() != frame)
                 ++data_.ionFrames_;
 
@@ -1115,12 +1099,12 @@ ScriptFrameIter::argsObj() const
 }
 
 bool
-ScriptFrameIter::computeThis(JSContext *cx) const
+ScriptFrameIter::computeThis() const
 {
     JS_ASSERT(!done());
     if (!isIon()) {
-        assertSameCompartment(cx, scopeChain());
-        return ComputeThis(cx, abstractFramePtr());
+        JS_ASSERT(data_.cx_);
+        return ComputeThis(data_.cx_, abstractFramePtr());
     }
     return true;
 }
@@ -1194,7 +1178,7 @@ ScriptFrameIter::numFrameSlots() const
 #ifdef JS_ION
         if (data_.ionFrames_.isOptimizedJS())
             return ionInlineFrames_.snapshotIterator().slots() - ionInlineFrames_.script()->nfixed;
-        jit::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
+        ion::BaselineFrame *frame = data_.ionFrames_.baselineFrame();
         return frame->numValueSlots() - data_.ionFrames_.script()->nfixed;
 #else
         break;
@@ -1216,7 +1200,7 @@ ScriptFrameIter::frameSlotValue(size_t index) const
       case JIT:
 #ifdef JS_ION
         if (data_.ionFrames_.isOptimizedJS()) {
-            jit::SnapshotIterator si(ionInlineFrames_.snapshotIterator());
+            ion::SnapshotIterator si(ionInlineFrames_.snapshotIterator());
             index += ionInlineFrames_.script()->nfixed;
             return si.maybeReadSlotByIndex(index);
         }
@@ -1234,14 +1218,6 @@ ScriptFrameIter::frameSlotValue(size_t index) const
 
 #if defined(_MSC_VER)
 # pragma optimize("", on)
-#endif
-
-#ifdef DEBUG
-/* static */
-bool NonBuiltinScriptFrameIter::includeSelfhostedFrames() {
-    static char* env = getenv("MOZ_SHOW_ALL_JS_FRAMES");
-    return (bool)env;
-}
 #endif
 
 /*****************************************************************************/
@@ -1292,7 +1268,7 @@ js::CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script,
 }
 #endif
 
-jit::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
+ion::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
   : Activation(cx, Jit),
     firstFrameIsConstructing_(firstFrameIsConstructing),
     active_(active)
@@ -1307,7 +1283,7 @@ jit::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, 
     }
 }
 
-jit::JitActivation::~JitActivation()
+ion::JitActivation::~JitActivation()
 {
     if (active_) {
         cx_->mainThread().ionTop = prevIonTop_;
@@ -1316,7 +1292,7 @@ jit::JitActivation::~JitActivation()
 }
 
 void
-jit::JitActivation::setActive(JSContext *cx, bool active)
+ion::JitActivation::setActive(JSContext *cx, bool active)
 {
     // Only allowed to deactivate/activate if activation is top.
     // (Not tested and will probably fail in other situations.)

@@ -12,7 +12,7 @@
 #include <numeric>
 #include <vector>
 
-#include "webrtc/voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
+#include "voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
 
 #ifdef WEBRTC_IOS
   const int kMinimumReasonableDelayEstimateMs = 30;

@@ -11,12 +11,14 @@
 #include "mozilla/dom/Link.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
+#include "nsILink.h"
 
 namespace mozilla {
 namespace dom {
 
 class HTMLAnchorElement MOZ_FINAL : public nsGenericHTMLElement,
                                     public nsIDOMHTMLAnchorElement,
+                                    public nsILink,
                                     public Link
 {
 public:
@@ -33,6 +35,15 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
   virtual bool Draggable() const MOZ_OVERRIDE;
 
@@ -41,6 +52,10 @@ public:
 
   // DOM memory reporter participant
   NS_DECL_SIZEOF_EXCLUDING_THIS
+
+  // nsILink
+  NS_IMETHOD LinkAdded() MOZ_OVERRIDE { return NS_OK; }
+  NS_IMETHOD LinkRemoved() MOZ_OVERRIDE { return NS_OK; }
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -73,6 +88,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   virtual void OnDNSPrefetchDeferred();
   virtual void OnDNSPrefetchRequested();
@@ -133,31 +150,6 @@ public:
   void SetText(const nsAString& aValue, mozilla::ErrorResult& rv)
   {
     rv = SetText(aValue);
-  }
-
-  void GetOrigin(nsAString& aOrigin)
-  {
-    Link::GetOrigin(aOrigin);
-  }
-
-  void GetUsername(nsAString& aUsername)
-  {
-    Link::GetUsername(aUsername);
-  }
-
-  void SetUsername(const nsAString& aUsername)
-  {
-    Link::SetUsername(aUsername);
-  }
-
-  void GetPassword(nsAString& aPassword)
-  {
-    Link::GetPassword(aPassword);
-  }
-
-  void SetPassword(const nsAString& aPassword)
-  {
-    Link::SetPassword(aPassword);
   }
   // The XPCOM URI decomposition attributes are fine for us
   void GetCoords(nsString& aValue)

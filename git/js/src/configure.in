@@ -232,7 +232,7 @@ changequote(,)
 MOZJS_MAJOR_VERSION=`echo $MOZILLA_VERSION | sed "s|\(^[0-9]*\)\.[0-9]*.*|\1|"`
 MOZJS_MINOR_VERSION=`echo $MOZILLA_VERSION | sed "s|^[0-9]*\.\([0-9]*\).*|\1|"`
 MOZJS_PATCH_VERSION=`echo $MOZILLA_VERSION | sed "s|^[0-9]*\.[0-9]*[^0-9]*||"`
-IS_ALPHA=`echo $MOZILLA_VERSION | grep '[ab]'`
+IS_ALPHA=`echo $MOZILLA_VERSION | grep [ab]`
 
 dnl XXX in a temporary bid to avoid developer anger at renaming files
 dnl XXX before "js" symlinks exist, don't change names.
@@ -282,7 +282,80 @@ if test "$COMPILE_ENVIRONMENT"; then
 #     - $target (in its correct usage) is for compilers who generate code for a
 #       different platform than $host, so it would not be used by Mozilla.
 if test "$target" != "$host"; then
-    MOZ_CROSS_COMPILER
+    echo "cross compiling from $host to $target"
+
+    _SAVE_CC="$CC"
+    _SAVE_CFLAGS="$CFLAGS"
+    _SAVE_LDFLAGS="$LDFLAGS"
+
+    AC_MSG_CHECKING([for host c compiler])
+    AC_CHECK_PROGS(HOST_CC, $HOST_CC gcc cc /usr/ucb/cc cl icc, "")
+    if test -z "$HOST_CC"; then
+        AC_MSG_ERROR([no acceptable c compiler found in \$PATH])
+    fi
+    AC_MSG_RESULT([$HOST_CC])
+    AC_MSG_CHECKING([for host c++ compiler])
+    AC_CHECK_PROGS(HOST_CXX, $HOST_CXX $CCC c++ g++ gcc CC cxx cc++ cl icc, "")
+    if test -z "$HOST_CXX"; then
+        AC_MSG_ERROR([no acceptable c++ compiler found in \$PATH])
+    fi
+    AC_MSG_RESULT([$HOST_CXX])
+
+    if test -z "$HOST_CFLAGS"; then
+        HOST_CFLAGS="$CFLAGS"
+    fi
+    if test -z "$HOST_CXXFLAGS"; then
+        HOST_CXXFLAGS="$CXXFLAGS"
+    fi
+    if test -z "$HOST_LDFLAGS"; then
+        HOST_LDFLAGS="$LDFLAGS"
+    fi
+    if test -z "$HOST_AR_FLAGS"; then
+        HOST_AR_FLAGS="$AR_FLAGS"
+    fi
+    AC_CHECK_PROGS(HOST_RANLIB, $HOST_RANLIB ranlib, ranlib, :)
+    AC_CHECK_PROGS(HOST_AR, $HOST_AR ar, ar, :)
+    CC="$HOST_CC"
+    CFLAGS="$HOST_CFLAGS"
+    LDFLAGS="$HOST_LDFLAGS"
+
+    AC_MSG_CHECKING([whether the host c compiler ($HOST_CC $HOST_CFLAGS $HOST_LDFLAGS) works])
+    AC_TRY_COMPILE([], [return(0);],
+	[ac_cv_prog_hostcc_works=1 AC_MSG_RESULT([yes])],
+	AC_MSG_ERROR([installation or configuration problem: host compiler $HOST_CC cannot create executables.]) )
+
+    CC="$HOST_CXX"
+    CFLAGS="$HOST_CXXFLAGS"
+
+    AC_MSG_CHECKING([whether the host c++ compiler ($HOST_CXX $HOST_CXXFLAGS $HOST_LDFLAGS) works])
+    AC_TRY_COMPILE([], [return(0);],
+	[ac_cv_prog_hostcxx_works=1 AC_MSG_RESULT([yes])],
+	AC_MSG_ERROR([installation or configuration problem: host compiler $HOST_CXX cannot create executables.]) )
+
+    CC=$_SAVE_CC
+    CFLAGS=$_SAVE_CFLAGS
+    LDFLAGS=$_SAVE_LDFLAGS
+
+    AC_CHECK_PROGS(CC, $CC "${target_alias}-gcc" "${target}-gcc", :)
+    unset ac_cv_prog_CC
+    AC_PROG_CC
+    AC_CHECK_PROGS(CXX, $CXX "${target_alias}-g++" "${target}-g++", :)
+    unset ac_cv_prog_CXX
+    AC_PROG_CXX
+
+    AC_CHECK_PROGS(RANLIB, $RANLIB "${target_alias}-ranlib" "${target}-ranlib", :)
+    AC_CHECK_PROGS(AR, $AR "${target_alias}-ar" "${target}-ar", :)
+    MOZ_PATH_PROGS(AS, $AS "${target_alias}-as" "${target}-as", :)
+    AC_CHECK_PROGS(LD, $LD "${target_alias}-ld" "${target}-ld", :)
+    AC_CHECK_PROGS(STRIP, $STRIP "${target_alias}-strip" "${target}-strip", :)
+    AC_CHECK_PROGS(WINDRES, $WINDRES "${target_alias}-windres" "${target}-windres", :)
+    AC_DEFINE(CROSS_COMPILE)
+
+    dnl If we cross compile for ppc on Mac OS X x86, cross_compiling will
+    dnl have erroneously been set to "no", because the x86 build host is
+    dnl able to run ppc code in a translated environment, making a cross
+    dnl compiler appear native.  So we override that here.
+    cross_compiling=yes
 else
     AC_PROG_CC
     AC_PROG_CXX
@@ -570,14 +643,6 @@ dnl Checks for programs.
 dnl ========================================================
 AC_PROG_INSTALL
 AC_PROG_LN_S
-
-AC_MSG_CHECKING([for tar archiver])
-AC_CHECK_PROGS(TAR, gnutar gtar tar, "")
-if test -z "$TAR"; then
-    AC_MSG_WARN([no tar archiver found in \$PATH])
-fi
-AC_MSG_RESULT([$TAR])
-AC_SUBST(TAR)
 
 if test -z "$TINDERBOX_SKIP_PERL_VERSION_CHECK"; then
 AC_MSG_CHECKING([for minimum required perl version >= $PERL_VERSION])
@@ -1074,6 +1139,11 @@ if test "$GNU_CC"; then
         fi
     fi
     WARNINGS_AS_ERRORS='-Werror'
+    # Don't treat -Wuninitialized as error b/c it has lots of false positives.
+    WARNINGS_AS_ERRORS="$WARNINGS_AS_ERRORS -Wno-error=uninitialized"
+    # Don't treat -Wdeprecated-declarations as error b/c we don't want our
+    # builds held hostage when a platform-specific API is suddenly deprecated.
+    WARNINGS_AS_ERRORS="$WARNINGS_AS_ERRORS -Wno-error=deprecated-declarations"
     DSO_CFLAGS=''
     DSO_PIC_CFLAGS='-fPIC'
     ASFLAGS="$ASFLAGS -fPIC"
@@ -1359,12 +1429,12 @@ case "$host" in
     ;;
 esac
 
-dnl Check for using a custom <inttypes.h> implementation
+dnl Check for using a custom <stdint.h> implementation
 dnl ========================================================
-AC_MSG_CHECKING(for custom <inttypes.h> implementation)
-if test "$MOZ_CUSTOM_INTTYPES_H"; then
-  AC_DEFINE_UNQUOTED(MOZ_CUSTOM_INTTYPES_H, "$MOZ_CUSTOM_INTTYPES_H")
-  AC_MSG_RESULT(using $MOZ_CUSTOM_INTTYPES_H)
+AC_MSG_CHECKING(for custom <stdint.h> implementation)
+if test "$MOZ_CUSTOM_STDINT_H"; then
+  AC_DEFINE_UNQUOTED(MOZ_CUSTOM_STDINT_H, "$MOZ_CUSTOM_STDINT_H")
+  AC_MSG_RESULT(using $MOZ_CUSTOM_STDINT_H)
 else
   AC_MSG_RESULT(none specified)
 fi
@@ -1647,10 +1717,7 @@ ia64*-hpux*)
         XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         LIBXUL_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
-        LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
-        if test -z "$DEVELOPER_OPTIONS"; then
-            LDFLAGS="$LDFLAGS -RELEASE"
-        fi
+        LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT -RELEASE"
         dnl For profile-guided optimization
         PROFILE_GEN_CFLAGS="-GL"
         PROFILE_GEN_LDFLAGS="-LTCG:PGINSTRUMENT"
@@ -2035,12 +2102,14 @@ arm*-*)
     ;;
 sparc*-*)
     if test ! "$HAVE_64BIT_OS" ; then
+    ENABLE_YARR_JIT=1
 dnl ENABLE_ION=0
     AC_DEFINE(JS_CPU_SPARC)
     AC_DEFINE(JS_NUNBOX32)
     fi
     ;;
 mips*-*)
+    ENABLE_YARR_JIT=1
     AC_DEFINE(JS_CPU_MIPS)
     AC_DEFINE(JS_NUNBOX32)
     ;;
@@ -2066,6 +2135,88 @@ AC_SUBST(ENABLE_YARR_JIT)
 
 if test "$ENABLE_YARR_JIT"; then
     AC_DEFINE(ENABLE_YARR_JIT)
+fi
+
+dnl ========================================================
+dnl =
+dnl = Debugging Options
+dnl =
+dnl = These must come before MOZ_COMPILER_OPTS so that MOZ_COMPILER_OPTS
+dnl = sees any debug flags set by the user.
+dnl =
+dnl ========================================================
+MOZ_ARG_HEADER(Debugging)
+
+dnl ========================================================
+dnl = Debug info is ON by default.
+dnl ========================================================
+if test -z "$MOZ_DEBUG_FLAGS"; then
+  MOZ_DEBUG_FLAGS="-g"
+fi
+
+MOZ_ARG_ENABLE_STRING(debug,
+[  --enable-debug[=DBG]    Enable building with developer debug info
+                           (using compiler flags DBG)],
+[ if test "$enableval" != "no"; then
+    MOZ_DEBUG=1
+    if test -n "$enableval" -a "$enableval" != "yes"; then
+        MOZ_DEBUG_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
+        _MOZ_DEBUG_FLAGS_SET=1
+    fi
+  else
+    MOZ_DEBUG=
+  fi ],
+  MOZ_DEBUG=)
+
+MOZ_DEBUG_ENABLE_DEFS="-DDEBUG -D_DEBUG -DTRACING"
+MOZ_ARG_WITH_STRING(debug-label,
+[  --with-debug-label=LABELS
+                          Define DEBUG_<value> for each comma-separated
+                          value given.],
+[ for option in `echo $withval | sed 's/,/ /g'`; do
+    MOZ_DEBUG_ENABLE_DEFS="$MOZ_DEBUG_ENABLE_DEFS -DDEBUG_${option}"
+done])
+
+MOZ_DEBUG_DISABLE_DEFS="-DNDEBUG -DTRIMMED"
+
+if test -n "$MOZ_DEBUG"; then
+    AC_MSG_CHECKING([for valid debug flags])
+    _SAVE_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS $MOZ_DEBUG_FLAGS"
+    AC_TRY_COMPILE([#include <stdio.h>],
+        [printf("Hello World\n");],
+        _results=yes,
+        _results=no)
+    AC_MSG_RESULT([$_results])
+    if test "$_results" = "no"; then
+        AC_MSG_ERROR([These compiler flags are invalid: $MOZ_DEBUG_FLAGS])
+    fi
+    CFLAGS=$_SAVE_CFLAGS
+fi
+
+dnl ========================================================
+dnl = Enable generation of debug symbols
+dnl ========================================================
+MOZ_ARG_ENABLE_STRING(debug-symbols,
+[  --enable-debug-symbols[=DBG]
+                          Enable debugging symbols (using compiler flags DBG)],
+[ if test "$enableval" != "no"; then
+      MOZ_DEBUG_SYMBOLS=1
+      if test -n "$enableval" -a "$enableval" != "yes"; then
+          if test -z "$_MOZ_DEBUG_FLAGS_SET"; then
+              MOZ_DEBUG_FLAGS=`echo $enableval | sed -e 's|\\\ | |g'`
+          else
+              AC_MSG_ERROR([--enable-debug-symbols flags cannot be used with --enable-debug flags])
+          fi
+      fi
+  else
+      MOZ_DEBUG_SYMBOLS=
+  fi ],
+  MOZ_DEBUG_SYMBOLS=1)
+
+if test -n "$MOZ_DEBUG" -o -n "$MOZ_DEBUG_SYMBOLS"; then
+    AC_DEFINE(MOZ_DEBUG_SYMBOLS)
+    export MOZ_DEBUG_SYMBOLS
 fi
 
 MOZ_COMPILER_OPTS
@@ -2196,7 +2347,35 @@ else
     AC_MSG_RESULT(no)
 fi
 
-MOZ_CXX11
+dnl Check whether gcc's c++0x mode works
+AC_LANG_CPLUSPLUS
+
+if test "$GNU_CXX"; then
+    CXXFLAGS="$CXXFLAGS -std=gnu++0x"
+
+    AC_CACHE_CHECK(for gcc c++0x headers bug without rtti,
+        ac_cv_cxx0x_headers_bug,
+        [AC_TRY_COMPILE([#include <memory>], [],
+                        ac_cv_cxx0x_headers_bug="no",
+                        ac_cv_cxx0x_headers_bug="yes")])
+
+    if test "$CLANG_CXX" -a "$ac_cv_cxx0x_headers_bug" = "yes"; then
+        CXXFLAGS="$CXXFLAGS -I$_topsrcdir/build/unix/headers"
+        AC_CACHE_CHECK(whether workaround for gcc c++0x headers conflict with clang works,
+            ac_cv_cxx0x_clang_workaround,
+            [AC_TRY_COMPILE([#include <memory>], [],
+                            ac_cv_cxx0x_clang_workaround="yes",
+                            ac_cv_cxx0x_clang_workaround="no")])
+
+        if test "ac_cv_cxx0x_clang_workaround" = "no"; then
+            AC_MSG_ERROR([Your toolchain does not support C++0x/C++11 mode properly. Please upgrade your toolchain])
+        fi
+    elif test "$ac_cv_cxx0x_headers_bug" = "yes"; then
+        AC_MSG_ERROR([Your toolchain does not support C++0x/C++11 mode properly. Please upgrade your toolchain])
+    fi
+fi
+
+AC_LANG_C
 
 dnl Check for .hidden assembler directive and visibility attribute.
 dnl Borrowed from glibc configure.in
@@ -3199,18 +3378,6 @@ MOZ_ARG_DISABLE_BOOL(warnings-as-errors,
     MOZ_ENABLE_WARNINGS_AS_ERRORS=)
 if test -z "$MOZ_ENABLE_WARNINGS_AS_ERRORS"; then
    WARNINGS_AS_ERRORS=''
-elif test "$GNU_CC"; then
-    # Prevent the following GCC warnings from being treated as errors:
-    # -Wuninitialized - too many false positives
-    # -Wmaybe-uninitialized - too many false positives
-    # -Wdeprecated-declarations - we don't want our builds held hostage when a
-    #   platform-specific API becomes deprecated.
-    MOZ_C_SUPPORTS_WARNING(-W, no-error=uninitialized, ac_c_has_noerror_uninitialized)
-    MOZ_CXX_SUPPORTS_WARNING(-W, no-error=uninitialized, ac_cxx_has_noerror_uninitialized)
-    MOZ_C_SUPPORTS_WARNING(-W, no-error=maybe-uninitialized, ac_c_has_noerror_maybe_uninitialized)
-    MOZ_CXX_SUPPORTS_WARNING(-W, no-error=maybe-uninitialized, ac_cxx_has_noerror_maybe_uninitialized)
-    MOZ_C_SUPPORTS_WARNING(-W, no-error=deprecated-declarations, ac_c_has_noerror_deprecated_declarations)
-    MOZ_CXX_SUPPORTS_WARNING(-W, no-error=deprecated-declarations, ac_cxx_has_noerror_deprecated_declarations)
 fi
 
 dnl ========================================================
@@ -3493,21 +3660,35 @@ MOZ_ARG_ENABLE_BOOL(vtune,
 [  --enable-vtune          Enable vtune profiling. Implies --enable-profiling.],
     MOZ_VTUNE=1,
     MOZ_VTUNE= )
+if test -n "$MOZ_VTUNE"; then
+    if test -z "$VTUNE_AMPLIFIER_XE_2013_DIR"; then
+        echo "Error: VTUNE_AMPLIFIER_XE_2013_DIR undefined."
+        exit 1
+    fi
+
+    VTUNE_DIR=`echo "$VTUNE_AMPLIFIER_XE_2013_DIR" | sed 's,\\\,/,g'`
+    VTUNE_DIR=`echo "$VTUNE_DIR" | sed 's,(,\\\(,g'`
+    VTUNE_DIR=`echo "$VTUNE_DIR" | sed 's,),\\\),g'`
+    VTUNE_DIR=`echo "$VTUNE_DIR" | sed 's, ,\\\ ,g'`
+
+    VTUNE_LIB=lib32
+    if test "x86_64" = "$TARGET_CPU"; then
+        VTUNE_LIB=lib64
+    fi
+
+    VTUNE_LIBRARIES="${VTUNE_DIR}/${VTUNE_LIB}/${LIB_PREFIX}jitprofiling.${LIB_SUFFIX}"
+    AC_SUBST(VTUNE_LIBRARIES)
+
+    CXXFLAGS="$CXXFLAGS -I${VTUNE_DIR}/include"
+    MOZ_PROFILING=1
+    AC_DEFINE(MOZ_VTUNE)
+fi
 
 dnl ========================================================
 dnl Profiling
 dnl ========================================================
 if test -n "$MOZ_PROFILING"; then
     AC_DEFINE(MOZ_PROFILING)
-
-    case "$OS_TARGET" in
-        Linux) MOZ_VTUNE=1 ;;
-        WINNT) MOZ_VTUNE=1 ;;
-    esac
-fi
-
-if test -n "$MOZ_VTUNE"; then
-    AC_DEFINE(MOZ_VTUNE)
 fi
 
 dnl ========================================================
@@ -4018,6 +4199,7 @@ AC_SUBST(MOZ_PKG_SPECIAL)
 AC_SUBST(MOZILLA_OFFICIAL)
 
 dnl win32 options
+AC_SUBST(MOZ_MAPINFO)
 AC_SUBST(MOZ_BROWSE_INFO)
 AC_SUBST(MOZ_TOOLS_DIR)
 
@@ -4191,80 +4373,46 @@ fi
 dnl ========================================================
 dnl ECMAScript Internationalization API Support (uses ICU)
 dnl ========================================================
-ICU_LIB_NAMES=
-MOZ_NATIVE_ICU=
-MOZ_ARG_WITH_BOOL(system-icu,
-[  --with-system-icu
-                          Use system ICU (located with pkgconfig)],
-    MOZ_NATIVE_ICU=1)
 
-if test -n "$MOZ_NATIVE_ICU"; then
-    PKG_CHECK_MODULES(MOZ_ICU, icu-i18n >= 50.1)
-fi
-
-MOZ_ARG_WITH_STRING(intl-api,
-[  --with-intl-api, --with-intl-api=build, --without-intl-api
-    Determine the status of the ECMAScript Internationalization API.  The first
-    (or lack of any of these) builds and exposes the API.  The second builds it
-    but doesn't use ICU or expose the API to script.  The third doesn't build
-    ICU at all.],
-    _INTL_API=$withval,
-    _INTL_API=yes)
-
-ENABLE_INTL_API=
-EXPOSE_INTL_API=
-case "$_INTL_API" in
-no)
-    ;;
-build)
-    ENABLE_INTL_API=1
-    ;;
-yes)
-    ENABLE_INTL_API=1
-    EXPOSE_INTL_API=1
-    ;;
-*)
-    AC_MSG_ERROR([Invalid value passed to --with-intl-api: $_INTL_API])
-    ;;
-esac
-
-if test -n "$EXPOSE_INTL_API"; then
-    AC_DEFINE(EXPOSE_INTL_API)
-fi
+ENABLE_INTL_API=1
+MOZ_ARG_DISABLE_BOOL(intl-api,
+[  --disable-intl-api      Disable the ECMAScript Internationalization API],
+    ENABLE_INTL_API= )
 
 dnl Settings for the implementation of the ECMAScript Internationalization API
 if test -n "$ENABLE_INTL_API"; then
     AC_DEFINE(ENABLE_INTL_API)
+    # We build ICU as a static library.
+    AC_DEFINE(U_STATIC_IMPLEMENTATION)
 
-    if test -z "$MOZ_NATIVE_ICU"; then
-        case "$OS_TARGET" in
-            WINNT)
-                ICU_LIB_NAMES="icuin icuuc icudt"
-                ;;
-            Darwin|Linux|DragonFly|FreeBSD|NetBSD|OpenBSD)
-                ICU_LIB_NAMES="icui18n icuuc icudata"
-                ;;
-            *)
-                AC_MSG_ERROR([ECMAScript Internationalization API is not yet supported on this platform])
-        esac
-        MOZ_ICU_LIBS='$(call EXPAND_LIBNAME_PATH,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/lib)'
-    fi
+    case "$OS_TARGET" in
+        WINNT)
+            ICU_LIB_NAMES="icuin icuuc icudt"
+            ;;
+        Darwin|Linux)
+            ICU_LIB_NAMES="icui18n icuuc icudata"
+            ;;
+        *)
+            AC_MSG_ERROR([ECMAScript Internationalization API is not yet supported on this platform])
+    esac
+
+    ICU_LIBS='$(call EXPAND_LIBNAME_PATH,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/lib)'
+else
+    ICU_LIB_NAMES=
+    ICU_LIBS=
 fi
 
 AC_SUBST(ENABLE_INTL_API)
 AC_SUBST(ICU_LIB_NAMES)
-AC_SUBST(MOZ_ICU_LIBS)
-AC_SUBST(MOZ_NATIVE_ICU)
+AC_SUBST(ICU_LIBS)
+
+dnl Source files that use ICU should have control over which parts of the ICU
+dnl namespace they want to use.
+AC_DEFINE(U_USING_ICU_NAMESPACE,0)
+
 
 dnl Settings for ICU
-if test -n "$ENABLE_INTL_API" -a -z "$MOZ_NATIVE_ICU"; then
-    dnl We build ICU as a static library.
-    AC_DEFINE(U_STATIC_IMPLEMENTATION)
-
-    dnl Source files that use ICU should have control over which parts of the ICU
-    dnl namespace they want to use.
-    AC_DEFINE(U_USING_ICU_NAMESPACE,0)
-
+if test -n "$ENABLE_INTL_API" ; then
     # Set ICU compile options
     ICU_CPPFLAGS=""
     # don't use icu namespace automatically in client code
@@ -4288,9 +4436,6 @@ if test -n "$ENABLE_INTL_API" -a -z "$MOZ_NATIVE_ICU"; then
         WINNT)
             ICU_TARGET=MSYS/MSVC
             ;;
-        DragonFly|FreeBSD|NetBSD|OpenBSD)
-            ICU_TARGET=BSD
-            ;;
     esac
 
     # To reduce library size, use static linking
@@ -4305,15 +4450,11 @@ if test -n "$ENABLE_INTL_API" -a -z "$MOZ_NATIVE_ICU"; then
     fi
     if test -z "$MOZ_OPTIMIZE"; then
         ICU_BUILD_OPTS="$ICU_BUILD_OPTS --disable-release"
-    else
-        ICU_CFLAGS="$ICU_CFLAGS $MOZ_OPTIMIZE_FLAGS"
-        ICU_CXXFLAGS="$ICU_CXXFLAGS $MOZ_OPTIMIZE_FLAGS"
     fi
 
     abs_srcdir=`(cd $srcdir; pwd)`
     mkdir -p $_objdir/intl/icu
-    (cd $_objdir/intl/icu
-     MOZ_SUBCONFIGURE_WRAP([.],[
+    (cd $_objdir/intl/icu; \
      CC="$CC" CXX="$CXX" \
      CFLAGS="$ICU_CFLAGS" CPPFLAGS="$ICU_CPPFLAGS" CXXFLAGS="$ICU_CXXFLAGS" \
             $SHELL $abs_srcdir/../../intl/icu/source/runConfigureICU \
@@ -4322,7 +4463,6 @@ if test -n "$ENABLE_INTL_API" -a -z "$MOZ_NATIVE_ICU"; then
             $ICU_LINK_OPTS \
             --enable-extras=no --enable-icuio=no  --enable-layout=no \
             --enable-tests=no --enable-samples=no || exit 1
-     ])
     ) || exit 1
 fi
 
@@ -4341,7 +4481,7 @@ AC_SUBST(ac_configure_args)
 dnl Spit out some output
 dnl ========================================================
 
-AC_OUTPUT([js-confdefs.h config/autoconf.mk config/emptyvars.mk])
+AC_OUTPUT([js-confdefs.h Makefile config/autoconf.mk config/emptyvars.mk])
 
 # Produce the js-config script at configure time; see the comments for
 # 'js*-config' in Makefile.in.

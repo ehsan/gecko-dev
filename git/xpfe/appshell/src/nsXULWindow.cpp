@@ -56,7 +56,6 @@
 #include "nsGlobalWindow.h"
 
 #include "prenv.h"
-#include "mozilla/AutoRestore.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/BarProps.h"
 #include "mozilla/dom/Element.h"
@@ -117,8 +116,8 @@ nsXULWindow::~nsXULWindow()
 // nsXULWindow::nsISupports
 //*****************************************************************************
 
-NS_IMPL_ADDREF(nsXULWindow)
-NS_IMPL_RELEASE(nsXULWindow)
+NS_IMPL_THREADSAFE_ADDREF(nsXULWindow)
+NS_IMPL_THREADSAFE_RELEASE(nsXULWindow)
 
 NS_INTERFACE_MAP_BEGIN(nsXULWindow)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXULWindow)

@@ -313,7 +313,7 @@ public:
         } else if (__uuidof(IUnknown) == riid) {
             *ppvObject = this;
         } else {
-            *ppvObject = nullptr;
+            *ppvObject = NULL;
             return E_FAIL;
         }
 

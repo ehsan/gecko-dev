@@ -32,6 +32,7 @@
 #include "gfxUtils.h"
 #include "SVGContentUtils.h"
 #include <algorithm>
+#include "nsContentUtils.h"
 #include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGComponentTransferFunctionElement.h"
 #include "mozilla/dom/SVGFEDistantLightElement.h"

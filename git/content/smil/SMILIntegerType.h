@@ -37,7 +37,7 @@ public:
   }
 
 private:
-  MOZ_CONSTEXPR SMILIntegerType() {}
+  SMILIntegerType() {}
 };
 
 } // namespace mozilla

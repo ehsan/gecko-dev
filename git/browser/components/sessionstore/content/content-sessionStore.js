@@ -6,8 +6,6 @@ function debug(msg) {
   Services.console.logStringMessage("SessionStoreContent: " + msg);
 }
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
-
 /**
  * Listens for and handles content events that we need for the
  * session store service to be notified of state changes in content.
@@ -15,7 +13,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 let EventListener = {
 
   DOM_EVENTS: [
-    "pageshow", "change", "input", "MozStorageChanged"
+    "pageshow", "change", "input"
   ],
 
   init: function () {
@@ -32,46 +30,11 @@ let EventListener = {
       case "change":
         sendAsyncMessage("SessionStore:input");
         break;
-      case "MozStorageChanged": {
-        let isSessionStorage = true;
-        // We are only interested in sessionStorage events
-        try {
-          if (event.storageArea != content.sessionStorage) {
-            isSessionStorage = false;
-          }
-        } catch (ex) {
-          // This page does not even have sessionStorage
-          // (this is typically the case of about: pages)
-          isSessionStorage = false;
-        }
-        if (isSessionStorage) {
-          sendAsyncMessage("SessionStore:MozStorageChanged");
-        }
-        break;
-      }
       default:
         debug("received unknown event '" + event.type + "'");
         break;
     }
   }
 };
-EventListener.init();
 
-let ProgressListener = {
-  init: function() {
-    let webProgress = docShell.QueryInterface(Ci.nsIInterfaceRequestor)
-                              .getInterface(Ci.nsIWebProgress);
-    webProgress.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_LOCATION);
-  },
-  onLocationChange: function(aWebProgress, aRequest, aLocation, aFlags) {
-    // We are changing page, so time to invalidate the state of the tab
-    sendAsyncMessage("SessionStore:loadStart");
-  },
-  onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus) {},
-  onProgressChange: function() {},
-  onStatusChange: function() {},
-  onSecurityChange: function() {},
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                         Ci.nsISupportsWeakReference])
-};
-ProgressListener.init();
+EventListener.init();

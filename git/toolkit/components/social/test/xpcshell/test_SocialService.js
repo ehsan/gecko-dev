@@ -78,44 +78,38 @@ function testGetProviderList(manifests, next) {
   }
 }
 
-
 function testEnabled(manifests, next) {
   // Check that providers are disabled by default
   let providers = yield SocialService.getProviderList(next);
   do_check_true(providers.length >= manifests.length);
-  do_check_true(SocialService.enabled, "social enabled at test start");
+  do_check_true(SocialService.enabled);
   providers.forEach(function (provider) {
     do_check_false(provider.enabled);
   });
 
-  do_test_pending();
-  function waitForEnableObserver(cb) {
-    Services.prefs.addObserver("social.enabled", function prefObserver(subj, topic, data) {
-      Services.prefs.removeObserver("social.enabled", prefObserver);
-      cb();
-    }, false);
-  }
+  let notificationDisabledCorrect = false;
+  Services.obs.addObserver(function obs1(subj, topic, data) {
+    Services.obs.removeObserver(obs1, "social:pref-changed");
+    notificationDisabledCorrect = data == "disabled";
+  }, "social:pref-changed", false);
 
   // enable one of the added providers
   providers[providers.length-1].enabled = true;
 
   // now disable the service and check that it disabled that provider (and all others for good measure)
-  waitForEnableObserver(function() {
-    do_check_true(!SocialService.enabled);
-    providers.forEach(function (provider) {
-      do_check_false(provider.enabled);
-    });
-    waitForEnableObserver(function() {
-      do_check_true(SocialService.enabled);
-      // Enabling the service should not enable providers
-      providers.forEach(function (provider) {
-        do_check_false(provider.enabled);
-      });
-      do_test_finished();
-    });
-    SocialService.enabled = true;
-  });
   SocialService.enabled = false;
+  do_check_true(notificationDisabledCorrect);
+  do_check_true(!SocialService.enabled);
+  providers.forEach(function (provider) {
+    do_check_false(provider.enabled);
+  });
+
+  SocialService.enabled = true;
+  do_check_true(SocialService.enabled);
+  // Enabling the service should not enable providers
+  providers.forEach(function (provider) {
+    do_check_false(provider.enabled);
+  });
 }
 
 function testAddRemoveProvider(manifests, next) {

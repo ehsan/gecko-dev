@@ -2,10 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
-#include "jsfun.h"
-
 #include "jsapi-tests/tests.h"
+#include "jsfun.h"
+#include "jscntxt.h"
 
 #ifdef MOZ_TRACE_JSCALLS
 
@@ -30,7 +29,7 @@ funcTransition(const JSFunction *,
     }
 }
 
-static bool called2 = false;
+static JSBool called2 = false;
 
 static void
 funcTransition2(const JSFunction *, const JSScript*, const JSContext*, int)

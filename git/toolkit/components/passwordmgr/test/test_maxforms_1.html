@@ -12,10 +12,8 @@ Test limiting number of forms filled.
 <p id="display"></p>
 <div id="content" style="display: none"></div>
 
-<script>
-commonInit();
-SimpleTest.waitForExplicitFinish();
 
+<script>
 var FORMS_TO_CREATE = 39;
 
 function createForm(id) {
@@ -36,6 +34,7 @@ theDiv.innerHTML = formsHtml;
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
+commonInit();
 /** Test for Login Manager: form fill, multiple forms. **/
 
 function startTest() {
@@ -52,13 +51,11 @@ function startTest() {
   SimpleTest.finish();
 }
 
-if (SpecialPowers.getBoolPref("signon.useDOMFormHasPassword")) {
-  info("skipping test when signon.useDOMFormHasPassword is enabled");
-  SimpleTest.finish();
-} else {
-  window.onload = startTest;
-}
+window.onload = startTest;
+
+SimpleTest.waitForExplicitFinish();
 </script>
 </pre>
 </body>
 </html>
+

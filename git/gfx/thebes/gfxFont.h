@@ -127,9 +127,6 @@ struct gfxFontStyle {
     // Say that this font is used for print or print preview.
     bool printerFont : 1;
 
-    // Used to imitate -webkit-font-smoothing: antialiased
-    bool useGrayscaleAntialiasing : 1;
-
     // The style of font (normal, italic, oblique)
     uint8_t style : 2;
 
@@ -156,7 +153,6 @@ struct gfxFontStyle {
             (style == other.style) &&
             (systemFont == other.systemFont) &&
             (printerFont == other.printerFont) &&
-            (useGrayscaleAntialiasing == other.useGrayscaleAntialiasing) &&
             (weight == other.weight) &&
             (stretch == other.stretch) &&
             (language == other.language) &&
@@ -350,12 +346,12 @@ public:
     // Subclasses should override this if they can provide more efficient
     // access than copying table data into our own buffers.
     //
-    // Get blob that encapsulates a specific font table, or nullptr if
+    // Get blob that encapsulates a specific font table, or NULL if
     // the table doesn't exist in the font.
     //
     // Caller is responsible to call hb_blob_destroy() on the returned blob
-    // (if non-nullptr) when no longer required. For transient access to a
-    // table, use of AutoTable (below) is generally preferred.
+    // (if non-NULL) when no longer required. For transient access to a table,
+    // use of AutoTable (below) is generally preferred.
     virtual hb_blob_t *GetFontTable(uint32_t aTag);
 
     // Stack-based utility to return a specified table, automatically releasing
@@ -395,8 +391,8 @@ public:
     // reference is owned by the caller.  Removing the last reference
     // unregisters the table from the font entry.
     //
-    // Pass nullptr for aBuffer to indicate that the table is not present and
-    // nullptr will be returned.  Also returns nullptr on OOM.
+    // Pass NULL for aBuffer to indicate that the table is not present and
+    // NULL will be returned.  Also returns NULL on OOM.
     hb_blob_t *ShareFontTableAndGetBlob(uint32_t aTag,
                                         FallibleTArray<uint8_t>* aTable);
 
@@ -604,21 +600,12 @@ private:
         typedef KeyClass::KeyTypePointer KeyTypePointer;
 
         FontTableHashEntry(KeyTypePointer aTag)
-            : KeyClass(aTag)
-            , mSharedBlobData(nullptr)
-            , mBlob(nullptr)
-        { }
-
-        // NOTE: This assumes the new entry belongs to the same hashtable as
-        // the old, because the mHashtable pointer in mSharedBlobData (if
-        // present) will not be updated.
-        FontTableHashEntry(FontTableHashEntry&& toMove)
-            : KeyClass(mozilla::Move(toMove))
-            , mSharedBlobData(mozilla::Move(toMove.mSharedBlobData))
-            , mBlob(mozilla::Move(toMove.mBlob))
+            : KeyClass(aTag), mBlob() { }
+        // Copying transfers blob association.
+        FontTableHashEntry(FontTableHashEntry& toCopy)
+            : KeyClass(toCopy), mBlob(toCopy.mBlob)
         {
-            toMove.mSharedBlobData = nullptr;
-            toMove.mBlob = nullptr;
+            toCopy.mBlob = nullptr;
         }
 
         ~FontTableHashEntry() { Clear(); }
@@ -1557,7 +1544,7 @@ public:
      * @param aDrawMode specifies whether the fill or stroke of the glyph should be
      * drawn, or if it should be drawn into the current path
      * @param aObjectPaint information about how to construct the fill and
-     * stroke pattern. Can be nullptr if we are not stroking the text, which
+     * stroke pattern. Can be NULL if we are not stroking the text, which
      * indicates that the current source from aContext should be used for filling
      * 
      * Callers guarantee:

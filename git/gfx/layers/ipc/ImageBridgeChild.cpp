@@ -3,52 +3,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ImageBridgeChild.h"
-#include <vector>                       // for vector
-#include "CompositorParent.h"           // for CompositorParent
-#include "ImageBridgeParent.h"          // for ImageBridgeParent
-#include "ImageContainer.h"             // for ImageContainer
-#include "Layers.h"                     // for Layer, etc
-#include "ShadowLayers.h"               // for ShadowLayerForwarder
-#include "base/message_loop.h"          // for MessageLoop
-#include "base/platform_thread.h"       // for PlatformThread
-#include "base/process.h"               // for ProcessHandle
-#include "base/process_util.h"          // for OpenProcessHandle
-#include "base/task.h"                  // for NewRunnableFunction, etc
-#include "base/thread.h"                // for Thread
-#include "base/tracked.h"               // for FROM_HERE
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/Monitor.h"            // for Monitor, MonitorAutoLock
-#include "mozilla/ReentrantMonitor.h"   // for ReentrantMonitor, etc
-#include "mozilla/ipc/AsyncChannel.h"   // for AsyncChannel, etc
-#include "mozilla/ipc/Transport.h"      // for Transport
-#include "mozilla/layers/CompositableClient.h"  // for CompositableChild, etc
-#include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
-#include "mozilla/layers/ImageClient.h"  // for ImageClient
-#include "mozilla/layers/LayerTransaction.h"  // for CompositableOperation
-#include "mozilla/layers/PCompositableChild.h"  // for PCompositableChild
-#include "mozilla/layers/TextureClient.h"  // for TextureClient
-#include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"            // for ImageContainer::AddRef, etc
-#include "nsTArray.h"                   // for nsAutoTArray, nsTArray, etc
-#include "nsTArrayForwardDeclare.h"     // for AutoInfallibleTArray
-#include "nsThreadUtils.h"              // for NS_IsMainThread
-#include "nsXULAppAPI.h"                // for XRE_GetIOMessageLoop
+#include "base/thread.h"
 
-struct nsIntRect;
+#include "CompositorParent.h" // for CompositorParent::CompositorLoop
+#include "ImageBridgeChild.h"
+#include "ImageBridgeParent.h"
+#include "gfxSharedImageSurface.h"
+#include "mozilla/Monitor.h"
+#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/layers/CompositableClient.h"
+#include "nsXULAppAPI.h"
+#include "mozilla/layers/TextureClient.h"
+#include "mozilla/layers/ImageClient.h"
+#include "ImageContainer.h"
+#include "mozilla/layers/LayersTypes.h"
+#include "ShadowLayers.h"
  
 using namespace base;
 using namespace mozilla::ipc;
 
 namespace mozilla {
-namespace ipc {
-class Shmem;
-}
-
 namespace layers {
 
-class PGrallocBufferChild;
 typedef std::vector<CompositableOperation> OpVector;
 
 struct CompositableTransaction
@@ -101,51 +77,6 @@ struct AutoEndTransaction {
   ~AutoEndTransaction() { mTxn->End(); }
   CompositableTransaction* mTxn;
 };
-
-void
-ImageBridgeChild::AddTexture(CompositableClient* aCompositable,
-                             TextureClient* aTexture)
-{
-  SurfaceDescriptor descriptor;
-  if (!aTexture->ToSurfaceDescriptor(descriptor)) {
-    NS_WARNING("ImageBridge: Failed to serialize a TextureClient");
-    return;
-  }
-  mTxn->AddEdit(OpAddTexture(nullptr, aCompositable->GetIPDLActor(),
-                             aTexture->GetID(),
-                             descriptor,
-                             aTexture->GetFlags()));
-}
-
-void
-ImageBridgeChild::RemoveTexture(CompositableClient* aCompositable,
-                                uint64_t aTexture,
-                                TextureFlags aFlags)
-{
-  mTxn->AddNoSwapEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
-                                      aTexture,
-                                      aFlags));
-}
-
-void
-ImageBridgeChild::UseTexture(CompositableClient* aCompositable,
-                             TextureClient* aTexture)
-{
-  mTxn->AddNoSwapEdit(OpUseTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   aTexture->GetID()));
-}
-
-void
-ImageBridgeChild::UpdatedTexture(CompositableClient* aCompositable,
-                                 TextureClient* aTexture,
-                                 nsIntRegion* aRegion)
-{
-  MaybeRegion region = aRegion ? MaybeRegion(*aRegion)
-                               : MaybeRegion(null_t());
-  mTxn->AddNoSwapEdit(OpUpdateTexture(nullptr, aCompositable->GetIPDLActor(),
-                                      aTexture->GetID(),
-                                      region));
-}
 
 void
 ImageBridgeChild::UpdateTexture(CompositableClient* aCompositable,
@@ -373,7 +304,6 @@ static void UpdateImageClientNow(ImageClient* aClient, ImageContainer* aContaine
   MOZ_ASSERT(aContainer);
   sImageBridgeChildSingleton->BeginTransaction();
   aClient->UpdateImage(aContainer, Layer::CONTENT_OPAQUE);
-  aClient->OnTransaction();
   sImageBridgeChildSingleton->EndTransaction();
 }
 
@@ -446,14 +376,6 @@ ImageBridgeChild::EndTransaction()
 
       compositableChild->GetCompositableClient()
         ->SetDescriptorFromReply(ots.textureId(), ots.image());
-      break;
-    }
-    case EditReply::TReplyTextureRemoved: {
-      // We receive this reply when a Texture is removed and when it is not
-      // the responsibility of the compositor side to deallocate memory.
-      // This would be, for instance, the place to implement a mechanism to
-      // notify the B2G camera that the gralloc buffer is not used by the
-      // compositor anymore and that it can be recycled.
       break;
     }
     default:
@@ -774,7 +696,7 @@ static void ProxyAllocShmemNow(AllocShmemParams* aParams,
 bool
 ImageBridgeChild::DispatchAllocShmemInternal(size_t aSize,
                                              SharedMemory::SharedMemoryType aType,
-                                             ipc::Shmem* aShmem,
+                                             Shmem* aShmem,
                                              bool aUnsafe)
 {
   ReentrantMonitor barrier("AllocatorProxy alloc");
@@ -797,7 +719,7 @@ ImageBridgeChild::DispatchAllocShmemInternal(size_t aSize,
 }
 
 static void ProxyDeallocShmemNow(ISurfaceAllocator* aAllocator,
-                                 ipc::Shmem* aShmem,
+                                 Shmem* aShmem,
                                  ReentrantMonitor* aBarrier,
                                  bool* aDone)
 {

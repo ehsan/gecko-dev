@@ -31,6 +31,7 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
+#include "nsILink.h"
 #include "nsTextFragment.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIEditor.h"
@@ -48,7 +49,6 @@
 #include "nsIObserverService.h"
 #include "nsFocusManager.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/Link.h"
 #include "nsRange.h"
 
 #include "nsTypeAheadFind.h"
@@ -851,7 +851,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
     // eventually we'll run out of ancestors
 
     if (startContent->IsHTML()) {
-      nsCOMPtr<mozilla::dom::Link> link(do_QueryInterface(startContent));
+      nsCOMPtr<nsILink> link(do_QueryInterface(startContent));
       if (link) {
         // Check to see if inside HTML link
         *aIsInsideLink = startContent->HasAttr(kNameSpaceID_None, hrefAtom);

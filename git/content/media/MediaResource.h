@@ -18,7 +18,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "MediaCache.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TimeStamp.h"
 
 // For HTTP seeking, if number of bytes needing to be
 // seeked forward is less than this value then a read is
@@ -56,10 +55,7 @@ public:
   MediaChannelStatistics(MediaChannelStatistics * aCopyFrom)
   {
     MOZ_ASSERT(aCopyFrom);
-    mAccumulatedBytes = aCopyFrom->mAccumulatedBytes;
-    mAccumulatedTime = aCopyFrom->mAccumulatedTime;
-    mLastStartTime = aCopyFrom->mLastStartTime;
-    mIsStarted = aCopyFrom->mIsStarted;
+    *this = *aCopyFrom;
   }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaChannelStatistics)
@@ -193,8 +189,7 @@ inline MediaByteRange::MediaByteRange(TimestampedMediaByteRange& aByteRange)
  * Decoder they are called on the Decode thread for example. You must
  * ensure that no threads are calling these methods once Close is called.
  *
- * Instances of this class are reference counted. Use nsRefPtr for
- * managing the lifetime of instances of this class.
+ * Instances of this class are explicitly managed. 'delete' it when done.
  *
  * The generic implementation of this class is ChannelMediaResource, which can
  * handle any URI for which Necko supports AsyncOpen.

@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsAtomicRefcnt.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
@@ -14,16 +15,20 @@
 #include "nsComponentManagerUtils.h"
 #include "nsCharsetAlias.h"
 
+static int32_t          gInstanceCount = 0;
+
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
 
 nsScriptableUnicodeConverter::nsScriptableUnicodeConverter()
 : mIsInternal(false)
 {
+  PR_ATOMIC_INCREMENT(&gInstanceCount);
 }
 
 nsScriptableUnicodeConverter::~nsScriptableUnicodeConverter()
 {
+  PR_ATOMIC_DECREMENT(&gInstanceCount);
 }
 
 nsresult

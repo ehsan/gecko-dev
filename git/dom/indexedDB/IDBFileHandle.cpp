@@ -106,7 +106,7 @@ IDBFileHandle::CreateFileObject(mozilla::dom::file::LockedFile* aLockedFile,
   return file.forget();
 }
 
-IDBDatabase*
+nsIIDBDatabase*
 IDBFileHandle::Database()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");

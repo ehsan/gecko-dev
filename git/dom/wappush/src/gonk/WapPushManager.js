@@ -8,7 +8,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
+
 Cu.import("resource://gre/modules/WspPduHelper.jsm", this);
 
 const DEBUG = false; // set to true to see debug messages
@@ -26,12 +26,6 @@ XPCOMUtils.defineLazyGetter(this, "SL", function () {
   let SL = {};
   Cu.import("resource://gre/modules/SlPduHelper.jsm", SL);
   return SL;
-});
-
-XPCOMUtils.defineLazyGetter(this, "CP", function () {
-  let CP = {};
-  Cu.import("resource://gre/modules/CpPduHelper.jsm", CP);
-  return CP;
 });
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSystemMessenger",
@@ -62,8 +56,8 @@ this.WapPushManager = {
 
     let appid = options.headers["x-wap-application-id"];
     if (!appid) {
-      // Assume message without applicatioin ID is WAP Push
       debug("Push message doesn't contains X-Wap-Application-Id.");
+      return;
     }
 
     // MMS
@@ -98,10 +92,9 @@ this.WapPushManager = {
     } else if (contentType === "text/vnd.wap.sl" ||
                contentType === "application/vnd.wap.slc") {
       msg = SL.PduHelper.parse(data, contentType);
-    } else if (contentType === "text/vnd.wap.connectivity-xml" ||
-               contentType === "application/vnd.wap.connectivity-wbxml") {
-      msg = CP.PduHelper.parse(data, contentType);
     } else {
+      // TODO: Bug 869291 - Support Receiving WAP-Push-CP
+
       // Unsupported type, provide raw data.
       msg = {
         contentType: contentType,
@@ -109,14 +102,7 @@ this.WapPushManager = {
       };
     }
 
-    let sender = PhoneNumberUtils.normalize(options.sourceAddress, false);
-    let parsedSender = PhoneNumberUtils.parse(sender);
-    if (parsedSender && parsedSender.internationalNumber) {
-      sender = parsedSender.internationalNumber;
-    }
-
     gSystemMessenger.broadcastMessage("wappush-received", {
-      sender:         sender,
       contentType:    msg.contentType,
       content:        msg.content
     });

@@ -8,14 +8,20 @@
 #define jscompartment_h
 
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
-#include "builtin/TypeRepresentation.h"
+#include "jscntxt.h"
+#include "jsgc.h"
+#include "jsobj.h"
+
 #include "gc/Zone.h"
 #include "vm/GlobalObject.h"
+#include "vm/RegExpObject.h"
+#include "vm/Shape.h"
 
 namespace js {
 
-namespace jit {
+namespace ion {
 class IonCompartment;
 }
 
@@ -84,8 +90,10 @@ struct CrossCompartmentKey
       : kind(kind), debugger(dbg), wrapped(wrapped) {}
 };
 
-struct WrapperHasher : public DefaultHasher<CrossCompartmentKey>
+struct WrapperHasher
 {
+    typedef CrossCompartmentKey Lookup;
+
     static HashNumber hash(const CrossCompartmentKey &key) {
         JS_ASSERT(!IsPoisonedPtr(key.wrapped));
         return uint32_t(uintptr_t(key.wrapped)) | uint32_t(key.kind);
@@ -114,20 +122,13 @@ class WeakMapBase;
 
 struct JSCompartment
 {
+    JS::Zone                     *zone_;
     JS::CompartmentOptions       options_;
 
-  private:
-    JS::Zone                     *zone_;
-    JSRuntime                    *runtime_;
-
-  public:
+    JSRuntime                    *rt;
     JSPrincipals                 *principals;
     bool                         isSystem;
     bool                         marked;
-
-#ifdef DEBUG
-    bool                         firedOnNewGlobalObject;
-#endif
 
     void mark() { marked = true; }
 
@@ -148,17 +149,6 @@ struct JSCompartment
     const JS::Zone *zone() const { return zone_; }
     JS::CompartmentOptions &options() { return options_; }
     const JS::CompartmentOptions &options() const { return options_; }
-
-    JSRuntime *runtimeFromMainThread() {
-        JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
-        return runtime_;
-    }
-
-    // Note: Unrestricted access to the zone's runtime from an arbitrary
-    // thread can easily lead to races. Use this method very carefully.
-    JSRuntime *runtimeFromAnyThread() const {
-        return runtime_;
-    }
 
     /*
      * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
@@ -208,9 +198,6 @@ struct JSCompartment
 
     js::RegExpCompartment        regExps;
 
-    /* Set of all currently living type representations. */
-    js::TypeRepresentationSet    typeReprs;
-
   private:
     void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, mozilla::MallocSizeOf mallocSizeOf);
 
@@ -239,6 +226,8 @@ struct JSCompartment
     js::types::TypeObjectSet     newTypeObjects;
     js::types::TypeObjectSet     lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
+
+    js::types::TypeObject *getLazyType(JSContext *cx, js::Class *clasp, js::TaggedProto proto);
 
     /*
      * Hash table of all manually call site-cloned functions from within
@@ -281,17 +270,14 @@ struct JSCompartment
     void markCrossCompartmentWrappers(JSTracer *trc);
     void markAllCrossCompartmentWrappers(JSTracer *trc);
 
-    inline bool wrap(JSContext *cx, JS::MutableHandleValue vp,
-                     JS::HandleObject existing = js::NullPtr());
-
+    bool wrap(JSContext *cx, JS::MutableHandleValue vp, JS::HandleObject existing = js::NullPtr());
     bool wrap(JSContext *cx, JSString **strp);
     bool wrap(JSContext *cx, js::HeapPtrString *strp);
-    bool wrap(JSContext *cx, JS::MutableHandleObject obj,
-              JS::HandleObject existingArg = js::NullPtr());
+    bool wrap(JSContext *cx, JSObject **objp, JSObject *existing = NULL);
     bool wrapId(JSContext *cx, jsid *idp);
     bool wrap(JSContext *cx, js::PropertyOp *op);
     bool wrap(JSContext *cx, js::StrictPropertyOp *op);
-    bool wrap(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc);
+    bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
     bool putWrapper(const js::CrossCompartmentKey& wrapped, const js::Value& wrapper);
@@ -313,7 +299,6 @@ struct JSCompartment
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();
     void purge();
-    void clearTables();
 
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
@@ -388,21 +373,15 @@ struct JSCompartment
 
 #ifdef JS_ION
   private:
-    js::jit::IonCompartment *ionCompartment_;
+    js::ion::IonCompartment *ionCompartment_;
 
   public:
     bool ensureIonCompartmentExists(JSContext *cx);
-    js::jit::IonCompartment *ionCompartment() {
+    js::ion::IonCompartment *ionCompartment() {
         return ionCompartment_;
     }
 #endif
 };
-
-inline bool
-JSRuntime::isAtomsZone(JS::Zone *zone)
-{
-    return zone == atomsCompartment_->zone();
-}
 
 // For use when changing the debug mode flag on one or more compartments.
 // Do not run scripts in any compartment that is scheduled for GC using this
@@ -436,6 +415,10 @@ namespace js {
 inline bool
 ExclusiveContext::typeInferenceEnabled() const
 {
+    // Type inference cannot be enabled in compartments which are accessed off
+    // the main thread by an ExclusiveContext. TI data is stored in per-zone
+    // allocators which could otherwise race with main thread operations.
+    JS_ASSERT_IF(!isJSContext(), !compartment_->zone()->types.inferenceEnabled);
     return compartment_->zone()->types.inferenceEnabled;
 }
 
@@ -473,15 +456,15 @@ class AssertCompartmentUnchanged
 
 class AutoCompartment
 {
-    ExclusiveContext * const cx_;
+    JSContext * const cx_;
     JSCompartment * const origin_;
 
   public:
-    inline AutoCompartment(ExclusiveContext *cx, JSObject *target);
+    inline AutoCompartment(JSContext *cx, JSObject *target);
     inline AutoCompartment(ExclusiveContext *cx, JSCompartment *target);
     inline ~AutoCompartment();
 
-    ExclusiveContext *context() const { return cx_; }
+    JSContext *context() const { return cx_; }
     JSCompartment *origin() const { return origin_; }
 
   private:

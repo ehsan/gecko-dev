@@ -92,6 +92,7 @@ OggReader::OggReader(AbstractMediaDecoder* aDecoder)
     mOpusSerial(0),
     mTheoraSerial(0),
     mOpusPreSkip(0),
+    mPageOffset(0),
     mIsChained(false),
     mDecodedAudioFrames(0)
 {
@@ -183,7 +184,8 @@ nsresult OggReader::ReadMetadata(VideoInfo* aInfo,
   nsAutoTArray<OggCodecState*,4> bitstreams;
   bool readAllBOS = false;
   while (!readAllBOS) {
-    if (!ReadOggPage(&page)) {
+    int64_t pageOffset = ReadOggPage(&page);
+    if (pageOffset == -1) {
       // Some kind of error...
       break;
     }
@@ -413,7 +415,7 @@ nsresult OggReader::DecodeVorbis(ogg_packet* aPacket) {
 
     int64_t duration = mVorbisState->Time((int64_t)frames);
     int64_t startTime = mVorbisState->Time(endFrame - frames);
-    mAudioQueue.Push(new AudioData(mDecoder->GetResource()->Tell(),
+    mAudioQueue.Push(new AudioData(mPageOffset,
                                    startTime,
                                    duration,
                                    frames,
@@ -533,7 +535,7 @@ nsresult OggReader::DecodeOpus(ogg_packet* aPacket) {
   LOG(PR_LOG_DEBUG, ("Opus decoder pushing %d frames", frames));
   int64_t startTime = mOpusState->Time(startFrame);
   int64_t endTime = mOpusState->Time(endFrame);
-  mAudioQueue.Push(new AudioData(mDecoder->GetResource()->Tell(),
+  mAudioQueue.Push(new AudioData(mPageOffset,
                                  startTime,
                                  endTime - startTime,
                                  frames,
@@ -673,7 +675,8 @@ bool OggReader::ReadOggChain()
   }
 
   ogg_page page;
-  if (!ReadOggPage(&page) || !ogg_page_bos(&page)) {
+  int64_t pageOffset = ReadOggPage(&page);
+  if ((pageOffset == -1) || (!ogg_page_bos(&page))) {
     return false;
   }
 
@@ -781,7 +784,7 @@ nsresult OggReader::DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold)
   }
 
   if (ret == TH_DUPFRAME) {
-    VideoData* v = VideoData::CreateDuplicate(mDecoder->GetResource()->Tell(),
+    VideoData* v = VideoData::CreateDuplicate(mPageOffset,
                                               time,
                                               endTime,
                                               aPacket->granulepos);
@@ -802,7 +805,7 @@ nsresult OggReader::DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold)
 
     VideoData *v = VideoData::Create(mInfo,
                                      mDecoder->GetImageContainer(),
-                                     mDecoder->GetResource()->Tell(),
+                                     mPageOffset,
                                      time,
                                      endTime,
                                      b,
@@ -870,7 +873,7 @@ bool OggReader::DecodeVideoFrame(bool &aKeyframeSkip,
   return true;
 }
 
-bool OggReader::ReadOggPage(ogg_page* aPage)
+int64_t OggReader::ReadOggPage(ogg_page* aPage)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
@@ -878,6 +881,7 @@ bool OggReader::ReadOggPage(ogg_page* aPage)
   while((ret = ogg_sync_pageseek(&mOggState, aPage)) <= 0) {
     if (ret < 0) {
       // Lost page sync, have to skip up to next page.
+      mPageOffset += -ret;
       continue;
     }
     // Returns a buffer that can be written too
@@ -892,17 +896,19 @@ bool OggReader::ReadOggPage(ogg_page* aPage)
     nsresult rv = mDecoder->GetResource()->Read(buffer, 4096, &bytesRead);
     if (NS_FAILED(rv) || (bytesRead == 0 && ret == 0)) {
       // End of file.
-      return false;
+      return -1;
     }
 
     mDecoder->NotifyBytesConsumed(bytesRead);
     // Update the synchronisation layer with the number
     // of bytes written to the buffer
     ret = ogg_sync_wrote(&mOggState, bytesRead);
-    NS_ENSURE_TRUE(ret == 0, false);
+    NS_ENSURE_TRUE(ret == 0, -1);    
   }
-
-  return true;
+  int64_t offset = mPageOffset;
+  mPageOffset += aPage->header_len + aPage->body_len;
+  
+  return offset;
 }
 
 ogg_packet* OggReader::NextOggPacket(OggCodecState* aCodecState)
@@ -918,7 +924,7 @@ ogg_packet* OggReader::NextOggPacket(OggCodecState* aCodecState)
     // The codec state does not have any buffered pages, so try to read another
     // page from the channel.
     ogg_page page;
-    if (!ReadOggPage(&page)) {
+    if (ReadOggPage(&page) == -1) {
       return nullptr;
     }
 
@@ -942,7 +948,7 @@ GetChecksum(ogg_page* page)
   }
   const unsigned char* p = page->header + 22;
   uint32_t c =  p[0] +
-               (p[1] << 8) +
+               (p[1] << 8) + 
                (p[2] << 16) +
                (p[3] << 24);
   return c;
@@ -1007,7 +1013,7 @@ int64_t OggReader::RangeEndTime(int64_t aStartOffset,
   uint32_t prevChecksumAfterSeek = 0;
   bool mustBackOff = false;
   while (true) {
-    ogg_page page;
+    ogg_page page;    
     int ret = ogg_sync_pageseek(&sync.mState, &page);
     if (ret == 0) {
       // We need more data if we've not encountered a page we've seen before,
@@ -1190,7 +1196,7 @@ OggReader::IndexedSeekResult OggReader::RollbackIndexedSeek(int64_t aOffset)
   NS_ENSURE_SUCCESS(res, SEEK_FATAL_ERROR);
   return SEEK_INDEX_FAIL;
 }
-
+ 
 OggReader::IndexedSeekResult OggReader::SeekToKeyframeUsingIndex(int64_t aTarget)
 {
   MediaResource* resource = mDecoder->GetResource();
@@ -1225,6 +1231,7 @@ OggReader::IndexedSeekResult OggReader::SeekToKeyframeUsingIndex(int64_t aTarget
   nsresult res = resource->Seek(nsISeekableStream::NS_SEEK_SET,
                               keyframe.mKeyPoint.mOffset);
   NS_ENSURE_SUCCESS(res, SEEK_FATAL_ERROR);
+  mPageOffset = keyframe.mKeyPoint.mOffset;
 
   // We've moved the read set, so reset decode.
   res = ResetDecode();
@@ -1237,7 +1244,7 @@ OggReader::IndexedSeekResult OggReader::SeekToKeyframeUsingIndex(int64_t aTarget
   PageSyncResult syncres = PageSync(resource,
                                     &mOggState,
                                     false,
-                                    keyframe.mKeyPoint.mOffset,
+                                    mPageOffset,
                                     resource->GetLength(),
                                     &page,
                                     skippedBytes);
@@ -1262,6 +1269,7 @@ OggReader::IndexedSeekResult OggReader::SeekToKeyframeUsingIndex(int64_t aTarget
     // is no longer active.
     return RollbackIndexedSeek(tell);
   }
+  mPageOffset = keyframe.mKeyPoint.mOffset + page.header_len + page.body_len;
   return SEEK_OK;
 }
 
@@ -1327,7 +1335,7 @@ nsresult OggReader::SeekInUnbuffered(int64_t aTarget,
                                        const nsTArray<SeekRange>& aRanges)
 {
   LOG(PR_LOG_DEBUG, ("%p Seeking in unbuffered data to %lld using bisection search", mDecoder, aTarget));
-
+  
   // If we've got an active Theora bitstream, determine the maximum possible
   // time in usecs which a keyframe could be before a given interframe. We
   // subtract this from our seek target, seek to the new target, and then
@@ -1378,6 +1386,7 @@ nsresult OggReader::Seek(int64_t aTarget,
     res = resource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
     NS_ENSURE_SUCCESS(res,res);
 
+    mPageOffset = 0;
     res = ResetDecode(true);
     NS_ENSURE_SUCCESS(res,res);
 
@@ -1475,7 +1484,7 @@ PageSync(MediaResource* aResource,
       // Update the synchronisation layer with the number
       // of bytes written to the buffer
       ret = ogg_sync_wrote(aState, bytesRead);
-      NS_ENSURE_TRUE(ret == 0, PAGE_SYNC_ERROR);
+      NS_ENSURE_TRUE(ret == 0, PAGE_SYNC_ERROR);    
       continue;
     }
 
@@ -1486,7 +1495,7 @@ PageSync(MediaResource* aResource,
       continue;
     }
   }
-
+  
   return PAGE_SYNC_OK;
 }
 
@@ -1504,6 +1513,7 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
     }
     res = resource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
     NS_ENSURE_SUCCESS(res,res);
+    mPageOffset = 0;
     return NS_OK;
   }
 
@@ -1543,7 +1553,7 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
     // remaining in the interval. Loop until we can determine the time at
     // the guess offset.
     while (true) {
-
+  
       // Discard any previously buffered packets/pages.
       if (NS_FAILED(ResetDecode())) {
         return NS_ERROR_FAILURE;
@@ -1604,7 +1614,7 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
       previousGuess = guess;
 
       hops++;
-
+    
       // Locate the next page after our seek guess, and then figure out the
       // granule time of the audio and video bitstreams there. We can then
       // make a bisection decision based on our location in the media.
@@ -1617,6 +1627,12 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
                                     skippedBytes);
       NS_ENSURE_TRUE(res != PAGE_SYNC_ERROR, NS_ERROR_FAILURE);
 
+      // We've located a page of length |ret| at |guess + skippedBytes|.
+      // Remember where the page is located.
+      pageOffset = guess + skippedBytes;
+      pageLength = page.header_len + page.body_len;
+      mPageOffset = pageOffset + pageLength;
+
       if (res == PAGE_SYNC_END_OF_RANGE) {
         // Our guess was too close to the end, we've ended up reading the end
         // page. Backoff exponentially from the end point, in case the last
@@ -1626,12 +1642,7 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
         continue;
       }
 
-      // We've located a page of length |ret| at |guess + skippedBytes|.
-      // Remember where the page is located.
-      pageOffset = guess + skippedBytes;
-      pageLength = page.header_len + page.body_len;
-
-      // Read pages until we can determine the granule time of the audio and
+      // Read pages until we can determine the granule time of the audio and 
       // video bitstream.
       ogg_int64_t audioTime = -1;
       ogg_int64_t videoTime = -1;
@@ -1655,33 +1666,33 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
 #endif
           }
         }
-
+        
         if (HasVideo() &&
             granulepos > 0 &&
             serial == mTheoraState->mSerial &&
             videoTime == -1) {
-          videoTime = mTheoraState->Time(granulepos);
+          videoTime = mTheoraState->StartTime(granulepos);
         }
 
-        if (pageOffset + pageLength >= endOffset) {
+        if (mPageOffset == endOffset) {
           // Hit end of readable data.
           break;
         }
 
-        if (!ReadOggPage(&page)) {
+        if (ReadOggPage(&page) == -1) {
           break;
         }
-
+        
       } while ((HasAudio() && audioTime == -1) ||
                (HasVideo() && videoTime == -1));
 
+      NS_ASSERTION(mPageOffset <= endOffset, "Page read cursor should be inside range");
 
       if ((HasAudio() && audioTime == -1) ||
-          (HasVideo() && videoTime == -1))
+          (HasVideo() && videoTime == -1)) 
       {
         // We don't have timestamps for all active tracks...
-        if (pageOffset == startOffset + startLength &&
-            pageOffset + pageLength >= endOffset) {
+        if (pageOffset == startOffset + startLength && mPageOffset == endOffset) {
           // We read the entire interval without finding timestamps for all
           // active tracks. We know the interval start offset is before the seek
           // target, and the interval end is after the seek target, and we can't
@@ -1711,6 +1722,7 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
       NS_ASSERTION(startTime < aTarget, "Start time must always be less than target");
       res = resource->Seek(nsISeekableStream::NS_SEEK_SET, startOffset);
       NS_ENSURE_SUCCESS(res,res);
+      mPageOffset = startOffset;
       if (NS_FAILED(ResetDecode())) {
         return NS_ERROR_FAILURE;
       }
@@ -1722,10 +1734,11 @@ nsresult OggReader::SeekBisection(int64_t aTarget,
       // We're within the fuzzy region in which we want to terminate the search.
       res = resource->Seek(nsISeekableStream::NS_SEEK_SET, pageOffset);
       NS_ENSURE_SUCCESS(res,res);
+      mPageOffset = pageOffset;
       if (NS_FAILED(ResetDecode())) {
         return NS_ERROR_FAILURE;
       }
-      SEEK_LOG(PR_LOG_DEBUG, ("Terminating seek at offset=%lld", pageOffset));
+      SEEK_LOG(PR_LOG_DEBUG, ("Terminating seek at offset=%lld", mPageOffset));
       break;
     }
 
@@ -1766,7 +1779,7 @@ nsresult OggReader::GetBuffered(TimeRanges* aBuffered, int64_t aStartTime)
     durationUs = mDecoder->GetMediaDuration();
   }
   GetEstimatedBufferedTimeRanges(stream, durationUs, aBuffered);
-
+  
   return NS_OK;
 #else
   // HasAudio and HasVideo are not used here as they take a lock and cause

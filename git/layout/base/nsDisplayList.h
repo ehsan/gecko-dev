@@ -18,23 +18,27 @@
 #include "nsIFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "nsISelection.h"
 #include "nsCaret.h"
 #include "plarena.h"
 #include "nsRegion.h"
 #include "FrameLayerBuilder.h"
+#include "nsThemeConstants.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayListInvalidation.h"
 #include "DisplayListClipState.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #include <stdlib.h>
 #include <algorithm>
 
+class nsIPresShell;
 class nsIContent;
 class nsRenderingContext;
+class nsDeviceContext;
 class nsDisplayTableItem;
-class nsISelection;
+class nsDisplayItem;
 
 namespace mozilla {
 namespace layers {
@@ -1000,12 +1004,6 @@ public:
   static bool ForceActiveLayers();
 
   /**
-   * Returns the maximum number of layers that should be created
-   * or -1 for no limit. Requires setting the pref layers.max-acitve.
-   */
-  static int32_t MaxActiveLayers();
-
-  /**
    * @return LAYER_NONE if BuildLayer will return null. In this case
    * there is no layer for the item, and Paint should be called instead
    * to paint the content using Thebes.
@@ -1738,36 +1736,6 @@ protected:
   Type mType;
 };
 
-/**
- * Generic display item that can contain overflow. Use this in lieu of
- * nsDisplayGeneric if you have a frame that should use the visual overflow
- * rect of its frame when drawing items, instead of the frame's bounds.
- */
-class nsDisplayGenericOverflow : public nsDisplayGeneric {
-  public:
-    nsDisplayGenericOverflow(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                             PaintCallback aPaint, const char* aName, Type aType)
-      : nsDisplayGeneric(aBuilder, aFrame, aPaint, aName, aType)
-    {
-      MOZ_COUNT_CTOR(nsDisplayGenericOverflow);
-    }
-  #ifdef NS_BUILD_REFCNT_LOGGING
-    virtual ~nsDisplayGenericOverflow() {
-      MOZ_COUNT_DTOR(nsDisplayGenericOverflow);
-    }
-  #endif
-
-    /**
-     * Returns the frame's visual overflow rect instead of the frame's bounds.
-     */
-    virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
-                             bool* aSnap) MOZ_OVERRIDE
-    {
-      *aSnap = false;
-      return Frame()->GetVisualOverflowRect() + ToReferenceFrame();
-    }
-};
-
 #if defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF)
 /**
  * This class implements painting of reflow counts.  Ideally, we would simply
@@ -1985,10 +1953,12 @@ public:
   virtual ~nsDisplayBackgroundImage();
 
   // This will create and append new items for all the layers of the
-  // background. Returns whether we appended a themed background.
-  static bool AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuilder,
-                                         nsIFrame* aFrame,
-                                         nsDisplayList* aList);
+  // background. If given, aBackground will be set with the address of the
+  // bottom-most background item.
+  static nsresult AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuilder,
+                                             nsIFrame* aFrame,
+                                             nsDisplayList* aList,
+                                             bool* aAppendedThemedBackground = nullptr);
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
@@ -2204,7 +2174,18 @@ public:
   
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion);
+                                         nsRegion* aInvalidRegion)
+  {
+    const nsDisplayItemGenericGeometry* geometry = static_cast<const nsDisplayItemGenericGeometry*>(aGeometry);
+    bool snap;
+    if (!geometry->mBounds.IsEqualInterior(GetBounds(aBuilder, &snap)) ||
+        !geometry->mBorderRect.IsEqualInterior(GetBorderRect())) {
+      nsRegion oldShadow, newShadow;
+      oldShadow = oldShadow.Sub(geometry->mBounds, geometry->mBorderRect);
+      newShadow = newShadow.Sub(GetBounds(aBuilder, &snap), GetBorderRect());
+      aInvalidRegion->Or(oldShadow, newShadow);
+    }
+  }
 
   nsRect GetBoundsInternal();
 

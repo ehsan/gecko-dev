@@ -8,7 +8,6 @@
 #define vm_ArrayObject_inl_h
 
 #include "vm/ArrayObject.h"
-
 #include "vm/String.h"
 
 #include "jsinferinlines.h"
@@ -16,15 +15,15 @@
 namespace js {
 
 /* static */ inline void
-ArrayObject::setLength(ExclusiveContext *cx, Handle<ArrayObject*> arr, uint32_t length)
+ArrayObject::setLength(JSContext *cx, Handle<ArrayObject*> arr, uint32_t length)
 {
     JS_ASSERT(arr->lengthIsWritable());
 
     if (length > INT32_MAX) {
         /* Track objects with overflowing lengths in type information. */
-        types::MarkTypeObjectFlags(cx, arr, types::OBJECT_FLAG_LENGTH_OVERFLOW);
-        jsid lengthId = NameToId(cx->names().length);
-        types::AddTypePropertyId(cx, arr, lengthId, types::Type::DoubleType());
+        js::types::MarkTypeObjectFlags(cx, arr, js::types::OBJECT_FLAG_LENGTH_OVERFLOW);
+        jsid lengthId = js::NameToId(cx->names().length);
+        js::types::AddTypePropertyId(cx, arr, lengthId, js::types::Type::DoubleType());
     }
 
     arr->getElementsHeader()->length = length;

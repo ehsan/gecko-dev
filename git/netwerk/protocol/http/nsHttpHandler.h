@@ -26,7 +26,7 @@
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
 #include "nsITimer.h"
-#include "nsISiteSecurityService.h"
+#include "nsIStrictTransportSecurityService.h"
 #include "nsISpeculativeConnect.h"
 
 class nsHttpConnectionInfo;
@@ -55,7 +55,7 @@ class nsHttpHandler : public nsIHttpProtocolHandler
                     , public nsISpeculativeConnect
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIPROXIEDPROTOCOLHANDLER
     NS_DECL_NSIHTTPPROTOCOLHANDLER
@@ -196,7 +196,7 @@ public:
     nsresult GetStreamConverterService(nsIStreamConverterService **);
     nsresult GetIOService(nsIIOService** service);
     nsICookieService * GetCookieService(); // not addrefed
-    nsISiteSecurityService * GetSSService();
+    nsIStrictTransportSecurityService * GetSTSService();
 
     // callable from socket thread only
     uint32_t Get32BitsOfPseudoRandom();
@@ -304,11 +304,11 @@ private:
 private:
 
     // cached services
-    nsMainThreadPtrHandle<nsIIOService>              mIOService;
-    nsMainThreadPtrHandle<nsIStreamConverterService> mStreamConvSvc;
-    nsMainThreadPtrHandle<nsIObserverService>        mObserverService;
-    nsMainThreadPtrHandle<nsICookieService>          mCookieService;
-    nsMainThreadPtrHandle<nsISiteSecurityService>    mSSService;
+    nsCOMPtr<nsIIOService>              mIOService;
+    nsCOMPtr<nsIStreamConverterService> mStreamConvSvc;
+    nsCOMPtr<nsIObserverService>        mObserverService;
+    nsCOMPtr<nsICookieService>          mCookieService;
+    nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
@@ -495,7 +495,7 @@ public:
     // we basically just want to override GetScheme and GetDefaultPort...
     // all other methods should be forwarded to the nsHttpHandler instance.
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_FORWARD_NSIPROXIEDPROTOCOLHANDLER (gHttpHandler->)
     NS_FORWARD_NSIHTTPPROTOCOLHANDLER    (gHttpHandler->)

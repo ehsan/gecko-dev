@@ -9,15 +9,18 @@
 #ifndef jsanalyze_h
 #define jsanalyze_h
 
+#include "mozilla/PodOperations.h"
+
 #include "jscompartment.h"
+#include "jsinfer.h"
+#include "jsscript.h"
+
+#include "vm/Runtime.h"
+
+class JSScript;
 
 namespace js {
 namespace analyze {
-
-class LoopAnalysis;
-class SlotValue;
-class SSAValue;
-class SSAUseChain;
 
 /*
  * There are three analyses we can perform on a JSScript, outlined below.
@@ -78,6 +81,24 @@ class Bytecode
     /* Whether this is a catch/finally entry point. */
     bool exceptionEntry : 1;
 
+    /* Whether this is in a try block. */
+    bool inTryBlock : 1;
+
+    /* Whether this is in a loop. */
+    bool inLoop : 1;
+
+    /* Method JIT safe point. */
+    bool safePoint : 1;
+
+    /*
+     * Side effects of this bytecode were not determined by type inference.
+     * Either a property set with unknown lvalue, or call with unknown callee.
+     */
+    bool monitoredTypes : 1;
+
+    /* Call whose result should be monitored. */
+    bool monitoredTypesReturn : 1;
+
     /*
      * Dynamically observed state about the execution of this opcode. These are
      * hints about the script for use during compilation.
@@ -120,6 +141,14 @@ class Bytecode
          */
         Vector<SlotValue> *pendingValues;
     };
+
+    /* --------- Type inference --------- */
+
+    /* Types for all values pushed by this bytecode. */
+    types::StackTypeSet *pushedTypes;
+
+    /* Any type barriers in place at this bytecode. */
+    types::TypeBarrier *typeBarriers;
 };
 
 /*
@@ -267,6 +296,13 @@ static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
     }
 }
 
+/* Slot opcodes which update SSA information. */
+static inline bool
+BytecodeUpdatesSlot(JSOp op)
+{
+    return (op == JSOP_SETARG || op == JSOP_SETLOCAL);
+}
+
 /*
  * Information about the lifetime of a local or argument. These form a linked
  * list describing successive intervals in the program where the variable's
@@ -290,6 +326,13 @@ struct Lifetime
     uint32_t savedEnd;
 
     /*
+     * This is an artificial segment extending the lifetime of this variable
+     * when it is live at the head of the loop. It will not be used until the
+     * next iteration.
+     */
+    bool loopTail;
+
+    /*
      * The start of this lifetime is a bytecode writing the variable. Each
      * write to a variable is associated with a lifetime.
      */
@@ -300,7 +343,7 @@ struct Lifetime
 
     Lifetime(uint32_t offset, uint32_t savedEnd, Lifetime *next)
         : start(offset), end(offset), savedEnd(savedEnd),
-          write(false), next(next)
+          loopTail(false), write(false), next(next)
     {}
 };
 
@@ -319,6 +362,29 @@ class LoopAnalysis
      * between the head and the backedge forms the loop body.
      */
     uint32_t backedge;
+
+    /* Target offset of the initial jump or fallthrough into the loop. */
+    uint32_t entry;
+
+    /*
+     * Start of the last basic block in the loop, excluding the initial jump to
+     * entry. All code between lastBlock and the backedge runs in every
+     * iteration, and if entry >= lastBlock all code between entry and the
+     * backedge runs when the loop is initially entered.
+     */
+    uint32_t lastBlock;
+
+    /* Loop nesting depth, 0 for the outermost loop. */
+    uint16_t depth;
+
+    /*
+     * This loop contains safe points in its body which the interpreter might
+     * join at directly.
+     */
+    bool hasSafePoints;
+
+    /* This loop has calls or inner loops. */
+    bool hasCallsLoops;
 };
 
 /* Current lifetime information for a variable. */
@@ -454,6 +520,7 @@ class SSAValue
     uint32_t phiSlot() const;
     uint32_t phiLength() const;
     const SSAValue &phiValue(uint32_t i) const;
+    types::TypeSet *phiTypes() const;
 
     /* Offset at which this phi node was created. */
     uint32_t phiOffset() const {
@@ -553,6 +620,7 @@ class SSAValue
  */
 struct SSAPhiNode
 {
+    types::StackTypeSet types;
     uint32_t slot;
     uint32_t length;
     SSAValue *options;
@@ -578,6 +646,13 @@ SSAValue::phiValue(uint32_t i) const
 {
     JS_ASSERT(kind() == PHI && i < phiLength());
     return u.phi.node->options[i];
+}
+
+inline types::TypeSet *
+SSAValue::phiTypes() const
+{
+    JS_ASSERT(kind() == PHI);
+    return &u.phi.node->types;
 }
 
 class SSAUseChain
@@ -628,6 +703,7 @@ class ScriptAnalysis
     bool ranBytecode_;
     bool ranSSA_;
     bool ranLifetimes_;
+    bool ranInference_;
 
 #ifdef DEBUG
     /* Whether the compartment was in debug mode when we performed the analysis. */
@@ -636,12 +712,15 @@ class ScriptAnalysis
 
     /* --------- Bytecode analysis --------- */
 
+    bool usesReturnValue_:1;
     bool usesScopeChain_:1;
+    bool usesThisValue_:1;
+    bool hasFunctionCalls_:1;
+    bool modifiesArguments_:1;
     bool localsAliasStack_:1;
     bool isIonInlineable:1;
     bool canTrackVars:1;
     bool hasLoops_:1;
-    bool hasTryFinally_:1;
 
     uint32_t numReturnSites_;
 
@@ -662,10 +741,15 @@ class ScriptAnalysis
     bool ranBytecode() { return ranBytecode_; }
     bool ranSSA() { return ranSSA_; }
     bool ranLifetimes() { return ranLifetimes_; }
+    bool ranInference() { return ranInference_; }
 
     void analyzeBytecode(JSContext *cx);
     void analyzeSSA(JSContext *cx);
     void analyzeLifetimes(JSContext *cx);
+    void analyzeTypes(JSContext *cx);
+
+    /* Analyze the effect of invoking 'new' on script. */
+    void analyzeTypesNew(JSContext *cx);
 
     bool OOM() const { return outOfMemory; }
     bool failed() const { return hadFailure; }
@@ -673,18 +757,26 @@ class ScriptAnalysis
     bool ionInlineable(uint32_t argc) const { return isIonInlineable && argc == script_->function()->nargs; }
     void setIonUninlineable() { isIonInlineable = false; }
 
-    /* Whether the script has a |finally| block. */
-    bool hasTryFinally() const { return hasTryFinally_; }
-
     /* Number of property read opcodes in the script. */
     uint32_t numPropertyReads() const { return numPropertyReads_; }
+
+    /* Whether there are POPV/SETRVAL bytecodes which can write to the frame's rval. */
+    bool usesReturnValue() const { return usesReturnValue_; }
 
     /* Whether there are NAME bytecodes which can access the frame's scope chain. */
     bool usesScopeChain() const { return usesScopeChain_; }
 
+    bool usesThisValue() const { return usesThisValue_; }
+    bool hasFunctionCalls() const { return hasFunctionCalls_; }
     uint32_t numReturnSites() const { return numReturnSites_; }
 
     bool hasLoops() const { return hasLoops_; }
+
+    /*
+     * True if all named formal arguments are not modified. If the arguments
+     * object cannot escape, the arguments are never modified within the script.
+     */
+    bool modifiesArguments() { return modifiesArguments_; }
 
     /*
      * True if there are any LOCAL opcodes aliasing values on the stack (above
@@ -728,6 +820,48 @@ class ScriptAnalysis
     }
     const SlotValue *newValues(const jsbytecode *pc) { return newValues(pc - script_->code); }
 
+    inline types::StackTypeSet *pushedTypes(uint32_t offset, uint32_t which = 0);
+    inline types::StackTypeSet *pushedTypes(const jsbytecode *pc, uint32_t which);
+
+    bool hasPushedTypes(const jsbytecode *pc) { return getCode(pc).pushedTypes != NULL; }
+
+    types::TypeBarrier *typeBarriers(JSContext *cx, uint32_t offset) {
+        if (getCode(offset).typeBarriers)
+            pruneTypeBarriers(cx, offset);
+        return getCode(offset).typeBarriers;
+    }
+    types::TypeBarrier *typeBarriers(JSContext *cx, const jsbytecode *pc) {
+        return typeBarriers(cx, pc - script_->code);
+    }
+    void addTypeBarrier(JSContext *cx, const jsbytecode *pc,
+                        types::TypeSet *target, types::Type type);
+    void addSingletonTypeBarrier(JSContext *cx, const jsbytecode *pc,
+                                 types::TypeSet *target,
+                                 HandleObject singleton, HandleId singletonId);
+
+    /* Remove obsolete type barriers at the given offset. */
+    void pruneTypeBarriers(JSContext *cx, uint32_t offset);
+
+    /*
+     * Remove still-active type barriers at the given offset. If 'all' is set,
+     * then all barriers are removed, otherwise only those deemed excessive
+     * are removed.
+     */
+    void breakTypeBarriers(JSContext *cx, uint32_t offset, bool all);
+
+    /* Break all type barriers used in computing v. */
+    void breakTypeBarriersSSA(JSContext *cx, const SSAValue &v);
+
+    inline void addPushedType(JSContext *cx, uint32_t offset, uint32_t which, types::Type type);
+
+    inline types::StackTypeSet *getValueTypes(const SSAValue &v);
+
+    inline types::StackTypeSet *poppedTypes(uint32_t offset, uint32_t which);
+    inline types::StackTypeSet *poppedTypes(const jsbytecode *pc, uint32_t which);
+
+    /* Whether an arithmetic operation is operating on integers, with an integer result. */
+    bool integerOperation(jsbytecode *pc);
+
     bool trackUseChain(const SSAValue &v) {
         JS_ASSERT_IF(v.kind() == SSAValue::VAR, trackSlot(v.varSlot()));
         return v.kind() != SSAValue::EMPTY &&
@@ -739,6 +873,12 @@ class ScriptAnalysis
      * scripts where localsAliasStack(). You have been warned!
      */
     inline SSAUseChain *& useChain(const SSAValue &v);
+
+    LoopAnalysis *getLoop(uint32_t offset) {
+        JS_ASSERT(offset < script_->length);
+        return getCode(offset).loop;
+    }
+    LoopAnalysis *getLoop(const jsbytecode *pc) { return getLoop(pc - script_->code); }
 
 
     /* For a JSOP_CALL* op, get the pc of the corresponding JSOP_CALL/NEW/etc. */
@@ -841,6 +981,9 @@ class ScriptAnalysis
         {}
     };
 
+    /* Type inference helpers */
+    bool analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferenceState &state);
+
     typedef Vector<SSAValue, 16> SeenVector;
     bool needsArgsObj(JSContext *cx, SeenVector &seen, const SSAValue &v);
     bool needsArgsObj(JSContext *cx, SeenVector &seen, SSAUseChain *use);
@@ -852,6 +995,84 @@ class ScriptAnalysis
 #else
     void assertMatchingDebugMode() { }
 #endif
+};
+
+/* SSA value as used by CrossScriptSSA, identifies the frame it came from. */
+struct CrossSSAValue
+{
+    unsigned frame;
+    SSAValue v;
+    CrossSSAValue(unsigned frame, const SSAValue &v) : frame(frame), v(v) {}
+};
+
+/*
+ * Analysis for managing SSA values from multiple call stack frames. These are
+ * created by the backend compiler when inlining functions, and allow for
+ * values to be tracked as they flow into or out of the inlined frames.
+ */
+class CrossScriptSSA
+{
+  public:
+
+    static const uint32_t OUTER_FRAME = UINT32_MAX;
+    static const unsigned INVALID_FRAME = uint32_t(-2);
+
+    struct Frame {
+        uint32_t index;
+        JSScript *script;
+        uint32_t depth;  /* Distance from outer frame to this frame, in sizeof(Value) */
+        uint32_t parent;
+        jsbytecode *parentpc;
+
+        Frame(uint32_t index, JSScript *script, uint32_t depth, uint32_t parent,
+              jsbytecode *parentpc)
+          : index(index), script(script), depth(depth), parent(parent), parentpc(parentpc)
+        {}
+    };
+
+    const Frame &getFrame(uint32_t index) {
+        if (index == OUTER_FRAME)
+            return outerFrame;
+        return inlineFrames[index];
+    }
+
+    unsigned numFrames() { return 1 + inlineFrames.length(); }
+    const Frame &iterFrame(unsigned i) {
+        if (i == 0)
+            return outerFrame;
+        return inlineFrames[i - 1];
+    }
+
+    JSScript *outerScript() { return outerFrame.script; }
+
+    /* Total length of scripts preceding a frame. */
+    size_t frameLength(uint32_t index) {
+        if (index == OUTER_FRAME)
+            return 0;
+        size_t res = outerFrame.script->length;
+        for (unsigned i = 0; i < index; i++)
+            res += inlineFrames[i].script->length;
+        return res;
+    }
+
+    inline types::StackTypeSet *getValueTypes(const CrossSSAValue &cv);
+
+    bool addInlineFrame(JSScript *script, uint32_t depth, uint32_t parent,
+                        jsbytecode *parentpc)
+    {
+        uint32_t index = inlineFrames.length();
+        return inlineFrames.append(Frame(index, script, depth, parent, parentpc));
+    }
+
+    CrossScriptSSA(JSContext *cx, JSScript *outer)
+        : outerFrame(OUTER_FRAME, outer, 0, INVALID_FRAME, NULL), inlineFrames(cx)
+    {}
+
+    CrossSSAValue foldValue(const CrossSSAValue &cv);
+
+  private:
+    Frame outerFrame;
+    Vector<Frame> inlineFrames;
 };
 
 #ifdef DEBUG

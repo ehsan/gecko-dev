@@ -10,7 +10,6 @@
 #include "nsReadableUtils.h"
 #include "nsCSSProps.h"
 #include "nsRuleNode.h"
-#include "nsROCSSPrimitiveValue.h"
 #include "nsIContentSecurityPolicy.h"
 
 using namespace mozilla;
@@ -158,33 +157,10 @@ nsStyleUtil::AppendBitmaskCSSValue(nsCSSProperty aProperty,
 }
 
 /* static */ void
-nsStyleUtil::AppendAngleValue(const nsStyleCoord& aAngle, nsAString& aResult)
-{
-  MOZ_ASSERT(aAngle.IsAngleValue(), "Should have angle value");
-
-  nsROCSSPrimitiveValue tmpVal;
-  nsAutoString tokenString;
-
-  // Append number.
-  tmpVal.SetNumber(aAngle.GetAngleValue());
-  tmpVal.GetCssText(tokenString);
-  aResult.Append(tokenString);
-
-  // Append unit.
-  switch (aAngle.GetUnit()) {
-    case eStyleUnit_Degree: aResult.AppendLiteral("deg");  break;
-    case eStyleUnit_Grad:   aResult.AppendLiteral("grad"); break;
-    case eStyleUnit_Radian: aResult.AppendLiteral("rad");  break;
-    case eStyleUnit_Turn:   aResult.AppendLiteral("turn"); break;
-    default: NS_NOTREACHED("unrecognized angle unit");
-  }
-}
-
-/* static */ void
 nsStyleUtil::AppendPaintOrderValue(uint8_t aValue,
                                    nsAString& aResult)
 {
-  static_assert
+  MOZ_STATIC_ASSERT
     (NS_STYLE_PAINT_ORDER_BITWIDTH * NS_STYLE_PAINT_ORDER_LAST_VALUE <= 8,
      "SVGStyleStruct::mPaintOrder and local variables not big enough");
 
@@ -194,8 +170,8 @@ nsStyleUtil::AppendPaintOrderValue(uint8_t aValue,
   }
 
   // Append the minimal value necessary for the given paint order.
-  static_assert(NS_STYLE_PAINT_ORDER_LAST_VALUE == 3,
-                "paint-order values added; check serialization");
+  MOZ_STATIC_ASSERT(NS_STYLE_PAINT_ORDER_LAST_VALUE == 3,
+                    "paint-order values added; check serialization");
 
   // The following relies on the default order being the order of the
   // constant values.

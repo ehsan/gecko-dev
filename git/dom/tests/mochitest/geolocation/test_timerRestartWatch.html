@@ -22,9 +22,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=526326
 SimpleTest.waitForExplicitFinish();
 
 // ensure we are using the right testing provider
-resume_geolocationProvider(function() {
-  force_prompt(true, test1);
-});
+resume_geolocationProvider();
+force_prompt(true);
 
 var watchID;
 var times = 0;
@@ -36,16 +35,16 @@ function errorCallback(err) {
   // make sure we got at least 3 times errorCallback
   if (times >= 3) {
     navigator.geolocation.clearWatch(watchID);
-    resume_geolocationProvider(function() {
-      SimpleTest.finish();
-    });
+    resume_geolocationProvider();
+    reset_prompt();
+    SimpleTest.finish();
   }
 }
 
 function successCallback(position) {
   // Now that we got a success callback, lets try to ensure
   // that we get a timeout error.
-  stop_geolocationProvider(function() {});
+  stop_geolocationProvider();
 }
 
 var options = {
@@ -53,9 +52,8 @@ var options = {
     timeout: 1000
 };
 
-function test1() {
-  watchID = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
-}
+watchID = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
+
 </script>
 </pre>
 </body>

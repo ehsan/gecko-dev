@@ -7,7 +7,6 @@
 #include "mozilla/dom/PromiseResolver.h"
 #include "mozilla/dom/PromiseBinding.h"
 #include "mozilla/dom/Promise.h"
-#include "nsThreadUtils.h"
 #include "PromiseCallback.h"
 
 namespace mozilla {
@@ -60,20 +59,19 @@ private:
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(PromiseResolver, mPromise)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(PromiseResolver, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(PromiseResolver, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(PromiseResolver)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(PromiseResolver)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PromiseResolver)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 PromiseResolver::PromiseResolver(Promise* aPromise)
   : mPromise(aPromise)
   , mResolvePending(false)
 {
-  MOZ_COUNT_CTOR(PromiseResolver);
   SetIsDOMBinding();
-}
-
-PromiseResolver::~PromiseResolver()
-{
-  MOZ_COUNT_DTOR(PromiseResolver);
 }
 
 JSObject*
@@ -105,7 +103,7 @@ PromiseResolver::ResolveInternal(JSContext* aCx,
   if (aValue.WasPassed() && aValue.Value().isObject()) {
     JS::Rooted<JSObject*> valueObj(aCx, &aValue.Value().toObject());
     Promise* nextPromise;
-    nsresult rv = UNWRAP_OBJECT(Promise, aCx, valueObj, nextPromise);
+    nsresult rv = UnwrapObject<Promise>(aCx, valueObj, nextPromise);
 
     if (NS_SUCCEEDED(rv)) {
       nsRefPtr<PromiseCallback> resolveCb = new ResolvePromiseCallback(this);

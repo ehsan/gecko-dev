@@ -12,28 +12,32 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ConsoleServiceListener",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ConsoleAPIListener",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "ConsoleProgressListener",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "JSTermHelpers",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "JSPropertyProvider",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "NetworkMonitor",
+                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "ConsoleAPIStorage",
                                   "resource://gre/modules/ConsoleAPIStorage.jsm");
-
-for (let name of ["WebConsoleUtils", "ConsoleServiceListener",
-                  "ConsoleAPIListener", "ConsoleProgressListener",
-                  "JSTermHelpers", "JSPropertyProvider", "NetworkMonitor"]) {
-  Object.defineProperty(this, name, {
-    get: function(prop) {
-      if (prop == "WebConsoleUtils") {
-        prop = "Utils";
-      }
-      return devtools.require("devtools/toolkit/webconsole/utils")[prop];
-    }.bind(null, name),
-    configurable: true,
-    enumerable: true
-  });
-}
 
 
 /**
@@ -49,7 +53,32 @@ for (let name of ["WebConsoleUtils", "ConsoleServiceListener",
 function WebConsoleActor(aConnection, aParentActor)
 {
   this.conn = aConnection;
-  this.parentActor = aParentActor;
+
+  if (aParentActor instanceof BrowserTabActor &&
+      aParentActor.browser instanceof Ci.nsIDOMWindow) {
+    // B2G tab actor |this.browser| points to a DOM chrome window, not
+    // a xul:browser element.
+    //
+    // TODO: bug 802246 - b2g has only one tab actor, the shell.xul, which is
+    // not properly supported by the console actor - see bug for details.
+    //
+    // Below we work around the problem: selecting the shell.xul tab actor
+    // behaves as if the user picked the global console actor.
+    //this._window = aParentActor.browser;
+    this._window = Services.wm.getMostRecentWindow("navigator:browser");
+    this._isGlobalActor = true;
+  }
+  else if (aParentActor instanceof BrowserTabActor &&
+           aParentActor.browser instanceof Ci.nsIDOMElement) {
+    // Firefox for desktop tab actor |this.browser| points to the xul:browser
+    // element.
+    this._window = aParentActor.browser.contentWindow;
+  }
+  else {
+    // In all other cases we should behave as the global console actor.
+    this._window = Services.wm.getMostRecentWindow("navigator:browser");
+    this._isGlobalActor = true;
+  }
 
   this._actorPool = new ActorPool(this.conn);
   this.conn.addActorPool(this._actorPool);
@@ -66,7 +95,7 @@ function WebConsoleActor(aConnection, aParentActor)
   this._onObserverNotification = this._onObserverNotification.bind(this);
   Services.obs.addObserver(this._onObserverNotification,
                            "inner-window-destroyed", false);
-  if (this.parentActor.isRootActor) {
+  if (this._isGlobalActor) {
     Services.obs.addObserver(this._onObserverNotification,
                              "last-pb-context-exited", false);
   }
@@ -80,6 +109,13 @@ WebConsoleActor.prototype =
    * @see jsdebugger.jsm
    */
   dbg: null,
+
+  /**
+   * Tells if this Web Console actor is a global actor or not.
+   * @private
+   * @type boolean
+   */
+  _isGlobalActor: false,
 
   /**
    * Actor pool for all of the actors we send to the client.
@@ -133,7 +169,9 @@ WebConsoleActor.prototype =
    * The content window we work with.
    * @type nsIDOMWindow
    */
-  get window() this.parentActor.window,
+  get window() this._window,
+
+  _window: null,
 
   /**
    * The ConsoleServiceListener instance.
@@ -201,7 +239,7 @@ WebConsoleActor.prototype =
     this.conn.removeActorPool(this._actorPool);
     Services.obs.removeObserver(this._onObserverNotification,
                                 "inner-window-destroyed");
-    if (this.parentActor.isRootActor) {
+    if (this._isGlobalActor) {
       Services.obs.removeObserver(this._onObserverNotification,
                                   "last-pb-context-exited");
     }
@@ -212,7 +250,7 @@ WebConsoleActor.prototype =
     this._dbgGlobals.clear();
     this.dbg.enabled = false;
     this.dbg = null;
-    this.conn = null;
+    this.conn = this._window = null;
   },
 
   /**
@@ -350,7 +388,7 @@ WebConsoleActor.prototype =
   onStartListeners: function WCA_onStartListeners(aRequest)
   {
     let startedListeners = [];
-    let window = !this.parentActor.isRootActor ? this.window : null;
+    let window = !this._isGlobalActor ? this.window : null;
 
     while (aRequest.listeners.length > 0) {
       let listener = aRequest.listeners.shift();
@@ -483,7 +521,7 @@ WebConsoleActor.prototype =
             break;
           }
           let cache = this.consoleAPIListener
-                      .getCachedMessages(!this.parentActor.isRootActor);
+                      .getCachedMessages(!this._isGlobalActor);
           cache.forEach((aMessage) => {
             let message = this.prepareConsoleMessageForRemote(aMessage);
             message._type = type;
@@ -496,7 +534,7 @@ WebConsoleActor.prototype =
             break;
           }
           let cache = this.consoleServiceListener
-                      .getCachedMessages(!this.parentActor.isRootActor);
+                      .getCachedMessages(!this._isGlobalActor);
           cache.forEach((aMessage) => {
             let message = null;
             if (aMessage instanceof Ci.nsIScriptError) {
@@ -542,7 +580,6 @@ WebConsoleActor.prototype =
     let evalOptions = {
       bindObjectActor: aRequest.bindObjectActor,
       frameActor: aRequest.frameActor,
-      url: aRequest.url,
     };
     let evalInfo = this.evalWithDebugger(input, evalOptions);
     let evalResult = evalInfo.result;
@@ -589,29 +626,11 @@ WebConsoleActor.prototype =
   {
     // TODO: Bug 842682 - use the debugger API for autocomplete in the Web
     // Console, and provide suggestions from the selected debugger stack frame.
-    // Also, properly reuse _getJSTermHelpers instead of re-implementing it
-    // here.
     let result = JSPropertyProvider(this.window, aRequest.text,
                                     aRequest.cursor) || {};
-    let matches = result.matches || [];
-    let reqText = aRequest.text.substr(0, aRequest.cursor);
-
-    // We consider '$' as alphanumerc because it is used in the names of some
-    // helper functions.
-    let lastNonAlphaIsDot = /[.][a-zA-Z0-9$]*$/.test(reqText);
-    if (!lastNonAlphaIsDot) {
-      let helpers = {
-        sandbox: Object.create(null)
-      };
-      JSTermHelpers(helpers);
-
-      let helperNames = Object.getOwnPropertyNames(helpers.sandbox);
-      matches = matches.concat(helperNames.filter(n => n.startsWith(result.matchProp)));
-    }
-
     return {
       from: this.actorID,
-      matches: matches.sort(),
+      matches: result.matches || [],
       matchProp: result.matchProp,
     };
   },
@@ -622,10 +641,10 @@ WebConsoleActor.prototype =
   onClearMessagesCache: function WCA_onClearMessagesCache()
   {
     // TODO: Bug 717611 - Web Console clear button does not clear cached errors
-    let windowId = !this.parentActor.isRootActor ?
+    let windowId = !this._isGlobalActor ?
                    WebConsoleUtils.getInnerWindowId(this.window) : null;
     ConsoleAPIStorage.clearEvents(windowId);
-    if (this.parentActor.isRootActor) {
+    if (this._isGlobalActor) {
       Services.console.logStringMessage(null); // for the Error Console
       Services.console.reset();
     }
@@ -777,8 +796,6 @@ WebConsoleActor.prototype =
    *         evaluated.
    *         - result: the result of the evaluation.
    *         - helperResult: any result coming from a JSTerm helper function.
-   *         - url: the url to evaluate the script as. Defaults to
-   *         "debugger eval code".
    */
   evalWithDebugger: function WCA_evalWithDebugger(aString, aOptions = {})
   {
@@ -877,17 +894,12 @@ WebConsoleActor.prototype =
     // Ready to evaluate the string.
     helpers.evalInput = aString;
 
-    let evalOptions;
-    if (typeof aOptions.url == "string") {
-      evalOptions = { url: aOptions.url };
-    }
-
     let result;
     if (frame) {
-      result = frame.evalWithBindings(aString, bindings, evalOptions);
+      result = frame.evalWithBindings(aString, bindings);
     }
     else {
-      result = dbgWindow.evalInGlobalWithBindings(aString, bindings, evalOptions);
+      result = dbgWindow.evalInGlobalWithBindings(aString, bindings);
     }
 
     let helperResult = helpers.helperResult;
@@ -1000,7 +1012,7 @@ WebConsoleActor.prototype =
    * is about to be recorded.
    *
    * @see NetworkEventActor
-   * @see NetworkMonitor from webconsole/utils.js
+   * @see NetworkMonitor from WebConsoleUtils.jsm
    *
    * @param object aEvent
    *        The initial network request event information.
@@ -1056,7 +1068,7 @@ WebConsoleActor.prototype =
     let details = aMessage.request;
 
     // send request from target's window
-    let request = new this.window.XMLHttpRequest();
+    let request = new this._window.XMLHttpRequest();
     request.open(details.method, details.url, true);
 
     for (let {name, value} of details.headers) {

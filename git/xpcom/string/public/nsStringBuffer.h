@@ -7,7 +7,6 @@
 #ifndef nsStringBuffer_h__
 #define nsStringBuffer_h__
 
-#include "mozilla/Atomics.h"
 #include "mozilla/MemoryReporting.h"
 
 template<class T> struct already_AddRefed;
@@ -26,7 +25,7 @@ class nsStringBuffer
     private:
       friend class CheckStaticAtomSizes;
 
-      mozilla::Atomic<int32_t> mRefCount;
+      int32_t  mRefCount;
       uint32_t mStorageSize;
 
     public:

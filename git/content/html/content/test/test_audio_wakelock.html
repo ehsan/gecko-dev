@@ -31,11 +31,9 @@ function testAudioPlayPause() {
   content.appendChild(audio);
 
   var startDate;
-  audio.addEventListener('playing', function() {
-    startDate = new Date();
-
-    // The next step is to unlock the resource.
+  audio.addEventListener('progress', function() {
     lockState = false;
+    startDate = new Date();
     audio.pause();
   });
 

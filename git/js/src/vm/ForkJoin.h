@@ -8,8 +8,9 @@
 #define vm_ForkJoin_h
 
 #include "jscntxt.h"
-
-#include "jit/Ion.h"
+#include "vm/ThreadPool.h"
+#include "jsgc.h"
+#include "ion/Ion.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // Read Me First
@@ -408,7 +409,7 @@ InParallelSection()
 #endif
 }
 
-bool InExclusiveParallelSection();
+bool InSequentialOrExclusiveParallelSection();
 
 bool ParallelTestsShouldPass(JSContext *cx);
 
@@ -447,8 +448,8 @@ void SpewBailout(uint32_t count, HandleScript script, jsbytecode *pc,
                  ParallelBailoutCause cause);
 ExecutionStatus SpewEndOp(ExecutionStatus status);
 void SpewBeginCompile(HandleScript script);
-jit::MethodStatus SpewEndCompile(jit::MethodStatus status);
-void SpewMIR(jit::MDefinition *mir, const char *fmt, ...);
+ion::MethodStatus SpewEndCompile(ion::MethodStatus status);
+void SpewMIR(ion::MDefinition *mir, const char *fmt, ...);
 void SpewBailoutIR(uint32_t bblockId, uint32_t lirId,
                    const char *lir, const char *mir, JSScript *script, jsbytecode *pc);
 
@@ -462,8 +463,8 @@ static inline void SpewBailout(uint32_t count, HandleScript script,
 static inline ExecutionStatus SpewEndOp(ExecutionStatus status) { return status; }
 static inline void SpewBeginCompile(HandleScript script) { }
 #ifdef JS_ION
-static inline jit::MethodStatus SpewEndCompile(jit::MethodStatus status) { return status; }
-static inline void SpewMIR(jit::MDefinition *mir, const char *fmt, ...) { }
+static inline ion::MethodStatus SpewEndCompile(ion::MethodStatus status) { return status; }
+static inline void SpewMIR(ion::MDefinition *mir, const char *fmt, ...) { }
 #endif
 static inline void SpewBailoutIR(uint32_t bblockId, uint32_t lirId,
                                  const char *lir, const char *mir,

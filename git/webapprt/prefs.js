@@ -16,8 +16,8 @@ pref("extensions.installDistroAddons", false);
 // Disable the add-on compatibility dialog
 pref("extensions.showMismatchUI", false);
 
-// Set reportURL for crashes
-pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
+// Whether or not we've ever run.  We use this to set permissions on firstrun.
+pref("webapprt.firstrun", false);
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -33,6 +33,7 @@ pref("full-screen-api.enabled", true);
 
 // IndexedDB
 pref("dom.indexedDB.enabled", true);
+pref("indexedDB.feature.enabled", true);
 pref("dom.indexedDB.warningQuota", 50);
 
 // Offline cache prefs
@@ -40,14 +41,8 @@ pref("browser.offline-apps.notify", false);
 pref("browser.cache.offline.enable", true);
 pref("offline-apps.allow_by_default", true);
 
-// TCPSocket
-pref("dom.mozTCPSocket.enabled", true);
-
 // Enable smooth scrolling
 pref("general.smoothScroll", true);
-
-// Enable window resize and move
-pref("dom.always_allow_move_resize_window", true);
 
 pref("plugin.allowed_types", "application/x-shockwave-flash,application/futuresplash");
 

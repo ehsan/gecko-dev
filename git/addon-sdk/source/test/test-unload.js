@@ -1,12 +1,13 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- "use strict";
 
 var unload = require("sdk/system/unload");
 var { Loader, LoaderWithHookedConsole } = require("sdk/test/loader");
 
-exports.testUnloading = function(assert) {
+exports.testUnloading = function(test) {
   let { loader, messages } = LoaderWithHookedConsole(module);
   var ul = loader.require("sdk/system/unload");
   var unloadCalled = 0;
@@ -22,31 +23,31 @@ exports.testUnloading = function(assert) {
   function unload2() { unloadCalled++; }
   ul.when(unload2);
   loader.unload();
-  assert.equal(unloadCalled, 2,
+  test.assertEqual(unloadCalled, 2,
                    "Unloader functions are called on unload.");
-  assert.equal(messages.length, 1,
+  test.assertEqual(messages.length, 1,
                    "One unload handler threw exception 1/2");
-  assert.equal(messages[0].type, "exception",
+  test.assertEqual(messages[0].type, "exception",
                    "One unload handler threw exception 2/2");
 };
 
-exports.testEnsure = function(assert) {
-  assert.throws(function() { unload.ensure({}); },
-                /object has no 'unload' property/,
-                "passing obj with no unload prop should fail");
-  assert.throws(function() { unload.ensure({}, "destroy"); },
-                /object has no 'destroy' property/,
-                "passing obj with no custom unload prop should fail");
+exports.testEnsure = function(test) {
+  test.assertRaises(function() { unload.ensure({}); },
+                    "object has no 'unload' property",
+                    "passing obj with no unload prop should fail");
+  test.assertRaises(function() { unload.ensure({}, "destroy"); },
+                    "object has no 'destroy' property",
+                    "passing obj with no custom unload prop should fail");
 
   var called = 0;
   var obj = {unload: function() { called++; }};
 
   unload.ensure(obj);
   obj.unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "unload() should be called");
   obj.unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "unload() should be called only once");
 };
 
@@ -56,7 +57,8 @@ exports.testEnsure = function(assert) {
  * - check that composed traits with multiple ensure calls, leads to only
  * one destructor call.
  */
-exports.testEnsureWithTraits = function(assert) {
+exports.testEnsureWithTraits = function(test) {
+
   let { Trait } = require("sdk/deprecated/traits");
   let loader = Loader(module);
   let ul = loader.require("sdk/system/unload");
@@ -77,7 +79,7 @@ exports.testEnsureWithTraits = function(assert) {
   let obj = Trait.compose(
     composedTrait.resolve({
       constructor: "_constructor",
-      unload : "_unload"
+      unload : "_unload" 
     }), {
       constructor: function constructor() {
         // Same thing applies here, we need to pass public interface
@@ -91,27 +93,28 @@ exports.testEnsureWithTraits = function(assert) {
     })();
 
   obj.unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "unload() should be called");
 
-  assert.equal(composedCalled, 1,
+  test.assertEqual(composedCalled, 1,
                    "composed object unload() should be called");
 
   obj.unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "unload() should be called only once");
-  assert.equal(composedCalled, 1,
+  test.assertEqual(composedCalled, 1,
                    "composed object unload() should be called only once");
 
   loader.unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "unload() should be called only once, after addon unload");
-  assert.equal(composedCalled, 1,
+  test.assertEqual(composedCalled, 1,
                    "composed object unload() should be called only once, " +
                    "after addon unload");
 };
 
-exports.testEnsureWithTraitsPrivate = function(assert) {
+exports.testEnsureWithTraitsPrivate = function(test) {
+
   let { Trait } = require("sdk/deprecated/traits");
   let loader = Loader(module);
   let ul = loader.require("sdk/system/unload");
@@ -132,30 +135,28 @@ exports.testEnsureWithTraitsPrivate = function(assert) {
     })();
 
   loader.unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "unload() should be called");
 
   privateObj._unload();
-  assert.equal(called, 1,
+  test.assertEqual(called, 1,
                    "_unload() should be called only once, after addon unload");
 };
 
-exports.testReason = function (assert) {
+exports.testReason = function (test) {
   var reason = "Reason doesn't actually have to be anything in particular.";
   var loader = Loader(module);
   var ul = loader.require("sdk/system/unload");
   ul.when(function (rsn) {
-    assert.equal(rsn, reason,
+    test.assertEqual(rsn, reason,
                      "when() reason should be reason given to loader");
   });
   var obj = {
     unload: function (rsn) {
-      assert.equal(rsn, reason,
+      test.assertEqual(rsn, reason,
                        "ensure() reason should be reason given to loader");
     }
   };
   ul.ensure(obj);
   loader.unload(reason);
 };
-
-require("sdk/test").run(exports);

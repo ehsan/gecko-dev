@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/Services.h"
@@ -80,6 +81,7 @@ nsDOMCameraManager::CheckPermission(nsPIDOMWindow* aWindow)
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
   permMgr->TestPermissionFromWindow(aWindow, "camera", &permission);
   if (permission != nsIPermissionManager::ALLOW_ACTION) {
+    NS_WARNING("No permission to access camera");
     return false;
   }
 
@@ -127,9 +129,9 @@ nsDOMCameraManager::GetCamera(const CameraSelector& aOptions,
   DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
 
   // Creating this object will trigger the onSuccess handler
-  nsRefPtr<nsDOMCameraControl> cameraControl =
+  nsCOMPtr<nsDOMCameraControl> cameraControl =
     new nsDOMCameraControl(cameraId, mCameraThread,
-                           onSuccess, onError.WasPassed() ? onError.Value() : nullptr, mWindow);
+                           onSuccess, onError.WasPassed() ? onError.Value() : nullptr, mWindowId);
 
   Register(cameraControl);
 }

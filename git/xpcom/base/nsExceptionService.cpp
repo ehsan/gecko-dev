@@ -3,18 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsExceptionService.h"
-
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/Services.h"
-#include "nsCOMPtr.h"
-#include "nsDOMException.h"
-#include "nsIServiceManager.h"
+
 #include "nsISupports.h"
-#include "nsThreadUtils.h"
-#include "pratom.h"
+#include "nsExceptionService.h"
+#include "nsIServiceManager.h"
+#include "nsCOMPtr.h"
 #include "prthread.h"
+#include "mozilla/Services.h"
 
 using namespace mozilla;
 
@@ -23,11 +20,29 @@ static const unsigned BAD_TLS_INDEX = (unsigned) -1;
 #define CHECK_SERVICE_USE_OK() if (!sLock) return NS_ERROR_NOT_INITIALIZED
 #define CHECK_MANAGER_USE_OK() if (!mService || !nsExceptionService::sLock) return NS_ERROR_NOT_INITIALIZED
 
+// A key for our registered module providers hashtable
+class nsProviderKey : public nsHashKey {
+protected:
+  uint32_t mKey;
+public:
+  nsProviderKey(uint32_t key) : mKey(key) {}
+  uint32_t HashCode(void) const {
+    return mKey;
+  }
+  bool Equals(const nsHashKey *aKey) const {
+    return mKey == ((const nsProviderKey *) aKey)->mKey;
+  }
+  nsHashKey *Clone() const {
+    return new nsProviderKey(mKey);
+  }
+  uint32_t GetValue() { return mKey; }
+};
+
 /** Exception Manager definition **/
 class nsExceptionManager MOZ_FINAL : public nsIExceptionManager
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIEXCEPTIONMANAGER
 
   nsExceptionManager(nsExceptionService *svc);
@@ -36,7 +51,7 @@ public:
   nsExceptionManager *mNextThread; // not ref-counted.
   nsExceptionService *mService; // not ref-counted
 #ifdef DEBUG
-  static Atomic<int32_t> totalInstances;
+  static int32_t totalInstances;
 #endif
 
 private:
@@ -45,14 +60,14 @@ private:
 
 
 #ifdef DEBUG
-Atomic<int32_t> nsExceptionManager::totalInstances;
+int32_t nsExceptionManager::totalInstances = 0;
 #endif
 
 // Note this object is single threaded - the service itself ensures
 // one per thread.
 // An exception if the destructor, which may be called on
 // the thread shutting down xpcom
-NS_IMPL_ISUPPORTS1(nsExceptionManager, nsIExceptionManager)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsExceptionManager, nsIExceptionManager)
 
 nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
   mNextThread(nullptr),
@@ -60,7 +75,7 @@ nsExceptionManager::nsExceptionManager(nsExceptionService *svc) :
 {
   /* member initializers and constructor code */
 #ifdef DEBUG
-  ++totalInstances;
+  PR_ATOMIC_INCREMENT(&totalInstances);
 #endif
 }
 
@@ -68,7 +83,7 @@ nsExceptionManager::~nsExceptionManager()
 {
   /* destructor code */
 #ifdef DEBUG
-  --totalInstances;
+  PR_ATOMIC_DECREMENT(&totalInstances);
 #endif // DEBUG
 }
 
@@ -104,18 +119,19 @@ Mutex *nsExceptionService::sLock = nullptr;
 nsExceptionManager *nsExceptionService::firstThread = nullptr;
 
 #ifdef DEBUG
-Atomic<int32_t> nsExceptionService::totalInstances;
+int32_t nsExceptionService::totalInstances = 0;
 #endif
 
-NS_IMPL_ISUPPORTS3(nsExceptionService,
-                   nsIExceptionService,
-                   nsIExceptionManager,
-                   nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsExceptionService,
+                              nsIExceptionService,
+                              nsIExceptionManager,
+                              nsIObserver)
 
 nsExceptionService::nsExceptionService()
+  : mProviders(4, true) /* small, thread-safe hashtable */
 {
 #ifdef DEBUG
-  if (++totalInstances != 1) {
+  if (PR_ATOMIC_INCREMENT(&totalInstances)!=1) {
     NS_ERROR("The nsExceptionService is a singleton!");
   }
 #endif
@@ -140,7 +156,7 @@ nsExceptionService::~nsExceptionService()
   Shutdown();
   /* destructor code */
 #ifdef DEBUG
-  --totalInstances;
+  PR_ATOMIC_DECREMENT(&totalInstances);
 #endif
 }
 
@@ -157,6 +173,7 @@ void nsExceptionService::ThreadDestruct( void *data )
 
 void nsExceptionService::Shutdown()
 {
+  mProviders.Reset();
   if (sLock) {
     DropAllThreads();
     delete sLock;
@@ -212,6 +229,30 @@ NS_IMETHODIMP nsExceptionService::GetCurrentExceptionManager(nsIExceptionManager
     return NS_OK;
 }
 
+/* void registerErrorProvider (in nsIExceptionProvider provider, in uint32_t moduleCode); */
+NS_IMETHODIMP nsExceptionService::RegisterExceptionProvider(nsIExceptionProvider *provider, uint32_t errorModule)
+{
+    CHECK_SERVICE_USE_OK();
+
+    nsProviderKey key(errorModule);
+    if (mProviders.Put(&key, provider)) {
+        NS_WARNING("Registration of exception provider overwrote another provider with the same module code!");
+    }
+    return NS_OK;
+}
+
+/* void unregisterErrorProvider (in nsIExceptionProvider provider, in uint32_t errorModule); */
+NS_IMETHODIMP nsExceptionService::UnregisterExceptionProvider(nsIExceptionProvider *provider, uint32_t errorModule)
+{
+    CHECK_SERVICE_USE_OK();
+    nsProviderKey key(errorModule);
+    if (!mProviders.Remove(&key)) {
+        NS_WARNING("Attempt to unregister an unregistered exception provider!");
+        return NS_ERROR_UNEXPECTED;
+    }
+    return NS_OK;
+}
+
 // nsIObserver
 NS_IMETHODIMP nsExceptionService::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
@@ -233,26 +274,18 @@ nsExceptionService::DoGetExceptionFromProvider(nsresult errCode,
             return NS_OK;
         NS_RELEASE(*_exc);
     }
-
-    switch (NS_ERROR_GET_MODULE(errCode)) {
-    case NS_ERROR_MODULE_DOM:
-    case NS_ERROR_MODULE_SVG:
-    case NS_ERROR_MODULE_DOM_XPATH:
-    case NS_ERROR_MODULE_DOM_INDEXEDDB:
-    case NS_ERROR_MODULE_DOM_FILEHANDLE:
-        if (NS_IsMainThread()) {
-            return NS_NewDOMException(errCode, defaultException, _exc);
-        }
-        break;
-
-    default:
-        break;
-    }
+    nsProviderKey key(NS_ERROR_GET_MODULE(errCode));
+    nsCOMPtr<nsIExceptionProvider> provider =
+        dont_AddRef((nsIExceptionProvider *)mProviders.Get(&key));
 
     // No provider so we'll return the default exception
-    *_exc = defaultException;
-    NS_IF_ADDREF(*_exc);
-    return NS_OK;
+    if (!provider) {
+        *_exc = defaultException;
+        NS_IF_ADDREF(*_exc);
+        return NS_OK;
+    }
+
+    return provider->GetException(errCode, defaultException, _exc);
 }
 
 // thread management

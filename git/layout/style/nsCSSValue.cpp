@@ -12,6 +12,7 @@
 #include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsCSSProps.h"
+#include "nsContentUtils.h"
 #include "nsStyleUtil.h"
 #include "CSSCalc.h"
 #include "nsNetUtil.h"
@@ -56,6 +57,11 @@ nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
   NS_ABORT_IF_FALSE(UnitHasStringValue(), "not a string value");
   if (UnitHasStringValue()) {
     mValue.mString = BufferFromString(aValue).get();
+    if (MOZ_UNLIKELY(!mValue.mString)) {
+      // XXXbz not much we can do here; just make sure that our promise of a
+      // non-null mValue.mString holds for string units.
+      mUnit = eCSSUnit_Null;
+    }
   }
   else {
     mUnit = eCSSUnit_Null;
@@ -340,6 +346,11 @@ void nsCSSValue::SetStringValue(const nsString& aValue,
   NS_ABORT_IF_FALSE(UnitHasStringValue(), "not a string unit");
   if (UnitHasStringValue()) {
     mValue.mString = BufferFromString(aValue).get();
+    if (MOZ_UNLIKELY(!mValue.mString)) {
+      // XXXbz not much we can do here; just make sure that our promise of a
+      // non-null mValue.mString holds for string units.
+      mUnit = eCSSUnit_Null;
+    }
   } else
     mUnit = eCSSUnit_Null;
 }
@@ -823,20 +834,6 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
     int32_t intValue = GetIntValue();
     switch(aProperty) {
 
-
-    case eCSSProperty_text_combine_horizontal:
-      if (intValue <= NS_STYLE_TEXT_COMBINE_HORIZ_ALL) {
-        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
-                           aResult);
-      } else if (intValue == NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_2) {
-        aResult.AppendLiteral("digits 2");
-      } else if (intValue == NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_3) {
-        aResult.AppendLiteral("digits 3");
-      } else {
-        aResult.AppendLiteral("digits 4");
-      }
-      break;
-
     case eCSSProperty_text_decoration_line:
       if (NS_STYLE_TEXT_DECORATION_LINE_NONE == intValue) {
         AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
@@ -866,7 +863,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
       break;
 
     case eCSSProperty_paint_order:
-      static_assert
+      MOZ_STATIC_ASSERT
         (NS_STYLE_PAINT_ORDER_BITWIDTH * NS_STYLE_PAINT_ORDER_LAST_VALUE <= 8,
          "SVGStyleStruct::mPaintOrder and the following cast not big enough");
       nsStyleUtil::AppendPaintOrderValue(static_cast<uint8_t>(GetIntValue()),
@@ -1536,9 +1533,9 @@ nsCSSRect_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   return n;
 }
 
-static_assert(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
-              NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
-              "box side constants not top/right/bottom/left == 0/1/2/3");
+MOZ_STATIC_ASSERT(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
+                  NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
+                  "box side constants not top/right/bottom/left == 0/1/2/3");
 
 /* static */ const nsCSSRect::side_type nsCSSRect::sides[4] = {
   &nsCSSRect::mTop,
@@ -1936,9 +1933,9 @@ nsCSSCornerSizes::Reset()
   }
 }
 
-static_assert(NS_CORNER_TOP_LEFT == 0 && NS_CORNER_TOP_RIGHT == 1 &&
-              NS_CORNER_BOTTOM_RIGHT == 2 && NS_CORNER_BOTTOM_LEFT == 3,
-              "box corner constants not tl/tr/br/bl == 0/1/2/3");
+MOZ_STATIC_ASSERT(NS_CORNER_TOP_LEFT == 0 && NS_CORNER_TOP_RIGHT == 1 &&
+                  NS_CORNER_BOTTOM_RIGHT == 2 && NS_CORNER_BOTTOM_LEFT == 3,
+                  "box corner constants not tl/tr/br/bl == 0/1/2/3");
 
 /* static */ const nsCSSCornerSizes::corner_type
 nsCSSCornerSizes::corners[4] = {

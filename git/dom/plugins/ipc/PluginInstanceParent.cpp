@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/DebugOnly.h"
-#include <stdint.h> // for intptr_t
+#include "mozilla/StandardInteger.h" // for intptr_t
 
 #include "PluginInstanceParent.h"
 #include "BrowserStreamParent.h"
@@ -686,6 +686,31 @@ PluginInstanceParent::AsyncSetWindow(NPWindow* aWindow)
     return NS_OK;
 }
 
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+nsresult
+PluginInstanceParent::HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled)
+{
+    switch (anEvent.eventStructType) {
+    case NS_KEY_EVENT:
+        if (!CallHandleKeyEvent(static_cast<const nsKeyEvent&>(anEvent),
+                                handled)) {
+            return NS_ERROR_FAILURE;
+        }
+        break;
+    case NS_TEXT_EVENT:
+        if (!CallHandleTextEvent(static_cast<const nsTextEvent&>(anEvent),
+                                 handled)) {
+            return NS_ERROR_FAILURE;
+        }
+        break;
+    default:
+        NS_ERROR("Not implemented for this event type");
+        return NS_ERROR_FAILURE;
+    }
+    return NS_OK;
+}
+#endif
+
 nsresult
 PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
 {
@@ -727,10 +752,10 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
         NS_ASSERTION(image->GetFormat() == SHARED_TEXTURE, "Wrong format?");
 
         SharedTextureImage::Data data;
-        data.mShareType = gl::SameProcess;
+        data.mShareType = GLContext::SameProcess;
         data.mHandle = GLContextProviderCGL::CreateSharedHandle(data.mShareType,
                                                                 ioSurface,
-                                                                gl::IOSurface);
+                                                                GLContext::IOSurface);
         data.mInverted = false;
         // Use the device pixel size of the IOSurface, since layers handles resolution scaling
         // already.

@@ -115,24 +115,16 @@ class TestFileCopier(TestWithTmpDir):
         copier.add('qux/foo', GeneratedFile('quxfoo'))
         copier.add('qux/bar', GeneratedFile(''))
 
-        result = copier.copy(self.tmpdir)
+        copier.copy(self.tmpdir)
         self.assertEqual(self.all_files(self.tmpdir), set(copier.paths()))
         self.assertEqual(self.all_dirs(self.tmpdir),
                          set(['foo/deep/nested/directory', 'qux']))
 
-        self.assertEqual(result.updated_files, set(self.tmppath(p) for p in
-            self.all_files(self.tmpdir)))
-        self.assertEqual(result.existing_files, set())
-        self.assertEqual(result.removed_files, set())
-        self.assertEqual(result.removed_directories, set())
-
         copier.remove('foo')
         copier.add('test', GeneratedFile('test'))
-        result = copier.copy(self.tmpdir)
+        copier.copy(self.tmpdir)
         self.assertEqual(self.all_files(self.tmpdir), set(copier.paths()))
         self.assertEqual(self.all_dirs(self.tmpdir), set(['qux']))
-        self.assertEqual(result.removed_files, set(self.tmppath(p) for p in
-            ('foo/bar', 'foo/qux', 'foo/deep/nested/directory/file')))
 
     def test_permissions(self):
         """Ensure files without write permission can be deleted."""
@@ -154,22 +146,6 @@ class TestFileCopier(TestWithTmpDir):
         result = copier.copy(self.tmpdir)
         self.assertEqual(result.removed_files_count, 1)
         self.assertFalse(os.path.exists(p))
-
-    def test_no_remove(self):
-        copier = FileCopier()
-        copier.add('foo', GeneratedFile('foo'))
-
-        with open(self.tmppath('bar'), 'a'):
-            pass
-
-        os.mkdir(self.tmppath('emptydir'))
-
-        result = copier.copy(self.tmpdir, remove_unaccounted=False)
-
-        self.assertEqual(self.all_files(self.tmpdir), set(['foo', 'bar']))
-        self.assertEqual(result.removed_files, set())
-        self.assertEqual(result.removed_directories,
-            set([self.tmppath('emptydir')]))
 
 
 class TestFilePurger(TestWithTmpDir):
@@ -194,8 +170,6 @@ class TestFilePurger(TestWithTmpDir):
         purger = FilePurger()
         purger.add('existing')
         result = purger.purge(self.tmpdir)
-        self.assertEqual(result.removed_files, set(self.tmppath(p) for p in
-            ('extra', 'dir/foo')))
         self.assertEqual(result.removed_files_count, 2)
         self.assertEqual(result.removed_directories_count, 1)
 

@@ -8,6 +8,11 @@
 #include "mozilla/Util.h"
 #include <algorithm>
 
+#ifdef MOZ_PLATFORM_MAEMO
+// needed to include hildon parts in gtk.h
+#define MAEMO_CHANGES
+#endif
+
 #include "prlink.h"
 #include "nsGTKToolkit.h"
 #include "nsIRollupListener.h"
@@ -62,12 +67,10 @@
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
-#include "nsGtkUtils.h"
 #include "nsIObserverService.h"
 #include "mozilla/layers/LayersTypes.h"
 #include "nsIIdleServiceInternal.h"
 #include "nsIPropertyBag2.h"
-#include "GLContext.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/Accessible.h"
@@ -91,6 +94,7 @@ using namespace mozilla::widget;
 #include "nsImageToPixbuf.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
+#include "BasicLayers.h"
 #include "ClientLayerManager.h"
 
 extern "C" {
@@ -104,7 +108,6 @@ extern "C" {
 #include "Layers.h"
 #include "LayerManagerOGL.h"
 #include "GLContextProvider.h"
-#include "mozilla/gfx/2D.h"
 
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"
@@ -118,7 +121,6 @@ extern "C" {
 #include "nsWindow.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::widget;
 using namespace mozilla::layers;
 using mozilla::gl::GLContext;
@@ -132,7 +134,9 @@ const gint kEvents = GDK_EXPOSURE_MASK | GDK_STRUCTURE_MASK |
                      GDK_VISIBILITY_NOTIFY_MASK |
                      GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK |
                      GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK |
-                     GDK_SCROLL_MASK |
+#ifdef MOZ_PLATFORM_MAEMO
+                     GDK_POINTER_MOTION_HINT_MASK |
+#endif
                      GDK_POINTER_MOTION_MASK;
 
 /* utility functions */
@@ -278,6 +282,17 @@ static GtkWidget *gInvisibleContainer = NULL;
 // Sometimes this actually also includes the state of the modifier keys, but
 // only the button state bits are used.
 static guint gButtonState;
+
+// Some gobject functions expect functions for gpointer arguments.
+// gpointer is void* but C++ doesn't like casting functions to void*.
+template<class T> static inline gpointer
+FuncToGpointer(T aFunction)
+{
+    return reinterpret_cast<gpointer>
+        (reinterpret_cast<uintptr_t>
+         // This cast just provides a warning if T is not a function.
+         (reinterpret_cast<void (*)()>(aFunction)));
+}
 
 // nsAutoRef<pixman_region32> uses nsSimpleRef<> to know how to automatically
 // destroy regions.
@@ -713,6 +728,29 @@ nsWindow::GetParent(void)
 float
 nsWindow::GetDPI()
 {
+
+#ifdef MOZ_PLATFORM_MAEMO
+    static float sDPI = 0;
+
+    if (!sDPI) {
+        // X on Maemo does not report true DPI: https://bugs.maemo.org/show_bug.cgi?id=4825
+        nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
+        NS_ASSERTION(infoService, "Could not find a system info service");
+
+        nsCString deviceType;
+        infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
+        if (deviceType.EqualsLiteral("Nokia N900")) {
+            sDPI = 265.0f;
+        } else if (deviceType.EqualsLiteral("Nokia N8xx")) {
+            sDPI = 225.0f;
+        } else {
+            // Fall back to something sane.
+            NS_WARNING("Unknown device - using default DPI");
+            sDPI = 96.0f;
+        }
+    }
+    return sDPI;
+#else
     Display *dpy = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
     int defaultScreen = DefaultScreen(dpy);
     double heightInches = DisplayHeightMM(dpy, defaultScreen)/MM_PER_INCH_FLOAT;
@@ -721,6 +759,7 @@ nsWindow::GetDPI()
         return 96.0f;
     }
     return float(DisplayHeight(dpy, defaultScreen)/heightInches);
+#endif
 }
 
 NS_IMETHODIMP
@@ -2085,12 +2124,13 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         return TRUE;
     }
     // If this widget uses OMTC...
-    if (GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
-        listener->PaintWindow(this, region);
+    if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager() &&
+        Compositor::GetBackend() != LAYERS_BASIC) {
         listener->DidPaintWindow();
 
         g_free(rects);
         return TRUE;
+
     } else if (GetLayerManager()->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
         LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(region);
@@ -2159,6 +2199,10 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     {
       if (GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
         AutoLayerManagerSetup setupLayerManager(this, ctx, layerBuffering);
+        painted = listener->PaintWindow(this, region);
+      } else if (GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
+        ClientLayerManager *manager = static_cast<ClientLayerManager*>(GetLayerManager());
+        manager->SetShadowTarget(ctx);
         painted = listener->PaintWindow(this, region);
       }
     }
@@ -2499,10 +2543,8 @@ nsWindow::OnMotionNotifyEvent(GdkEventMotion *aEvent)
             event.refPoint.x = nscoord(aEvent->x);
             event.refPoint.y = nscoord(aEvent->y);
         } else {
-            LayoutDeviceIntPoint point(NSToIntFloor(aEvent->x_root),
-                                       NSToIntFloor(aEvent->y_root));
-            event.refPoint = point -
-                LayoutDeviceIntPoint::FromUntyped(WidgetToScreenOffset());
+            nsIntPoint point(NSToIntFloor(aEvent->x_root), NSToIntFloor(aEvent->y_root));
+            event.refPoint = point - WidgetToScreenOffset();
         }
 
         modifierState = aEvent->state;
@@ -2578,10 +2620,8 @@ nsWindow::InitButtonEvent(nsMouseEvent &aEvent,
         aEvent.refPoint.x = nscoord(aGdkEvent->x);
         aEvent.refPoint.y = nscoord(aGdkEvent->y);
     } else {
-        LayoutDeviceIntPoint point(NSToIntFloor(aGdkEvent->x_root),
-                                   NSToIntFloor(aGdkEvent->y_root));
-        aEvent.refPoint = point -
-            LayoutDeviceIntPoint::FromUntyped(WidgetToScreenOffset());
+        nsIntPoint point(NSToIntFloor(aGdkEvent->x_root), NSToIntFloor(aGdkEvent->y_root));
+        aEvent.refPoint = point - WidgetToScreenOffset();
     }
 
     guint modifierState = aGdkEvent->state;
@@ -2903,7 +2943,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
 
     bool isKeyDownCancelled = false;
     if (DispatchKeyDownEvent(aEvent, &isKeyDownCancelled) &&
-        (MOZ_UNLIKELY(mIsDestroyed) || isKeyDownCancelled)) {
+        MOZ_UNLIKELY(mIsDestroyed)) {
         return TRUE;
     }
 
@@ -2964,6 +3004,10 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
 
     nsKeyEvent event(true, NS_KEY_PRESS, this);
     KeymapWrapper::InitKeyEvent(event, aEvent);
+    if (isKeyDownCancelled) {
+      // If prevent default set for onkeydown, do the same for onkeypress
+      event.mFlags.mDefaultPrevented = true;
+    }
 
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
@@ -2972,7 +3016,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
                                       nsMouseEvent::eReal,
                                       nsMouseEvent::eContextMenuKey);
 
-        contextMenuEvent.refPoint = LayoutDeviceIntPoint(0, 0);
+        contextMenuEvent.refPoint = nsIntPoint(0, 0);
         contextMenuEvent.time = aEvent->time;
         contextMenuEvent.clickCount = 1;
         KeymapWrapper::InitInputEvent(contextMenuEvent, aEvent->state);
@@ -3063,10 +3107,8 @@ nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
         // XXX we're never quite sure which GdkWindow the event came from due to our custom bubbling
         // in scroll_event_cb(), so use ScreenToWidget to translate the screen root coordinates into
         // coordinates relative to this widget.
-        LayoutDeviceIntPoint point(NSToIntFloor(aEvent->x_root),
-                                   NSToIntFloor(aEvent->y_root));
-        wheelEvent.refPoint = point -
-            LayoutDeviceIntPoint::FromUntyped(WidgetToScreenOffset());
+        nsIntPoint point(NSToIntFloor(aEvent->x_root), NSToIntFloor(aEvent->y_root));
+        wheelEvent.refPoint = point - WidgetToScreenOffset();
     }
 
     KeymapWrapper::InitInputEvent(wheelEvent, aEvent->state);
@@ -3097,6 +3139,12 @@ nsWindow::OnVisibilityNotifyEvent(GdkEventVisibility *aEvent)
 
         mIsFullyObscured = false;
 
+        // In Hildon/Maemo, a browser window will get into 'patially visible' state wheneven an
+        // autocomplete feature is dropped down (from urlbar or from an entry form completion),
+        // and there are no much further ways for that to happen in the plaftorm. In such cases, if hildon
+        // virtual keyboard is up, we can not grab focus to any dropdown list. Reason: nsWindow::EnsureGrabs()
+        // calls gdk_pointer_grab() which grabs the pointer (usually a mouse) so that all events are passed
+        // to this it until the pointer is ungrabbed.
         if (!nsGtkIMModule::IsVirtualKeyboardOpened()) {
             // if we have to retry the grab, retry it.
             EnsureGrabs();
@@ -3210,7 +3258,7 @@ nsWindow::DispatchDragEvent(uint32_t aMsg, const nsIntPoint& aRefPoint,
         InitDragEvent(event);
     }
 
-    event.refPoint = LayoutDeviceIntPoint::FromUntyped(aRefPoint);
+    event.refPoint = aRefPoint;
     event.time = aTime;
 
     nsEventStatus status;
@@ -3575,6 +3623,25 @@ nsWindow::Create(nsIWidget        *aParent,
         g_signal_connect_after(default_settings,
                                "notify::gtk-font-name",
                                G_CALLBACK(theme_changed_cb), this);
+
+#ifdef MOZ_PLATFORM_MAEMO
+        if (mWindowType == eWindowType_toplevel) {
+            GdkWindow *gdkwin = gtk_widget_get_window(mShell);
+
+            // Tell the Hildon desktop that we support being rotated
+            gulong portrait_set = 1;
+            GdkAtom support = gdk_atom_intern("_HILDON_PORTRAIT_MODE_SUPPORT", FALSE);
+            gdk_property_change(gdkwin, support, gdk_x11_xatom_to_atom(XA_CARDINAL),
+                                32, GDK_PROP_MODE_REPLACE,
+                                (const guchar *) &portrait_set, 1);
+
+            // Tell maemo-status-volume daemon to ungrab keys
+            gulong volume_set = 1;
+            GdkAtom keys = gdk_atom_intern("_HILDON_ZOOM_KEY_ATOM", FALSE);
+            gdk_property_change(gdkwin, keys, gdk_x11_xatom_to_atom(XA_INTEGER),
+                                32, GDK_PROP_MODE_REPLACE, (const guchar *) &volume_set, 1);
+        }
+#endif
     }
 
     if (mContainer) {
@@ -4345,6 +4412,9 @@ nsWindow::GrabPointer(guint32 aTime)
                                              GDK_BUTTON_RELEASE_MASK |
                                              GDK_ENTER_NOTIFY_MASK |
                                              GDK_LEAVE_NOTIFY_MASK |
+#ifdef MOZ_PLATFORM_MAEMO
+                                             GDK_POINTER_MOTION_HINT_MASK |
+#endif
                                              GDK_POINTER_MOTION_MASK),
                               (GdkWindow *)NULL, NULL, aTime);
 
@@ -5137,6 +5207,9 @@ motion_notify_event_cb(GtkWidget *widget, GdkEventMotion *event)
 
     window->OnMotionNotifyEvent(event);
 
+#ifdef MOZ_PLATFORM_MAEMO
+    gdk_event_request_motions(event);
+#endif
     return TRUE;
 }
 
@@ -5901,7 +5974,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
 #endif
 
 #if defined(MOZ_WIDGET_GTK2)
-TemporaryRef<DrawTarget>
+TemporaryRef<gfx::DrawTarget>
 nsWindow::StartRemoteDrawing()
 {
   gfxASurface *surf = GetThebesSurface();
@@ -5909,7 +5982,7 @@ nsWindow::StartRemoteDrawing()
     return nullptr;
   }
 
-  IntSize size(surf->GetSize().width, surf->GetSize().height);
+  gfx::IntSize size(surf->GetSize().width, surf->GetSize().height);
   if (size.width <= 0 || size.height <= 0) {
     return nullptr;
   }
@@ -6128,7 +6201,8 @@ nsWindow::ClearCachedResources()
 {
     if (mLayerManager &&
         mLayerManager->GetBackendType() == mozilla::layers::LAYERS_BASIC) {
-        mLayerManager->ClearCachedResources();
+        static_cast<mozilla::layers::BasicLayerManager*> (mLayerManager.get())->
+            ClearCachedResources();
     }
 
     GList* children = gdk_window_peek_children(mGdkWindow);
@@ -6150,34 +6224,8 @@ nsWindow::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
   }
 
   GdkDisplay* display = gdk_window_get_display(mGdkWindow);
-
-  // When a button-release event is requested, create it here and put it in the
-  // event queue. This will not emit a motion event - this needs to be done
-  // explicitly *before* requesting a button-release. You will also need to wait
-  // for the motion event to be dispatched before requesting a button-release
-  // event to maintain the desired event order.
-  if (aNativeMessage == GDK_BUTTON_RELEASE) {
-    GdkEvent event;
-    memset(&event, 0, sizeof(GdkEvent));
-    event.type = (GdkEventType)aNativeMessage;
-    event.button.button = 1;
-    event.button.window = mGdkWindow;
-    event.button.time = GDK_CURRENT_TIME;
-
-#if (MOZ_WIDGET_GTK == 3)
-    // Get device for event source
-    GdkDeviceManager *device_manager = gdk_display_get_device_manager(display);
-    event.button.device = gdk_device_manager_get_client_pointer(device_manager);
-#endif
-
-    gdk_event_put(&event);
-  } else {
-    // We don't support specific events other than button-release. In case
-    // aNativeMessage != GDK_BUTTON_RELEASE we'll synthesize a motion event
-    // that will be emitted by gdk_display_warp_pointer().
-    GdkScreen* screen = gdk_window_get_screen(mGdkWindow);
-    gdk_display_warp_pointer(display, screen, aPoint.x, aPoint.y);
-  }
+  GdkScreen* screen = gdk_window_get_screen(mGdkWindow);
+  gdk_display_warp_pointer(display, screen, aPoint.x, aPoint.y);
 
   return NS_OK;
 }

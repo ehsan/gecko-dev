@@ -112,44 +112,6 @@ add_test(function testCloseApp() {
   });
 });
 
-// The 128px icon is a single red pixel and the 64px one is a blue one
-// bug 899177: there is a bug with xhr and app:// and jar:// uris
-// that ends up forcing the content type to application/xml
-let red1px =  "data:application/xml;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z8AAAAMBAQAY3Y2wAAAAAElFTkSuQmCC";
-let blue1px = "data:application/xml;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12MwZDgHAAFlAQBDpjhLAAAAAElFTkSuQmCC";
-
-add_test(function testGetIcon() {
-  let manifestURL = APP_ORIGIN + "/manifest.webapp";
-  let request = {
-    type: "getIconAsDataURL",
-    manifestURL: manifestURL
-  };
-
-  webappActorRequest(request, function (aResponse) {
-    do_check_false("error" in aResponse);
-
-    // By default, getIconAsDataURL return the 128x128 icon
-    do_check_eq(aResponse.url, red1px);
-    run_next_test();
-  });
-});
-
-add_test(function testGetIconWithCustomSize() {
-  let manifestURL = APP_ORIGIN + "/manifest.webapp";
-  let request = {
-    type: "getIconAsDataURL",
-    manifestURL: manifestURL,
-    size: 64
-  };
-
-  webappActorRequest(request, function (aResponse) {
-    do_check_false("error" in aResponse);
-
-    do_check_eq(aResponse.url, blue1px);
-    run_next_test();
-  });
-});
-
 add_test(function testUninstall() {
   let origin = "app://" + gAppId;
   let manifestURL = origin + "/manifest.webapp";
@@ -158,19 +120,30 @@ add_test(function testUninstall() {
     manifestURL: manifestURL
   };
 
+  let gotFirstUninstallEvent = false;
+  Services.obs.addObserver(function observer(subject, topic, data) {
+    Services.obs.removeObserver(observer, topic);
+    let json = JSON.parse(data);
+    do_check_eq(json.manifestURL, manifestURL);
+    do_check_eq(json.origin, origin);
+    gotFirstUninstallEvent = true;
+  }, "webapps-uninstall", false);
+
   Services.obs.addObserver(function observer(subject, topic, data) {
     Services.obs.removeObserver(observer, topic);
     let json = JSON.parse(data);
     do_check_eq(json.manifestURL, manifestURL);
     do_check_eq(json.origin, origin);
     do_check_eq(json.id, gAppId);
+    do_check_true(gotFirstUninstallEvent);
     run_next_test();
-  }, "webapps-uninstall", false);
+  }, "webapps-sync-uninstall", false);
 
   webappActorRequest(request, function (aResponse) {
     do_check_false("error" in aResponse);
   });
 });
+
 
 function run_test() {
   setup();

@@ -27,14 +27,11 @@ const InputStreamPump = CC(
         '@mozilla.org/io/arraybuffer-input-stream;1', 'nsIArrayBufferInputStream'),
       MultiplexInputStream = CC(
         '@mozilla.org/io/multiplex-input-stream;1', 'nsIMultiplexInputStream');
-const TCPServerSocket = CC(
-        "@mozilla.org/tcp-server-socket;1", "nsITCPServerSocketInternal", "init");
 
 const kCONNECTING = 'connecting';
 const kOPEN = 'open';
 const kCLOSING = 'closing';
 const kCLOSED = 'closed';
-const kRESUME_ERROR = 'Calling resume() on a connection that was not suspended.';
 
 const BUFFER_SIZE = 65536;
 
@@ -120,7 +117,6 @@ TCPSocket.prototype = {
     send: 'r',
     readyState: 'r',
     binaryType: 'r',
-    listen: 'r',
     onopen: 'rw',
     ondrain: 'rw',
     ondata: 'rw',
@@ -156,10 +152,6 @@ TCPSocket.prototype = {
 
   // IPC socket actor
   _socketBridge: null,
-
-  // StartTLS
-  _waitingForStartTLS: false,
-  _pendingDataAfterStartTLS: [],
 
   // Public accessors.
   get readyState() {
@@ -214,23 +206,19 @@ TCPSocket.prototype = {
     this._onclose = f;
   },
 
-  _activateTLS: function() {
-    let securityInfo = this._transport.securityInfo
-          .QueryInterface(Ci.nsISSLSocketControl);
-    securityInfo.StartTLS();
-  },
-
   // Helper methods.
   _createTransport: function ts_createTransport(host, port, sslMode) {
-    let options;
-    if (sslMode === 'ssl') {
-      options = ['ssl'];
+    let options, optlen;
+    if (sslMode) {
+      options = [sslMode];
+      optlen = 1;
     } else {
-      options = ['starttls'];
+      options = null;
+      optlen = 0;
     }
     return Cc["@mozilla.org/network/socket-transport-service;1"]
              .getService(Ci.nsISocketTransportService)
-             .createTransport(options, 1, host, port, null);
+             .createTransport(options, optlen, host, port, null);
   },
 
   _ensureCopying: function ts_ensureCopying() {
@@ -256,21 +244,6 @@ TCPSocket.prototype = {
         if (self._multiplexStream.count) {
           self._ensureCopying();
         } else {
-          // If we are waiting for initiating starttls, we can begin to
-          // activate tls now.
-          if (self._waitingForStartTLS && self._readyState == kOPEN) {
-            self._activateTLS();
-            self._waitingForStartTLS = false;
-            // If we have pending data, we should send them, or fire
-            // a drain event if we are waiting for it.
-            if (self._pendingDataAfterStartTLS.length > 0) {
-              while (self._pendingDataAfterStartTLS.length)
-                self._multiplexStream.appendStream(self._pendingDataAfterStartTLS.shift());
-              self._ensureCopying();
-              return;
-            }
-          }
-
           if (self._waitingForDrain) {
             self._waitingForDrain = false;
             self.callListener("drain");
@@ -283,36 +256,6 @@ TCPSocket.prototype = {
         }
       }
     }, null);
-  },
-  
-  _initStream: function ts_initStream(binaryType) {
-    this._binaryType = binaryType;
-    this._socketInputStream = this._transport.openInputStream(0, 0, 0);
-    this._socketOutputStream = this._transport.openOutputStream(
-      Ci.nsITransport.OPEN_UNBUFFERED, 0, 0);
-
-    // If the other side is not listening, we will
-    // get an onInputStreamReady callback where available
-    // raises to indicate the connection was refused.
-    this._socketInputStream.asyncWait(
-      this, this._socketInputStream.WAIT_CLOSURE_ONLY, 0, Services.tm.currentThread);
-
-    if (this._binaryType === "arraybuffer") {
-      this._inputStreamBinary = new BinaryInputStream(this._socketInputStream);
-    } else {
-      this._inputStreamScriptable = new ScriptableInputStream(this._socketInputStream);
-    }
-
-    this._multiplexStream = new MultiplexInputStream();
-
-    this._multiplexStreamCopier = new AsyncStreamCopier(
-      this._multiplexStream,
-      this._socketOutputStream,
-      // (nsSocketTransport uses gSocketTransportService)
-      Cc["@mozilla.org/network/socket-transport-service;1"]
-        .getService(Ci.nsIEventTarget),
-      /* source buffered */ true, /* sink buffered */ false,
-      BUFFER_SIZE, /* close source*/ false, /* close sink */ false);
   },
 
   callListener: function ts_callListener(type, data) {
@@ -345,41 +288,10 @@ TCPSocket.prototype = {
     this._readyState = readyState;
     this._bufferedAmount = bufferedAmount;
   },
-
-  createAcceptedParent: function ts_createAcceptedParent(transport, binaryType) {
-    let that = new TCPSocket();
-    that._transport = transport;
-    that._initStream(binaryType);
-
-    // ReadyState is kOpen since accepted transport stream has already been connected
-    that._readyState = kOPEN;
-    that._inputStreamPump = new InputStreamPump(that._socketInputStream, -1, -1, 0, 0, false);
-    that._inputStreamPump.asyncRead(that, null);
-
-    return that;
-  },
-
-  createAcceptedChild: function ts_createAcceptedChild(socketChild, binaryType, windowObject) {
-    let that = new TCPSocket();
-
-    that._binaryType = binaryType;
-    that._inChild = true;
-    that._readyState = kOPEN;
-    socketChild.setSocketAndWindow(that, windowObject);
-    that._socketBridge = socketChild;
-
-    return that;
-  },
-
   /* end nsITCPSocketInternal methods */
 
   initWindowless: function ts_initWindowless() {
-    try {
-      return Services.prefs.getBoolPref("dom.mozTCPSocket.enabled");
-    } catch (e) {
-      // no pref means return false
-      return false;
-    }
+    return Services.prefs.getBoolPref("dom.mozTCPSocket.enabled");
   },
 
   init: function ts_init(aWindow) {
@@ -458,7 +370,7 @@ TCPSocket.prototype = {
     that._host = host;
     that._port = port;
     if (options !== undefined) {
-      if (options.useSecureTransport) {
+      if (options.useSSL) {
           that._ssl = 'ssl';
       } else {
           that._ssl = false;
@@ -478,48 +390,34 @@ TCPSocket.prototype = {
 
     let transport = that._transport = this._createTransport(host, port, that._ssl);
     transport.setEventSink(that, Services.tm.currentThread);
-    that._initStream(that._binaryType);
-    return that;
-  },
 
-  upgradeToSecure: function ts_upgradeToSecure() {
-    if (this._readyState !== kOPEN) {
-      throw new Error("Socket not open.");
-    }
-    if (this._ssl == 'ssl') {
-      // Already SSL
-      return;
-    }
+    that._socketInputStream = transport.openInputStream(0, 0, 0);
+    that._socketOutputStream = transport.openOutputStream(
+      Ci.nsITransport.OPEN_UNBUFFERED, 0, 0);
 
-    this._ssl = 'ssl';
+    // If the other side is not listening, we will
+    // get an onInputStreamReady callback where available
+    // raises to indicate the connection was refused.
+    that._socketInputStream.asyncWait(
+      that, that._socketInputStream.WAIT_CLOSURE_ONLY, 0, Services.tm.currentThread);
 
-    if (this._inChild) {
-      this._socketBridge.startTLS();
-      return;
-    }
-
-    if (this._multiplexStream.count == 0) {
-      this._activateTLS();
+    if (that._binaryType === "arraybuffer") {
+      that._inputStreamBinary = new BinaryInputStream(that._socketInputStream);
     } else {
-      this._waitingForStartTLS = true;
-    }
-  },
-
-  listen: function ts_listen(localPort, options, backlog) {
-    if (!this.initWindowless())
-      return null;
-
-    // in the testing case, init won't be called and
-    // hasPrivileges will be null. We want to proceed to test.
-    if (this._hasPrivileges !== true && this._hasPrivileges !== null) {
-      throw new Error("TCPSocket does not have permission in this context.\n");
+      that._inputStreamScriptable = new ScriptableInputStream(that._socketInputStream);
     }
 
-    let that = new TCPServerSocket(this.useWin || this);
+    that._multiplexStream = new MultiplexInputStream();
 
-    options = options || { binaryType : this.binaryType };
-    backlog = backlog || -1;
-    that.listen(localPort, options, backlog);
+    that._multiplexStreamCopier = new AsyncStreamCopier(
+      that._multiplexStream,
+      that._socketOutputStream,
+      // (nsSocketTransport uses gSocketTransportService)
+      Cc["@mozilla.org/network/socket-transport-service;1"]
+        .getService(Ci.nsIEventTarget),
+      /* source buffered */ true, /* sink buffered */ false,
+      BUFFER_SIZE, /* close source*/ false, /* close sink */ false);
+
     return that;
   },
 
@@ -570,14 +468,7 @@ TCPSocket.prototype = {
       new_stream = new StringInputStream();
       new_stream.setData(data, length);
     }
-
-    if (this._waitingForStartTLS) {
-      // When we are waiting for starttls, new_stream is added to pendingData
-      // and will be appended to multiplexStream after tls had been set up.
-      this._pendingDataAfterStartTLS.push(new_stream);
-    } else {
-      this._multiplexStream.appendStream(new_stream);
-    }
+    this._multiplexStream.appendStream(new_stream);
 
     if (newBufferedAmount >= BUFFER_SIZE) {
       // If we buffered more than some arbitrary amount of data,
@@ -613,8 +504,6 @@ TCPSocket.prototype = {
 
     if (this._inputStreamPump) {
       this._inputStreamPump.resume();
-    } else if (this._suspendCount < 1) {
-      throw new Error(kRESUME_ERROR);
     } else {
       --this._suspendCount;
     }

@@ -52,10 +52,6 @@ let onunload;
 let asyncTestRunning = false;
 let asyncTestCommandId;
 let asyncTestTimeoutId;
-
-let inactivityTimeoutId = null;
-let heartbeatCallback = function () {}; // Called by the simpletest methods.
-
 let originalOnError;
 //timer for doc changes
 let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
@@ -301,9 +297,8 @@ function createExecuteContentSandbox(aWindow, timeout) {
   sandbox.asyncTestCommandId = asyncTestCommandId;
 
   let marionette = new Marionette(this, aWindow, "content",
-                                  marionetteLogObj, timeout,
-                                  heartbeatCallback,
-                                  marionetteTestName);
+                                  marionetteLogObj,
+                                  timeout, marionetteTestName);
   sandbox.marionette = marionette;
   marionette.exports.forEach(function(fn) {
     try {
@@ -322,11 +317,6 @@ function createExecuteContentSandbox(aWindow, timeout) {
     if (commandId == asyncTestCommandId) {
       curWindow.removeEventListener("unload", onunload, false);
       curWindow.clearTimeout(asyncTestTimeoutId);
-
-      if (inactivityTimeoutId != null) {
-        curWindow.clearTimeout(inactivityTimeoutId);
-      }
-
 
       sendSyncMessage("Marionette:shareData",
                       {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
@@ -350,7 +340,6 @@ function createExecuteContentSandbox(aWindow, timeout) {
       asyncTestRunning = false;
       asyncTestTimeoutId = undefined;
       asyncTestCommandId = undefined;
-      inactivityTimeoutId = null;
     }
   };
   sandbox.finish = function sandbox_finish() {
@@ -372,21 +361,6 @@ function createExecuteContentSandbox(aWindow, timeout) {
  * or directly (for 'mochitest' like JS Marionette tests)
  */
 function executeScript(msg, directInject) {
-  // Set up inactivity timeout.
-  if (msg.json.inactivityTimeout) {
-    let setTimer = function() {
-        inactivityTimeoutId = curWindow.setTimeout(function() {
-        sendError('timed out due to inactivity', 28, null, asyncTestCommandId);
-      }, msg.json.inactivityTimeout);
-   };
-
-    setTimer();
-    heartbeatCallback = function resetInactivityTimeout() {
-      curWindow.clearTimeout(inactivityTimeoutId);
-      setTimer();
-    };
-  }
-
   asyncTestCommandId = msg.json.command_id;
   let script = msg.json.value;
 
@@ -496,21 +470,6 @@ function executeJSScript(msg) {
  * method is called, or if it times out.
  */
 function executeWithCallback(msg, useFinish) {
-  // Set up inactivity timeout.
-  if (msg.json.inactivityTimeout) {
-    let setTimer = function() {
-      inactivityTimeoutId = curWindow.setTimeout(function() {
-        sandbox.asyncComplete('timed out due to inactivity', 28, null, asyncTestCommandId);
-      }, msg.json.inactivityTimeout);
-    };
-
-    setTimer();
-    heartbeatCallback = function resetInactivityTimeout() {
-      curWindow.clearTimeout(inactivityTimeoutId);
-      setTimer();
-    };
-  }
-
   let script = msg.json.value;
   asyncTestCommandId = msg.json.command_id;
 
@@ -662,18 +621,36 @@ function coordinates(target, x, y) {
 }
 
 /**
- * This function returns if the element is in viewport
+ * This function returns if the element is in viewport 
  */
 function elementInViewport(el) {
   let rect = el.getBoundingClientRect();
-  let viewPort = {top: curWindow.pageYOffset,
-                  left: curWindow.pageXOffset,
-                  bottom: (curWindow.pageYOffset + curWindow.innerHeight),
-                  right:(curWindow.pageXOffset + curWindow.innerWidth)};
-  return (viewPort.left <= rect.right + curWindow.pageXOffset &&
-          rect.left + curWindow.pageXOffset <= viewPort.right &&
-          viewPort.top <= rect.bottom + curWindow.pageYOffset &&
-          rect.top + curWindow.pageYOffset <= viewPort.bottom);
+  return  (/* Top left corner is in view */
+           (rect.top >= curWindow.pageYOffset &&
+            rect.top <= (curWindow.pageYOffset + curWindow.innerHeight) &&
+            rect.left >= curWindow.pageXOffset &&
+            rect.left <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
+           /* Top right corner is in view */ 
+           (rect.top >= curWindow.pageYOffset &&
+            rect.top <= (curWindow.pageYOffset + curWindow.innerHeight) &&
+            rect.right >= curWindow.pageXOffset &&
+            rect.right <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
+           /* Bottom right corner is in view */
+           (rect.bottom >= curWindow.pageYOffset &&
+            rect.bottom <= (curWindow.pageYOffset + curWindow.innerHeight)  &&
+            rect.right >= curWindow.pageXOffset &&
+            rect.right <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
+           /* Bottom left corner is in view */
+           (rect.bottom >= curWindow.pageYOffset &&
+            rect.bottom <= (curWindow.pageYOffset + curWindow.innerHeight)  &&
+            rect.left >= curWindow.pageXOffset &&
+            rect.left <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
+           /* Center of the element is in view if element larger than viewport */
+           ((rect.top + (rect.height/2)) <= curWindow.pageYOffset &&
+            (rect.top + (rect.height/2)) >= (curWindow.pageYOffset + curWindow.innerHeight) &&
+            (rect.left + (rect.width/2)) <= curWindow.pageXOffset &&
+            (rect.left + (rect.width/2)) >= (curWindow.pageXOffset + curWindow.innerWidth))
+         );
 }
 
 /**
@@ -1492,9 +1469,6 @@ function switchToFrame(msg) {
     msg.json.element = null;
   }
   if ((msg.json.value == null) && (msg.json.element == null)) {
-    // returning to root frame
-    sendSyncMessage("Marionette:switchedToFrame", { frameValue: null });
-
     curWindow = content;
     if(msg.json.focus == true) {
       curWindow.focus();
@@ -1557,14 +1531,9 @@ function switchToFrame(msg) {
 
   sandbox = null;
 
-  // send a synchronous message to let the server update the currently active
-  // frame element (for getActiveFrame)
-  let frameValue = elementManager.wrapValue(curWindow.wrappedJSObject)['ELEMENT'];
-  sendSyncMessage("Marionette:switchedToFrame", { frameValue: frameValue });
-
   if (curWindow.contentWindow == null) {
-    // The frame we want to switch to is a remote (out-of-process) frame;
-    // notify our parent to handle the switch.
+    // The frame we want to switch to is a remote frame; notify our parent to handle
+    // the switch.
     curWindow = content;
     sendToServer('Marionette:switchToFrame', {frame: foundFrame,
                                               win: parWindow,
@@ -1789,7 +1758,7 @@ function screenShot(msg) {
   let highlights = msg.json.highlights;
 
   var document = curWindow.document;
-  var rect, win, width, height, left, top;
+  var rect, win, width, height, left, top, needsOffset;
   // node can be either a window or an arbitrary DOM node
   if (node == curWindow) {
     // node is a window
@@ -1798,6 +1767,8 @@ function screenShot(msg) {
     height = win.innerHeight;
     top = 0;
     left = 0;
+    // offset needed for highlights to take 'outerHeight' of window into account
+    needsOffset = true;
   }
   else {
     // node is an arbitrary DOM node
@@ -1807,6 +1778,8 @@ function screenShot(msg) {
     height = rect.height;
     top = rect.top;
     left = rect.left;
+    // offset for highlights not needed as they will be relative to this node
+    needsOffset = false;
   }
 
   var canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
@@ -1823,11 +1796,19 @@ function screenShot(msg) {
     ctx.save();
 
     for (var i = 0; i < highlights.length; ++i) {
-      var elem = elementManager.getKnownElement(highlights[i], curWindow)
+      var elem = highlights[i];
       rect = elem.getBoundingClientRect();
 
-      var offsetY = -top;
-      var offsetX = -left;
+      var offsetY = 0, offsetX = 0;
+      if (needsOffset) {
+        var offset = getChromeOffset(elem);
+        offsetX = offset.x;
+        offsetY = offset.y;
+      } else {
+        // Don't need to offset the window chrome, just make relative to containing node
+        offsetY = -top;
+        offsetX = -left;
+      }
 
       // Draw the rectangle
       ctx.strokeRect(rect.left + offsetX, rect.top + offsetY, rect.width, rect.height);

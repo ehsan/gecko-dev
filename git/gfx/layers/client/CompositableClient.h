@@ -6,24 +6,18 @@
 #ifndef MOZILLA_GFX_BUFFERCLIENT_H
 #define MOZILLA_GFX_BUFFERCLIENT_H
 
-#include <stdint.h>                     // for uint64_t
-#include <vector>                       // for vector
-#include "mozilla/Assertions.h"         // for MOZ_CRASH
-#include "mozilla/RefPtr.h"             // for TemporaryRef, RefCounted
-#include "mozilla/gfx/Types.h"          // for SurfaceFormat
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/LayersTypes.h"  // for LayersBackend
-#include "mozilla/layers/PCompositableChild.h"  // for PCompositableChild
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "mozilla/layers/PCompositableChild.h"
+#include "mozilla/layers/LayersTypes.h"
+#include "mozilla/RefPtr.h"
 
 namespace mozilla {
 namespace layers {
 
+class CompositableChild;
 class CompositableClient;
 class DeprecatedTextureClient;
-class TextureClient;
-class BufferTextureClient;
 class ImageBridgeChild;
+class ShadowableLayer;
 class CompositableForwarder;
 class CompositableChild;
 class SurfaceDescriptor;
@@ -66,25 +60,26 @@ class SurfaceDescriptor;
  * where we have a different way of interfacing with the textures - in terms of
  * drawing into the compositable and/or passing its contents to the compostior.
  */
-class CompositableClient : public AtomicRefCounted<CompositableClient>
+class CompositableClient : public RefCounted<CompositableClient>
 {
 public:
-  CompositableClient(CompositableForwarder* aForwarder);
+  CompositableClient(CompositableForwarder* aForwarder)
+  : mCompositableChild(nullptr), mForwarder(aForwarder)
+  {
+    MOZ_COUNT_CTOR(CompositableClient);
+  }
 
   virtual ~CompositableClient();
 
-  virtual TextureInfo GetTextureInfo() const = 0;
+  virtual TextureInfo GetTextureInfo() const
+  {
+    MOZ_CRASH("This method should be overridden");
+  }
 
   LayersBackend GetCompositorBackendType() const;
 
   TemporaryRef<DeprecatedTextureClient>
   CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType);
-
-  virtual TemporaryRef<BufferTextureClient>
-  CreateBufferTextureClient(gfx::SurfaceFormat aFormat, TextureFlags aFlags);
-
-  virtual TemporaryRef<BufferTextureClient>
-  CreateBufferTextureClient(gfx::SurfaceFormat aFormat);
 
   virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
                                       const SurfaceDescriptor& aDescriptor)
@@ -102,7 +97,7 @@ public:
   CompositableChild* GetIPDLActor() const;
 
   // should only be called by a CompositableForwarder
-  virtual void SetIPDLActor(CompositableChild* aChild);
+  void SetIPDLActor(CompositableChild* aChild);
 
   CompositableForwarder* GetForwarder() const
   {
@@ -116,31 +111,7 @@ public:
    */
   uint64_t GetAsyncID() const;
 
-  /**
-   * Tells the Compositor to create a TextureHost for this TextureClient.
-   */
-  virtual void AddTextureClient(TextureClient* aClient);
-
-  /**
-   * Tells the Compositor to delete the TextureHost corresponding to this
-   * TextureClient.
-   */
-  virtual void RemoveTextureClient(TextureClient* aClient);
-
-  /**
-   * A hook for the Compositable to execute whatever it held off for next transaction.
-   */
-  virtual void OnTransaction();
-
-  /**
-   * A hook for the when the Compositable is detached from it's layer.
-   */
-  virtual void OnDetach() {}
-
 protected:
-  // The textures to destroy in the next transaction;
-  nsTArray<uint64_t> mTexturesToRemove;
-  uint64_t mNextTextureID;
   CompositableChild* mCompositableChild;
   CompositableForwarder* mForwarder;
 };

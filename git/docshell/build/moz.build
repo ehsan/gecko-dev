@@ -16,5 +16,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'docshell'
 
-LIBXUL_LIBRARY = True
-

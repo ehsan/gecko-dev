@@ -87,7 +87,7 @@ typedef struct AndroidSystemColors {
 
 class nsFilePickerCallback : nsISupports {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     virtual void handleResult(nsAString& filePath) = 0;
     nsFilePickerCallback() {}
 protected:
@@ -126,7 +126,6 @@ public:
     enum {
         // Values for NotifyIME, in addition to values from the Gecko
         // NotificationToIME enum; use negative values here to prevent conflict
-        NOTIFY_IME_OPEN_VKB = -2,
         NOTIFY_IME_REPLY_EVENT = -1,
     };
 
@@ -356,7 +355,7 @@ public:
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
     nsresult GetSegmentInfoForText(const nsAString& aText,
-                                   nsIMobileMessageCallback* aRequest);
+                                   dom::mobilemessage::SmsSegmentInfoData* aData);
     void SendMessage(const nsAString& aNumber, const nsAString& aText,
                      nsIMobileMessageCallback* aRequest);
     void GetMessage(int32_t aMessageId, nsIMobileMessageCallback* aRequest);
@@ -377,12 +376,12 @@ public:
     void SetPageRect(const CSSRect& aCssPageRect);
     void SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
                           bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
-                          LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
+                          gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset);
     void SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
                           bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                          bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset);
+                          bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset);
 
-    void AddPluginView(jobject view, const LayoutDeviceRect& rect, bool isFullScreen);
+    void AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen);
     void RemovePluginView(jobject view, bool isFullScreen);
 
     // These methods don't use a ScreenOrientation because it's an
@@ -422,7 +421,7 @@ public:
                             const int32_t      aPort,
                             nsACString & aResult);
 protected:
-    static StaticRefPtr<AndroidBridge> sBridge;
+    static nsRefPtr<AndroidBridge> sBridge;
     nsTArray<nsCOMPtr<nsIMobileMessageCallback> > mSmsRequests;
 
     // the global JavaVM
@@ -602,9 +601,7 @@ public:
     void HandleDoubleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
     void HandleSingleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
     void HandleLongTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
-    void SendAsyncScrollDOMEvent(mozilla::layers::FrameMetrics::ViewID aScrollId,
-                                 const CSSRect& aContentRect,
-                                 const CSSSize& aScrollableSize) MOZ_OVERRIDE;
+    void SendAsyncScrollDOMEvent(const CSSRect& aContentRect, const CSSSize& aScrollableSize) MOZ_OVERRIDE;
     void PostDelayedTask(Task* aTask, int aDelayMs) MOZ_OVERRIDE;
     int64_t RunDelayedTasks();
 };

@@ -20,6 +20,7 @@
 #include "prinit.h"
 #include "prtime.h" 	/* for PR_Now() */
 
+#define XXX
 static PRBool policyWasSet;
 
 /* This ordered list is indexed by (SSL_CK_xx * 3)   */

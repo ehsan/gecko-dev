@@ -28,7 +28,7 @@ function test()
     openConsole(null, function(aHud) {
       hud = aHud;
 
-      HUDService.lastFinishedRequest.callback = function(aRequest) {
+      HUDService.lastFinishedRequestCallback = function(aRequest) {
         lastRequest = aRequest;
         if (requestCallback) {
           requestCallback();
@@ -124,20 +124,12 @@ function testFormSubmission()
     // There should be 3 network requests pointing to the HTML file.
     waitForMessages({
       webconsole: hud,
-      messages: [
-        {
-          text: "test-network-request.html",
-          category: CATEGORY_NETWORK,
-          severity: SEVERITY_LOG,
-          count: 3,
-        },
-        {
-          text: "test-data.json",
-          category: CATEGORY_NETWORK,
-          severity: SEVERITY_LOG,
-          count: 2,
-        },
-      ],
+      messages: [{
+        text: "test-network-request.html",
+        category: CATEGORY_NETWORK,
+        severity: SEVERITY_LOG,
+        count: 3,
+      }],
     }).then(testLiveFilteringOnSearchStrings);
   };
 
@@ -178,7 +170,7 @@ function testLiveFilteringOnSearchStrings() {
   is(countMessageNodes(), 0, "the log nodes are hidden when searching for " +
     "the string \"foo\"bar'baz\"boo'\"");
 
-  HUDService.lastFinishedRequest.callback = null;
+  HUDService.lastFinishedRequestCallback = null;
   lastRequest = null;
   requestCallback = null;
   finishTest();

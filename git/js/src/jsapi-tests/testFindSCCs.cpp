@@ -5,14 +5,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdarg.h>
+
+#include "jsapi-tests/tests.h"
+
 #include <string.h>
+#include <stdarg.h>
 
 #include "jscntxt.h"
 #include "jsgc.h"
 
 #include "gc/FindSCCs.h"
-#include "jsapi-tests/tests.h"
 
 static const unsigned MaxVertices = 10;
 
@@ -151,7 +153,7 @@ void edge(unsigned src_index, unsigned dest_index)
 
 void run()
 {
-    finder = new ComponentFinder<TestNode>(rt->mainThread.nativeStackLimit[js::StackForSystemCode]);
+    finder = new ComponentFinder<TestNode>(rt->mainThread.nativeStackLimit);
     for (unsigned i = 0; i < vertex_count; ++i)
         finder->addNode(&Vertex[i]);
     resultsList = finder->getResultsList();
@@ -242,7 +244,7 @@ BEGIN_TEST(testFindSCCsStackLimit)
     for (unsigned i = initial; i < (max - 10); ++i)
         vertices[i].edge = &vertices[i + 1];
 
-    ComponentFinder<TestNode2> finder(rt->mainThread.nativeStackLimit[js::StackForSystemCode]);
+    ComponentFinder<TestNode2> finder(rt->mainThread.nativeStackLimit);
     for (unsigned i = 0; i < max; ++i)
         finder.addNode(&vertices[i]);
 

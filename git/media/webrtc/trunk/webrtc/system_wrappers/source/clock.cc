@@ -11,7 +11,6 @@
 #include "webrtc/system_wrappers/interface/clock.h"
 
 #if defined(_WIN32)
-// Windows needs to be included before mmsystem.h
 #include <Windows.h>
 #include <WinSock.h>
 #include <MMSystem.h>

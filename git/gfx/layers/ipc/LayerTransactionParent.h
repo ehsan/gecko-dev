@@ -8,23 +8,12 @@
 #ifndef MOZILLA_LAYERS_LAYERTRANSACTIONPARENT_H
 #define MOZILLA_LAYERS_LAYERTRANSACTIONPARENT_H
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint64_t, uint32_t
-#include "CompositableTransactionParent.h"
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
 #include "mozilla/layers/PLayerTransactionParent.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsTArrayForwardDeclare.h"     // for InfallibleTArray
-
-class gfx3DMatrix;
+#include "ShadowLayers.h"
+#include "ShadowLayersManager.h"
+#include "CompositableTransactionParent.h"
 
 namespace mozilla {
-
-namespace ipc {
-class Shmem;
-}
 
 namespace layout {
 class RenderFrameParent;
@@ -36,7 +25,6 @@ class Layer;
 class LayerManagerComposite;
 class ShadowLayerParent;
 class CompositableParent;
-class ShadowLayersManager;
 
 class LayerTransactionParent : public PLayerTransactionParent,
                                public CompositableParentManager
@@ -106,9 +94,7 @@ protected:
   virtual PCompositableParent* AllocPCompositableParent(const TextureInfo& aInfo) MOZ_OVERRIDE;
   virtual bool DeallocPCompositableParent(PCompositableParent* actor) MOZ_OVERRIDE;
 
-  void Attach(ShadowLayerParent* aLayerParent,
-              CompositableParent* aCompositable,
-              bool aIsAsyncVideo);
+  void Attach(ShadowLayerParent* aLayerParent, CompositableParent* aCompositable);
 
 private:
   nsRefPtr<LayerManagerComposite> mLayerManager;

@@ -5,7 +5,7 @@
 #ifndef GFX_TEXTUREPOOLOGL_H
 #define GFX_TEXTUREPOOLOGL_H
 
-#include "GLContextTypes.h"             // for GLContext, GLuint
+#include "GLContext.h"
 
 namespace mozilla {
 namespace gl {

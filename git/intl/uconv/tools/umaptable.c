@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #define NOMAPPING 0xfffd
 

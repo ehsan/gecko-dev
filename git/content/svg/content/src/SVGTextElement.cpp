@@ -25,20 +25,6 @@ SVGTextElement::SVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 {
 }
 
-nsSVGElement::EnumAttributesInfo
-SVGTextElement::GetEnumInfo()
-{
-  return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
-                            ArrayLength(sEnumInfo));
-}
-
-nsSVGElement::LengthAttributesInfo
-SVGTextElement::GetLengthInfo()
-{
-  return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
-                              ArrayLength(sLengthInfo));
-}
-
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 

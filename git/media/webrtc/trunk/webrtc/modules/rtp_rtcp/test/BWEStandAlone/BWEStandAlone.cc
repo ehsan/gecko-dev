@@ -11,18 +11,18 @@
 // BWEStandAlone.cpp : Defines the entry point for the console application.
 //
 
-#include <stdio.h>
 #include <string>
+#include <stdio.h>
 
-#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/test/channel_transport/udp_transport.h"
+#include "event_wrapper.h"
+#include "udp_transport.h"
+#include "rtp_rtcp.h"
+#include "trace.h"
 
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/TestLoadGenerator.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/TestSenderReceiver.h"
+#include "TestSenderReceiver.h"
+#include "TestLoadGenerator.h"
 
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/MatlabPlot.h"
+#include "MatlabPlot.h"
 
 //#include "vld.h"
 
@@ -197,3 +197,4 @@ int main(int argc, char* argv[])
 
     //return 0;
 }
+

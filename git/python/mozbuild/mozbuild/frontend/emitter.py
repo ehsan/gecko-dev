@@ -4,12 +4,7 @@
 
 from __future__ import unicode_literals
 
-import logging
 import os
-
-from mach.mixin.logging import LoggingMixin
-
-import mozpack.path as mozpath
 
 from .data import (
     ConfigFileSubstitution,
@@ -19,17 +14,13 @@ from .data import (
     Program,
     ReaderSummary,
     VariablePassthru,
-    XPIDLFile,
     XpcshellManifests,
 )
 
-from .reader import (
-    MozbuildSandbox,
-    SandboxValidationError,
-)
+from .reader import MozbuildSandbox
 
 
-class TreeMetadataEmitter(LoggingMixin):
+class TreeMetadataEmitter(object):
     """Converts the executed mozbuild files into data structures.
 
     This is a bridge between reader.py and data.py. It takes what was read by
@@ -38,8 +29,6 @@ class TreeMetadataEmitter(LoggingMixin):
     """
 
     def __init__(self, config):
-        self.populate_logger()
-
         self.config = config
 
     def emit(self, output):
@@ -85,27 +74,6 @@ class TreeMetadataEmitter(LoggingMixin):
             sub.relpath = path
             yield sub
 
-        # XPIDL source files get processed and turned into .h and .xpt files.
-        # If there are multiple XPIDL files in a directory, they get linked
-        # together into a final .xpt, which has the name defined by either
-        # MODULE or XPIDL_MODULE (if the latter is defined).
-        xpidl_module = sandbox['MODULE']
-        if sandbox['XPIDL_MODULE']:
-            xpidl_module = sandbox['XPIDL_MODULE']
-
-        if sandbox['XPIDL_SOURCES'] and not xpidl_module:
-            raise SandboxValidationError('MODULE or XPIDL_MODULE must be '
-                'defined if XPIDL_SOURCES is defined.')
-
-        if sandbox['XPIDL_SOURCES'] and sandbox['NO_DIST_INSTALL']:
-            self.log(logging.WARN, 'mozbuild_warning', dict(
-                path=sandbox.main_path),
-                '{path}: NO_DIST_INSTALL has no effect on XPIDL_SOURCES.')
-
-        for idl in sandbox['XPIDL_SOURCES']:
-            yield XPIDLFile(sandbox, mozpath.join(sandbox['SRCDIR'], idl),
-                xpidl_module)
-
         # Proxy some variables as-is until we have richer classes to represent
         # them. We should aim to keep this set small because it violates the
         # desired abstraction of the build definition away from makefiles.
@@ -115,47 +83,42 @@ class TreeMetadataEmitter(LoggingMixin):
             ASFILES='ASFILES',
             CMMSRCS='CMMSRCS',
             CPPSRCS='CPP_SOURCES',
-            CPP_UNIT_TESTS='CPP_UNIT_TESTS',
             CSRCS='CSRCS',
             DEFINES='DEFINES',
-            EXPORT_LIBRARY='EXPORT_LIBRARY',
             EXTRA_COMPONENTS='EXTRA_COMPONENTS',
             EXTRA_JS_MODULES='EXTRA_JS_MODULES',
             EXTRA_PP_COMPONENTS='EXTRA_PP_COMPONENTS',
-            EXTRA_PP_JS_MODULES='EXTRA_PP_JS_MODULES',
-            FAIL_ON_WARNINGS='FAIL_ON_WARNINGS',
-            FORCE_SHARED_LIB='FORCE_SHARED_LIB',
-            FORCE_STATIC_LIB='FORCE_STATIC_LIB',
             GTEST_CMMSRCS='GTEST_CMM_SOURCES',
             GTEST_CPPSRCS='GTEST_CPP_SOURCES',
             GTEST_CSRCS='GTEST_C_SOURCES',
             HOST_CPPSRCS='HOST_CPPSRCS',
             HOST_CSRCS='HOST_CSRCS',
             HOST_LIBRARY_NAME='HOST_LIBRARY_NAME',
-            IS_COMPONENT='IS_COMPONENT',
             JS_MODULES_PATH='JS_MODULES_PATH',
             LIBRARY_NAME='LIBRARY_NAME',
             LIBS='LIBS',
-            LIBXUL_LIBRARY='LIBXUL_LIBRARY',
             MODULE='MODULE',
-            MSVC_ENABLE_PGO='MSVC_ENABLE_PGO',
-            NO_DIST_INSTALL='NO_DIST_INSTALL',
             SDK_LIBRARY='SDK_LIBRARY',
             SHARED_LIBRARY_LIBS='SHARED_LIBRARY_LIBS',
             SIMPLE_PROGRAMS='SIMPLE_PROGRAMS',
             SSRCS='SSRCS',
-        )
+            XPIDL_FLAGS='XPIDL_FLAGS',
+            XPIDL_MODULE='XPIDL_MODULE',
+            XPIDLSRCS='XPIDL_SOURCES',
+            )
         for mak, moz in varmap.items():
             if sandbox[moz]:
                 passthru.variables[mak] = sandbox[moz]
+
+        if sandbox['NO_DIST_INSTALL']:
+            passthru.variables['NO_DIST_INSTALL'] = '1'
 
         if passthru.variables:
             yield passthru
 
         exports = sandbox.get('EXPORTS')
         if exports:
-            yield Exports(sandbox, exports,
-                dist_install=not sandbox.get('NO_DIST_INSTALL', False))
+            yield Exports(sandbox, exports)
 
         program = sandbox.get('PROGRAM')
         if program:
@@ -179,8 +142,7 @@ class TreeMetadataEmitter(LoggingMixin):
 
         if 'TIERS' in sandbox:
             for tier in sandbox['TIERS']:
-                o.tier_dirs[tier] = sandbox['TIERS'][tier]['regular'] + \
-                    sandbox['TIERS'][tier]['external']
+                o.tier_dirs[tier] = sandbox['TIERS'][tier]['regular']
                 o.tier_static_dirs[tier] = sandbox['TIERS'][tier]['static']
 
         yield o

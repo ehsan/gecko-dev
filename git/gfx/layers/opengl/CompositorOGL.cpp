@@ -3,43 +3,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/layers/TextureHostOGL.h"
 #include "CompositorOGL.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint32_t, uint8_t
-#include <stdlib.h>                     // for free, malloc
-#include "FPSCounter.h"                 // for FPSState, FPSCounter
-#include "GLContextProvider.h"          // for GLContextProvider
-#include "GLContext.h"                  // for GLContext
-#include "LayerManagerOGL.h"            // for BUFFER_OFFSET
-#include "Layers.h"                     // for WriteSnapshotToDumpFile
-#include "gfx2DGlue.h"                  // for ThebesFilter
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxCrashReporterUtils.h"      // for ScopedGfxFeatureReporter
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxMatrix.h"                  // for gfxMatrix
-#include "gfxPattern.h"                 // for gfxPattern, etc
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxRect.h"                    // for gfxRect
-#include "gfxUtils.h"                   // for NextPowerOfTwo, gfxUtils, etc
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4, Matrix
+#include "mozilla/layers/ImageHost.h"
+#include "mozilla/layers/ContentHost.h"
 #include "mozilla/layers/CompositingRenderTargetOGL.h"
-#include "mozilla/layers/Effects.h"     // for EffectChain, TexturedEffect, etc
-#include "mozilla/layers/TextureHost.h"  // for TextureSource, etc
-#include "mozilla/layers/TextureHostOGL.h"  // for TextureSourceOGL, etc
-#include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "nsAString.h"
-#include "nsIConsoleService.h"          // for nsIConsoleService, etc
-#include "nsIWidget.h"                  // for nsIWidget
-#include "nsLiteralString.h"            // for NS_LITERAL_STRING
-#include "nsMathUtils.h"                // for NS_roundf
-#include "nsRect.h"                     // for nsIntRect
-#include "nsServiceManagerUtils.h"      // for do_GetService
-#include "nsString.h"                   // for nsString, nsAutoCString, etc
-#include "prtypes.h"                    // for PR_INT32_MAX
+#include "mozilla/Preferences.h"
+#include "mozilla/layers/ShadowLayers.h"
+#include "mozilla/layers/PLayer.h"
+#include "mozilla/layers/Effects.h"
+#include "nsIWidget.h"
+#include "FPSCounter.h"
+
+#include "gfxUtils.h"
+
+#include "GLContextProvider.h"
+
+#include "nsIServiceManager.h"
+#include "nsIConsoleService.h"
+
+#include "gfxCrashReporterUtils.h"
+
+#include "nsMathUtils.h"
+
+#include "GeckoProfiler.h"
+#include <algorithm>
 
 #if MOZ_ANDROID_OMTC
 #include "TexturePoolOGL.h"
@@ -58,51 +46,6 @@ static inline IntSize ns2gfxSize(const nsIntSize& s) {
   return IntSize(s.width, s.height);
 }
 
-// Draw the supplied geometry with the already selected shader. Both aArray1
-// and aArray2 are expected to have a stride of 2 * sizeof(GLfloat).
-static void
-DrawWithVertexBuffer2(GLContext *aGLContext, VBOArena &aVBOs,
-                      GLenum aMode, GLsizei aElements,
-                      GLint aAttr1, GLfloat *aArray1,
-                      GLint aAttr2, GLfloat *aArray2)
-{
-  GLsizei bytes = aElements * 2 * sizeof(GLfloat);
-
-  aGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER,
-                          aVBOs.Allocate(aGLContext));
-  aGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER,
-                          2 * bytes,
-                          nullptr,
-                          LOCAL_GL_STREAM_DRAW);
-
-  aGLContext->fBufferSubData(LOCAL_GL_ARRAY_BUFFER,
-                             0,
-                             bytes,
-                             aArray1);
-  aGLContext->fBufferSubData(LOCAL_GL_ARRAY_BUFFER,
-                             bytes,
-                             bytes,
-                             aArray2);
-
-  aGLContext->fEnableVertexAttribArray(aAttr1);
-  aGLContext->fEnableVertexAttribArray(aAttr2);
-
-  aGLContext->fVertexAttribPointer(aAttr1,
-                                   2, LOCAL_GL_FLOAT,
-                                   LOCAL_GL_FALSE,
-                                   0, BUFFER_OFFSET(0));
-  aGLContext->fVertexAttribPointer(aAttr2,
-                                   2, LOCAL_GL_FLOAT,
-                                   LOCAL_GL_FALSE,
-                                   0, BUFFER_OFFSET(bytes));
-
-  aGLContext->fDrawArrays(aMode, 0, aElements);
-
-  aGLContext->fDisableVertexAttribArray(aAttr1);
-  aGLContext->fDisableVertexAttribArray(aAttr2);
-
-  aGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-}
 
 void
 FPSState::DrawFPS(TimeStamp aNow,
@@ -121,29 +64,29 @@ FPSState::DrawFPS(TimeStamp aNow,
     context->fTexParameteri(LOCAL_GL_TEXTURE_2D,LOCAL_GL_TEXTURE_MIN_FILTER,LOCAL_GL_NEAREST);
     context->fTexParameteri(LOCAL_GL_TEXTURE_2D,LOCAL_GL_TEXTURE_MAG_FILTER,LOCAL_GL_NEAREST);
 
-    const char *text =
-      "                                         "
-      " XXX XX  XXX XXX X X XXX XXX XXX XXX XXX "
-      " X X  X    X   X X X X   X     X X X X X "
-      " X X  X  XXX XXX XXX XXX XXX   X XXX XXX "
-      " X X  X  X     X   X   X X X   X X X   X "
-      " XXX XXX XXX XXX   X XXX XXX   X XXX   X "
-      "                                         ";
+    uint32_t text[] = {
+      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0, 255, 255, 255,   0, 255, 255,   0,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255,   0, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,
+      0, 255,   0, 255,   0,   0, 255,   0,   0,   0,   0, 255,   0,   0,   0, 255,   0, 255,   0, 255,   0, 255,   0,   0,   0, 255,   0,   0,   0,   0,   0, 255,   0, 255,   0, 255,   0, 255,   0, 255,   0,
+      0, 255,   0, 255,   0,   0, 255,   0,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,
+      0, 255,   0, 255,   0,   0, 255,   0,   0, 255,   0,   0,   0,   0,   0, 255,   0,   0,   0, 255,   0,   0,   0, 255,   0, 255,   0, 255,   0,   0,   0, 255,   0, 255,   0, 255,   0,   0,   0, 255,   0,
+      0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0,
+      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    };
 
-    // Convert the text encoding above to RGBA.
-    uint32_t* buf = (uint32_t *) malloc(64 * 8 * sizeof(uint32_t));
+    // convert from 8 bit to 32 bit so that don't have to write the text above out in 32 bit format
+    // we rely on int being 32 bits
+    unsigned int* buf = (unsigned int*)malloc(64 * 8 * 4);
     for (int i = 0; i < 7; i++) {
       for (int j = 0; j < 41; j++) {
-        uint32_t purple = 0xfff000ff;
-        uint32_t white  = 0xffffffff;
-        buf[i * 64 + j] = (text[i * 41 + j] == ' ') ? purple : white;
+        unsigned int purple = 0xfff000ff;
+        unsigned int white  = 0xffffffff;
+        buf[i * 64 + j] = (text[i * 41 + j] == 0) ? purple : white;
       }
     }
     context->fTexImage2D(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, 64, 8, 0, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, buf);
     free(buf);
   }
-
-  mVBOs.Reset();
 
   struct Vertex2D {
     float x,y;
@@ -238,21 +181,44 @@ FPSState::DrawFPS(TimeStamp aNow,
   copyprog->Activate();
   copyprog->SetTextureUnit(0);
 
+  // we're going to use client-side vertex arrays for this.
+  context->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+
   // "COPY"
   context->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ZERO,
                               LOCAL_GL_ONE, LOCAL_GL_ZERO);
 
+  // enable our vertex attribs; we'll call glVertexPointer below
+  // to fill with the correct data.
   GLint vcattr = copyprog->AttribLocation(ShaderProgramOGL::VertexCoordAttrib);
   GLint tcattr = copyprog->AttribLocation(ShaderProgramOGL::TexCoordAttrib);
 
-  DrawWithVertexBuffer2(context, mVBOs,
-                        LOCAL_GL_TRIANGLE_STRIP, 12,
-                        vcattr, (GLfloat *) vertices,
-                        tcattr, (GLfloat *) texCoords);
-  DrawWithVertexBuffer2(context, mVBOs,
-                        LOCAL_GL_TRIANGLE_STRIP, 12,
-                        vcattr, (GLfloat *) vertices2,
-                        tcattr, (GLfloat *) texCoords2);
+  context->fEnableVertexAttribArray(vcattr);
+  context->fEnableVertexAttribArray(tcattr);
+
+  context->fVertexAttribPointer(vcattr,
+                                2, LOCAL_GL_FLOAT,
+                                LOCAL_GL_FALSE,
+                                0, vertices);
+
+  context->fVertexAttribPointer(tcattr,
+                                2, LOCAL_GL_FLOAT,
+                                LOCAL_GL_FALSE,
+                                0, texCoords);
+
+  context->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 12);
+
+  context->fVertexAttribPointer(vcattr,
+                                2, LOCAL_GL_FLOAT,
+                                LOCAL_GL_FALSE,
+                                0, vertices2);
+
+  context->fVertexAttribPointer(tcattr,
+                                2, LOCAL_GL_FLOAT,
+                                LOCAL_GL_FALSE,
+                                0, texCoords2);
+
+  context->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 12);
 }
 
 #ifdef CHECK_CURRENT_PROGRAM
@@ -336,17 +302,9 @@ CompositorOGL::GetTemporaryTexture(GLenum aTextureUnit)
 void
 CompositorOGL::Destroy()
 {
-  if (gl()) {
+  if (gl() && mTextures.Length() > 0) {
     gl()->MakeCurrent();
-    if (mTextures.Length() > 0) {
-      gl()->fDeleteTextures(mTextures.Length(), &mTextures[0]);
-    }
-    mVBOs.Flush(gl());
-    if (mFPS) {
-      if (mFPS->mTexture > 0)
-        gl()->fDeleteTextures(1, &mFPS->mTexture);
-      mFPS->mVBOs.Flush(gl());
-    }
+    gl()->fDeleteTextures(mTextures.Length(), &mTextures[0]);
   }
   mTextures.SetLength(0);
   if (!mDestroyed) {
@@ -470,7 +428,7 @@ CompositorOGL::Initialize()
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              nullptr);
+                              NULL);
 
       // unbind this texture, in preparation for binding it to the FBO
       mGLContext->fBindTexture(target, 0);
@@ -589,6 +547,10 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
     aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib);
   NS_ASSERTION(texCoordAttribIndex != GLuint(-1), "no texture coords?");
 
+  // clear any bound VBO so that glVertexAttribPointer() goes back to
+  // "pointer mode"
+  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+
   // Given what we know about these textures and coordinates, we can
   // compute fmod(t, 1.0f) to get the same texture coordinate out.  If
   // the texCoordRect dimension is < 0 or > width/height, then we have
@@ -642,10 +604,25 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
                                               rects, flipped);
   }
 
-  DrawWithVertexBuffer2(mGLContext, mVBOs,
-                        LOCAL_GL_TRIANGLES, rects.elements(),
-                        vertAttribIndex, rects.vertexPointer(),
-                        texCoordAttribIndex, rects.texCoordPointer());
+  mGLContext->fVertexAttribPointer(vertAttribIndex, 2,
+                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                   rects.vertexPointer());
+
+  mGLContext->fVertexAttribPointer(texCoordAttribIndex, 2,
+                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                   rects.texCoordPointer());
+
+  {
+    mGLContext->fEnableVertexAttribArray(texCoordAttribIndex);
+    {
+      mGLContext->fEnableVertexAttribArray(vertAttribIndex);
+
+      mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
+
+      mGLContext->fDisableVertexAttribArray(vertAttribIndex);
+    }
+    mGLContext->fDisableVertexAttribArray(texCoordAttribIndex);
+  }
 }
 
 void
@@ -781,8 +758,6 @@ CompositorOGL::BeginFrame(const Rect *aClipRectIn, const gfxMatrix& aTransform,
                           Rect *aRenderBoundsOut)
 {
   MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame or AbortFrame");
-
-  mVBOs.Reset();
 
   mFrameInProgress = true;
   gfxRect rect;
@@ -936,7 +911,7 @@ CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, SurfaceInitMode aInit,
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            nullptr);
+                            NULL);
   }
   mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
                              LOCAL_GL_LINEAR);
@@ -970,7 +945,7 @@ CompositorOGL::GetProgramTypeForEffect(Effect *aEffect) const
     TextureSourceOGL* source = texturedEffect->mTexture->AsSourceOGL();
 
     return ShaderProgramFromTargetAndFormat(source->GetTextureTarget(),
-                                            source->GetFormat());
+                                            source->GetTextureFormat());
   }
   case EFFECT_YCBCR:
     return YCbCrLayerProgramType;
@@ -989,7 +964,7 @@ struct MOZ_STACK_CLASS AutoBindTexture
   ~AutoBindTexture()
   {
     if (mTexture) {
-      mTexture->UnbindTexture();
+      mTexture->ReleaseTexture();
     }
   }
 
@@ -1110,8 +1085,9 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       }
 
       AutoBindTexture bindSource(source->AsSourceOGL(), LOCAL_GL_TEXTURE0);
-  
-      program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
+      if (programType == RGBALayerExternalProgramType) {
+        program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
+      }
 
       mGLContext->ApplyFilterToBoundTexture(source->AsSourceOGL()->GetTextureTarget(),
                                             ThebesFilter(texturedEffect->mFilter));
@@ -1160,7 +1136,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
 
       program->SetYCbCrTextureUnits(Y, Cb, Cr);
       program->SetLayerOpacity(aOpacity);
-      program->SetTextureTransform(gfx3DMatrix());
 
       AutoBindTexture bindMask;
       if (maskType != MaskNone) {
@@ -1184,7 +1159,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       program->Activate();
       program->SetTextureUnit(0);
       program->SetLayerOpacity(aOpacity);
-      program->SetTextureTransform(gfx3DMatrix());
 
       AutoBindTexture bindMask;
       if (maskType != MaskNone) {
@@ -1205,7 +1179,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
     }
     break;
   case EFFECT_COMPONENT_ALPHA: {
-      MOZ_ASSERT(gfxPlatform::ComponentAlphaEnabled());
       EffectComponentAlpha* effectComponentAlpha =
         static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
       TextureSourceOGL* sourceOnWhite = effectComponentAlpha->mOnWhite->AsSourceOGL();
@@ -1243,7 +1216,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
         program->SetWhiteTextureUnit(1);
         program->SetLayerOpacity(aOpacity);
         program->SetLayerTransform(aTransform);
-        program->SetTextureTransform(gfx3DMatrix());
         program->SetRenderOffset(aOffset.x, aOffset.y);
         program->SetLayerQuadRect(aRect);
         AutoBindTexture bindMask;
@@ -1436,103 +1408,6 @@ CompositorOGL::Resume()
   return gl()->RenewSurface();
 #endif
   return true;
-}
-
-TemporaryRef<DataTextureSource>
-CompositorOGL::CreateDataTextureSource(TextureFlags aFlags)
-{
-  RefPtr<DataTextureSource> result =
-    new TextureImageTextureSourceOGL(mGLContext,
-                                     !(aFlags & TEXTURE_DISALLOW_BIGIMAGE));
-  return result;
-}
-
-bool
-CompositorOGL::SupportsPartialTextureUpdate()
-{
-  return mGLContext->CanUploadSubTextures();
-}
-
-int32_t
-CompositorOGL::GetMaxTextureSize() const
-{
-  MOZ_ASSERT(mGLContext);
-  GLint texSize = 0;
-  mGLContext->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE,
-                            &texSize);
-  MOZ_ASSERT(texSize != 0);
-  return texSize;
-}
-
-void
-CompositorOGL::MakeCurrent(MakeCurrentFlags aFlags) {
-  if (mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return;
-  }
-  mGLContext->MakeCurrent(aFlags & ForceMakeCurrent);
-}
-
-void
-CompositorOGL::BindQuadVBO() {
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
-}
-
-void
-CompositorOGL::QuadVBOVerticesAttrib(GLuint aAttribIndex) {
-  mGLContext->fVertexAttribPointer(aAttribIndex, 2,
-                                    LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                    (GLvoid*) QuadVBOVertexOffset());
-}
-
-void
-CompositorOGL::QuadVBOTexCoordsAttrib(GLuint aAttribIndex) {
-  mGLContext->fVertexAttribPointer(aAttribIndex, 2,
-                                    LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                    (GLvoid*) QuadVBOTexCoordOffset());
-}
-
-void
-CompositorOGL::QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex) {
-  mGLContext->fVertexAttribPointer(aAttribIndex, 2,
-                                    LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                    (GLvoid*) QuadVBOFlippedTexCoordOffset());
-}
-
-void
-CompositorOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
-                               GLuint aTexCoordAttribIndex,
-                               bool aFlipped)
-{
-  BindQuadVBO();
-  QuadVBOVerticesAttrib(aVertAttribIndex);
-
-  if (aTexCoordAttribIndex != GLuint(-1)) {
-    if (aFlipped)
-      QuadVBOFlippedTexCoordsAttrib(aTexCoordAttribIndex);
-    else
-      QuadVBOTexCoordsAttrib(aTexCoordAttribIndex);
-
-    mGLContext->fEnableVertexAttribArray(aTexCoordAttribIndex);
-  }
-
-  mGLContext->fEnableVertexAttribArray(aVertAttribIndex);
-  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
-  mGLContext->fDisableVertexAttribArray(aVertAttribIndex);
-
-  if (aTexCoordAttribIndex != GLuint(-1)) {
-    mGLContext->fDisableVertexAttribArray(aTexCoordAttribIndex);
-  }
-}
-
-void
-CompositorOGL::BindAndDrawQuad(ShaderProgramOGL *aProg,
-                               bool aFlipped)
-{
-  NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
-  BindAndDrawQuad(aProg->AttribLocation(ShaderProgramOGL::VertexCoordAttrib),
-                  aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib),
-                  aFlipped);
 }
 
 

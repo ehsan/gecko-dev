@@ -12,7 +12,6 @@
 #include "jscntxt.h"
 #include "jsfriendapi.h"
 #include "jsobj.h"
-#include "jswrapper.h"
 
 #include "vm/GlobalObject.h"
 #include "vm/WeakMapObject.h"
@@ -118,15 +117,16 @@ WeakMapBase::removeWeakMapFromList(WeakMapBase *weakmap)
 static JSObject *
 GetKeyArg(JSContext *cx, CallArgs &args)
 {
-    if (args[0].isPrimitive()) {
+    Value *vp = &args[0];
+    if (vp->isPrimitive()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_NONNULL_OBJECT);
         return NULL;
     }
-    return &args[0].toObject();
+    return &vp->toObject();
 }
 
 JS_ALWAYS_INLINE bool
-IsWeakMap(HandleValue v)
+IsWeakMap(const Value &v)
 {
     return v.isObject() && v.toObject().is<WeakMapObject>();
 }
@@ -156,7 +156,7 @@ WeakMap_has_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+JSBool
 WeakMap_has(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -177,7 +177,7 @@ WeakMap_clear_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+JSBool
 WeakMap_clear(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -213,7 +213,7 @@ WeakMap_get_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+JSBool
 WeakMap_get(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -246,7 +246,7 @@ WeakMap_delete_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+JSBool
 WeakMap_delete(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -320,14 +320,14 @@ WeakMap_set_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static bool
+JSBool
 WeakMap_set(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod<IsWeakMap, WeakMap_set_impl>(cx, args);
 }
 
-JS_FRIEND_API(bool)
+JS_FRIEND_API(JSBool)
 JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *objArg, JSObject **ret)
 {
     RootedObject obj(cx, objArg);
@@ -341,8 +341,6 @@ JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *objArg, JSObject **re
         return false;
     ObjectValueMap *map = obj->as<WeakMapObject>().getMap();
     if (map) {
-        // Prevent GC from mutating the weakmap while iterating.
-        gc::AutoSuppressGC suppress(cx);
         for (ObjectValueMap::Base::Range r = map->all(); !r.empty(); r.popFront()) {
             RootedObject key(cx, r.front().key);
             if (!JS_WrapObject(cx, key.address()))
@@ -377,7 +375,7 @@ WeakMap_finalize(FreeOp *fop, JSObject *obj)
     }
 }
 
-static bool
+static JSBool
 WeakMap_construct(JSContext *cx, unsigned argc, Value *vp)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &WeakMapObject::class_);

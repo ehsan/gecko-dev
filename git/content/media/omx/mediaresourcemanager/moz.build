@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'MediaResourceManagerService.cpp',
 ]
 
-LIBRARY_NAME = 'mediaresourcemanager'
-

@@ -32,8 +32,11 @@ CountConsecutiveSlashes(const char *str, int32_t len)
 // nsBaseURLParser implementation
 //----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsAuthURLParser, nsIURLParser)
-NS_IMPL_ISUPPORTS1(nsNoAuthURLParser, nsIURLParser)
+// The URL parser service does not have any internal state; however, it can
+// be called from multiple threads, so we must use a threadsafe AddRef and
+// Release implementation.
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthURLParser, nsIURLParser)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsNoAuthURLParser, nsIURLParser)
 
 #define SET_RESULT(component, pos, len) \
     PR_BEGIN_MACRO \

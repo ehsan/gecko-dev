@@ -12,6 +12,7 @@
 #include "nsSVGAttrTearoffTable.h"
 #include "SVGPathSegUtils.h"
 #include "mozilla/dom/SVGPathSegListBinding.h"
+#include "nsContentUtils.h"
 
 // See the comment in this file's header.
 
@@ -25,8 +26,6 @@ SVGPathSegListTearoffTable()
     sSVGPathSegListTearoffTable;
   return sSVGPathSegListTearoffTable;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGPathSegList)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGPathSegList)
   // No unlinking of mElement, we'd need to null out the value pointer (the

@@ -11,16 +11,18 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "jsalloc.h"
 #include "jsfriendapi.h"
 
-#include "ds/IdValuePair.h"
 #include "ds/LifoAlloc.h"
 #include "gc/Barrier.h"
-#include "js/Utility.h"
+#include "gc/Heap.h"
+#include "js/HashTable.h"
+#include "js/Vector.h"
+
+class JSScript;
 
 namespace js {
-
-class TypeRepresentation;
 
 class TaggedProto
 {
@@ -99,19 +101,11 @@ class RootedBase<TaggedProto> : public TaggedProtoOperations<Rooted<TaggedProto>
 
 class CallObject;
 
-namespace jit {
+namespace ion {
     struct IonScript;
 }
 
-namespace analyze {
-    class ScriptAnalysis;
-}
-
 namespace types {
-
-class TypeCallsite;
-class TypeCompartment;
-class TypeSet;
 
 /* Type set entry for either a JSObject with singleton type or a non-singleton TypeObject. */
 struct TypeObjectKey {
@@ -204,7 +198,7 @@ class Type
 };
 
 /* Get the type of a jsval, or zero for an unknown special value. */
-inline Type GetValueType(const Value &val);
+inline Type GetValueType(JSContext *cx, const Value &val);
 
 /*
  * Type inference memory management overview.
@@ -355,8 +349,8 @@ enum {
     /* Objects with this type are functions. */
     OBJECT_FLAG_FUNCTION              = 0x1,
 
-    /* If set, addendum information should not be installed on this object. */
-    OBJECT_FLAG_ADDENDUM_CLEARED      = 0x2,
+    /* If set, newScript information should not be installed on this object. */
+    OBJECT_FLAG_NEW_SCRIPT_CLEARED    = 0x2,
 
     /*
      * If set, type constraints covering the correctness of the newScript
@@ -489,10 +483,10 @@ class TypeSet
      * Add a type to this set, calling any constraint handlers if this is a new
      * possible type.
      */
-    inline void addType(ExclusiveContext *cx, Type type);
+    inline void addType(JSContext *cx, Type type);
 
     /* Mark this type set as representing an own property or configured property. */
-    inline void setOwnProperty(ExclusiveContext *cx, bool configured);
+    inline void setOwnProperty(JSContext *cx, bool configured);
 
     /*
      * Add an object to this set using the specified allocator, without
@@ -535,6 +529,8 @@ class TypeSet
      * This variant doesn't freeze constraints. That variant is called knownSubset
      */
     bool isSubset(TypeSet *other);
+    bool isSubsetIgnorePrimitives(TypeSet *other);
+    bool intersectionEmpty(TypeSet *other);
 
     inline StackTypeSet *toStackTypeSet();
     inline HeapTypeSet *toHeapTypeSet();
@@ -571,8 +567,22 @@ class StackTypeSet : public TypeSet
      */
     static StackTypeSet *make(JSContext *cx, const char *name);
 
-    /* Propagate any types from this set into target. */
-    void addSubset(JSContext *cx, StackTypeSet *target);
+    /* Constraints for type inference. */
+
+    void addSubset(JSContext *cx, TypeSet *target);
+    void addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        StackTypeSet *target, jsid id);
+    void addSetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        StackTypeSet *target, jsid id);
+    void addSetElement(JSContext *cx, JSScript *script, jsbytecode *pc,
+                       StackTypeSet *objectTypes, StackTypeSet *valueTypes);
+    void addCall(JSContext *cx, TypeCallsite *site);
+    void addArith(JSContext *cx, JSScript *script, jsbytecode *pc,
+                  TypeSet *target, TypeSet *other = NULL);
+    void addTransformThis(JSContext *cx, JSScript *script, TypeSet *target);
+    void addPropagateThis(JSContext *cx, JSScript *script, jsbytecode *pc,
+                          Type type, StackTypeSet *types = NULL);
+    void addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target);
 
     /*
      * Constraints for JIT compilation.
@@ -634,6 +644,12 @@ class StackTypeSet : public TypeSet
      */
     bool filtersType(const StackTypeSet *other, Type type) const;
 
+    /*
+     * Get whether this type only contains non-string primitives:
+     * null/undefined/int/double, or some combination of those.
+     */
+    bool knownNonStringPrimitive();
+
     enum DoubleConversion {
         /* All types in the set should use eager double conversion. */
         AlwaysConvertToDoubles,
@@ -665,8 +681,16 @@ class HeapTypeSet : public TypeSet
 {
   public:
 
-    /* Propagate any types from this set into target. */
-    void addSubset(JSContext *cx, HeapTypeSet *target);
+    /* Constraints for type inference. */
+
+    void addSubset(JSContext *cx, TypeSet *target);
+    void addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
+                        StackTypeSet *target, jsid id);
+    void addCallProperty(JSContext *cx, JSScript *script, jsbytecode *pc, jsid id);
+    void addFilterPrimitives(JSContext *cx, TypeSet *target);
+    void addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target);
+
+    /* Constraints for JIT compilation. */
 
     /* Completely freeze the contents of this type set. */
     void addFreeze(JSContext *cx);
@@ -722,13 +746,6 @@ TypeSet::toHeapTypeSet()
     JS_ASSERT(!constraintsPurged());
     return (HeapTypeSet *) this;
 }
-
-bool
-AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *type, jsid id);
-
-void
-AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
-                                     JSScript *script, JSScript *calleeScript);
 
 /*
  * Handler which persists information about dynamic types pushed within a
@@ -851,42 +868,6 @@ struct Property
     static jsid getKey(Property *p) { return p->id; }
 };
 
-struct TypeNewScript;
-struct TypeBinaryData;
-
-struct TypeObjectAddendum
-{
-    enum Kind {
-        NewScript,
-        BinaryData
-    };
-
-    TypeObjectAddendum(Kind kind);
-
-    const Kind kind;
-
-    bool isNewScript() {
-        return kind == NewScript;
-    }
-
-    TypeNewScript *asNewScript() {
-        JS_ASSERT(isNewScript());
-        return (TypeNewScript*) this;
-    }
-
-    bool isBinaryData() {
-        return kind == BinaryData;
-    }
-
-    TypeBinaryData *asBinaryData() {
-        JS_ASSERT(isBinaryData());
-        return (TypeBinaryData*) this;
-    }
-
-    static inline void writeBarrierPre(TypeObjectAddendum *newScript);
-    static void writeBarrierPost(TypeObjectAddendum *newScript, void *addr) {}
-};
-
 /*
  * Information attached to a TypeObject if it is always constructed using 'new'
  * on a particular script. This is used to manage state related to the definite
@@ -897,10 +878,8 @@ struct TypeObjectAddendum
  * remove the definite property information and repair the JS stack if the
  * constraints are violated.
  */
-struct TypeNewScript : public TypeObjectAddendum
+struct TypeNewScript
 {
-    TypeNewScript();
-
     HeapPtrFunction fun;
 
     /* Allocation kind to use for newly constructed objects. */
@@ -917,14 +896,14 @@ struct TypeNewScript : public TypeObjectAddendum
      * scripted setter is added to one of the object's prototypes while it is
      * in the middle of being initialized, so we can walk the stack and fixup
      * any objects which look for in-progress objects which were prematurely
-     * set with their final shape. Property assignments in inner frames are
-     * preceded by a series of SETPROP_FRAME entries specifying the stack down
-     * to the frame containing the write.
+     * set with their final shape. Initialization can traverse stack frames,
+     * in which case FRAME_PUSH/FRAME_POP are used.
      */
     struct Initializer {
         enum Kind {
             SETPROP,
-            SETPROP_FRAME,
+            FRAME_PUSH,
+            FRAME_POP,
             DONE
         } kind;
         uint32_t offset;
@@ -935,13 +914,7 @@ struct TypeNewScript : public TypeObjectAddendum
     Initializer *initializerList;
 
     static inline void writeBarrierPre(TypeNewScript *newScript);
-};
-
-struct TypeBinaryData : public TypeObjectAddendum
-{
-    TypeBinaryData(TypeRepresentation *repr);
-
-    TypeRepresentation *const typeRepr;
+    static void writeBarrierPost(TypeNewScript *newScript, void *addr) {}
 };
 
 /*
@@ -999,41 +972,11 @@ struct TypeObject : gc::Cell
     static inline size_t offsetOfFlags() { return offsetof(TypeObject, flags); }
 
     /*
-     * This field allows various special classes of objects to attach
-     * additional information to a type object:
-     *
-     * - `TypeNewScript`: If addendum is a `TypeNewScript`, it
-     *   indicates that objects of this type have always been
-     *   constructed using 'new' on the specified script, which adds
-     *   some number of properties to the object in a definite order
-     *   before the object escapes.
+     * If non-NULL, objects of this type have always been constructed using
+     * 'new' on the specified script, which adds some number of properties to
+     * the object in a definite order before the object escapes.
      */
-    HeapPtr<TypeObjectAddendum> addendum;
-
-    bool hasNewScript() {
-        return addendum && addendum->isNewScript();
-    }
-
-    TypeNewScript *newScript() {
-        return addendum->asNewScript();
-    }
-
-    bool hasBinaryData() {
-        return addendum && addendum->isBinaryData();
-    }
-
-    TypeBinaryData *binaryData() {
-        return addendum->asBinaryData();
-    }
-
-    /*
-     * Tag the type object for a binary data type descriptor, instance,
-     * or handle with the type representation of the data it points at.
-     * If this type object is already tagged with a binary data addendum,
-     * this addendum must already be associated with the same TypeRepresentation,
-     * and the method has no effect.
-     */
-    bool addBinaryDataAddendum(JSContext *cx, TypeRepresentation *repr);
+    HeapPtr<TypeNewScript> newScript;
 
     /*
      * Properties of this object. This may contain JSID_VOID, representing the
@@ -1099,10 +1042,10 @@ struct TypeObject : gc::Cell
      * assignment, and the own types of the property will be used instead of
      * aggregate types.
      */
-    inline HeapTypeSet *getProperty(ExclusiveContext *cx, jsid id, bool own);
+    inline HeapTypeSet *getProperty(JSContext *cx, jsid id, bool own);
 
     /* Get a property only if it already exists. */
-    inline HeapTypeSet *maybeGetProperty(ExclusiveContext *cx, jsid id);
+    inline HeapTypeSet *maybeGetProperty(jsid id, JSContext *cx);
 
     inline unsigned getPropertyCount();
     inline Property *getProperty(unsigned i);
@@ -1115,22 +1058,20 @@ struct TypeObject : gc::Cell
 
     /* Helpers */
 
-    bool addProperty(ExclusiveContext *cx, jsid id, Property **pprop);
-    bool addDefiniteProperties(ExclusiveContext *cx, JSObject *obj);
+    bool addProperty(JSContext *cx, jsid id, Property **pprop);
+    bool addDefiniteProperties(JSContext *cx, JSObject *obj);
     bool matchDefiniteProperties(HandleObject obj);
     void addPrototype(JSContext *cx, TypeObject *proto);
-    void addPropertyType(ExclusiveContext *cx, jsid id, Type type);
-    void addPropertyType(ExclusiveContext *cx, jsid id, const Value &value);
-    void addPropertyType(ExclusiveContext *cx, const char *name, Type type);
-    void addPropertyType(ExclusiveContext *cx, const char *name, const Value &value);
-    void markPropertyConfigured(ExclusiveContext *cx, jsid id);
-    void markStateChange(ExclusiveContext *cx);
-    void setFlags(ExclusiveContext *cx, TypeObjectFlags flags);
-    void markUnknown(ExclusiveContext *cx);
-    void clearAddendum(ExclusiveContext *cx);
-    void clearNewScriptAddendum(ExclusiveContext *cx);
-    void clearBinaryDataAddendum(ExclusiveContext *cx);
-    void getFromPrototypes(JSContext *cx, jsid id, HeapTypeSet *types, bool force = false);
+    void addPropertyType(JSContext *cx, jsid id, Type type);
+    void addPropertyType(JSContext *cx, jsid id, const Value &value);
+    void addPropertyType(JSContext *cx, const char *name, Type type);
+    void addPropertyType(JSContext *cx, const char *name, const Value &value);
+    void markPropertyConfigured(JSContext *cx, jsid id);
+    void markStateChange(JSContext *cx);
+    void setFlags(JSContext *cx, TypeObjectFlags flags);
+    void markUnknown(JSContext *cx);
+    void clearNewScript(JSContext *cx);
+    void getFromPrototypes(JSContext *cx, jsid id, TypeSet *types, bool force = false);
 
     void print();
 
@@ -1167,7 +1108,7 @@ struct TypeObject : gc::Cell
  * Entries for the per-compartment set of type objects which are the default
  * 'new' or the lazy types of some prototype.
  */
-struct TypeObjectEntry : DefaultHasher<ReadBarriered<TypeObject> >
+struct TypeObjectEntry
 {
     struct Lookup {
         Class *clasp;
@@ -1252,7 +1193,7 @@ class TypeScript
     HeapTypeSet *propertyReadTypes;
 
     /* Array of type type sets for variables and JOF_TYPESET ops. */
-    TypeSet *typeArray() const { return (TypeSet *) (uintptr_t(this) + sizeof(TypeScript)); }
+    TypeSet *typeArray() { return (TypeSet *) (uintptr_t(this) + sizeof(TypeScript)); }
 
     static inline unsigned NumTypeSets(JSScript *script);
 
@@ -1312,10 +1253,6 @@ class TypeScript
 
     static void Sweep(FreeOp *fop, JSScript *script);
     void destroy();
-
-#ifdef DEBUG
-    void printTypes(JSContext *cx, HandleScript script) const;
-#endif
 };
 
 struct ArrayTableKey;
@@ -1354,7 +1291,7 @@ struct CompilerOutput
     Kind kind() const { return static_cast<Kind>(kindInt); }
     void setKind(Kind k) { kindInt = k; }
 
-    jit::IonScript *ion() const;
+    ion::IonScript *ion() const;
 
     bool isValid() const;
 
@@ -1432,15 +1369,17 @@ struct TypeCompartment
     ArrayTypeTable *arrayTypeTable;
     ObjectTypeTable *objectTypeTable;
 
-  private:
-    void setTypeToHomogenousArray(ExclusiveContext *cx, JSObject *obj, Type type);
-
-  public:
-    void fixArrayType(ExclusiveContext *cx, JSObject *obj);
-    void fixObjectType(ExclusiveContext *cx, JSObject *obj);
-    void fixRestArgumentsType(ExclusiveContext *cx, JSObject *obj);
+    void fixArrayType(JSContext *cx, JSObject *obj);
+    void fixObjectType(JSContext *cx, JSObject *obj);
 
     JSObject *newTypedObject(JSContext *cx, IdValuePair *properties, size_t nproperties);
+
+    /* Logging fields */
+
+    /* Counts of stack type sets with some number of possible operand types. */
+    static const unsigned TYPE_COUNT_LIMIT = 4;
+    unsigned typeCounts[TYPE_COUNT_LIMIT];
+    unsigned typeCountOver;
 
     TypeCompartment();
     ~TypeCompartment();
@@ -1472,11 +1411,15 @@ struct TypeCompartment
     void processPendingRecompiles(FreeOp *fop);
 
     /* Mark all types as needing destruction once inference has 'finished'. */
-    void setPendingNukeTypes(ExclusiveContext *cx);
+    void setPendingNukeTypes(JSContext *cx);
 
     /* Mark a script as needing recompilation once inference has finished. */
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
     void addPendingRecompile(JSContext *cx, JSScript *script);
+
+    /* Monitor future effects on a bytecode. */
+    void monitorBytecode(JSContext *cx, JSScript *script, uint32_t offset,
+                         bool returnOnly = false);
 
     /* Mark any type set containing obj as having a generic object type. */
     void markSetsUnknown(JSContext *cx, TypeObject *obj);
@@ -1485,10 +1428,10 @@ struct TypeCompartment
     void sweepShapes(FreeOp *fop);
     void sweepCompilerOutputs(FreeOp *fop, bool discardConstraints);
 
+    void maybePurgeAnalysis(JSContext *cx, bool force = false);
+
     void finalizeObjects();
 };
-
-void FixRestArgumentsType(ExclusiveContext *cxArg, JSObject *obj);
 
 struct TypeZone
 {

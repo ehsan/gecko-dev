@@ -320,8 +320,8 @@ CreateTempXlibSurface (gfxASurface *destination, nsIntSize size,
         // Analyse the pixel formats either to check whether we can
         // doCopyBackground or to see if we can find a better visual for
         // opaque drawing.
-        Visual *target_visual = nullptr;
-        XRenderPictFormat *target_format = nullptr;
+        Visual *target_visual = NULL;
+        XRenderPictFormat *target_format = NULL;
         switch (target_type) {
         case CAIRO_SURFACE_TYPE_XLIB:
             target_visual = cairo_xlib_surface_get_visual (target);
@@ -419,7 +419,7 @@ gfxXlibNativeRenderer::DrawOntoTempSurface(gfxXlibSurface *tempXlibSurface,
     tempXlibSurface->Flush();
     /* no clipping is needed because the callback can't draw outside the native
        surface anyway */
-    nsresult rv = DrawWithXlib(tempXlibSurface, offset, nullptr, 0);
+    nsresult rv = DrawWithXlib(tempXlibSurface, offset, NULL, 0);
     tempXlibSurface->MarkDirty();
     return NS_SUCCEEDED(rv);
 }
@@ -445,7 +445,7 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
                             DrawOutput* result)
 {
     if (result) {
-        result->mSurface = nullptr;
+        result->mSurface = NULL;
         result->mUniformAlpha = false;
         result->mUniformColor = false;
     }
@@ -520,7 +520,7 @@ gfxXlibNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
     if (drawingRect.Size() != size || method == eCopyBackground) {
         // Only drawing a portion, or copying background,
         // so won't return a result.
-        result = nullptr;
+        result = NULL;
     }
 
     nsRefPtr<gfxContext> tmpCtx;

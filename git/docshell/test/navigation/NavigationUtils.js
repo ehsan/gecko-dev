@@ -184,12 +184,8 @@ function xpcWaitForFinishedFrames(callback, numFrames) {
         (win.document.body.textContent == body ||
          win.document.body.textContent == popup_body) && 
         win.document.readyState == "complete") {
-
-      var util = win.QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
-                    .getInterface(SpecialPowers.Ci.nsIDOMWindowUtils);
-      var windowId = util.outerWindowID;
-      if (!contains(windowId, finishedWindows)) {
-        finishedWindows.push(windowId);
+      if (!contains(win, finishedWindows)) {
+        finishedWindows.push(win);
         frameFinished();
       }
     }

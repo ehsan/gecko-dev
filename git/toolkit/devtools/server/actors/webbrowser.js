@@ -5,9 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-
 /**
  * Browser-specific actors.
  */
@@ -60,7 +57,6 @@ function createRootActor(aConnection)
   return new RootActor(aConnection,
                        {
                          tabList: new BrowserTabList(aConnection),
-                         addonList: new BrowserAddonList(aConnection),
                          globalActorFactories: DebuggerServer.globalActorFactories,
                          onShutdown: sendShutdownEvent
                        });
@@ -186,16 +182,7 @@ function BrowserTabList(aConnection)
 
 BrowserTabList.prototype.constructor = BrowserTabList;
 
-
-BrowserTabList.prototype._getSelectedBrowser = function(aWindow) {
-  return aWindow.gBrowser.selectedBrowser;
-};
-
-BrowserTabList.prototype._getChildren = function(aWindow) {
-  return aWindow.gBrowser.browsers;
-};
-
-BrowserTabList.prototype.getList = function() {
+BrowserTabList.prototype.iterator = function() {
   let topXULWindow = windowMediator.getMostRecentWindow("navigator:browser");
 
   // As a sanity check, make sure all the actors presently in our map get
@@ -210,13 +197,13 @@ BrowserTabList.prototype.getList = function() {
 
   // Iterate over all navigator:browser XUL windows.
   for (let win of allAppShellDOMWindows("navigator:browser")) {
-    let selectedBrowser = this._getSelectedBrowser(win);
+    let selectedTab = win.gBrowser.selectedBrowser;
 
     // For each tab in this XUL window, ensure that we have an actor for
     // it, reusing existing actors where possible. We actually iterate
     // over 'browser' XUL elements, and BrowserTabActor uses
     // browser.contentWindow.wrappedJSObject as the debuggee global.
-    for (let browser of this._getChildren(win)) {
+    for (let browser of win.gBrowser.browsers) {
       // Do we have an existing actor for this browser? If not, create one.
       let actor = this._actorByBrowser.get(browser);
       if (actor) {
@@ -227,7 +214,7 @@ BrowserTabList.prototype.getList = function() {
       }
 
       // Set the 'selected' properties on all actors correctly.
-      actor.selected = (win === topXULWindow && browser === selectedBrowser);
+      actor.selected = (win === topXULWindow && browser === selectedTab);
     }
   }
 
@@ -237,7 +224,10 @@ BrowserTabList.prototype.getList = function() {
   this._mustNotify = true;
   this._checkListening();
 
-  return promise.resolve([actor for ([_, actor] of this._actorByBrowser)]);
+  /* Yield the values. */
+  for (let [browser, actor] of this._actorByBrowser) {
+    yield actor;
+  }
 };
 
 Object.defineProperty(BrowserTabList.prototype, 'onListChanged', {
@@ -525,7 +515,7 @@ BrowserTabActor.prototype = {
     // as the title.
     if (!title && this._tabbrowser) {
       title = this._tabbrowser
-                  ._getTabForContentWindow(this.window).label;
+                  ._getTabForContentWindow(this.contentWindow).label;
     }
     return title;
   },
@@ -540,33 +530,15 @@ BrowserTabActor.prototype = {
   },
 
   /**
-   * Getter for the tab content window, will be used by child actors to target
-   * the right window.
+   * Getter for the tab content window.
    * @return nsIDOMWindow
    *         Tab content window.
    */
-  get window() {
-    if (this.browser instanceof Ci.nsIDOMWindow) {
-      return this.browser;
-    } else if (this.browser instanceof Ci.nsIDOMElement) {
-      return this.browser.contentWindow;
-    } else {
-      return null;
-    }
+  get contentWindow() {
+    return this.browser.contentWindow;
   },
 
-  /**
-   * Getter for the best nsIWebProgress for to watching this window.
-   */
-  get webProgress() {
-    return this.window
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDocShell)
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebProgress);
-  },
-
-  form: function BTA_form() {
+  grip: function BTA_grip() {
     dbg_assert(!this.exited,
                "grip() shouldn't be called on exited browser actor.");
     dbg_assert(this.actorID,
@@ -656,7 +628,7 @@ BrowserTabActor.prototype = {
     this._contextPool = new ActorPool(this.conn);
     this.conn.addActorPool(this._contextPool);
 
-    this.threadActor = new ThreadActor(this, this.window.wrappedJSObject);
+    this.threadActor = new ThreadActor(this, this.contentWindow.wrappedJSObject);
     this._contextPool.addActor(this.threadActor);
   },
 
@@ -730,7 +702,7 @@ BrowserTabActor.prototype = {
     // Wait a tick so that the response packet can be dispatched before the
     // subsequent navigation event packet.
     Services.tm.currentThread.dispatch(makeInfallible(() => {
-      this.window.location.reload();
+      this.contentWindow.location.reload();
     }, "BrowserTabActor.prototype.onReload's delayed body"), 0);
     return {};
   },
@@ -742,7 +714,7 @@ BrowserTabActor.prototype = {
     // Wait a tick so that the response packet can be dispatched before the
     // subsequent navigation event packet.
     Services.tm.currentThread.dispatch(makeInfallible(() => {
-      this.window.location = aRequest.url;
+      this.contentWindow.location = aRequest.url;
     }, "BrowserTabActor.prototype.onNavigateTo's delayed body"), 0);
     return {};
   },
@@ -755,7 +727,7 @@ BrowserTabActor.prototype = {
       // The tab is already closed.
       return;
     }
-    let windowUtils = this.window
+    let windowUtils = this.contentWindow
                           .QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.suppressEventHandling(true);
@@ -770,7 +742,7 @@ BrowserTabActor.prototype = {
       // The tab is already closed.
       return;
     }
-    let windowUtils = this.window
+    let windowUtils = this.contentWindow
                           .QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.resumeTimeouts();
@@ -841,94 +813,6 @@ BrowserTabActor.prototype.requestTypes = {
   "navigateTo": BrowserTabActor.prototype.onNavigateTo
 };
 
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
-
-function BrowserAddonList(aConnection)
-{
-  this._connection = aConnection;
-  this._actorByAddonId = new Map();
-  this._onListChanged = null;
-}
-
-BrowserAddonList.prototype.getList = function() {
-  var deferred = promise.defer();
-  AddonManager.getAllAddons((addons) => {
-    for (let addon of addons) {
-      let actor = this._actorByAddonId.get(addon.id);
-      if (!actor) {
-        actor = new BrowserAddonActor(this._connection, addon);
-        this._actorByAddonId.set(addon.id, actor);
-      }
-    }
-    deferred.resolve([actor for ([_, actor] of this._actorByAddonId)]);
-  });
-  return deferred.promise;
-}
-
-Object.defineProperty(BrowserAddonList.prototype, "onListChanged", {
-  enumerable: true, configurable: true,
-  get: function() { return this._onListChanged; },
-  set: function(v) {
-    if (v !== null && typeof v != "function") {
-      throw Error("onListChanged property may only be set to 'null' or a function");
-    }
-    this._onListChanged = v;
-    if (this._onListChanged) {
-      AddonManager.addAddonListener(this);
-    } else {
-      AddonManager.removeAddonListener(this);
-    }
-  }
-});
-
-BrowserAddonList.prototype.onInstalled = function (aAddon) {
-  this._onListChanged();
-};
-
-BrowserAddonList.prototype.onUninstalled = function (aAddon) {
-  this._actorByAddonId.delete(aAddon.id);
-  this._onListChanged();
-};
-
-function BrowserAddonActor(aConnection, aAddon) {
-  this.conn = aConnection;
-  this._addon = aAddon;
-  AddonManager.addAddonListener(this);
-}
-
-BrowserAddonActor.prototype = {
-  actorPrefix: "addon",
-
-  get id() {
-    return this._addon.id;
-  },
-
-  get url() {
-    return this._addon.sourceURI ? this._addon.sourceURI.spec : undefined;
-  },
-
-  form: function BAA_form() {
-    dbg_assert(this.actorID, "addon should have an actorID.");
-
-    return {
-      actor: this.actorID,
-      id: this.id,
-      url: this.url
-    };
-  },
-
-  disconnect: function BAA_disconnect() {
-    AddonManager.removeAddonListener(this);
-  },
-
-  onUninstalled: function BAA_onUninstalled(aAddon) {
-    if (aAddon != this._addon)
-      return;
-    this._addon = null;
-    AddonManager.removeAddonListener(this);
-  },
-};
-
 /**
  * The DebuggerProgressListener object is an nsIWebProgressListener which
  * handles onStateChange events for the inspected browser. If the user tries to
@@ -955,7 +839,7 @@ DebuggerProgressListener.prototype = {
 
     // Skip non-interesting states.
     if (!isWindow || !isNetwork ||
-        aProgress.DOMWindow != this._tabActor.window) {
+        aProgress.DOMWindow != this._tabActor.contentWindow) {
       return;
     }
 
@@ -981,7 +865,7 @@ DebuggerProgressListener.prototype = {
         this._tabActor.threadActor.dbg.enabled = true;
       }
 
-      let window = this._tabActor.window;
+      let window = this._tabActor.contentWindow;
       this._tabActor.conn.send({
         from: this._tabActor.actorID,
         type: "tabNavigated",

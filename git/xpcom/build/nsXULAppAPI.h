@@ -12,7 +12,6 @@
 #include "nsISupports.h"
 #include "prlog.h"
 #include "nsXREAppData.h"
-#include "js/TypeDecls.h"
 
 #include "mozilla/Assertions.h"
 
@@ -368,10 +367,10 @@ static const char* const kGeckoProcessTypeString[] = {
 
 // Oddly, NS_ARRAY_LENGTH causes an internal compiler error with MSVC10, so
 // compute the length manually.
-static_assert(sizeof(kGeckoProcessTypeString) /
-              sizeof(kGeckoProcessTypeString[0]) ==
-              GeckoProcessType_End,
-              "Array length mismatch");
+MOZ_STATIC_ASSERT(sizeof(kGeckoProcessTypeString) /
+                  sizeof(kGeckoProcessTypeString[0]) ==
+                  GeckoProcessType_End,
+                  "Array length mismatch");
 
 XRE_API(const char*,
         XRE_ChildProcessTypeToString, (GeckoProcessType aProcessType))
@@ -427,10 +426,15 @@ XRE_API(void,
 XRE_API(MessageLoop*,
         XRE_GetIOMessageLoop, ())
 
+struct JSContext;
+class JSString;
+
 XRE_API(bool,
         XRE_SendTestShellCommand, (JSContext* aCx,
                                    JSString* aCommand,
                                    void* aCallback))
+class JSObject;
+
 XRE_API(bool,
         XRE_ShutdownTestShell, ())
 

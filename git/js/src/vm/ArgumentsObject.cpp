@@ -8,9 +8,6 @@
 
 #include "jsinfer.h"
 
-#ifdef JS_ION
-#include "jit/IonFrames.h"
-#endif
 #include "vm/GlobalObject.h"
 #include "vm/Stack.h"
 
@@ -18,6 +15,10 @@
 
 #include "gc/Barrier-inl.h"
 #include "vm/Stack-inl.h"
+
+#if defined(JS_ION)
+#include "ion/IonFrames.h"
+#endif
 
 using namespace js;
 using namespace js::gc;
@@ -50,10 +51,10 @@ ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
 
 #if defined(JS_ION)
 /* static */ void
-ArgumentsObject::MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
+ArgumentsObject::MaybeForwardToCallObject(ion::IonJSFrameLayout *frame, HandleObject callObj,
                                           JSObject *obj, ArgumentsData *data)
 {
-    JSFunction *callee = jit::CalleeTokenToFunction(frame->calleeToken());
+    JSFunction *callee = ion::CalleeTokenToFunction(frame->calleeToken());
     JSScript *script = callee->nonLazyScript();
     if (callee->isHeavyweight() && script->argsObjAliasesFormals()) {
         JS_ASSERT(callObj && callObj->is<CallObject>());
@@ -88,16 +89,16 @@ struct CopyFrameArgs
 #if defined(JS_ION)
 struct CopyIonJSFrameArgs
 {
-    jit::IonJSFrameLayout *frame_;
+    ion::IonJSFrameLayout *frame_;
     HandleObject callObj_;
 
-    CopyIonJSFrameArgs(jit::IonJSFrameLayout *frame, HandleObject callObj)
+    CopyIonJSFrameArgs(ion::IonJSFrameLayout *frame, HandleObject callObj)
       : frame_(frame), callObj_(callObj)
     { }
 
     void copyArgs(JSContext *, HeapValue *dstBase, unsigned totalArgs) const {
         unsigned numActuals = frame_->numActualArgs();
-        unsigned numFormals = jit::CalleeTokenToFunction(frame_->calleeToken())->nargs;
+        unsigned numFormals = ion::CalleeTokenToFunction(frame_->calleeToken())->nargs;
         JS_ASSERT(numActuals <= totalArgs);
         JS_ASSERT(numFormals <= totalArgs);
         JS_ASSERT(Max(numActuals, numFormals) == totalArgs);
@@ -268,20 +269,20 @@ ArgumentsObject::createUnexpected(JSContext *cx, AbstractFramePtr frame)
 
 #if defined(JS_ION)
 ArgumentsObject *
-ArgumentsObject::createForIon(JSContext *cx, jit::IonJSFrameLayout *frame, HandleObject scopeChain)
+ArgumentsObject::createForIon(JSContext *cx, ion::IonJSFrameLayout *frame, HandleObject scopeChain)
 {
-    jit::CalleeToken token = frame->calleeToken();
-    JS_ASSERT(jit::CalleeTokenIsFunction(token));
-    RootedScript script(cx, jit::ScriptFromCalleeToken(token));
-    RootedFunction callee(cx, jit::CalleeTokenToFunction(token));
+    ion::CalleeToken token = frame->calleeToken();
+    JS_ASSERT(ion::CalleeTokenIsFunction(token));
+    RootedScript script(cx, ion::ScriptFromCalleeToken(token));
+    RootedFunction callee(cx, ion::CalleeTokenToFunction(token));
     RootedObject callObj(cx, scopeChain->is<CallObject>() ? scopeChain.get() : NULL);
     CopyIonJSFrameArgs copy(frame, callObj);
     return create(cx, script, callee, frame->numActualArgs(), copy);
 }
 #endif
 
-static bool
-args_delProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
+static JSBool
+args_delProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded)
 {
     ArgumentsObject &argsobj = obj->as<ArgumentsObject>();
     if (JSID_IS_INT(id)) {
@@ -297,7 +298,7 @@ args_delProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
     return true;
 }
 
-static bool
+static JSBool
 ArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
     if (!obj->is<NormalArgumentsObject>())
@@ -323,8 +324,8 @@ ArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
     return true;
 }
 
-static bool
-ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)
+static JSBool
+ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
 {
     if (!obj->is<NormalArgumentsObject>())
         return true;
@@ -358,12 +359,12 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
      * of setting it in case the user has changed the prototype to an object
      * that has a setter for this id.
      */
-    bool succeeded;
+    JSBool succeeded;
     return baseops::DeleteGeneric(cx, obj, id, &succeeded) &&
            baseops::DefineGeneric(cx, obj, id, vp, NULL, NULL, attrs);
 }
 
-static bool
+static JSBool
 args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
              MutableHandleObject objp)
 {
@@ -391,13 +392,13 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 
     RootedValue undef(cx, UndefinedValue());
     if (!baseops::DefineGeneric(cx, argsobj, id, undef, ArgGetter, ArgSetter, attrs))
-        return false;
+        return JS_FALSE;
 
     objp.set(argsobj);
     return true;
 }
 
-static bool
+static JSBool
 args_enumerate(JSContext *cx, HandleObject obj)
 {
     Rooted<NormalArgumentsObject*> argsobj(cx, &obj->as<NormalArgumentsObject>());
@@ -423,7 +424,7 @@ args_enumerate(JSContext *cx, HandleObject obj)
     return true;
 }
 
-static bool
+static JSBool
 StrictArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
     if (!obj->is<StrictArgumentsObject>())
@@ -447,8 +448,8 @@ StrictArgGetter(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue
     return true;
 }
 
-static bool
-StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)
+static JSBool
+StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
 {
     if (!obj->is<StrictArgumentsObject>())
         return true;
@@ -477,12 +478,12 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
      * args_delProperty to clear the corresponding reserved slot so the GC can
      * collect its value.
      */
-    bool succeeded;
+    JSBool succeeded;
     return baseops::DeleteGeneric(cx, argsobj, id, &succeeded) &&
            baseops::DefineGeneric(cx, argsobj, id, vp, NULL, NULL, attrs);
 }
 
-static bool
+static JSBool
 strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
                    MutableHandleObject objp)
 {
@@ -520,7 +521,7 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     return true;
 }
 
-static bool
+static JSBool
 strictargs_enumerate(JSContext *cx, HandleObject obj)
 {
     Rooted<StrictArgumentsObject*> argsobj(cx, &obj->as<StrictArgumentsObject>());
@@ -594,8 +595,8 @@ Class NormalArgumentsObject::class_ = {
     ArgumentsObject::finalize,
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    NULL,                    /* hasInstance */
     NULL,                    /* construct   */
+    NULL,                    /* hasInstance */
     ArgumentsObject::trace,
     {
         NULL,       /* outerObject */
@@ -625,8 +626,8 @@ Class StrictArgumentsObject::class_ = {
     ArgumentsObject::finalize,
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    NULL,                    /* hasInstance */
     NULL,                    /* construct   */
+    NULL,                    /* hasInstance */
     ArgumentsObject::trace,
     {
         NULL,       /* outerObject */

@@ -44,10 +44,10 @@ static const int kDefaultPeriod = 1000; // ms
 // While most methods of GonkGPSGeolocationProvider should only be
 // called from main thread, we deliberately put the Init and ShutdownGPS
 // methods off main thread to avoid blocking.
-NS_IMPL_ISUPPORTS3(GonkGPSGeolocationProvider,
-                   nsIGeolocationProvider,
-                   nsIRILDataCallback,
-                   nsISettingsServiceCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS3(GonkGPSGeolocationProvider,
+                              nsIGeolocationProvider,
+                              nsIRILDataCallback,
+                              nsISettingsServiceCallback)
 
 /* static */ GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton = nullptr;
 GpsCallbacks GonkGPSGeolocationProvider::mCallbacks = {
@@ -426,11 +426,8 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
       nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
       rilCtx->GetIccInfo(getter_AddRefs(iccInfo));
       if (iccInfo) {
-        nsCOMPtr<nsIDOMMozGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
-        if (gsmIccInfo) {
-          type = AGPS_SETID_TYPE_MSISDN;
-          gsmIccInfo->GetMsisdn(id);
-        }
+        type = AGPS_SETID_TYPE_MSISDN;
+        iccInfo->GetMsisdn(id);
       }
     }
 
@@ -484,22 +481,8 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
       nsCOMPtr<nsIDOMMozMobileCellInfo> cell;
       voice->GetCell(getter_AddRefs(cell));
       if (cell) {
-        int32_t lac;
-        int64_t cid;
-
-        cell->GetGsmLocationAreaCode(&lac);
-        // The valid range of LAC is 0x0 to 0xffff which is defined in
-        // hardware/ril/include/telephony/ril.h
-        if (lac >= 0x0 && lac <= 0xffff) {
-          location.u.cellID.lac = lac;
-        }
-
-        cell->GetGsmCellId(&cid);
-        // The valid range of cell id is 0x0 to 0xffffffff which is defined in
-        // hardware/ril/include/telephony/ril.h
-        if (cid >= 0x0 && cid <= 0xffffffff) {
-          location.u.cellID.cid = cid;
-        }
+        cell->GetGsmLocationAreaCode(&location.u.cellID.lac);
+        cell->GetGsmCellId(&location.u.cellID.cid);
       }
     }
     if (mAGpsRilInterface) {

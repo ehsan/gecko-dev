@@ -8,9 +8,9 @@
 #define vm_RegExpStatics_h
 
 #include "gc/Marking.h"
-#include "vm/GlobalObject.h"
 #include "vm/MatchPairs.h"
 #include "vm/Runtime.h"
+#include "vm/GlobalObject.h"
 
 namespace js {
 
@@ -526,6 +526,12 @@ RegExpStatics::checkInvariants()
         JS_ASSERT(mpiLen >= size_t(pair.limit) && pair.limit >= pair.start && pair.start >= 0);
     }
 #endif /* DEBUG */
+}
+
+inline RegExpStatics *
+ExclusiveContext::regExpStatics()
+{
+    return global()->getRegExpStatics();
 }
 
 } /* namespace js */

@@ -23,5 +23,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'profile_s'
 
-LIBXUL_LIBRARY = True
-

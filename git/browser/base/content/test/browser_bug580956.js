@@ -1,5 +1,7 @@
 function numClosedTabs()
-  SessionStore.getClosedTabCount(window);
+  Cc["@mozilla.org/browser/sessionstore;1"].
+    getService(Ci.nsISessionStore).
+    getClosedTabCount(window);
 
 function isUndoCloseEnabled() {
   updateTabContextMenu();

@@ -29,17 +29,8 @@ Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Parser",
   "resource:///modules/devtools/Parser.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-  "resource://gre/modules/devtools/Loader.jsm");
-
-Object.defineProperty(this, "NetworkHelper", {
-  get: function() {
-    return devtools.require("devtools/toolkit/webconsole/network-helper");
-  },
-  configurable: true,
-  enumerable: true
-});
-
+XPCOMUtils.defineLazyModuleGetter(this, "NetworkHelper",
+  "resource://gre/modules/devtools/NetworkHelper.jsm");
 
 /**
  * Object defining the debugger controller components.
@@ -432,7 +423,6 @@ function StackFrames() {
   this._onResumed = this._onResumed.bind(this);
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
-  this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
   this._afterFramesCleared = this._afterFramesCleared.bind(this);
   this.evaluate = this.evaluate.bind(this);
 }
@@ -447,7 +437,6 @@ StackFrames.prototype = {
   currentEvaluation: null,
   currentException: null,
   currentReturnedValue: null,
-  _dontSwitchSources: false,
 
   /**
    * Connect to the current thread client.
@@ -458,7 +447,6 @@ StackFrames.prototype = {
     this.activeThread.addListener("resumed", this._onResumed);
     this.activeThread.addListener("framesadded", this._onFrames);
     this.activeThread.addListener("framescleared", this._onFramesCleared);
-    this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
     this._handleTabNavigation();
   },
 
@@ -474,7 +462,6 @@ StackFrames.prototype = {
     this.activeThread.removeListener("resumed", this._onResumed);
     this.activeThread.removeListener("framesadded", this._onFrames);
     this.activeThread.removeListener("framescleared", this._onFramesCleared);
-    this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
   },
 
   /**
@@ -604,40 +591,16 @@ StackFrames.prototype = {
     // Make sure the debugger view panes are visible.
     DebuggerView.showInstrumentsPane();
 
-    this._refillFrames();
-  },
-
-  /**
-   * Fill the StackFrames view with the frames we have in the cache, compressing
-   * frames which have black boxed sources into single frames.
-   */
-  _refillFrames: function() {
     // Make sure all the previous stackframes are removed before re-adding them.
     DebuggerView.StackFrames.empty();
 
-    let previousBlackBoxed = null;
     for (let frame of this.activeThread.cachedFrames) {
-      let { depth, where: { url, line }, source } = frame;
-
-      let isBlackBoxed = source
-        ? this.activeThread.source(source).isBlackBoxed
-        : false;
+      let { depth, where: { url, line } } = frame;
       let frameLocation = NetworkHelper.convertToUnicode(unescape(url));
       let frameTitle = StackFrameUtils.getFrameTitle(frame);
 
-      if (isBlackBoxed) {
-        if (previousBlackBoxed == url) {
-          continue;
-        }
-        previousBlackBoxed = url;
-      } else {
-        previousBlackBoxed = null;
-      }
-
-      DebuggerView.StackFrames.addFrame(
-        frameTitle, frameLocation, line, depth, isBlackBoxed);
+      DebuggerView.StackFrames.addFrame(frameTitle, frameLocation, line, depth);
     }
-
     if (this.currentFrame == null) {
       DebuggerView.StackFrames.selectedDepth = 0;
     }
@@ -664,17 +627,6 @@ StackFrames.prototype = {
   },
 
   /**
-   * Handler for the debugger's blackboxchange notification.
-   */
-  _onBlackBoxChange: function() {
-    if (this.activeThread.state == "paused") {
-      this._dontSwitchSources = true;
-      this.currentFrame = null;
-      this._refillFrames();
-    }
-  },
-
-  /**
    * Called soon after the thread client's framescleared notification.
    */
   _afterFramesCleared: function() {
@@ -695,10 +647,8 @@ StackFrames.prototype = {
    *
    * @param number aDepth
    *        The depth of the frame in the stack.
-   * @param boolean aDontSwitchSources
-   *        Flag on whether or not we want to switch the selected source.
    */
-  selectFrame: function(aDepth, aDontSwitchSources) {
+  selectFrame: function(aDepth) {
     // Make sure the frame at the specified depth exists first.
     let frame = this.activeThread.cachedFrames[this.currentFrame = aDepth];
     if (!frame) {
@@ -711,11 +661,8 @@ StackFrames.prototype = {
       return;
     }
 
-    let noSwitch = this._dontSwitchSources;
-    this._dontSwitchSources = false;
-
     // Move the editor's caret to the proper url and line.
-    DebuggerView.updateEditor(url, line, { noSwitch: noSwitch });
+    DebuggerView.updateEditor(url, line);
     // Highlight the breakpoint at the specified url and line if it exists.
     DebuggerView.Sources.highlightBreakpoint(url, line);
     // Don't display the watch expressions textbox inputs in the pane.
@@ -918,7 +865,6 @@ function SourceScripts() {
   this._onNewGlobal = this._onNewGlobal.bind(this);
   this._onNewSource = this._onNewSource.bind(this);
   this._onSourcesAdded = this._onSourcesAdded.bind(this);
-  this._onBlackBoxChange = this._onBlackBoxChange.bind(this);
 }
 
 SourceScripts.prototype = {
@@ -933,7 +879,6 @@ SourceScripts.prototype = {
     dumpn("SourceScripts is connecting...");
     this.debuggerClient.addListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.addListener("newSource", this._onNewSource);
-    this.activeThread.addListener("blackboxchange", this._onBlackBoxChange);
     this._handleTabNavigation();
   },
 
@@ -948,7 +893,6 @@ SourceScripts.prototype = {
     window.clearTimeout(this._newSourceTimeout);
     this.debuggerClient.removeListener("newGlobal", this._onNewGlobal);
     this.debuggerClient.removeListener("newSource", this._onNewSource);
-    this.activeThread.removeListener("blackboxchange", this._onBlackBoxChange);
   },
 
   /**
@@ -1054,37 +998,6 @@ SourceScripts.prototype = {
 
     // Signal that scripts have been added.
     window.dispatchEvent(document, "Debugger:AfterSourcesAdded");
-  },
-
-  /**
-   * Handler for the debugger client's 'blackboxchange' notification.
-   */
-  _onBlackBoxChange: function (aEvent, { url, isBlackBoxed }) {
-    const item = DebuggerView.Sources.getItemByValue(url);
-    if (item) {
-      DebuggerView.Sources.callMethod("checkItem", item.target, !isBlackBoxed);
-    }
-    DebuggerView.Sources.maybeShowBlackBoxMessage();
-  },
-
-  /**
-   * Set the black boxed status of the given source.
-   *
-   * @param Object aSource
-   *        The source form.
-   * @param bool aBlackBoxFlag
-   *        True to black box the source, false to un-black box it.
-   */
-  blackBox: function(aSource, aBlackBoxFlag) {
-    const sourceClient = this.activeThread.source(aSource);
-    sourceClient[aBlackBoxFlag ? "blackBox" : "unblackBox"](function({ error, message }) {
-      if (error) {
-        let msg = "Could not toggle black boxing for "
-          + aSource.url + ": " + message;
-        dumpn(msg);
-        return void Cu.reportError(msg);
-      }
-    });
   },
 
   /**

@@ -277,7 +277,6 @@ GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
 # See also config/rules.mk 'xpcshell-tests' target for local execution.
 # Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] xpcshell-tests|.
 xpcshell-tests:
-	$(info Have you considered running xpcshell tests via |mach xpcshell-test|? mach is easier to use and has more features than make and it will eventually be the only way to run xpcshell tests. Please consider using mach today!)
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
 	  -I$(DEPTH)/build \
 	  -I$(topsrcdir)/build \
@@ -286,7 +285,6 @@ xpcshell-tests:
 	  --manifest=$(DEPTH)/_tests/xpcshell/xpcshell.ini \
 	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  --no-logfiles \
-	  --test-plugin-path="$(DIST)/plugins" \
 	  --tests-root-dir=$(call core_abspath,_tests/xpcshell) \
 	  --testing-modules-dir=$(call core_abspath,_tests/modules) \
 	  --xunit-file=$(call core_abspath,_tests/xpcshell/results.xml) \
@@ -405,7 +403,6 @@ package-tests: \
   stage-modules \
   stage-marionette \
   stage-cppunittests \
-  stage-jittest \
   $(NULL)
 else
 # This staging area has been built for us by universal/flight.mk
@@ -503,12 +500,6 @@ else
 endif
 	$(NSINSTALL) $(topsrcdir)/testing/runcppunittests.py $(PKG_STAGE)/cppunittests
 	$(NSINSTALL) $(topsrcdir)/testing/remotecppunittests.py $(PKG_STAGE)/cppunittests
-
-stage-jittest:
-	$(NSINSTALL) -D $(PKG_STAGE)/jit-test/tests
-	cp -RL $(topsrcdir)/js/src/jsapi.h $(PKG_STAGE)/jit-test
-	cp -RL $(topsrcdir)/js/src/jit-test $(PKG_STAGE)/jit-test/jit-test
-	cp -RL $(topsrcdir)/js/src/tests/lib $(PKG_STAGE)/jit-test/tests/lib
 
 MARIONETTE_DIR=$(PKG_STAGE)/marionette
 stage-marionette: make-stage-dir

@@ -33,23 +33,22 @@ TestPackStereo::TestPackStereo()
       total_bytes_(0),
       payload_size_(0),
       codec_mode_(kNotSet),
-      lost_packet_(false) {
-}
+      lost_packet_(false) {}
 
-TestPackStereo::~TestPackStereo() {
-}
+TestPackStereo::~TestPackStereo() {}
 
 void TestPackStereo::RegisterReceiverACM(AudioCodingModule* acm) {
   receiver_acm_ = acm;
   return;
 }
 
-int32_t TestPackStereo::SendData(const FrameType frame_type,
-                                 const uint8_t payload_type,
-                                 const uint32_t timestamp,
-                                 const uint8_t* payload_data,
-                                 const uint16_t payload_size,
-                                 const RTPFragmentationHeader* fragmentation) {
+int32_t TestPackStereo::SendData(
+    const FrameType frame_type,
+    const uint8_t payload_type,
+    const uint32_t timestamp,
+    const uint8_t* payload_data,
+    const uint16_t payload_size,
+    const RTPFragmentationHeader* fragmentation) {
   WebRtcRTPHeader rtp_info;
   int32_t status = 0;
 
@@ -160,10 +159,10 @@ void TestStereo::Perform() {
   }
 
   // Open both mono and stereo test files in 32 kHz.
-  const std::string file_name_stereo = webrtc::test::ResourcePath(
-      "audio_coding/teststereo32kHz", "pcm");
-  const std::string file_name_mono = webrtc::test::ResourcePath(
-      "audio_coding/testfile32kHz", "pcm");
+  const std::string file_name_stereo =
+      webrtc::test::ResourcePath("audio_coding/teststereo32kHz", "pcm");
+  const std::string file_name_mono =
+      webrtc::test::ResourcePath("audio_coding/testfile32kHz", "pcm");
   frequency_hz = 32000;
   in_file_stereo_ = new PCMFile();
   in_file_mono_ = new PCMFile();
@@ -450,26 +449,26 @@ void TestStereo::Perform() {
   char codec_opus[] = "opus";
   // Run Opus with 10 ms frame size.
   RegisterSendCodec('A', codec_opus, 48000, 64000, 480, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   // Run Opus with 20 ms frame size.
   RegisterSendCodec('A', codec_opus, 48000, 64000, 480*2, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   // Run Opus with 40 ms frame size.
   RegisterSendCodec('A', codec_opus, 48000, 64000, 480*4, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   // Run Opus with 60 ms frame size.
   RegisterSendCodec('A', codec_opus, 48000, 64000, 480*6, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   // Run Opus with 20 ms frame size and different bitrates.
   RegisterSendCodec('A', codec_opus, 48000, 40000, 960, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   RegisterSendCodec('A', codec_opus, 48000, 510000, 960, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
 #endif
@@ -489,7 +488,7 @@ void TestStereo::Perform() {
   channel_a2b_->set_codec_mode(kStereo);
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_g722, 16000, 64000, 160, codec_channels,
-      g722_pltype_);
+                    g722_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
 #endif
@@ -503,7 +502,7 @@ void TestStereo::Perform() {
   channel_a2b_->set_codec_mode(kStereo);
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_l16, 8000, 128000, 80, codec_channels,
-      l16_8khz_pltype_);
+                    l16_8khz_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
   if (test_mode_ != 0) {
@@ -514,7 +513,7 @@ void TestStereo::Perform() {
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_l16, 16000, 256000, 160, codec_channels,
-      l16_16khz_pltype_);
+                    l16_16khz_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
   if (test_mode_ != 0) {
@@ -525,7 +524,7 @@ void TestStereo::Perform() {
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_l16, 32000, 512000, 320, codec_channels,
-      l16_32khz_pltype_);
+                    l16_32khz_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
 #endif
@@ -556,7 +555,7 @@ void TestStereo::Perform() {
   channel_a2b_->set_codec_mode(kStereo);
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_celt, 32000, 64000, 640, codec_channels,
-      celt_pltype_);
+                    celt_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
 #endif
@@ -572,7 +571,7 @@ void TestStereo::Perform() {
   channel_a2b_->set_codec_mode(kStereo);
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_opus, 48000, 64000, 960, codec_channels,
-      opus_pltype_);
+                    opus_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
 
   // Encode in mono, decode in stereo mode.
@@ -598,7 +597,8 @@ void TestStereo::Perform() {
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_g722, 16000, 64000, 160, codec_channels,
-      g722_pltype_);
+                    g722_pltype_);
+
 
   // Make sure it is possible to set VAD/CNG, now that we are sending mono
   // again.
@@ -619,7 +619,7 @@ void TestStereo::Perform() {
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_l16, 8000, 128000, 80, codec_channels,
-      l16_8khz_pltype_);
+                    l16_8khz_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
   if (test_mode_ != 0) {
@@ -630,18 +630,18 @@ void TestStereo::Perform() {
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_l16, 16000, 256000, 160, codec_channels,
-      l16_16khz_pltype_);
+                    l16_16khz_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
   if (test_mode_ != 0) {
-    printf("==============================================================\n");
-    printf("Test number: %d\n", test_cntr_ + 1);
-    printf("Test type: Stereo-to-mono\n");
+     printf("==============================================================\n");
+     printf("Test number: %d\n", test_cntr_ + 1);
+     printf("Test type: Stereo-to-mono\n");
   }
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_l16, 32000, 512000, 320, codec_channels,
-      l16_32khz_pltype_);
+                    l16_32khz_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
 #endif
@@ -670,7 +670,7 @@ void TestStereo::Perform() {
   test_cntr_++;
   OpenOutFile(test_cntr_);
   RegisterSendCodec('A', codec_celt, 32000, 64000, 640, codec_channels,
-      celt_pltype_);
+                    celt_pltype_);
   Run(channel_a2b_, audio_channels, codec_channels);
   out_file_.Close();
 #endif
@@ -684,7 +684,7 @@ void TestStereo::Perform() {
   OpenOutFile(test_cntr_);
   // Encode and decode in mono.
   RegisterSendCodec('A', codec_opus, 48000, 32000, 960, codec_channels,
-      opus_pltype_);
+                     opus_pltype_);
   CodecInst opus_codec_param;
   for (uint8_t n = 0; n < num_encoders; n++) {
     EXPECT_EQ(0, acm_b_->Codec(n, &opus_codec_param));
@@ -795,11 +795,12 @@ void TestStereo::RegisterSendCodec(char side, char* codec_name,
   if (!strcmp(codec_name, "CELT")) {
     pack_size_bytes_ = (uint16_t)(
         static_cast<float>(pack_size * rate) /
-            static_cast<float>(sampling_freq_hz * 8) + 0.875) / channels;
+        static_cast<float>(sampling_freq_hz * 8) + 0.875)
+        / channels;
   } else {
     pack_size_bytes_ = (uint16_t)(
         static_cast<float>(pack_size * rate) /
-            static_cast<float>(sampling_freq_hz * 8) + 0.875);
+        static_cast<float>(sampling_freq_hz * 8) + 0.875);
   }
 
   // Set pointer to the ACM where to register the codec
@@ -910,8 +911,8 @@ void TestStereo::Run(TestPackStereo* channel, int in_channels, int out_channels,
 void TestStereo::OpenOutFile(int16_t test_number) {
   std::string file_name;
   std::stringstream file_stream;
-  file_stream << webrtc::test::OutputPath() << "teststereo_out_" << test_number
-      << ".pcm";
+  file_stream << webrtc::test::OutputPath() << "teststereo_out_"
+      << test_number << ".pcm";
   file_name = file_stream.str();
   out_file_.Open(file_name, 32000, "wb");
 }

@@ -8,6 +8,7 @@
 #include "nsSVGAnimatedTransformList.h"
 #include "nsSVGAttrTearoffTable.h"
 #include "mozilla/dom/SVGAnimatedTransformListBinding.h"
+#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace dom {

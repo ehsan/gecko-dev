@@ -19,7 +19,6 @@
 #include "nsAttrName.h"
 #include "rdf.h"
 #include "nsArrayUtils.h"
-#include "nsIURI.h"
 
 #include "nsContentTestNode.h"
 #include "nsRDFConInstanceTestNode.h"
@@ -46,8 +45,6 @@ nsIRDFService*            nsXULTemplateQueryProcessorRDF::gRDFService;
 nsIRDFContainerUtils*     nsXULTemplateQueryProcessorRDF::gRDFContainerUtils;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kNC_BookmarkSeparator;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kRDF_type;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateQueryProcessorRDF)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateQueryProcessorRDF)
     tmp->Done();

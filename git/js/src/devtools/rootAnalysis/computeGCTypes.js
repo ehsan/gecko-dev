@@ -94,7 +94,6 @@ addGCType('JSString');
 addGCType('js::Shape');
 addGCType('js::BaseShape');
 addGCType('JSScript');
-addGCType('js::LazyScript');
 addGCType('js::ion::IonCode');
 addGCPointer('JS::Value');
 addGCPointer('jsid');

@@ -113,7 +113,7 @@ gfxASurface*
 gfxASurface::GetSurfaceWrapper(cairo_surface_t *csurf)
 {
     if (!csurf)
-        return nullptr;
+        return NULL;
     return (gfxASurface*) cairo_surface_get_user_data(csurf, &gfxasurface_pointer_key);
 }
 
@@ -281,7 +281,7 @@ void *
 gfxASurface::GetData(const cairo_user_data_key_t *key)
 {
     if (!mSurfaceValid)
-        return nullptr;
+        return NULL;
     return cairo_surface_get_user_data(mSurface, key);
 }
 
@@ -523,7 +523,7 @@ gfxASurface::MovePixels(const nsIntRect& aSourceRect,
     // CreateSimilarSurface can return nullptr if the current surface is
     // in an error state. This isn't good, but its better to carry
     // on with the error surface instead of crashing.
-    NS_WARN_IF_FALSE(tmp, "Must have temporary surface to move pixels!");
+    NS_ASSERTION(tmp, "Must have temporary surface to move pixels!");
     if (!tmp) {
         return;
     }

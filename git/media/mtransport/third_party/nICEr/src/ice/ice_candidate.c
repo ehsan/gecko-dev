@@ -358,37 +358,23 @@ int nr_ice_candidate_compute_priority(nr_ice_candidate *cand)
     if(type_preference > 126)
       r_log(LOG_ICE,LOG_ERR,"Illegal type preference %d",type_preference);
 
-    if(!cand->ctx->interface_prioritizer) {
-      /* Prioritizer is not set, read from registry */
-      if(r=NR_reg_get2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,
-        &interface_preference)) {
-        if (r==R_NOT_FOUND) {
-          if (next_automatic_preference == 1) {
-            r_log(LOG_ICE,LOG_DEBUG,"Out of preference values. Can't assign one for interface %s",cand->base.ifname);
-            ABORT(R_NOT_FOUND);
-          }
-          r_log(LOG_ICE,LOG_DEBUG,"Automatically assigning preference for interface %s->%d",cand->base.ifname,
-            next_automatic_preference);
-          if (r=NR_reg_set2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,next_automatic_preference)){
-            ABORT(r);
-          }
-          interface_preference=next_automatic_preference;
-          next_automatic_preference--;
+
+    if(r=NR_reg_get2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,
+      &interface_preference)) {
+      if (r==R_NOT_FOUND) {
+        if (next_automatic_preference == 1) {
+          r_log(LOG_ICE,LOG_DEBUG,"Out of preference values. Can't assign one for interface %s",cand->base.ifname);
+          ABORT(R_NOT_FOUND);
         }
-        else {
+        r_log(LOG_ICE,LOG_DEBUG,"Automatically assigning preference for interface %s->%d",cand->base.ifname,
+          next_automatic_preference);
+        if (r=NR_reg_set2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,next_automatic_preference)){
           ABORT(r);
         }
+        interface_preference=next_automatic_preference;
+        next_automatic_preference--;
       }
-    }
-    else {
-      char key_of_interface[MAXIFNAME + 41];
-
-      if(r=nr_transport_addr_fmt_ifname_addr_string(&cand->base,key_of_interface,
-         sizeof(key_of_interface))) {
-        ABORT(r);
-      }
-      if(r=nr_interface_prioritizer_get_priority(cand->ctx->interface_prioritizer,
-         key_of_interface,&interface_preference)) {
+      else {
         ABORT(r);
       }
     }
@@ -565,7 +551,7 @@ static void nr_ice_srvrflx_start_stun_timer_cb(NR_SOCKET s, int how, void *cb_ar
 /* TODO: if the response is a BINDING-ERROR-RESPONSE, then restart
  * TODO: using NR_STUN_CLIENT_MODE_BINDING_REQUEST because the
  * TODO: server may not have understood the 0.96-style request */
-    if(r=nr_stun_client_start(cand->u.srvrflx.stun, NR_STUN_CLIENT_MODE_BINDING_REQUEST_NO_AUTH, nr_ice_srvrflx_stun_finished_cb, cand))
+    if(r=nr_stun_client_start(cand->u.srvrflx.stun, NR_STUN_CLIENT_MODE_BINDING_REQUEST_STUND_0_96, nr_ice_srvrflx_stun_finished_cb, cand))
       ABORT(r);
 
     if(r=nr_ice_ctx_remember_id(cand->ctx, cand->u.srvrflx.stun->request))
@@ -670,7 +656,7 @@ static void nr_ice_srvrflx_stun_finished_cb(NR_SOCKET sock, int how, void *cb_ar
       /* OK, we should have a mapped address */
       case NR_STUN_CLIENT_STATE_DONE:
         /* Copy the address */
-        nr_transport_addr_copy(&cand->addr, &cand->u.srvrflx.stun->results.stun_binding_response.mapped_addr);
+        nr_transport_addr_copy(&cand->addr, &cand->u.srvrflx.stun->results.stun_binding_response_stund_0_96.mapped_addr);
         nr_stun_client_ctx_destroy(&cand->u.srvrflx.stun);
         cand->state=NR_ICE_CAND_STATE_INITIALIZED;
         /* Execute the ready callback */

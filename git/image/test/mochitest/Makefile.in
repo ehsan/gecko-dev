@@ -3,6 +3,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir  = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 MOCHITEST_FILES =   imgutils.js \
                 animationPolling.js \
                 lime100x100.svg \
@@ -61,9 +69,6 @@ MOCHITEST_FILES =   imgutils.js \
 		test_drawDiscardedImage.html \
 		short_header.gif \
 		test_short_gif_header.html \
-                test_ImageContentLoaded.html \
-                INT32_MIN.bmp \
-                test_bug865919.html \
                 $(NULL)
 
 # Tests disabled due to intermittent orange
@@ -73,10 +78,8 @@ MOCHITEST_FILES =   imgutils.js \
 MOCHITEST_CHROME_FILES = imgutils.js \
                 animationPolling.js \
                 lime-anim-100x100.svg \
-                lime-anim-100x100-2.svg \
                 animation.svg \
                 test_animSVGImage.html \
-                test_animSVGImage2.html \
                 test_animation.html \
                 test_animation2.html \
                 animated-gif-finalframe.gif \
@@ -110,3 +113,5 @@ MOCHITEST_CHROME_FILES = imgutils.js \
                 animated2.gif \
                 test_staticClone.html \
                 $(NULL)
+
+include $(topsrcdir)/config/rules.mk

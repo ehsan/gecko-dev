@@ -467,10 +467,12 @@ NS_IMETHODIMP nsFilePicker::SetFilterIndex(int32_t aFilterIndex)
 
 //-------------------------------------------------------------------------
 void nsFilePicker::InitNative(nsIWidget *aParent,
-                              const nsAString& aTitle)
+                              const nsAString& aTitle,
+                              int16_t aMode)
 {
   mWnd = (HWND) ((aParent) ? aParent->GetNativeData(NS_NATIVE_WINDOW) : 0); 
   mTitle.Assign(aTitle);
+  mMode = aMode;
 }
 
 

@@ -5,6 +5,8 @@
 
 package @ANDROID_PACKAGE_NAME@;
 
+import java.util.List;
+
 import android.app.Activity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,7 +17,8 @@ import android.widget.TextView;
 import android.widget.TextSwitcher;
 import android.app.Instrumentation;
 import com.jayway.android.robotium.solo.Solo;
-import java.util.List;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
 public class FennecNativeElement implements Element {
     private final Activity mActivity;

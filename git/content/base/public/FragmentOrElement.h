@@ -17,11 +17,12 @@
 #include "nsAttrAndChildArray.h"          // member
 #include "nsCycleCollectionParticipant.h" // NS_DECL_CYCLE_*
 #include "nsIContent.h"                   // base class
+#include "nsIDOMTouchEvent.h"             // base class (nsITouchEventReceiver)
 #include "nsIDOMXPathNSResolver.h"        // base class
+#include "nsIInlineEventHandlers.h"       // base class
 #include "nsINodeList.h"                  // base class
 #include "nsIWeakReference.h"             // base class
 #include "nsNodeUtils.h"                  // class member nsNodeUtils::CloneNodeImpl
-#include "nsIHTMLCollection.h"
 
 class ContentUnbinder;
 class nsContentList;
@@ -31,6 +32,7 @@ class nsIControllers;
 class nsICSSDeclaration;
 class nsIDocument;
 class nsDOMStringMap;
+class nsIHTMLCollection;
 class nsINodeInfo;
 class nsIURI;
 
@@ -153,6 +155,10 @@ private:
   nsCOMPtr<nsINode> mNode;
 };
 
+// Forward declare to allow being a friend
+class nsTouchEventReceiverTearoff;
+class nsInlineEventHandlersTearoff;
+
 /**
  * A generic base class for DOM elements, implementing many nsIContent,
  * nsIDOMNode and nsIDOMElement methods.
@@ -168,9 +174,18 @@ public:
   FragmentOrElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~FragmentOrElement();
 
+  friend class ::nsTouchEventReceiverTearoff;
+  friend class ::nsInlineEventHandlersTearoff;
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   NS_DECL_SIZEOF_EXCLUDING_THIS
+
+  /**
+   * Called during QueryInterface to give the binding manager a chance to
+   * get an interface for this element.
+   */
+  nsresult PostQueryInterface(REFNSIID aIID, void** aInstancePtr);
 
   // nsINode interface methods
   virtual uint32_t GetChildCount() const MOZ_OVERRIDE;
@@ -214,10 +229,6 @@ public:
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker) MOZ_OVERRIDE;
 
   nsIHTMLCollection* Children();
-  uint32_t ChildElementCount()
-  {
-    return Children()->Length();
-  }
 
 public:
   /**
@@ -389,11 +400,63 @@ protected:
 } // namespace dom
 } // namespace mozilla
 
+/**
+ * Tearoff class to implement nsITouchEventReceiver
+ */
+class nsTouchEventReceiverTearoff MOZ_FINAL : public nsITouchEventReceiver
+{
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  NS_FORWARD_NSITOUCHEVENTRECEIVER(mElement->)
+
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsTouchEventReceiverTearoff)
+
+  nsTouchEventReceiverTearoff(mozilla::dom::FragmentOrElement *aElement) : mElement(aElement)
+  {
+  }
+
+private:
+  nsRefPtr<mozilla::dom::FragmentOrElement> mElement;
+};
+
+/**
+ * Tearoff class to implement nsIInlineEventHandlers
+ */
+class nsInlineEventHandlersTearoff MOZ_FINAL : public nsIInlineEventHandlers
+{
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  NS_FORWARD_NSIINLINEEVENTHANDLERS(mElement->)
+
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsInlineEventHandlersTearoff)
+
+  nsInlineEventHandlersTearoff(mozilla::dom::FragmentOrElement *aElement) : mElement(aElement)
+  {
+  }
+
+private:
+  nsRefPtr<mozilla::dom::FragmentOrElement> mElement;
+};
+
 #define NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE                               \
     if (NS_SUCCEEDED(rv))                                                     \
       return rv;                                                              \
                                                                               \
     rv = FragmentOrElement::QueryInterface(aIID, aInstancePtr);               \
     NS_INTERFACE_TABLE_TO_MAP_SEGUE
+
+#define NS_ELEMENT_INTERFACE_MAP_END                                          \
+    {                                                                         \
+      return PostQueryInterface(aIID, aInstancePtr);                          \
+    }                                                                         \
+                                                                              \
+    NS_ADDREF(foundInterface);                                                \
+                                                                              \
+    *aInstancePtr = foundInterface;                                           \
+                                                                              \
+    return NS_OK;                                                             \
+  }
 
 #endif /* FragmentOrElement_h___ */

@@ -563,7 +563,7 @@ nsListBoxBodyFrame::GetItemAtIndex(int32_t aIndex, nsIDOMElement** aItem)
   if (aIndex < 0)
     return NS_OK;
 
-  int32_t itemCount = 0;
+  PRInt32 itemCount = 0;
   FlattenedChildIterator iter(mContent);
   for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
     // we hit a list row, check if it is the one we are looking for
@@ -924,12 +924,8 @@ nsListBoxBodyFrame::VerticalScroll(int32_t aPosition)
 
   nsPoint scrollPosition = scrollFrame->GetScrollPosition();
  
-  nsWeakFrame weakFrame(this);
   scrollFrame->ScrollTo(nsPoint(scrollPosition.x, aPosition),
                         nsIScrollableFrame::INSTANT);
-  if (!weakFrame.IsAlive()) {
-    return;
-  }
 
   mYPosition = aPosition;
 }
@@ -1362,11 +1358,7 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
         NS_PRECONDITION(mCurrentIndex > 0, "mCurrentIndex > 0");
         --mCurrentIndex;
         mYPosition = mCurrentIndex*mRowHeight;
-        nsWeakFrame weakChildFrame(aChildFrame);
         VerticalScroll(mYPosition);
-        if (!weakChildFrame.IsAlive()) {
-          return;
-        }
       }
     } else if (mCurrentIndex > 0) {
       // At this point, we know we have a scrollbar, and we need to know 
@@ -1390,11 +1382,7 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
           mRowsToPrepend = 1;
           --mCurrentIndex;
           mYPosition = mCurrentIndex*mRowHeight;
-          nsWeakFrame weakChildFrame(aChildFrame);
           VerticalScroll(mYPosition);
-          if (!weakChildFrame.IsAlive()) {
-            return;
-          }
         }
       }
     }
@@ -1486,6 +1474,10 @@ nsIFrame*
 NS_NewListBoxBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   nsCOMPtr<nsBoxLayout> layout = NS_NewListBoxLayout();
+  if (!layout) {
+    return nullptr;
+  }
+
   return new (aPresShell) nsListBoxBodyFrame(aPresShell, aContext, layout);
 }
 

@@ -5,9 +5,9 @@
 #include "nsContentPermissionHelper.h"
 #include "nsIContentPermissionPrompt.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMWindow.h"
 #include "nsIDOMElement.h"
 #include "nsIPrincipal.h"
-#include "mozilla/dom/Element.h"
 #include "mozilla/unused.h"
 
 using mozilla::unused;          // <snicker>
@@ -92,8 +92,7 @@ nsContentPermissionRequestProxy::GetElement(nsIDOMElement * *aRequestingElement)
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(mParent->mElement);
-  elem.forget(aRequestingElement);
+  NS_IF_ADDREF(*aRequestingElement = mParent->mElement);
   return NS_OK;
 }
 
@@ -125,7 +124,7 @@ namespace dom {
 
 ContentPermissionRequestParent::ContentPermissionRequestParent(const nsACString& aType,
                                                                const nsACString& aAccess,
-                                                               Element* aElement,
+                                                               nsIDOMElement *aElement,
                                                                const IPC::Principal& aPrincipal)
 {
   MOZ_COUNT_CTOR(ContentPermissionRequestParent);

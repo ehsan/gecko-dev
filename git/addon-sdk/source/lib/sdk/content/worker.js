@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -367,7 +369,7 @@ const WorkerSandbox = EventEmitter.compose({
 /**
  * Message-passing facility for communication between code running
  * in the content and add-on process.
- * @see https://addons.mozilla.org/en-US/developers/docs/sdk/latest/modules/sdk/content/worker.html
+ * @see https://jetpack.mozillalabs.com/sdk/latest/docs/#module/api-utils/content/worker
  */
 const Worker = EventEmitter.compose({
   on: Trait.required,

@@ -246,10 +246,8 @@ class RadialGradientPattern : public Pattern
 {
 public:
   /*
-   * aCenter1 Center of the inner (focal) circle.
-   * aCenter2 Center of the outer circle.
-   * aRadius1 Radius of the inner (focal) circle.
-   * aRadius2 Radius of the outer circle.
+   * aBegin Start of the linear gradient
+   * aEnd End of the linear gradient
    * aStops GradientStops object for this gradient, this should match the
    *        backend type of the draw target this pattern will be used with.
    * aMatrix A matrix that transforms the pattern into user space
@@ -294,7 +292,7 @@ public:
    * aFilter Resampling filter used for resampling the image.
    */
   SurfacePattern(SourceSurface *aSourceSurface, ExtendMode aExtendMode,
-                 const Matrix &aMatrix = Matrix(), Filter aFilter = FILTER_GOOD)
+                 const Matrix &aMatrix = Matrix(), Filter aFilter = FILTER_LINEAR)
     : mSurface(aSourceSurface)
     , mExtendMode(aExtendMode)
     , mFilter(aFilter)
@@ -706,7 +704,7 @@ public:
                           const GlyphBuffer &aBuffer,
                           const Pattern &aPattern,
                           const DrawOptions &aOptions = DrawOptions(),
-                          const GlyphRenderingOptions *aRenderingOptions = nullptr) = 0;
+                          const GlyphRenderingOptions *aRenderingOptions = NULL) = 0;
 
   /*
    * This takes a source pattern and a mask, and composites the source pattern
@@ -841,7 +839,7 @@ public:
   /* Tries to get a native surface for a DrawTarget, this may fail if the
    * draw target cannot convert to this surface type.
    */
-  virtual void *GetNativeSurface(NativeSurfaceType aType) { return nullptr; }
+  virtual void *GetNativeSurface(NativeSurfaceType aType) { return NULL; }
 
   virtual bool IsDualDrawTarget() { return false; }
 

@@ -18,7 +18,7 @@
 #include <list>
 #include <map>
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc
 {
@@ -102,12 +102,9 @@ public:
     void SetSSRCFilter(uint32_t SSRC);
 
     void ClearStats();
-    // |packet_counters| is a map which counts the number of packets sent per
-    // payload type.
     void GetStats(int32_t& numRtpPackets,
                   int32_t& numDroppedPackets,
-                  int32_t& numRtcpPackets,
-                  std::map<uint8_t, int>* packet_counters);
+                  int32_t& numRtcpPackets);
 
     void SetTemporalToggle(unsigned char layers);
     void EnableSSRCCheck();
@@ -156,9 +153,6 @@ private:
     int32_t _rtpCount;
     int32_t _rtcpCount;
     int32_t _dropCount;
-    // |packet_counters| is a map which counts the number of packets sent per
-    // payload type.
-    std::map<uint8_t, int> packet_counters_;
 
     std::list<VideoPacket*> _rtpPackets;
     std::list<VideoPacket*> _rtcpPackets;

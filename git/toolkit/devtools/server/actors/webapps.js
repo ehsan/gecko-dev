@@ -7,9 +7,6 @@
 let Cu = Components.utils;
 let Cc = Components.classes;
 let Ci = Components.interfaces;
-let CC = Components.Constructor;
-
-let promise;
 
 function debug(aMsg) {
   /*
@@ -32,11 +29,7 @@ function WebappsActor(aConnection) {
   Cu.import("resource://gre/modules/AppsUtils.jsm");
   Cu.import("resource://gre/modules/FileUtils.jsm");
   Cu.import('resource://gre/modules/Services.jsm');
-  promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
-
-  // Keep reference of already created app actors.
-  // key: app frame message manager, value: ContentTabActor's grip() value
-  this._appActorsMap = new Map();
+  let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 }
 
 WebappsActor.prototype = {
@@ -339,75 +332,6 @@ WebappsActor.prototype = {
     return defer.promise;
   },
 
-  getIconAsDataURL: function (aRequest) {
-    debug("getIconAsDataURL");
-
-    let manifestURL = aRequest.manifestURL;
-    if (!manifestURL) {
-      return { error: "missingParameter",
-               message: "missing parameter manifestURL" };
-    }
-
-    let reg = DOMApplicationRegistry;
-    let app = reg.getAppByManifestURL(manifestURL);
-    if (!app) {
-      return { error: "wrongParameter",
-               message: "No application for " + manifestURL };
-    }
-
-    let deferred = promise.defer();
-
-    let id = reg._appIdForManifestURL(manifestURL);
-    reg._readManifests([{ id: id }], function (aResults) {
-      let jsonManifest = aResults[0].manifest;
-      let manifest = new ManifestHelper(jsonManifest, app.origin);
-      let iconURL = manifest.iconURLForSize(aRequest.size || 128);
-      if (!iconURL) {
-        deferred.resolve({
-          error: "noIcon",
-          message: "This app has no icon"
-        });
-        return;
-      }
-
-      // Download the URL as a blob
-      // bug 899177: there is a bug with xhr and app:// and jar:// uris
-      // that ends up forcing the content type to application/xml.
-      let XMLHttpRequest = CC("@mozilla.org/xmlextras/xmlhttprequest;1");
-      let req = new XMLHttpRequest();
-      req.open("GET", iconURL, false);
-      req.responseType = "blob";
-
-      try {
-        req.send(null);
-      } catch(e) {
-        deferred.resolve({
-          error: "noIcon",
-          message: "The icon file '" + iconURL + "' doesn't exists"
-        });
-        return;
-      }
-
-      // Convert the blog to a base64 encoded data URI
-      let FileReader = CC("@mozilla.org/files/filereader;1");
-      let reader = new FileReader()
-      reader.onload = function () {
-        deferred.resolve({
-          url: reader.result
-        });
-      };
-      reader.onerror = function () {
-        deferred.resolve({
-          error: reader.error.name,
-          message: String(reader.error)
-        });
-      };
-      reader.readAsDataURL(req.response);
-    });
-
-    return deferred.promise;
-  },
-
   launch: function wa_actorLaunch(aRequest) {
     debug("launch");
 
@@ -451,177 +375,6 @@ WebappsActor.prototype = {
     reg.close(app);
 
     return {};
-  },
-
-  _appFrames: function () {
-    // Register the system app
-    let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
-    let systemAppFrame = chromeWindow.shell.contentBrowser;
-    yield systemAppFrame;
-
-    // Register apps hosted in the system app. i.e. the homescreen, all regular
-    // apps and the keyboard.
-    // Bookmark apps and other system app internal frames like captive portal
-    // are also hosted in system app, but they are not using mozapp attribute.
-    let frames = systemAppFrame.contentDocument.querySelectorAll("iframe[mozapp]");
-    for (let i = 0; i < frames.length; i++) {
-      yield frames[i];
-    }
-  },
-
-  listRunningApps: function (aRequest) {
-    debug("listRunningApps\n");
-
-    let apps = [];
-
-    for each (let frame in this._appFrames()) {
-      let manifestURL = frame.getAttribute("mozapp");
-      apps.push(manifestURL);
-    }
-
-    return { apps: apps };
-  },
-
-  _connectToApp: function (aFrame) {
-    let defer = Promise.defer();
-
-    let mm = aFrame.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader.messageManager;
-    mm.loadFrameScript("resource://gre/modules/devtools/server/child.js", false);
-
-    let childTransport, prefix;
-
-    let onActorCreated = makeInfallible(function (msg) {
-      mm.removeMessageListener("debug:actor", onActorCreated);
-
-      dump("***** Got debug:actor\n");
-      let { actor, appId } = msg.json;
-      prefix = msg.json.prefix;
-
-      // Pipe Debugger message from/to parent/child via the message manager
-      childTransport = new ChildDebuggerTransport(mm, prefix);
-      childTransport.hooks = {
-        onPacket: this.conn.send.bind(this.conn),
-        onClosed: function () {}
-      };
-      childTransport.ready();
-
-      this.conn.setForwarding(prefix, childTransport);
-
-      debug("establishing forwarding for app with prefix " + prefix);
-
-      this._appActorsMap.set(mm, actor);
-
-      defer.resolve(actor);
-    }).bind(this);
-    mm.addMessageListener("debug:actor", onActorCreated);
-
-    let onMessageManagerDisconnect = makeInfallible(function (subject, topic, data) {
-      if (subject == mm) {
-        Services.obs.removeObserver(onMessageManagerDisconnect, topic);
-        if (childTransport) {
-          // If we have a child transport, the actor has already
-          // been created. We need to stop using this message manager.
-          childTransport.close();
-          this.conn.cancelForwarding(prefix);
-        } else {
-          // Otherwise, the app has been closed before the actor
-          // had a chance to be created, so we are not able to create
-          // the actor.
-          defer.resolve(null);
-        }
-        this._appActorsMap.delete(mm);
-      }
-    }).bind(this);
-    Services.obs.addObserver(onMessageManagerDisconnect,
-                             "message-manager-disconnect", false);
-
-    let prefixStart = this.conn.prefix + "child";
-    mm.sendAsyncMessage("debug:connect", { prefix: prefixStart });
-
-    return defer.promise;
-  },
-
-  getAppActor: function ({ manifestURL }) {
-    debug("getAppActor\n");
-
-    let appFrame = null;
-    for each (let frame in this._appFrames()) {
-      if (frame.getAttribute("mozapp") == manifestURL) {
-        appFrame = frame;
-        break;
-      }
-    }
-
-    if (!appFrame) {
-      return { error: "appNotFound",
-               message: "Unable to find any opened app whose manifest " +
-                        "is '" + manifestURL + "'" };
-    }
-
-    // Only create a new actor, if we haven't already
-    // instanciated one for this connection.
-    let mm = appFrame.QueryInterface(Ci.nsIFrameLoaderOwner)
-                     .frameLoader
-                     .messageManager;
-    let actor = this._appActorsMap.get(mm);
-    if (!actor) {
-      return this._connectToApp(appFrame)
-                 .then(function (actor) ({ actor: actor }));
-    }
-
-    return { actor: actor };
-  },
-
-  watchApps: function () {
-    this._openedApps = new Set();
-    let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
-    let systemAppFrame = chromeWindow.getContentWindow();
-    systemAppFrame.addEventListener("appwillopen", this);
-    systemAppFrame.addEventListener("appterminated", this);
-
-    return {};
-  },
-
-  unwatchApps: function () {
-    this._openedApps = null;
-    let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
-    let systemAppFrame = chromeWindow.getContentWindow();
-    systemAppFrame.removeEventListener("appwillopen", this);
-    systemAppFrame.removeEventListener("appterminated", this);
-
-    return {};
-  },
-
-  handleEvent: function (event) {
-    let manifestURL;
-    switch(event.type) {
-      case "appwillopen":
-        let frame = event.target;
-        manifestURL = frame.getAttribute("mozapp")
-
-        // Ignore the event if we already received an appwillopen for this app
-        // (appwillopen is also fired when the app has been moved to background
-        // and get back to foreground)
-        if (this._openedApps.has(manifestURL)) {
-          return;
-        }
-        this._openedApps.add(manifestURL);
-
-        this.conn.send({ from: this.actorID,
-                         type: "appOpen",
-                         manifestURL: manifestURL
-                       });
-        break;
-
-      case "appterminated":
-        manifestURL = event.detail.manifestURL;
-        this._openedApps.delete(manifestURL);
-        this.conn.send({ from: this.actorID,
-                         type: "appClose",
-                         manifestURL: manifestURL
-                       });
-        break;
-    }
   }
 };
 
@@ -629,22 +382,12 @@ WebappsActor.prototype = {
  * The request types this actor can handle.
  */
 WebappsActor.prototype.requestTypes = {
-  "install": WebappsActor.prototype.install
+  "install": WebappsActor.prototype.install,
+  "getAll": WebappsActor.prototype.getAll,
+  "launch": WebappsActor.prototype.launch,
+  "close": WebappsActor.prototype.close,
+  "uninstall": WebappsActor.prototype.uninstall
 };
 
-// Until we implement unix domain socket, we only enable app install
-// only on production devices
-if (Services.prefs.getBoolPref("devtools.debugger.enable-content-actors")) {
-  let requestTypes = WebappsActor.prototype.requestTypes;
-  requestTypes.getAll = WebappsActor.prototype.getAll;
-  requestTypes.launch = WebappsActor.prototype.launch;
-  requestTypes.close  = WebappsActor.prototype.close;
-  requestTypes.uninstall = WebappsActor.prototype.uninstall;
-  requestTypes.listRunningApps = WebappsActor.prototype.listRunningApps;
-  requestTypes.getAppActor = WebappsActor.prototype.getAppActor;
-  requestTypes.watchApps = WebappsActor.prototype.watchApps;
-  requestTypes.unwatchApps = WebappsActor.prototype.unwatchApps;
-  requestTypes.getIconAsDataURL = WebappsActor.prototype.getIconAsDataURL;
-}
-
 DebuggerServer.addGlobalActor(WebappsActor, "webappsActor");
+

@@ -1,4 +1,4 @@
-/* -*- Mode: Javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -129,6 +129,8 @@ Highlighter.prototype = {
     this.transitionDisabler = null;
     this.pageEventsMuter = null;
 
+    this.unlockAndFocus();
+
     this.selection.on("new-node", this.highlight);
     this.selection.on("new-node", this.updateInfobar);
     this.selection.on("pseudoclass", this.updateInfobar);
@@ -227,13 +229,6 @@ Highlighter.prototype = {
    */
   invalidateSize: function Highlighter_invalidateSize()
   {
-    let canHiglightNode = this.selection.isNode() &&
-                          this.selection.isConnected() &&
-                          this.selection.isElementNode();
-
-    if (!canHiglightNode)
-      return;
-
     // The highlighter runs locally while the selection runs remotely,
     // so we can't quite trust the selection's isConnected to protect us
     // here, do the check manually.
@@ -242,6 +237,13 @@ Highlighter.prototype = {
         !this.selection.node.ownerDocument.defaultView) {
       return;
     }
+
+    let canHiglightNode = this.selection.isNode() &&
+                          this.selection.isConnected() &&
+                          this.selection.isElementNode();
+
+    if (!canHiglightNode)
+      return;
 
     let clientRect = this.selection.node.getBoundingClientRect();
     let rect = LayoutHelpers.getDirtyRect(this.selection.node);

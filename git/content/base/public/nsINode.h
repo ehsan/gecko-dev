@@ -16,10 +16,8 @@
 #include "nsPropertyTable.h"        // for typedefs
 #include "nsTObserverArray.h"       // for member
 #include "nsWindowMemoryReporter.h" // for NS_DECL_SIZEOF_EXCLUDING_THIS
-#include "mozilla/ErrorResult.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/EventTarget.h" // for base class
-#include "js/TypeDecls.h"     // for Handle, Value, JSObject, JSContext
 
 // Including 'windows.h' will #define GetClassInfo to something else.
 #ifdef XP_WIN
@@ -67,6 +65,11 @@ class OnErrorEventHandlerNonNull;
 template<typename T> class Optional;
 } // namespace dom
 } // namespace mozilla
+
+namespace JS {
+class Value;
+template<typename T> class Handle;
+}
 
 #define NODE_FLAG_BIT(n_) (1U << (WRAPPER_CACHE_FLAGS_BITS_USED + (n_)))
 
@@ -251,8 +254,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xe24a9ddc, 0x2979, 0x40e3, \
-  { 0x82, 0xb0, 0x9d, 0xf8, 0xb0, 0x41, 0xe5, 0x6a } }
+{ 0x5daa9e95, 0xe49c, 0x4b41, \
+  { 0xb2, 0x02, 0xde, 0xa9, 0xd3, 0x06, 0x21, 0x17 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -859,6 +862,23 @@ public:
    */
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const = 0;
 
+  /**
+   * Checks if a node has the same ownerDocument as this one. Note that this
+   * actually compares nodeinfo managers because nodes always have one, even
+   * when they don't have an ownerDocument. If this function returns true
+   * it doesn't mean that the nodes actually have an ownerDocument.
+   *
+   * @param aOther Other node to check
+   * @return Whether the owner documents of this node and of aOther are the
+   *         same.
+   */
+  bool HasSameOwnerDoc(nsINode *aOther)
+  {
+    // We compare nodeinfo managers because nodes always have one, even when
+    // they don't have an ownerDocument.
+    return mNodeInfo->NodeInfoManager() == aOther->mNodeInfo->NodeInfoManager();
+  }
+
   // This class can be extended by subclasses that wish to store more
   // information in the slots.
   class nsSlots
@@ -943,7 +963,7 @@ public:
 
   bool IsEditable() const
   {
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
     return IsEditableInternal();
 #else
     return IsEditableExternal();
@@ -1101,6 +1121,12 @@ public:
   
     return NS_OK;
   }
+
+  /**
+   * Control if GetUserData and SetUserData methods will be exposed to
+   * unprivileged content.
+   */
+  static bool IsChromeOrXBL(JSContext* aCx, JSObject* /* unused */);
 
   void LookupPrefix(const nsAString& aNamespace, nsAString& aResult);
   bool IsDefaultNamespace(const nsAString& aNamespaceURI)
@@ -1468,6 +1494,12 @@ protected:
   }
 
 public:
+  // Optimized way to get classinfo.
+  virtual nsXPCClassInfo* GetClassInfo()
+  {
+    return nullptr;
+  }
+
   // Makes nsINode object to keep aObject alive.
   void BindObject(nsISupports* aObject);
   // After calling UnbindObject nsINode object doesn't keep
@@ -1558,17 +1590,10 @@ public:
     return rv.ErrorCode();
   }
 
-  // ChildNode methods
-  mozilla::dom::Element* GetPreviousElementSibling() const;
-  mozilla::dom::Element* GetNextElementSibling() const;
   /**
    * Remove this node from its parent, if any.
    */
   void Remove();
-
-  // ParentNode methods
-  mozilla::dom::Element* GetFirstElementChild() const;
-  mozilla::dom::Element* GetLastElementChild() const;
 
 protected:
 

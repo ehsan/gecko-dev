@@ -41,7 +41,7 @@ bool gChildDone;
 //-----------------------------------------------------------------------------
 // data/functions accessed by both parent and child processes
 
-char* gIPDLUnitTestName = nullptr;
+char* gIPDLUnitTestName = NULL;
 
 const char* const
 IPDLUnitTestName()
@@ -103,7 +103,7 @@ ${ENUM_TO_STRINGS}
 //-----------------------------------------------------------------------------
 
     default:
-        return nullptr;
+        return NULL;
     }
 }
 

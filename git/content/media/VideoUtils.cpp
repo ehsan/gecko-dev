@@ -7,7 +7,7 @@
 #include "mozilla/dom/TimeRanges.h"
 #include "nsMathUtils.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 // Converts from number of audio frames to microseconds, given the specified
 // audio rate.

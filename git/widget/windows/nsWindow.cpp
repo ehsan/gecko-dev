@@ -73,7 +73,6 @@
 #include "prtime.h"
 #include "prprf.h"
 #include "prmem.h"
-#include "prenv.h"
 
 #include "mozilla/WidgetTraceEvent.h"
 #include "nsIAppShell.h"
@@ -122,7 +121,6 @@
 #include "WidgetUtils.h"
 #include "nsIWidgetListener.h"
 #include "mozilla/dom/Touch.h"
-#include "mozilla/gfx/2D.h"
 
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
@@ -134,6 +132,7 @@
 
 #include "LayerManagerOGL.h"
 #include "nsIGfxInfo.h"
+#include "BasicLayers.h"
 #include "nsUXThemeConstants.h"
 #include "KeyboardLayout.h"
 #include "nsNativeDragTarget.h"
@@ -142,11 +141,6 @@
 #include <richedit.h>
 
 #if defined(ACCESSIBILITY)
-
-#ifdef DEBUG
-#include "mozilla/a11y/Logging.h"
-#endif
-
 #include "oleidl.h"
 #include <winuser.h>
 #include "nsAccessibilityService.h"
@@ -281,12 +275,6 @@ static const int32_t kResizableBorderMinSize = 3;
 // this, other hardware we expect to report correctly in D3D9.
 #define MAX_ACCELERATED_DIMENSION 8192
 
-// On window open (as well as after), Windows has an unfortunate habit of
-// sending rather a lot of WM_NCHITTEST messages. Because we have to do point
-// to DOM target conversions for these, we cache responses for a given
-// coordinate this many milliseconds:
-#define HITTEST_CACHE_LIFETIME_MS 50
-
 
 /**************************************************************
  **************************************************************
@@ -317,7 +305,6 @@ nsWindow::nsWindow() : nsWindowBase()
   mIconBig              = nullptr;
   mWnd                  = nullptr;
   mPaintDC              = nullptr;
-  mCompositeDC          = nullptr;
   mPrevWndProc          = nullptr;
   mNativeDragTarget     = nullptr;
   mInDtor               = false;
@@ -336,6 +323,8 @@ nsWindow::nsWindow() : nsWindowBase()
   mBorderStyle          = eBorderStyle_default;
   mOldSizeMode          = nsSizeMode_Normal;
   mLastSizeMode         = nsSizeMode_Normal;
+  mLastPoint.x          = 0;
+  mLastPoint.y          = 0;
   mLastSize.width       = 0;
   mLastSize.height      = 0;
   mOldStyle             = 0;
@@ -344,10 +333,6 @@ nsWindow::nsWindow() : nsWindowBase()
   mLastKeyboardLayout   = 0;
   mBlurSuppressLevel    = 0;
   mLastPaintEndTime     = TimeStamp::Now();
-  mCachedHitTestPoint.x = 0;
-  mCachedHitTestPoint.y = 0;
-  mCachedHitTestTime    = TimeStamp::Now();
-  mCachedHitTestResult  = 0;
 #ifdef MOZ_XUL
   mTransparentSurface   = nullptr;
   mMemoryDC             = nullptr;
@@ -538,9 +523,9 @@ nsWindow::Create(nsIWidget *aParent,
     return NS_ERROR_FAILURE;
   }
 
-  if (mIsRTL && WinUtils::dwmSetWindowAttributePtr) {
+  if (mIsRTL && nsUXThemeData::dwmSetWindowAttributePtr) {
     DWORD dwAttribute = TRUE;    
-    WinUtils::dwmSetWindowAttributePtr(mWnd, DWMWA_NONCLIENT_RTL_LAYOUT, &dwAttribute, sizeof dwAttribute);
+    nsUXThemeData::dwmSetWindowAttributePtr(mWnd, DWMWA_NONCLIENT_RTL_LAYOUT, &dwAttribute, sizeof dwAttribute);
   }
 
   if (mWindowType != eWindowType_plugin &&
@@ -888,7 +873,7 @@ void nsWindow::SubclassWindow(BOOL bState)
     }
     NS_ASSERTION(mPrevWndProc, "Null standard window procedure");
     // connect the this pointer to the nsWindow handle
-    WinUtils::SetNSWindowBasePtr(mWnd, this);
+    WinUtils::SetNSWindowPtr(mWnd, this);
   } else {
     if (IsWindow(mWnd)) {
       if (mUnicodeWidget) {
@@ -901,7 +886,7 @@ void nsWindow::SubclassWindow(BOOL bState)
                           reinterpret_cast<LONG_PTR>(mPrevWndProc));
       }
     }
-    WinUtils::SetNSWindowBasePtr(mWnd, NULL);
+    WinUtils::SetNSWindowPtr(mWnd, NULL);
     mPrevWndProc = NULL;
   }
 }
@@ -980,14 +965,7 @@ double nsWindow::GetDefaultScaleInternal()
   return gfxWindowsPlatform::GetPlatform()->GetDPIScale();
 }
 
-nsWindow*
-nsWindow::GetParentWindow(bool aIncludeOwner)
-{
-  return static_cast<nsWindow*>(GetParentWindowBase(aIncludeOwner));
-}
-
-nsWindowBase*
-nsWindow::GetParentWindowBase(bool aIncludeOwner)
+nsWindow* nsWindow::GetParentWindow(bool aIncludeOwner)
 {
   if (mIsTopWidgetWindow) {
     // Must use a flag instead of mWindowType to tell if the window is the
@@ -1026,7 +1004,7 @@ nsWindow::GetParentWindowBase(bool aIncludeOwner)
     }
   }
 
-  return static_cast<nsWindowBase*>(widget);
+  return widget;
 }
  
 BOOL CALLBACK
@@ -2365,7 +2343,6 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
     }
 
     case eCursor_standard:
-    case eCursor_context_menu: // XXX See bug 258960.
       newCursor = ::LoadCursor(NULL, IDC_ARROW);
       break;
 
@@ -2423,6 +2400,10 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 
     case eCursor_spinning:
       newCursor = ::LoadCursor(NULL, IDC_APPSTARTING);
+      break;
+
+    case eCursor_context_menu:
+      // XXX this CSS3 cursor needs to be implemented
       break;
 
     case eCursor_zoom_in:
@@ -2647,9 +2628,9 @@ void nsWindow::UpdateGlass()
           margins.cxRightWidth, margins.cyBottomHeight));
 
   // Extends the window frame behind the client area
-  if (nsUXThemeData::CheckForCompositor()) {
-    WinUtils::dwmExtendFrameIntoClientAreaPtr(mWnd, &margins);
-    WinUtils::dwmSetWindowAttributePtr(mWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
+  if(nsUXThemeData::CheckForCompositor()) {
+    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(mWnd, &margins);
+    nsUXThemeData::dwmSetWindowAttributePtr(mWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
   }
 }
 #endif
@@ -3531,39 +3512,6 @@ nsWindow::OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
   return NS_OK;
 }
 
-mozilla::TemporaryRef<mozilla::gfx::DrawTarget>
-nsWindow::StartRemoteDrawing()
-{
-  MOZ_ASSERT(!mCompositeDC);
-
-  HDC dc = GetDC(mWnd);
-  if (!dc) {
-    return nullptr;
-  }
-
-  uint32_t flags = (mTransparencyMode == eTransparencyOpaque) ? 0 :
-      gfxWindowsSurface::FLAG_IS_TRANSPARENT;
-  nsRefPtr<gfxASurface> surf = new gfxWindowsSurface(dc, flags);
-
-  mozilla::gfx::IntSize size(surf->GetSize().width, surf->GetSize().height);
-  if (size.width <= 0 || size.height <= 0) {
-    ReleaseDC(mWnd, dc);
-    return nullptr;
-  }
-
-  MOZ_ASSERT(!mCompositeDC);
-  mCompositeDC = dc;
-
-  return mozilla::gfx::Factory::CreateDrawTargetForCairoSurface(surf->CairoSurface(), size);
-}
-
-void
-nsWindow::EndRemoteDrawing()
-{
-  ReleaseDC(mWnd, mCompositeDC);
-  mCompositeDC = nullptr;
-}
-
 /**************************************************************
  **************************************************************
  **
@@ -3610,6 +3558,7 @@ void nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
   }
 
   event.time = ::GetMessageTime();
+  mLastPoint = event.refPoint;
 }
 
 /**************************************************************
@@ -3920,6 +3869,10 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
   else if (aEventType == NS_MOUSE_EXIT) {
     event.exit = IsTopLevelMouseExit(mWnd) ? nsMouseEvent::eTopLevel : nsMouseEvent::eChild;
   }
+  else if (aEventType == NS_MOUSE_MOZHITTEST)
+  {
+    event.mFlags.mOnlyChromeDispatch = true;
+  }
   event.clickCount = sLastClickCount;
 
 #ifdef NS_DEBUG_XX
@@ -4005,7 +3958,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
       rect.x = 0;
       rect.y = 0;
 
-      if (rect.Contains(LayoutDeviceIntPoint::ToUntyped(event.refPoint))) {
+      if (rect.Contains(event.refPoint)) {
         if (sCurrentWindow == NULL || sCurrentWindow != this) {
           if ((nullptr != sCurrentWindow) && (!sCurrentWindow->mInDtor)) {
             LPARAM pos = sCurrentWindow->lParamToClient(lParamToScreen(lParam));
@@ -4522,7 +4475,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
   LRESULT dwmHitResult;
   if (mCustomNonClient &&
       nsUXThemeData::CheckForCompositor() &&
-      WinUtils::dwmDwmDefWindowProcPtr(mWnd, msg, wParam, lParam, &dwmHitResult)) {
+      nsUXThemeData::dwmDwmDefWindowProcPtr(mWnd, msg, wParam, lParam, &dwmHitResult)) {
     *aRetValue = dwmHitResult;
     return true;
   }
@@ -4925,17 +4878,13 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
                                   contextMenukey ?
                                     nsMouseEvent::eLeftButton :
                                     nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
-      if (lParam != -1 && !result && mCustomNonClient) {
-        nsMouseEvent event(true, NS_MOUSE_MOZHITTEST, this, nsMouseEvent::eReal,
-                           nsMouseEvent::eNormal);
-        event.refPoint = LayoutDeviceIntPoint(GET_X_LPARAM(pos), GET_Y_LPARAM(pos));
-        event.inputSource = MOUSE_INPUT_SOURCE();
-        event.mFlags.mOnlyChromeDispatch = true;
-        if (DispatchWindowEvent(&event)) {
-          // Blank area hit, throw up the system menu.
-          DisplaySystemMenu(mWnd, mSizeMode, mIsRTL, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-          result = true;
-        }
+      if (lParam != -1 && !result && mCustomNonClient &&
+          DispatchMouseEvent(NS_MOUSE_MOZHITTEST, wParam, pos,
+                             false, nsMouseEvent::eLeftButton,
+                             MOUSE_INPUT_SOURCE())) {
+        // Blank area hit, throw up the system menu.
+        DisplaySystemMenu(mWnd, mSizeMode, mIsRTL, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        result = true;
       }
     }
     break;
@@ -5331,7 +5280,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
         touchPoint = gestureinfo->ptsLocation;
         touchPoint.ScreenToClient(mWnd);
         nsGestureNotifyEvent gestureNotifyEvent(true, NS_GESTURENOTIFY_EVENT_START, this);
-        gestureNotifyEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(touchPoint);
+        gestureNotifyEvent.refPoint = touchPoint;
         nsEventStatus status;
         DispatchEvent(&gestureNotifyEvent, status);
         mDisplayPanFeedback = gestureNotifyEvent.displayPanFeedback;
@@ -5605,30 +5554,18 @@ nsWindow::ClientMarginHitTestPoint(int32_t mx, int32_t my)
   }
 
   if (!sIsInMouseCapture && allowContentOverride) {
-    POINT pt = { mx, my };
-    ::ScreenToClient(mWnd, &pt);
-    if (pt.x == mCachedHitTestPoint.x && pt.y == mCachedHitTestPoint.y &&
-        TimeStamp::Now() - mCachedHitTestTime < TimeDuration::FromMilliseconds(HITTEST_CACHE_LIFETIME_MS)) {
-      testResult = mCachedHitTestResult;
-    } else {
-      nsMouseEvent event(true, NS_MOUSE_MOZHITTEST, this, nsMouseEvent::eReal,
-                         nsMouseEvent::eNormal);
-      event.refPoint = LayoutDeviceIntPoint(pt.x, pt.y);
-      event.inputSource = MOUSE_INPUT_SOURCE();
-      event.mFlags.mOnlyChromeDispatch = true;
-      bool result = DispatchWindowEvent(&event);
-      if (result) {
-        // The mouse is over a blank area
-        testResult = testResult == HTCLIENT ? HTCAPTION : testResult;
+    LPARAM lParam = MAKELPARAM(mx, my);
+    LPARAM lParamClient = lParamToClient(lParam);
+    bool result = DispatchMouseEvent(NS_MOUSE_MOZHITTEST, 0, lParamClient,
+                                     false, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+    if (result) {
+      // The mouse is over a blank area
+      testResult = testResult == HTCLIENT ? HTCAPTION : testResult;
 
-      } else {
-        // There's content over the mouse pointer. Set HTCLIENT
-        // to possibly override a resizer border.
-        testResult = HTCLIENT;
-      }
-      mCachedHitTestPoint = pt;
-      mCachedHitTestTime = TimeStamp::Now();
-      mCachedHitTestResult = testResult;
+    } else {
+      // There's content over the mouse pointer. Set HTCLIENT
+      // to possibly override a resizer border.
+      testResult = HTCLIENT;
     }
   }
 
@@ -6593,34 +6530,6 @@ nsWindow::StartAllowingD3D9(bool aReinitialize)
   }
 }
 
-void
-nsWindow::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
-{
-  LayerManagerPrefs prefs;
-  GetLayerManagerPrefs(&prefs);
-
-  if (!prefs.mDisableAcceleration) {
-    if (!prefs.mPreferD3D9) {
-      aHints.AppendElement(LAYERS_D3D11);
-    }
-    aHints.AppendElement(LAYERS_D3D9);
-  }
-  aHints.AppendElement(LAYERS_BASIC);
-}
-
-void
-nsWindow::WindowUsesOMTC()
-{
-  ULONG_PTR style = ::GetClassLongPtr(mWnd, GCL_STYLE);
-  if (!style) {
-    NS_WARNING("Could not get window class style");
-    return;
-  }
-  style |= CS_HREDRAW | CS_VREDRAW;
-  DebugOnly<ULONG_PTR> result = ::SetClassLongPtr(mWnd, GCL_STYLE, style);
-  NS_WARN_IF_FALSE(result, "Could not reset window class style");
-}
-
 bool
 nsWindow::HasBogusPopupsDropShadowOnMultiMonitor() {
   if (sHasBogusPopupsDropShadowOnMultiMonitor == TRI_UNKNOWN) {
@@ -6730,19 +6639,20 @@ nsWindow::GetIMEUpdatePreference()
 }
 
 #ifdef ACCESSIBILITY
-#ifdef DEBUG
+
+#ifdef DEBUG_WMGETOBJECT
 #define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)                                  \
-  if (a11y::logging::IsEnabled(a11y::logging::ePlatforms)) {                   \
-    printf("Get the window:\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",\
-           aHwnd, ::GetParent(aHwnd), aWnd);                                   \
-    printf("     acc: %p", aAcc);                                              \
-    if (aAcc) {                                                                \
-      nsAutoString name;                                                       \
-      aAcc->Name(name);                                                        \
-      printf(", accname: %s", NS_ConvertUTF16toUTF8(name).get());              \
-    }                                                                          \
-    printf("\n }\n");                                                          \
-  }
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                           \
+         ("Get the window:\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",\
+           aHwnd, ::GetParent(aHwnd), aWnd));                                  \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("     acc: %p", aAcc));                  \
+  if (aAcc) {                                                                  \
+    nsAutoString name;                                                         \
+    aAcc->Name(name);                                                          \
+    PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                         \
+           (", accname: %s", NS_ConvertUTF16toUTF8(name).get()));              \
+  }                                                                            \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("\n }\n"));
 
 #else
 #define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)
@@ -6771,8 +6681,8 @@ nsWindow::GetAccessible()
           GetAccService()->GetDocAccessible(frame->PresContext()->PresShell());
         if (docAcc) {
           NS_LOG_WMGETOBJECT(this, mWnd,
-                             docAcc->GetAccessibleOrDescendant(frame->GetContent()));
-          return docAcc->GetAccessibleOrDescendant(frame->GetContent());
+                             docAcc->GetAccessible(frame->GetContent()));
+          return docAcc->GetAccessible(frame->GetContent());
         }
       }
     }
@@ -7175,7 +7085,8 @@ nsWindow::ClearCachedResources()
 #endif
     if (mLayerManager &&
         mLayerManager->GetBackendType() == LAYERS_BASIC) {
-      mLayerManager->ClearCachedResources();
+      static_cast<BasicLayerManager*>(mLayerManager.get())->
+        ClearCachedResources();
     }
     ::EnumChildWindows(mWnd, nsWindow::ClearResourcesCallback, 0);
 }

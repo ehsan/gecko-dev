@@ -31,8 +31,14 @@ XPCOMUtils.defineLazyModuleGetter(this, "DownloadList",
                                   "resource://gre/modules/DownloadList.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadUIHelper",
                                   "resource://gre/modules/DownloadUIHelper.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+                                  "resource://gre/modules/FileUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
+                                  "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 
@@ -49,29 +55,19 @@ this.Downloads = {
    *
    * @param aProperties
    *        Provides the initial properties for the newly created download.
-   *        This matches the serializable representation of a Download object.
-   *        Some of the most common properties in this object include:
    *        {
-   *          source: String containing the URI for the download source.
-   *                  Alternatively, may be an nsIURI, a DownloadSource object,
-   *                  or an object with the following properties:
-   *          {
-   *            url: String containing the URI for the download source.
+   *          source: {
+   *            uri: The nsIURI for the download source.
    *            isPrivate: Indicates whether the download originated from a
-   *                       private window.  If omitted, the download is public.
-   *            referrer: String containing the referrer URI of the download
-   *                      source.  Can be omitted or null if no referrer should
-   *                      be sent or the download source is not HTTP.
+   *                       private window.
    *          },
-   *          target: String containing the path of the target file.
-   *                  Alternatively, may be an nsIFile, a DownloadTarget object,
-   *                  or an object with the following properties:
-   *          {
-   *            path: String containing the path of the target file.
+   *          target: {
+   *            file: The nsIFile for the download target.
    *          },
-   *          saver: String representing the class of the download operation.
-   *                 If omitted, defaults to "copy".  Alternatively, may be the
-   *                 serializable representation of a DownloadSaver object.
+   *          saver: {
+   *            type: String representing the class of download operation
+   *                  handled by this saver object, for example "copy".
+   *          },
    *        }
    *
    * @return {Promise}
@@ -80,35 +76,50 @@ this.Downloads = {
    */
   createDownload: function D_createDownload(aProperties)
   {
-    try {
-      return Promise.resolve(Download.fromSerializable(aProperties));
-    } catch (ex) {
-      return Promise.reject(ex);
-    }
+    return Task.spawn(function task_D_createDownload() {
+      let download = new Download();
+
+      download.source = new DownloadSource();
+      download.source.uri = aProperties.source.uri;
+      if ("isPrivate" in aProperties.source) {
+        download.source.isPrivate = aProperties.source.isPrivate;
+      }
+      if ("referrer" in aProperties.source) {
+        download.source.referrer = aProperties.source.referrer;
+      }
+      download.target = new DownloadTarget();
+      download.target.file = aProperties.target.file;
+
+      // Support for different aProperties.saver values isn't implemented yet.
+      download.saver = aProperties.saver.type == "legacy"
+                       ? new DownloadLegacySaver()
+                       : new DownloadCopySaver();
+      download.saver.download = download;
+
+      // This explicitly makes this function a generator for Task.jsm, so that
+      // exceptions in the above calls can be reported asynchronously.
+      yield;
+      throw new Task.Result(download);
+    });
   },
 
   /**
    * Downloads data from a remote network location to a local file.
    *
-   * This download method does not provide user interface, or the ability to
-   * cancel or restart the download programmatically.  For that, you should
-   * obtain a reference to a Download object using the createDownload function.
-   *
-   * Since the download cannot be restarted, any partially downloaded data will
-   * not be kept in case the download fails.
+   * This download method does not provide user interface or the ability to
+   * cancel the download programmatically.  For that, you should obtain a
+   * reference to a Download object using the createDownload function.
    *
    * @param aSource
-   *        String containing the URI for the download source.  Alternatively,
-   *        may be an nsIURI or a DownloadSource object.
+   *        The nsIURI or string containing the URI spec for the download
+   *        source, or alternative DownloadSource.
    * @param aTarget
-   *        String containing the path of the target file.  Alternatively, may
-   *        be an nsIFile or a DownloadTarget object.
+   *        The nsIFile or string containing the file path, or alternative
+   *        DownloadTarget.
    * @param aOptions
-   *        An optional object used to control the behavior of this function.
-   *        You may pass an object with a subset of the following fields:
-   *        {
-   *          isPrivate: Indicates whether the download originated from a
-   *                     private window.
+   *        The object contains different additional options or null.
+   *        {  isPrivate: Indicates whether the download originated from a
+   *                      private window.
    *        }
    *
    * @return {Promise}
@@ -116,13 +127,31 @@ this.Downloads = {
    * @rejects JavaScript exception if the download failed.
    */
   simpleDownload: function D_simpleDownload(aSource, aTarget, aOptions) {
+    // Wrap the arguments into simple objects resembling DownloadSource and
+    // DownloadTarget, if they are not objects of that type already.
+    if (aSource instanceof Ci.nsIURI) {
+      aSource = { uri: aSource };
+    } else if (typeof aSource == "string" ||
+               (typeof aSource == "object" && "charAt" in aSource)) {
+      aSource = { uri: NetUtil.newURI(aSource) };
+    }
+
+    if (aSource && aOptions && ("isPrivate" in aOptions)) {
+      aSource.isPrivate = aOptions.isPrivate;
+    }
+    if (aTarget instanceof Ci.nsIFile) {
+      aTarget = { file: aTarget };
+    } else if (typeof aTarget == "string" ||
+               (typeof aTarget == "object" && "charAt" in aTarget)) {
+      aTarget = { file: new FileUtils.File(aTarget) };
+    }
+
+    // Create and start the actual download.
     return this.createDownload({
       source: aSource,
       target: aTarget,
+      saver: { type: "copy" },
     }).then(function D_SD_onSuccess(aDownload) {
-      if (aOptions && ("isPrivate" in aOptions)) {
-        aDownload.source.isPrivate = aOptions.isPrivate;
-      }
       return aDownload.start();
     });
   },
@@ -147,8 +176,7 @@ this.Downloads = {
         function task_D_getPublicDownloadList() {
           let list = new DownloadList(true);
           try {
-            yield DownloadIntegration.addListObservers(list, false);
-            yield DownloadIntegration.initializePublicDownloadList(list);
+            yield DownloadIntegration.loadPersistent(list);
           } catch (ex) {
             Cu.reportError(ex);
           }
@@ -177,27 +205,12 @@ this.Downloads = {
    */
   getPrivateDownloadList: function D_getPrivateDownloadList()
   {
-    if (!this._promisePrivateDownloadList) {
-      this._promisePrivateDownloadList = Task.spawn(
-        function task_D_getPublicDownloadList() {
-          let list = new DownloadList(false);
-          try {
-            yield DownloadIntegration.addListObservers(list, true);
-          } catch (ex) {
-            Cu.reportError(ex);
-          }
-          throw new Task.Result(list);
-        });
+    if (!this._privateDownloadList) {
+      this._privateDownloadList = new DownloadList(false);
     }
-    return this._promisePrivateDownloadList;
+    return Promise.resolve(this._privateDownloadList);
   },
-
-  /**
-   * This promise is resolved with a reference to a DownloadList object that
-   * represents private downloads. This property is null before the list of
-   * downloads is requested for the first time.
-   */
-  _promisePrivateDownloadList: null,
+  _privateDownloadList: null,
 
   /**
    * Returns the system downloads directory asynchronously.

@@ -25,9 +25,14 @@ interface nsIDOMNode;
  * |gBrowser.tabContainer| such as e.g. |gBrowser.selectedTab|.
  */
 
-[scriptable, uuid(7ffd8bfa-0a8f-11e3-b1c0-1e3faed8a8ba)]
+[scriptable, uuid(0aa5492c-15ad-4376-8eac-28895796826e)]
 interface nsISessionStore : nsISupports
 {
+  /**
+   * Initialize the service
+   */
+  void init(in nsIDOMWindow aWindow);
+
   /**
    * Is it possible to restore the previous session. Will always be false when
    * in Private Browsing mode.
@@ -207,25 +212,6 @@ interface nsISessionStore : nsISupports
    * @param aKey is the value's name.
    */
   void deleteTabValue(in nsIDOMNode aTab, in AString aKey);
-
-   /**
-   * @param aKey is the value's name.
-   *
-   * @returns A string value or an empty string if none is set.
-   */
-  AString getGlobalValue(in AString aKey);
-
-  /**
-   * @param aKey         is the value's name.
-   * @param aStringValue is the value itself (use JSON.stringify/parse before setting JS objects).
-   */
-  void setGlobalValue(in AString aKey, in AString aStringValue);
-
-  /**
-   * @param aTab is the browser tab to get the value for.
-   * @param aKey is the value's name.
-   */
-  void deleteGlobalValue(in AString aKey);
 
   /**
    * @param aName is the name of the attribute to save/restore for all tabbrowser tabs.

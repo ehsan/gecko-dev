@@ -554,9 +554,7 @@ let ContentScroll =  {
     addMessageListener("Content:SetCacheViewport", this);
     addMessageListener("Content:SetWindowSize", this);
 
-    if (Services.prefs.getBoolPref("layers.async-pan-zoom.enabled")) {
-      addEventListener("scroll", this, false);
-    }
+    addEventListener("scroll", this, false);
     addEventListener("pagehide", this, false);
     addEventListener("MozScrolledAreaChanged", this, false);
   },
@@ -616,7 +614,7 @@ let ContentScroll =  {
           break;
 
         // Set the scroll offset for this element if specified
-        if (json.scrollX >= 0 || json.scrollY >= 0) {
+        if (json.scrollX >= 0 && json.scrollY >= 0) {
           this.setScrollOffsetForElement(element, json.scrollX, json.scrollY)
           if (json.id == 1)
             this._scrollOffset = this.getScrollOffset(content);
@@ -654,7 +652,11 @@ let ContentScroll =  {
         break;
 
       case "scroll": {
-        this.sendScroll(aEvent.target);
+        let doc = aEvent.target;
+        if (doc != content.document)
+          break;
+
+        this.sendScroll();
         break;
       }
 
@@ -681,35 +683,13 @@ let ContentScroll =  {
     }
   },
 
-  sendScroll: function sendScroll(target) {
-    let isRoot = false;
-    if (target instanceof Ci.nsIDOMDocument) {
-      var window = target.defaultView;
-      var scrollOffset = this.getScrollOffset(window);
-      var element = target.documentElement;
+  sendScroll: function sendScroll() {
+    let scrollOffset = this.getScrollOffset(content);
+    if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y)
+      return;
 
-      if (target == content.document) {
-        if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y) {
-          return;
-        }
-        this._scrollOffset = scrollOffset;
-        isRoot = true;
-      }
-    } else {
-      var window = target.currentDoc.defaultView;
-      var scrollOffset = this.getScrollOffsetForElement(target);
-      var element = target;
-    }
-
-    let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    let presShellId = {};
-    utils.getPresShellId(presShellId);
-    let viewId = utils.getViewId(element);
-
-    sendAsyncMessage("scroll", { presShellId: presShellId.value,
-                                 viewId: viewId,
-                                 scrollOffset: scrollOffset,
-                                 isRoot: isRoot });
+    this._scrollOffset = scrollOffset;
+    sendAsyncMessage("scroll", scrollOffset);
   }
 };
 

@@ -7,7 +7,6 @@
 #define GFX_QUAD_H
 
 #include "gfxTypes.h"
-#include "gfxRect.h"
 #include "gfxLineSegment.h"
 #include <algorithm>
 

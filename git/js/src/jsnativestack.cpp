@@ -21,8 +21,8 @@
 # endif
 
 # if defined(ANDROID)
-#  include <sys/types.h>
 #  include <unistd.h>
+#  include <sys/types.h>
 # endif
 
 #else

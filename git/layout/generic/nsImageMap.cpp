@@ -12,11 +12,18 @@
 #include "nsReadableUtils.h"
 #include "nsRenderingContext.h"
 #include "nsPresContext.h"
+#include "nsIURL.h"
+#include "nsIServiceManager.h"
+#include "nsNetUtil.h"
+#include "nsTextFragment.h"
 #include "mozilla/dom/Element.h"
+#include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
+#include "nsIPresShell.h"
 #include "nsImageFrame.h"
 #include "nsCoord.h"
+#include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
@@ -84,7 +91,7 @@ static void logMessage(nsIContent*      aContent,
   nsIDocument* doc = aContent->OwnerDoc();
 
   nsContentUtils::ReportToConsole(
-     aFlags, NS_LITERAL_CSTRING("ImageMap"), doc,
+     aFlags, "ImageMap", doc,
      nsContentUtils::eLAYOUT_PROPERTIES,
      aMessageName,
      nullptr,  /* params */
@@ -821,7 +828,6 @@ nsImageMap::AddArea(nsIContent* aArea)
     area = new PolyArea(aArea);
     break;
   default:
-    area = nullptr;
     NS_NOTREACHED("FindAttrValueIn returned an unexpected value.");
     break;
   }
@@ -835,9 +841,9 @@ nsImageMap::AddArea(nsIContent* aArea)
                                 false);
 
   // This is a nasty hack.  It needs to go away: see bug 135040.  Once this is
-  // removed, the code added to RestyleManager::RestyleElement,
+  // removed, the code added to nsCSSFrameConstructor::RestyleElement,
   // nsCSSFrameConstructor::ContentRemoved (both hacks there), and
-  // RestyleManager::ProcessRestyledFrames to work around this issue can
+  // nsCSSFrameConstructor::ProcessRestyledFrames to work around this issue can
   // be removed.
   aArea->SetPrimaryFrame(mImageFrame);
 

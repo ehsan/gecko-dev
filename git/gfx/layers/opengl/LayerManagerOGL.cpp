@@ -4,48 +4,42 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "LayerManagerOGL.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint32_t, uint8_t, etc
-#include "mozilla-config.h"             // for MOZ_DUMP_PAINTING
-#include "CanvasLayerOGL.h"             // for CanvasLayerOGL
-#include "ColorLayerOGL.h"              // for ColorLayerOGL
-#include "Composer2D.h"                 // for Composer2D
-#include "ContainerLayerOGL.h"          // for ContainerLayerOGL
-#include "FPSCounter.h"                 // for FPSState, FPSCounter
-#include "GLContext.h"                  // for GLContext, etc
-#include "GLContextProvider.h"          // for GLContextProvider
-#include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "ImageLayerOGL.h"              // for ImageLayerOGL
-#include "ImageLayers.h"                // for ImageLayer
-#include "ThebesLayerOGL.h"             // for ThebesLayerOGL
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxContext.h"                 // for gfxContext, etc
-#include "gfxCrashReporterUtils.h"      // for ScopedGfxFeatureReporter
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxRect.h"                    // for gfxRect
-#include "gfxUtils.h"                   // for NextPowerOfTwo, gfxUtils, etc
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/TimeStamp.h"          // for TimeStamp
-#include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/gfx/2D.h"             // for DrawTarget
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "nsIConsoleService.h"          // for nsIConsoleService, etc
-#include "nsIWidget.h"                  // for nsIWidget
-#include "nsLiteralString.h"            // for NS_LITERAL_STRING
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsServiceManagerUtils.h"      // for do_GetService
-#include "nsString.h"                   // for nsAutoCString, nsString, etc
-#include "LayerManagerOGLProgram.h"     // for ShaderProgramOGL, etc
-#ifdef XP_WIN
-#include "prenv.h"                      // for PR_GetEnv
-#endif
+
+#include "mozilla/layers/PLayerTransaction.h"
+#include <algorithm>
+
+/* This must occur *after* layers/PLayerTransaction.h to avoid typedefs conflicts. */
+#include "mozilla/Util.h"
+
+#include "Composer2D.h"
+#include "ThebesLayerOGL.h"
+#include "ContainerLayerOGL.h"
+#include "ImageLayerOGL.h"
+#include "ColorLayerOGL.h"
+#include "CanvasLayerOGL.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/Preferences.h"
+#include "TexturePoolOGL.h"
+
+#include "gfxContext.h"
+#include "gfxUtils.h"
+#include "gfxPlatform.h"
+#include "nsIWidget.h"
+
+#include "GLContext.h"
+#include "GLContextProvider.h"
+#include "Composer2D.h"
+#include "FPSCounter.h"
+
+#include "nsIServiceManager.h"
+#include "nsIConsoleService.h"
+
+#include "gfxCrashReporterUtils.h"
+
+#include "GeckoProfiler.h"
+
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>
-#include "TexturePoolOGL.h"
 #endif
 #ifdef XP_MACOSX
 #include "gfxPlatformMac.h"
@@ -345,7 +339,7 @@ LayerManagerOGL::Initialize(bool force)
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              nullptr);
+                              NULL);
 
       // unbind this texture, in preparation for binding it to the FBO
       mGLContext->fBindTexture(target, 0);
@@ -570,7 +564,7 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
     mThebesLayerCallbackData = nullptr;
   }
 
-  mTarget = nullptr;
+  mTarget = NULL;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   Log();
@@ -1084,7 +1078,7 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
                           0,
                           LOCAL_GL_RGBA,
                           LOCAL_GL_UNSIGNED_BYTE,
-                          nullptr);
+                          NULL);
   mGLContext->fBindTexture(mFBOTextureTarget, 0);
 
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
@@ -1242,7 +1236,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            nullptr);
+                            NULL);
   }
   mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
                              LOCAL_GL_LINEAR);

@@ -12,15 +12,9 @@ CPP_SOURCES += [
     'nsIconChannel.cpp',
 ]
 
-EXTRA_COMPONENTS += [
-    'gtkqticonsconverter.manifest',
-]
-
 EXTRA_PP_COMPONENTS += [
     'gtkqticonsconverter.js',
 ]
 
 LIBRARY_NAME = 'imgiconqt_s'
-
-LIBXUL_LIBRARY = True
 

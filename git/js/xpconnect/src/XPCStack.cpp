@@ -7,13 +7,11 @@
 /* Implements nsIStackFrame. */
 
 #include "xpcprivate.h"
-#include "jsprf.h"
-#include "js/OldDebugAPI.h"
 
 class XPCJSStackFrame : public nsIStackFrame
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSISTACKFRAME
 
     static nsresult CreateStack(JSContext* cx, XPCJSStackFrame** stack);
@@ -28,7 +26,7 @@ public:
     XPCJSStackFrame();
     virtual ~XPCJSStackFrame();
 
-    bool IsJSFrame() const
+    JSBool IsJSFrame() const
         {return mLanguage == nsIProgrammingLanguage::JAVASCRIPT;}
 
 private:
@@ -89,7 +87,7 @@ XPCJSStackFrame::~XPCJSStackFrame()
         nsMemory::Free(mFunname);
 }
 
-NS_IMPL_ISUPPORTS1(XPCJSStackFrame, nsIStackFrame)
+NS_IMPL_THREADSAFE_ISUPPORTS1(XPCJSStackFrame, nsIStackFrame)
 
 nsresult
 XPCJSStackFrame::CreateStack(JSContext* cx, XPCJSStackFrame** stack)
@@ -151,7 +149,7 @@ XPCJSStackFrame::CreateStackFrameLocation(uint32_t aLanguage,
                                           nsIStackFrame* aCaller,
                                           XPCJSStackFrame** stack)
 {
-    bool failed = false;
+    JSBool failed = false;
     XPCJSStackFrame* self = new XPCJSStackFrame();
     if (self)
         NS_ADDREF(self);

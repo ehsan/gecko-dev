@@ -25,9 +25,9 @@ const {
   MENU, TOOLBAR, UNSORTED
 } = require('sdk/places/bookmarks');
 const {
-  invalidResolve, invalidReject, createTree,
-  compareWithHost, createBookmark, createBookmarkItem,
-  createBookmarkTree, addVisits, resetPlaces
+  invalidResolve, invalidReject, clearBookmarks, createTree,
+  compareWithHost, clearAllBookmarks, createBookmark, createBookmarkItem,
+  createBookmarkTree, addVisits
 } = require('./places-helper');
 const { promisedEmitter } = require('sdk/places/utils');
 const bmsrv = Cc['@mozilla.org/browser/nav-bookmarks-service;1'].
@@ -317,12 +317,12 @@ exports.testAddingToExistingParent = function (assert, done) {
       { title: 'moz4', url: 'http://moz4.com', type: 'bookmark', group: group },
       { title: 'moz5', url: 'http://moz5.com', type: 'bookmark', group: group }
     ]);
-  }, assert.fail).then(data => {
+  }, console.error).then(data => {
     secondBatch = data;
     assert.equal(firstBatch[0].group.id, secondBatch[0].group.id,
       'successfully saved to the same parent');
     done();
-  }, assert.fail);
+  }, console.error);
 };
 
 exports.testUpdateParent = function (assert, done) {
@@ -523,30 +523,27 @@ exports.testResolution = function (assert, done) {
     firstSave = item;
     assert.ok(item.updated, 'bookmark has updated time');
     item.title = 'my title';
-    // Ensure delay so a different save time is set
-    return delayed(item);
-  }).then(saveP)
-  .then(items => {
-    let item = items[0];
-    secondSave = item;
-    assert.ok(firstSave.updated < secondSave.updated, 'snapshots have different update times');
-    firstSave.title = 'updated title';
-    return saveP(firstSave, { resolve: (mine, theirs) => {
-      assert.equal(mine.title, 'updated title', 'correct data for my object');
-      assert.equal(theirs.title, 'my title', 'correct data for their object');
-      assert.equal(mine.url, theirs.url, 'other data is equal');
-      assert.equal(mine.group, theirs.group, 'other data is equal');
-      assert.ok(mine !== firstSave, 'instance is not passed in');
-      assert.ok(theirs !== secondSave, 'instance is not passed in');
-      assert.equal(mine.toString(), '[object Object]', 'serialized objects');
-      assert.equal(theirs.toString(), '[object Object]', 'serialized objects');
-      mine.title = 'a new title';
-      return mine;
-    }});
-  }).then((results) => {
-    let result = results[0];
-    assert.equal(result.title, 'a new title', 'resolve handles results');
-    done();
+    save(item).on('data', (item) => {
+      secondSave = item;
+      assert.ok(firstSave.updated < secondSave.updated, 'snapshots have different update times');
+      firstSave.title = 'updated title';
+      save(firstSave, { resolve: (mine, theirs) => {
+        assert.equal(mine.title, 'updated title', 'correct data for my object');
+        assert.equal(theirs.title, 'my title', 'correct data for their object');
+        assert.equal(mine.url, theirs.url, 'other data is equal');
+        assert.equal(mine.group, theirs.group, 'other data is equal');
+        assert.ok(mine !== firstSave, 'instance is not passed in');
+        assert.ok(theirs !== secondSave, 'instance is not passed in');
+        assert.equal(mine.toString(), '[object Object]', 'serialized objects');
+        assert.equal(theirs.toString(), '[object Object]', 'serialized objects');
+        mine.title = 'a new title';
+        return mine;
+      }}).on('end', (results) => {
+        let result = results[0];
+        assert.equal(result.title, 'a new title', 'resolve handles results');
+        done();
+      });
+    });
   });
 };
 
@@ -555,31 +552,28 @@ exports.testResolution = function (assert, done) {
  */
 exports.testResolutionMapping = function (assert, done) {
   let bookmark = Bookmark({ title: 'moz', url: 'http://bookmarks4life.com/' });
-  let saved;
-  saveP(bookmark).then(data => {
-    saved = data[0];
+  save(bookmark).on('end', (saved) => {
+    saved = saved[0];
     saved.title = 'updated title';
-    // Ensure a delay for different updated times
-    return delayed(saved);
-  }).then(saveP)
-  .then(() => {
-    bookmark.title = 'conflicting title';
-    return saveP(bookmark, { resolve: (mine, theirs) => {
-      assert.equal(mine.title, 'conflicting title', 'correct data for my object');
-      assert.equal(theirs.title, 'updated title', 'correct data for their object');
-      assert.equal(mine.url, theirs.url, 'other data is equal');
-      assert.equal(mine.group, theirs.group, 'other data is equal');
-      assert.ok(mine !== bookmark, 'instance is not passed in');
-      assert.ok(theirs !== saved, 'instance is not passed in');
-      assert.equal(mine.toString(), '[object Object]', 'serialized objects');
-      assert.equal(theirs.toString(), '[object Object]', 'serialized objects');
-      mine.title = 'a new title';
-      return mine;
-    }});
-  }).then((results) => {
-    let result = results[0];
-    assert.equal(result.title, 'a new title', 'resolve handles results');
-    done();
+    save(saved).on('end', () => {
+      bookmark.title = 'conflicting title';
+      save(bookmark, { resolve: (mine, theirs) => {
+        assert.equal(mine.title, 'conflicting title', 'correct data for my object');
+        assert.equal(theirs.title, 'updated title', 'correct data for their object');
+        assert.equal(mine.url, theirs.url, 'other data is equal');
+        assert.equal(mine.group, theirs.group, 'other data is equal');
+        assert.ok(mine !== bookmark, 'instance is not passed in');
+        assert.ok(theirs !== saved, 'instance is not passed in');
+        assert.equal(mine.toString(), '[object Object]', 'serialized objects');
+        assert.equal(theirs.toString(), '[object Object]', 'serialized objects');
+        mine.title = 'a new title';
+        return mine;
+      }}).on('end', (results) => {
+        let result = results[0];
+        assert.equal(result.title, 'a new title', 'resolve handles results');
+        done();
+      });
+    });
   });
 };
 
@@ -626,7 +620,7 @@ exports.testSearchByGroupSimple = function (assert, done) {
     assert.ok(results.filter(({url}) => url === 'http://w3schools.com/'),
       'returns nested children');
     done();
-  }).then(null, assert.fail);
+  }).then(null, console.error);
 };
 
 exports.testSearchByGroupComplex = function (assert, done) {
@@ -644,7 +638,7 @@ exports.testSearchByGroupComplex = function (assert, done) {
       !results.filter(({url}) => /developer.mozilla/.test(url)).length,
       'does not find results from other folders');
     done();
-  }, assert.fail);
+  }, console.error);
 };
 
 exports.testSearchEmitters = function (assert, done) {
@@ -773,14 +767,14 @@ exports.testCaching = function (assert, done) {
   let stream = filter(request, ({event}) =>
     /sdk-places-bookmarks-get/.test(event));
   on(stream, 'data', handle);
-
+ 
   let group = { type: 'group', title: 'mozgroup' };
   let bookmarks = [
     { title: 'moz1', url: 'http://moz1.com', type: 'bookmark', group: group },
     { title: 'moz2', url: 'http://moz2.com', type: 'bookmark', group: group },
     { title: 'moz3', url: 'http://moz3.com', type: 'bookmark', group: group }
   ];
-
+  
   /*
    * Use timeout in tests since the platform calls are synchronous
    * and the counting event shim may not have occurred yet
@@ -816,7 +810,7 @@ exports.testCaching = function (assert, done) {
 
 exports.testSearchCount = function (assert, done) {
   let max = 8;
-  createBookmarkTree()
+  createBookmarkTree()  
   .then(testCount(1))
   .then(testCount(2))
   .then(testCount(3))
@@ -842,7 +836,7 @@ exports.testSearchSort = function (assert, done) {
     'http://mozilla.com/', 'http://webaud.io/', 'http://mozilla.com/webfwd/',
     'http://developer.mozilla.com/', 'http://bandcamp.com/'
   ];
-
+  
   saveP(
     urls.map(url =>
       Bookmark({ url: url, title: url.replace(/http:\/\/|\//g,'')}))
@@ -868,7 +862,7 @@ exports.testSearchSort = function (assert, done) {
     results[0].title = 'new title for webfwd';
     return saveP(results[0]);
   })
-  .then(() =>
+  .then(() => 
     searchP({}, { sort: 'visitCount' })
   ).then(results => {
     assert.equal(results[5].url, 'http://mozilla.com/',
@@ -904,7 +898,7 @@ exports.testSearchSort = function (assert, done) {
   }).then(() => {
     done();
   });
-
+  
   function checkOrder (results, nums) {
     assert.equal(results.length, nums.length, 'expected return count');
     for (let i = 0; i < nums.length; i++) {
@@ -947,8 +941,13 @@ exports.testCheckSaveOrder = function (assert, done) {
   });
 };
 
-before(exports, (name, assert, done) => resetPlaces(done));
-after(exports, (name, assert, done) => resetPlaces(done));
+before(exports, name => {
+  clearAllBookmarks();
+});
+
+after(exports, name => {
+  clearAllBookmarks();
+});
 
 function saveP () {
   return promisedEmitter(save.apply(null, Array.slice(arguments)));
@@ -957,11 +956,4 @@ function saveP () {
 function searchP () {
   return promisedEmitter(search.apply(null, Array.slice(arguments)));
 }
-
-function delayed (value, ms) {
-  let { promise, resolve } = defer();
-  setTimeout(() => resolve(value), ms || 10);
-  return promise;
-}
-
 require('test').run(exports);

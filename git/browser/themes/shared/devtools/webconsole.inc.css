@@ -8,6 +8,7 @@
   color: GrayText;
   margin-top: 0;
   margin-bottom: 0;
+  font-family: monospace;
 }
 
 .hud-msg-node {
@@ -32,6 +33,7 @@
   -moz-margin-start: 3px;
   -moz-margin-end: 6px;
   white-space: pre-wrap;
+  font-family: monospace;
 }
 
 .webconsole-msg-body-piece {
@@ -77,11 +79,6 @@
   margin: 0;
 }
 
-.webconsole-learn-more-link {
-  color: #0000EE;
-  margin: 0 0 0 4px;
-}
-
 .hud-msg-node[selected="true"] > .webconsole-timestamp,
 .hud-msg-node[selected="true"] > .webconsole-location {
   color: inherit;
@@ -89,6 +86,11 @@
 
 .jsterm-input-container {
   background: white;
+}
+
+.jsterm-input-node,
+.jsterm-complete-node {
+  font-family: monospace;
 }
 
 .hud-output-node {
@@ -227,7 +229,6 @@
 
 .jsterm-input-node {
   background: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16) no-repeat;
-  background-position: 0%;
 }
 
 :-moz-any(.jsterm-input-node,
@@ -269,18 +270,4 @@
 
 .webconsole-msg-security.webconsole-msg-warn {
   -moz-image-region: rect(32px, 24px, 40px, 16px);
-}
-
-.navigation-marker {
-  color: #aaa;
-  background: linear-gradient(#fff, #bbb, #fff) no-repeat left 50%;
-  background-size: 100% 2px;
-  -moz-margin-start: 3px;
-  -moz-margin-end: 6px;
-  font-size: 0.9em;
-}
-
-.navigation-marker .url {
-  background: #fff;
-  -moz-padding-end: 6px;
 }

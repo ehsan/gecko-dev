@@ -264,9 +264,16 @@ gfxFontEntry::TryGetSVGData()
             return false;
         }
 
-        // gfxSVGGlyphs will hb_blob_destroy() the table when it is finished
-        // with it.
-        mSVGGlyphs = new gfxSVGGlyphs(svgTable);
+        hb_blob_t *cmapTable = GetFontTable(TRUETYPE_TAG('c','m','a','p'));
+        if (!cmapTable) {
+            NS_NOTREACHED("using a font with no cmap!");
+            hb_blob_destroy(svgTable);
+            return false;
+        }
+
+        // gfxSVGGlyphs will hb_blob_destroy() the tables when it is finished
+        // with them.
+        mSVGGlyphs = new gfxSVGGlyphs(svgTable, cmapTable);
     }
 
     return !!mSVGGlyphs;
@@ -699,7 +706,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
 
     // Most families are "simple", having just Regular/Bold/Italic/BoldItalic,
     // or some subset of these. In this case, we have exactly 4 entries in mAvailableFonts,
-    // stored in the above order; note that some of the entries may be nullptr.
+    // stored in the above order; note that some of the entries may be NULL.
     // We can then pick the required entry based on whether the request is for
     // bold or non-bold, italic or non-italic, without running the more complex
     // matching algorithm used for larger families with many weights and/or widths.
@@ -878,7 +885,7 @@ gfxFontFamily::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
     uint32_t count = mAvailableFonts.Length();
     for (uint32_t i = 0; i < count; i++) {
         // this is not called for "simple" families, and therefore it does not
-        // need to check the mAvailableFonts entries for nullptr.
+        // need to check the mAvailableFonts entries for NULL
         gfxFontEntry *fe = mAvailableFonts[i];
         uint32_t distance = StyleDistance(fe, anItalic, aStretch);
         if (distance <= bestMatchDistance) {
@@ -2312,14 +2319,12 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
     // synthetic-bold strikes are each offset one device pixel in run direction
     // (these values are only needed if IsSyntheticBold() is true)
     double synBoldOnePixelOffset = 0;
-    int32_t strikes = 1;
+    int32_t strikes = 0;
     if (IsSyntheticBold()) {
         double xscale = CalcXScale(aContext);
         synBoldOnePixelOffset = direction * xscale;
-        if (xscale != 0.0) {
-            // use as many strikes as needed for the the increased advance
-            strikes = NS_lroundf(GetSyntheticBoldOffset() / xscale);
-        }
+        // use as many strikes as needed for the the increased advance
+        strikes = NS_lroundf(GetSyntheticBoldOffset() / xscale);
     }
 
     uint32_t i;
@@ -2521,8 +2526,8 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
       Matrix mat, matInv;
       Matrix oldMat = dt->GetTransform();
 
-      // This is nullptr when we have inverse-transformed glyphs and we need
-      // to transform the Brush inside flush.
+      // This is NULL when we have inverse-transformed glyphs and we need to
+      // transform the Brush inside flush.
       Matrix *passedInvMatrix = nullptr;
 
       RefPtr<GlyphRenderingOptions> renderingOptions =
@@ -3386,19 +3391,6 @@ gfxFont::SetupGlyphExtents(gfxContext *aContext, uint32_t aGlyphID, bool aNeedTi
 {
     gfxContextMatrixAutoSaveRestore matrixRestore(aContext);
     aContext->IdentityMatrix();
-
-    gfxRect svgBounds;
-    if (mFontEntry->TryGetSVGData() && mFontEntry->HasSVGGlyph(aGlyphID) &&
-        mFontEntry->GetSVGGlyphExtents(aContext, aGlyphID, &svgBounds)) {
-        gfxFloat d2a = aExtents->GetAppUnitsPerDevUnit();
-        aExtents->SetTightGlyphExtents(aGlyphID,
-                                       gfxRect(svgBounds.x * d2a,
-                                               svgBounds.y * d2a,
-                                               svgBounds.width * d2a,
-                                               svgBounds.height * d2a));
-        return;
-    }
-
     cairo_glyph_t glyph;
     glyph.index = aGlyphID;
     glyph.x = 0;
@@ -3427,6 +3419,16 @@ gfxFont::SetupGlyphExtents(gfxContext *aContext, uint32_t aGlyphID, bool aNeedTi
     gfxFloat d2a = appUnitsPerDevUnit;
     gfxRect bounds(extents.x_bearing*d2a, extents.y_bearing*d2a,
                    extents.width*d2a, extents.height*d2a);
+
+    gfxRect svgBounds;
+    if (mFontEntry->TryGetSVGData() &&
+        mFontEntry->HasSVGGlyph(aGlyphID) &&
+        mFontEntry->GetSVGGlyphExtents(aContext, aGlyphID, &svgBounds)) {
+
+        bounds = bounds.Union(gfxRect(svgBounds.x * d2a, svgBounds.y * d2a,
+                                      svgBounds.width * d2a, svgBounds.height * d2a));
+    }
+
     aExtents->SetTightGlyphExtents(aGlyphID, bounds);
 }
 
@@ -4386,36 +4388,7 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
         }
     }
 
-#ifdef PR_LOGGING
-    PRLogModuleInfo *log = (mStyle.systemFont ?
-                            gfxPlatform::GetLog(eGfxLog_textrunui) :
-                            gfxPlatform::GetLog(eGfxLog_textrun));
-#endif
-
     if (sizeof(T) == sizeof(uint8_t) && !transformedString) {
-
-#ifdef PR_LOGGING
-        if (MOZ_UNLIKELY(log)) {
-            nsAutoCString lang;
-            mStyle.language->ToUTF8String(lang);
-            nsAutoCString str((const char*)aString, aLength);
-            PR_LOG(log, PR_LOG_WARNING,\
-                   ("(%s) fontgroup: [%s] lang: %s script: %d len %d "
-                    "weight: %d width: %d style: %s size: %6.2f %d-byte "
-                    "TEXTRUN [%s] ENDTEXTRUN\n",
-                    (mStyle.systemFont ? "textrunui" : "textrun"),
-                    NS_ConvertUTF16toUTF8(mFamilies).get(),
-                    lang.get(), MOZ_SCRIPT_LATIN, aLength,
-                    uint32_t(mStyle.weight), uint32_t(mStyle.stretch),
-                    (mStyle.style & NS_FONT_STYLE_ITALIC ? "italic" :
-                    (mStyle.style & NS_FONT_STYLE_OBLIQUE ? "oblique" :
-                                                            "normal")),
-                    mStyle.size,
-                    sizeof(T),
-                    str.get()));
-        }
-#endif
-
         // the text is still purely 8-bit; bypass the script-run itemizer
         // and treat it as a single Latin run
         InitScriptRun(aContext, aTextRun, aString,
@@ -4434,6 +4407,12 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
         // the font matching process below
         gfxScriptItemizer scriptRuns(textPtr, aLength);
 
+#ifdef PR_LOGGING
+        PRLogModuleInfo *log = (mStyle.systemFont ?
+                                gfxPlatform::GetLog(eGfxLog_textrunui) :
+                                gfxPlatform::GetLog(eGfxLog_textrun));
+#endif
+
         uint32_t runStart = 0, runLimit = aLength;
         int32_t runScript = MOZ_SCRIPT_LATIN;
         while (scriptRuns.Next(runStart, runLimit, runScript)) {
@@ -4445,7 +4424,7 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
                 uint32_t runLen = runLimit - runStart;
                 PR_LOG(log, PR_LOG_WARNING,\
                        ("(%s) fontgroup: [%s] lang: %s script: %d len %d "
-                        "weight: %d width: %d style: %s size: %6.2f %d-byte "
+                        "weight: %d width: %d style: %s "
                         "TEXTRUN [%s] ENDTEXTRUN\n",
                         (mStyle.systemFont ? "textrunui" : "textrun"),
                         NS_ConvertUTF16toUTF8(mFamilies).get(),
@@ -4454,8 +4433,6 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
                         (mStyle.style & NS_FONT_STYLE_ITALIC ? "italic" :
                         (mStyle.style & NS_FONT_STYLE_OBLIQUE ? "oblique" :
                                                                 "normal")),
-                        mStyle.size,
-                        sizeof(T),
                         NS_ConvertUTF16toUTF8(textPtr + runStart, runLen).get()));
             }
 #endif
@@ -5035,7 +5012,7 @@ gfxFontStyle::gfxFontStyle() :
     size(DEFAULT_PIXEL_FONT_SIZE), sizeAdjust(0.0f),
     languageOverride(NO_FONT_LANGUAGE_OVERRIDE),
     weight(NS_FONT_WEIGHT_NORMAL), stretch(NS_FONT_STRETCH_NORMAL),
-    systemFont(true), printerFont(false), useGrayscaleAntialiasing(false),
+    systemFont(true), printerFont(false), 
     style(NS_FONT_STYLE_NORMAL)
 {
 }
@@ -5050,7 +5027,7 @@ gfxFontStyle::gfxFontStyle(uint8_t aStyle, uint16_t aWeight, int16_t aStretch,
     languageOverride(ParseFontLanguageOverride(aLanguageOverride)),
     weight(aWeight), stretch(aStretch),
     systemFont(aSystemFont), printerFont(aPrinterFont),
-    useGrayscaleAntialiasing(false), style(aStyle)
+    style(aStyle)
 {
     MOZ_ASSERT(!mozilla::IsNaN(size));
     MOZ_ASSERT(!mozilla::IsNaN(sizeAdjust));
@@ -5081,7 +5058,6 @@ gfxFontStyle::gfxFontStyle(const gfxFontStyle& aStyle) :
     languageOverride(aStyle.languageOverride),
     weight(aStyle.weight), stretch(aStyle.stretch),
     systemFont(aStyle.systemFont), printerFont(aStyle.printerFont),
-    useGrayscaleAntialiasing(aStyle.useGrayscaleAntialiasing),
     style(aStyle.style)
 {
     featureSettings.AppendElements(aStyle.featureSettings);

@@ -9,8 +9,6 @@
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-#include "mozilla/dom/BindingDeclarations.h"
-
 BEGIN_INDEXEDDB_NAMESPACE
 
 class Key;
@@ -46,12 +44,6 @@ public:
   {
     MOZ_COUNT_DTOR(KeyPath);
   }
-
-  static nsresult
-  Parse(JSContext* aCx, const nsAString& aString, KeyPath* aKeyPath);
-
-  static nsresult
-  Parse(JSContext* aCx, const Sequence<nsString>& aStrings, KeyPath* aKeyPath);
 
   static nsresult
   Parse(JSContext* aCx, const JS::Value& aValue, KeyPath* aKeyPath);

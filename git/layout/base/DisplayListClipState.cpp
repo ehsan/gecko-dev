@@ -53,14 +53,9 @@ DisplayListClipState::ClipContainingBlockDescendants(const nsRect& aRect,
 
 void
 DisplayListClipState::ClipContentDescendants(const nsRect& aRect,
-                                             const nscoord* aRadii,
                                              DisplayItemClip& aClipOnStack)
 {
-  if (aRadii) {
-    aClipOnStack.SetTo(aRect, aRadii);
-  } else {
-    aClipOnStack.SetTo(aRect);
-  }
+  aClipOnStack.SetTo(aRect);
   if (mClipContentDescendants) {
     aClipOnStack.IntersectWith(*mClipContentDescendants);
   }

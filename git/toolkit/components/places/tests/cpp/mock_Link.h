@@ -101,8 +101,8 @@ Link::ResetLinkState(bool aNotify, bool aHasHref)
   NS_NOTREACHED("Unexpected call to Link::ResetLinkState");
 }
 
-nsIURI*
-Link::GetURI() const
+already_AddRefed<nsIURI>
+Link::GetURI() const 
 {
   NS_NOTREACHED("Unexpected call to Link::GetURI");
   return nullptr; // suppress compiler warning

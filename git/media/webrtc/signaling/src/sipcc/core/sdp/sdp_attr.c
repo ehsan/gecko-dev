@@ -482,7 +482,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
     }
     fmtp_p = &(attr_p->attr.fmtp);
     fmtp_p->fmtp_format = SDP_FMTP_UNKNOWN_TYPE;
-    fmtp_p->parameter_add = 1;
+    fmtp_p->parameter_add = TRUE;
     fmtp_p->flag = 0;
 
     /*
@@ -1388,17 +1388,18 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
             }
         } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[32].name,
                                sdp_fmtp_codec_param[32].strlen) == 0) {
-            fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, sizeof(tmp), "; \t", &result1);
-            if (result1 != SDP_SUCCESS) {
-                fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, sizeof(tmp), " \t", &result1);
-                if (result1 != SDP_SUCCESS) {
+	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, sizeof(tmp), "; \t", &result1);
+	    if (result1 != SDP_SUCCESS) {
+	        fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, sizeof(tmp), " \t", &result1);
+	        if (result1 != SDP_SUCCESS) {
                     sdp_attr_fmtp_no_value(sdp_p, "parameter_add");
-                    SDP_FREE(temp_ptr);
+		    SDP_FREE(temp_ptr);
                     return SDP_INVALID_PARAMETER;
-                }
-            }
-            tok = tmp;
-            tok++;
+		}
+	    }
+	    tok = tmp;
+	    tok++;
+
             errno = 0;
             strtoul_result = strtoul(tok, &strtoul_end, 10);
 
@@ -1407,9 +1408,16 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                 SDP_FREE(temp_ptr);
                 return SDP_INVALID_PARAMETER;
             }
-            fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
-            fmtp_p->parameter_add = (u16) strtoul_result;
-            codec_info_found = TRUE;
+
+		fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+
+		if (strtoul_result == 1) {
+		    fmtp_p->parameter_add = TRUE;
+		} else {
+		    fmtp_p->parameter_add = FALSE;
+		}
+
+	    codec_info_found = TRUE;
         } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[33].name,
                                sdp_fmtp_codec_param[33].strlen) == 0) {
 	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
@@ -2058,8 +2066,8 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, flex_string 
       FMTP_BUILD_UNSIGNED(fmtp_p->flag & SDP_MAX_RCMD_NALU_SIZE_FLAG,
         "max-rcmd-naFMTP_BUILD_FLlu-size", fmtp_p->max_rcmd_nalu_size)
 
-      FMTP_BUILD_UNSIGNED(fmtp_p->parameter_add <= 1, "parameter-add",
-                          fmtp_p->parameter_add)
+      FMTP_BUILD_UNSIGNED(fmtp_p->parameter_add > 0,
+        "parameter-add", fmtp_p->parameter_add)
 
       FMTP_BUILD_UNSIGNED(fmtp_p->maxaveragebitrate > 0,
         "maxaveragebitrate", fmtp_p->maxaveragebitrate)
@@ -4784,7 +4792,7 @@ sdp_result_e sdp_build_attr_rtcp_fb(sdp_t *sdp_p,
             }
             break;
         case SDP_RTCP_FB_NACK:
-            if (attr_p->attr.rtcp_fb.param.nack > SDP_RTCP_FB_NACK_BASIC
+            if (attr_p->attr.rtcp_fb.param.nack > SDP_RTCP_FB_NACK_UNSPECIFIED
                 && attr_p->attr.rtcp_fb.param.nack < SDP_MAX_RTCP_FB_NACK) {
                 flex_string_sprintf(fs, " %s",
                     sdp_rtcp_fb_nack_type_val[attr_p->attr.rtcp_fb.param.nack]
@@ -4935,7 +4943,7 @@ sdp_result_e sdp_parse_attr_rtcp_fb (sdp_t *sdp_p,
             }
             /* Check for empty string */
             if (*ptr == '\r') {
-                rtcp_fb_p->param.nack = SDP_RTCP_FB_NACK_BASIC;
+                rtcp_fb_p->param.nack = SDP_RTCP_FB_NACK_UNSPECIFIED;
                 break;
             }
             i = find_token_enum("rtcp-fb nack type", sdp_p, &ptr,

@@ -48,7 +48,7 @@ var FindHelperUI = {
     this._cmdPrevious = document.getElementById(this.commands.previous);
     this._cmdNext = document.getElementById(this.commands.next);
 
-    this._textbox.addEventListener("keydown", this);
+    this._textbox.addEventListener('keydown', this);
 
     // Listen for find assistant messages from content
     messageManager.addMessageListener("FindAssist:Show", this);
@@ -57,7 +57,7 @@ var FindHelperUI = {
     // Listen for events where form assistant should be closed
     Elements.tabList.addEventListener("TabSelect", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
-    window.addEventListener("MozAppbarShowing", this);
+    window.addEventListener("MozContextUIShow", this, true);
   },
 
   receiveMessage: function findHelperReceiveMessage(aMessage) {
@@ -79,6 +79,7 @@ var FindHelperUI = {
 
   handleEvent: function findHelperHandleEvent(aEvent) {
     switch (aEvent.type) {
+      case "MozContextUIShow":
       case "TabSelect":
         this.hide();
         break;
@@ -90,24 +91,17 @@ var FindHelperUI = {
 
       case "keydown":
         if (aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
-          if (aEvent.shiftKey) {
-            this.goToPrevious();
-          } else {
-            this.goToNext();
-          }
+	  if (aEvent.shiftKey) {
+	    this.goToPrevious();
+	  } else {
+	    this.goToNext();
+	  }
         }
-        break;
-
-      case "MozAppbarShowing":
-        if (aEvent.target != this._container) {
-          this.hide();
-        }
-        break;
     }
   },
 
   show: function findHelperShow() {
-    if (BrowserUI.isStartTabVisible || this._open)
+    if (StartUI.isVisible || this._open)
       return;
 
     // Hide any menus
@@ -116,16 +110,15 @@ var FindHelperUI = {
     // Shutdown selection related ui
     SelectionHelperUI.closeEditSession();
 
+    this.search(this._textbox.value);
+    this._textbox.select();
+    this._textbox.focus();
+    this._open = true;
+
     let findbar = this._container;
     setTimeout(() => {
       Elements.browsers.setAttribute("findbar", true);
       findbar.show();
-
-      this.search(this._textbox.value);
-      this._textbox.select();
-      this._textbox.focus();
-
-      this._open = true;
     }, 0);
 
     // Prevent the view to scroll automatically while searching
@@ -140,25 +133,23 @@ var FindHelperUI = {
       this._container.removeEventListener("transitionend", onTransitionEnd, true);
       this._textbox.value = "";
       this.status = null;
+      this._textbox.blur();
       this._open = false;
 
       // Restore the scroll synchronisation
       Browser.selectedBrowser.scrollSync = true;
     };
 
-    this._textbox.blur();
     this._container.addEventListener("transitionend", onTransitionEnd, true);
     this._container.dismiss();
     Elements.browsers.removeAttribute("findbar");
   },
 
   goToPrevious: function findHelperGoToPrevious() {
-    this._textbox.blur();
     Browser.selectedBrowser.messageManager.sendAsyncMessage("FindAssist:Previous", { });
   },
 
   goToNext: function findHelperGoToNext() {
-    this._textbox.blur();
     Browser.selectedBrowser.messageManager.sendAsyncMessage("FindAssist:Next", { });
   },
 

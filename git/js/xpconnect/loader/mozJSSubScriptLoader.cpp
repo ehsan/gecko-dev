@@ -25,10 +25,9 @@
 #include "nsScriptLoader.h"
 
 #include "jsapi.h"
+#include "jsdbgapi.h"
 #include "jsfriendapi.h"
-#include "js/OldDebugAPI.h"
 #include "nsJSPrincipals.h"
-#include "xpcpublic.h" // For xpc::SystemErrorReporter
 
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
@@ -63,7 +62,7 @@ mozJSSubScriptLoader::~mozJSSubScriptLoader()
     /* empty */
 }
 
-NS_IMPL_ISUPPORTS1(mozJSSubScriptLoader, mozIJSSubScriptLoader)
+NS_IMPL_THREADSAFE_ISUPPORTS1(mozJSSubScriptLoader, mozIJSSubScriptLoader)
 
 static nsresult
 ReportError(JSContext *cx, const char *msg)

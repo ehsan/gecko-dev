@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include "nsIServiceManager.h"
 #include "nsJSON.h"
 #include "nsIXPConnect.h"
@@ -21,7 +21,6 @@
 #include "nsCRTGlue.h"
 #include "nsAutoPtr.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/Maybe.h"
 #include <algorithm>
 
 static const char kXPConnectServiceCID[] = "@mozilla.org/js/xpc/XPConnect;1";
@@ -50,7 +49,7 @@ static nsresult
 WarnDeprecatedMethod(DeprecationWarning warning)
 {
   return nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                         NS_LITERAL_CSTRING("DOM Core"), nullptr,
+                                         "DOM Core", nullptr,
                                          nsContentUtils::eDOM_PROPERTIES,
                                          warning == EncodeWarning
                                          ? "nsIJSONEncodeDeprecatedWarning"
@@ -160,15 +159,15 @@ nsJSON::EncodeToStream(nsIOutputStream *aStream,
   return rv;
 }
 
-static bool
+static JSBool
 WriteCallback(const jschar *buf, uint32_t len, void *data)
 {
   nsJSONWriter *writer = static_cast<nsJSONWriter*>(data);
   nsresult rv =  writer->Write((const PRUnichar*)buf, (uint32_t)len);
   if (NS_FAILED(rv))
-    return false;
+    return JS_FALSE;
 
-  return true;
+  return JS_TRUE;
 }
 
 NS_IMETHODIMP
@@ -212,7 +211,7 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue,
    */
   JS::Rooted<JS::Value> val(cx, aValue);
   JS::Rooted<JS::Value> toJSON(cx);
-  if (JS_GetProperty(cx, obj, "toJSON", &toJSON) &&
+  if (JS_GetProperty(cx, obj, "toJSON", toJSON.address()) &&
       toJSON.isObject() &&
       JS_ObjectIsCallable(cx, &toJSON.toObject())) {
     // If toJSON is implemented, it must not throw
@@ -528,7 +527,7 @@ nsJSONListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
 
   JS::StableCharPtr chars(reinterpret_cast<const jschar*>(mBufferedChars.Elements()),
                           mBufferedChars.Length());
-  bool ok = JS_ParseJSONWithReviver(mCx, chars.get(),
+  JSBool ok = JS_ParseJSONWithReviver(mCx, chars.get(),
                                       uint32_t(mBufferedChars.Length()),
                                       reviver, value.address());
 

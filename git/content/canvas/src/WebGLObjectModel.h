@@ -280,16 +280,16 @@ public:
     WebGLRectangleObject()
         : mWidth(0), mHeight(0) { }
 
-    WebGLRectangleObject(GLsizei width, GLsizei height)
+    WebGLRectangleObject(WebGLsizei width, WebGLsizei height)
         : mWidth(width), mHeight(height) { }
 
-    GLsizei Width() const { return mWidth; }
-    void width(GLsizei value) { mWidth = value; }
+    WebGLsizei Width() const { return mWidth; }
+    void width(WebGLsizei value) { mWidth = value; }
 
-    GLsizei Height() const { return mHeight; }
-    void height(GLsizei value) { mHeight = value; }
+    WebGLsizei Height() const { return mHeight; }
+    void height(WebGLsizei value) { mHeight = value; }
 
-    void setDimensions(GLsizei width, GLsizei height) {
+    void setDimensions(WebGLsizei width, WebGLsizei height) {
         mWidth = width;
         mHeight = height;
     }
@@ -309,8 +309,8 @@ public:
     }
 
 protected:
-    GLsizei mWidth;
-    GLsizei mHeight;
+    WebGLsizei mWidth;
+    WebGLsizei mHeight;
 };
 
 }// namespace mozilla
@@ -329,7 +329,8 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
                             const char* aName,
                             uint32_t aFlags = 0)
 {
-  CycleCollectionNoteChild(aCallback, aField.get(), aName, aFlags);
+  CycleCollectionNoteEdgeName(aCallback, aName, aFlags);
+  aCallback.NoteXPCOMChild(aField);
 }
 
 #endif

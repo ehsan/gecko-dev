@@ -77,7 +77,7 @@ public:
 	//
 	// nsISupports
 	//
-	NS_DECL_THREADSAFE_ISUPPORTS
+	NS_DECL_ISUPPORTS
 
 	//
 	// nsILocaleService
@@ -176,7 +176,7 @@ nsLocaleService::nsLocaleService(void)
 
         nsRefPtr<nsLocale> resultLocale(new nsLocale());
 
-        LocaleObject locale_object = nullptr;
+        LocaleObject locale_object = NULL;
         int result = UniCreateLocaleObject(UNI_UCS_STRING_POINTER,
                                            (UniChar *)L"", &locale_object);
         if (result != ULS_SUCCESS) {
@@ -251,7 +251,7 @@ nsLocaleService::~nsLocaleService(void)
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsLocaleService, nsILocaleService)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsLocaleService, nsILocaleService)
 
 NS_IMETHODIMP
 nsLocaleService::NewLocale(const nsAString &aLocale, nsILocale **_retval)

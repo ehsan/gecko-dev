@@ -41,8 +41,7 @@ function testAddContact(type, pin2) {
 
   contact.init({
     name: "add",
-    tel: [{value: "0912345678"}],
-    email:[]
+    tel: [{value: "0912345678"}]
   });
 
   let updateRequest = icc.updateContact(type, contact, pin2);

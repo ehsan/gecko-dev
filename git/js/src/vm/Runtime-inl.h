@@ -10,12 +10,20 @@
 #include "vm/Runtime.h"
 
 #include "jscompartment.h"
-#include "jsworkers.h"
+#include "jsfriendapi.h"
+#include "jsgc.h"
+#include "jsiter.h"
 
-#include "jit/IonFrames.h"
+#include "builtin/Object.h" // For js::obj_construct
+#include "frontend/ParseMaps.h"
+#include "ion/IonFrames.h" // For GetPcScript
+#include "vm/Interpreter.h"
 #include "vm/Probes.h"
+#include "vm/RegExpObject.h"
 
 #include "jsgcinlines.h"
+
+#include "vm/ObjectImpl-inl.h"
 
 namespace js {
 
@@ -66,17 +74,6 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
     }
 
     return NULL;
-}
-
-inline
-ThreadDataIter::ThreadDataIter(JSRuntime *rt)
-{
-#ifdef JS_WORKER_THREADS
-    // Only allow iteration over a runtime's threads when those threads are
-    // paused, to avoid racing when reading data from the PerThreadData.
-    JS_ASSERT(rt->exclusiveThreadsPaused);
-#endif
-    iter = rt->threadList.getFirst();
 }
 
 }  /* namespace js */

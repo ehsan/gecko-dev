@@ -188,9 +188,7 @@ ContentPermissionPrompt.prototype = {
     this.sendToBrowserWindow("permission-prompt", request, requestId, function(type, remember) {
       if (type == "permission-allow") {
         rememberPermission(request.type, principal, !remember);
-        if (callback) {
-          callback();
-        }
+        callback();
         request.allow();
         return;
       }
@@ -204,9 +202,7 @@ ContentPermissionPrompt.prototype = {
                                         Ci.nsIPermissionManager.EXPIRE_SESSION, 0);
       }
 
-      if (callback) {
-        callback();
-      }
+      callback();
       request.cancel();
     });
   },
@@ -251,7 +247,7 @@ ContentPermissionPrompt.prototype = {
 
     // When it's an app, get the manifest to add the l10n application name.
     let app = DOMApplicationRegistry.getAppByLocalId(principal.appId);
-    DOMApplicationRegistry.getManifestFor(app.manifestURL, function getManifest(aManifest) {
+    DOMApplicationRegistry.getManifestFor(app.origin, function getManifest(aManifest) {
       let helper = new ManifestHelper(aManifest, app.origin);
       details.appName = helper.name;
       browser.shell.sendChromeEvent(details);

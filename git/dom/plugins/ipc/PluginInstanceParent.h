@@ -278,6 +278,10 @@ public:
                                    gfxContext** aCtx);
     nsresult EndUpdateBackground(gfxContext* aCtx,
                                  const nsIntRect& aRect);
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+    nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
+#endif
+
     void DidComposite() { unused << SendNPP_DidComposite(); }
 
 private:

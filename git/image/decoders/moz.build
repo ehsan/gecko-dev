@@ -26,7 +26,6 @@ elif toolkit == 'android':
 MODULE = 'imgdecoders'
 
 CPP_SOURCES += [
-    'EXIF.cpp',
     'nsBMPDecoder.cpp',
     'nsGIFDecoder2.cpp',
     'nsICODecoder.cpp',
@@ -35,13 +34,10 @@ CPP_SOURCES += [
     'nsPNGDecoder.cpp',
 ]
 
+if CONFIG['MOZ_WBMP']:
+    CPP_SOURCES += [
+        'nsWBMPDecoder.cpp',
+    ]
+
 LIBRARY_NAME = 'imgdecoders_s'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-CSRCS += [
-    'iccjpeg.c',
-]
 

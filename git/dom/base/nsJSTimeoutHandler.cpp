@@ -5,14 +5,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
+#include "nsIScriptContext.h"
 #include "nsIDocument.h"
+#include "nsIArray.h"
 #include "nsIScriptTimeoutHandler.h"
 #include "nsIXPConnect.h"
+#include "nsIJSRuntimeService.h"
 #include "nsJSUtils.h"
+#include "nsDOMJSUtils.h"
 #include "nsContentUtils.h"
+#include "nsJSEnvironment.h"
+#include "nsServiceManagerUtils.h"
 #include "nsError.h"
 #include "nsGlobalWindow.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsAlgorithm.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
@@ -71,8 +78,6 @@ private:
 
 // nsJSScriptTimeoutHandler
 // QueryInterface implementation for nsJSScriptTimeoutHandler
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSScriptTimeoutHandler)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -148,7 +153,7 @@ nsJSScriptTimeoutHandler::ReleaseJSObjects()
     mFunction = nullptr;
     mArgs.Clear();
   }
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
 }
 
 nsresult
@@ -191,15 +196,11 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   }
 
   int32_t interval = 0;
-  if (argc > 1) {
-    JS::Rooted<JS::Value> arg(cx, argv[1]);
-
-    if (!JS::ToInt32(cx, arg, &interval)) {
-      ::JS_ReportError(cx,
-                       "Second argument to %s must be a millisecond interval",
-                       aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
-      return NS_ERROR_DOM_TYPE_ERR;
-    }
+  if (argc > 1 && !::JS_ValueToECMAInt32(cx, argv[1], &interval)) {
+    ::JS_ReportError(cx,
+                     "Second argument to %s must be a millisecond interval",
+                     aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
+    return NS_ERROR_DOM_TYPE_ERR;
   }
 
   if (argc == 1) {
@@ -279,7 +280,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       }
     } // if there's no document, we don't have to do anything.
 
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
 
     mExpr = JS_FORGET_STRING_FLATNESS(expr);
 
@@ -289,7 +290,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       mFileName.Assign(filename);
     }
   } else if (funobj) {
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
 
     mFunction = new Function(funobj);
 

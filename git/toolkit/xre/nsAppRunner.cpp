@@ -190,7 +190,6 @@ using mozilla::scache::StartupCache;
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
 #include "nsIPrefService.h"
-#include "mozilla/Preferences.h"
 #endif
 
 #include "base/command_line.h"
@@ -239,10 +238,6 @@ static char **gQtOnlyArgv;
 #include "nsGTKToolkit.h"
 #endif
 #include "BinaryPath.h"
-
-#ifdef MOZ_LINKER
-extern "C" MFBT_API bool IsSignalHandlingBroken();
-#endif
 
 namespace mozilla {
 int (*RunGTest)() = 0;
@@ -762,9 +757,9 @@ nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
 // is synchronized with the const unsigned longs defined in
 // xpcom/system/nsIXULRuntime.idl.
 #define SYNC_ENUMS(a,b) \
-  static_assert(nsIXULRuntime::PROCESS_TYPE_ ## a == \
-                static_cast<int>(GeckoProcessType_ ## b), \
-                "GeckoProcessType in nsXULAppAPI.h not synchronized with nsIXULRuntime.idl");
+  MOZ_STATIC_ASSERT(nsIXULRuntime::PROCESS_TYPE_ ## a == \
+                    static_cast<int>(GeckoProcessType_ ## b), \
+                    "GeckoProcessType in nsXULAppAPI.h not synchronized with nsIXULRuntime.idl");
 
 SYNC_ENUMS(DEFAULT, Default)
 SYNC_ENUMS(PLUGIN, Plugin)
@@ -772,8 +767,8 @@ SYNC_ENUMS(CONTENT, Content)
 SYNC_ENUMS(IPDLUNITTEST, IPDLUnitTest)
 
 // .. and ensure that that is all of them:
-static_assert(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End,
-              "Did not find the final GeckoProcessType");
+MOZ_STATIC_ASSERT(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End,
+                  "Did not find the final GeckoProcessType");
 
 NS_IMETHODIMP
 nsXULAppInfo::GetProcessType(uint32_t* aResult)
@@ -929,6 +924,10 @@ nsXULAppInfo::SetEnabled(bool aEnabled)
       if (!xreDirectory)
         return NS_ERROR_FAILURE;
     }
+    AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
+                        nsPrintfCString("%.16llx", uint64_t(gMozillaPoisonBase)));
+    AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
+                        nsPrintfCString("%lu", uint32_t(gMozillaPoisonSize)));
     return CrashReporter::SetExceptionHandler(xreDirectory, true);
   }
   else {
@@ -1401,9 +1400,8 @@ static int MSCRTReportHook( int aReportType, char *aMessage, int *oReturnValue)
 static inline void
 DumpVersion()
 {
-  if (gAppData->vendor)
-    printf("%s ", gAppData->vendor);
-  printf("%s %s", gAppData->name, gAppData->version);
+  printf("%s %s %s", 
+         gAppData->vendor ? gAppData->vendor : "", gAppData->name, gAppData->version);
   if (gAppData->copyright)
       printf(", %s", gAppData->copyright);
   printf("\n");
@@ -1770,7 +1768,10 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
          nsIPromptService::BUTTON_POS_1) +
         nsIPromptService::BUTTON_POS_1_DEFAULT;
 
+      // The actual value is irrelevant but we shouldn't be handing out
+      // malformed JSBools to XPConnect.
       bool checkState = false;
+
       rv = ps->ConfirmEx(nullptr, killTitle, killMessage, flags,
                          killTitle, nullptr, nullptr, nullptr, 
                          &checkState, &button);
@@ -3001,11 +3002,6 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     nsDependentCString releaseChannel(NS_STRINGIFY(MOZ_UPDATE_CHANNEL));
     CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ReleaseChannel"),
                                        releaseChannel);
-#ifdef MOZ_LINKER
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("CrashAddressLikelyWrong"),
-                                       IsSignalHandlingBroken() ? NS_LITERAL_CSTRING("1")
-                                                                : NS_LITERAL_CSTRING("0"));
-#endif
     CrashReporter::SetRestartArgs(gArgc, gArgv);
 
     // annotate other data (user id etc)
@@ -3267,6 +3263,18 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
 #if defined(MOZ_WIDGET_QT)
   nsQAppInstance::AddRef(gArgc, gArgv, true);
 
+#if MOZ_PLATFORM_MAEMO > 5
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    // try to get the MInputContext if possible to support the MeeGo VKB
+    QInputContext* inputContext = qApp->inputContext();
+    if (inputContext && inputContext->identifierName() != "MInputContext") {
+        QInputContext* context = QInputContextFactory::create("MInputContext",
+                                                              qApp);
+        if (context)
+            qApp->setInputContext(context);
+    }
+  }
+#endif
   QStringList nonQtArguments = qApp->arguments();
   gQtOnlyArgc = 1;
   gQtOnlyArgv = (char**) malloc(sizeof(char*) 
@@ -3364,19 +3372,11 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   // (called inside gdk_display_open). This is a requirement for off main tread compositing.
   // This is done only on X11 platforms if the environment variable MOZ_USE_OMTC is set so 
   // as to avoid overhead when omtc is not used. 
-  //
-  // On nightly builds, we call this by default to enable OMTC for Electrolysis testing. On
-  // aurora, beta, and release builds, there is a small tpaint regression from enabling this
-  // call, so it sits behind an environment variable.
-  //
   // An environment variable is used instead of a pref on X11 platforms because we start having 
   // access to prefs long after the first call to XOpenDisplay which is hard to change due to 
   // interdependencies in the initialization.
-# ifndef NIGHTLY_BUILD
   if (PR_GetEnv("MOZ_USE_OMTC") ||
-      PR_GetEnv("MOZ_OMTC_ENABLED"))
-# endif
-  {
+      PR_GetEnv("MOZ_OMTC_ENABLED")) {
     XInitThreads();
   }
 #endif
@@ -3674,11 +3674,6 @@ XREMain::XRE_mainRun()
       }
     }
   }
-  // Needs to be set after xpcom initialization.
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
-                                     nsPrintfCString("%.16llx", uint64_t(gMozillaPoisonBase)));
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
-                                     nsPrintfCString("%lu", uint32_t(gMozillaPoisonSize)));
 #endif
 
   if (mStartOffline) {
@@ -3754,13 +3749,6 @@ XREMain::XRE_mainRun()
   }
 
   mDirProvider.DoStartup();
-
-#ifdef MOZ_CRASHREPORTER
-  nsCString userAgentLocale;
-  if (NS_SUCCEEDED(Preferences::GetCString("general.useragent.locale", &userAgentLocale))) {
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("useragent_locale"), userAgentLocale);
-  }
-#endif
 
   appStartup->GetShuttingDown(&mShuttingDown);
 

@@ -7,6 +7,7 @@
 #include "nsDSURIContentListener.h"
 #include "nsIChannel.h"
 #include "nsServiceManagerUtils.h"
+#include "nsXPIDLString.h"
 #include "nsDocShellCID.h"
 #include "nsIWebNavigationInfo.h"
 #include "nsIDocument.h"
@@ -17,9 +18,9 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsError.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "mozilla/Preferences.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "nsDocShellLoadTypes.h"
 
 using namespace mozilla;
 
@@ -51,8 +52,8 @@ nsDSURIContentListener::Init()
 // nsDSURIContentListener::nsISupports
 //*****************************************************************************   
 
-NS_IMPL_ADDREF(nsDSURIContentListener)
-NS_IMPL_RELEASE(nsDSURIContentListener)
+NS_IMPL_THREADSAFE_ADDREF(nsDSURIContentListener)
+NS_IMPL_THREADSAFE_RELEASE(nsDSURIContentListener)
 
 NS_INTERFACE_MAP_BEGIN(nsDSURIContentListener)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIURIContentListener)

@@ -368,12 +368,12 @@ function check_state(test, lastTest, callback) {
 
       do_check_eq(expected, gNewBlocks.length);
     }
-    do_execute_soon(callback);
+    callback();
   });
 }
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" + gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Components.classes["@mozilla.org/extensions/blocklist;1"]
                             .getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -392,8 +392,7 @@ function run_test() {
 
   gTestserver = new HttpServer();
   gTestserver.registerDirectory("/data/", do_get_file("data"));
-  gTestserver.start(-1);
-  gPort = gTestserver.identity.primaryPort;
+  gTestserver.start(4444);
 
   do_test_pending();
   check_test_pt1();
@@ -411,7 +410,7 @@ function check_test_pt1() {
         do_throw("Addon " + (i + 1) + " did not get installed correctly");
     }
 
-    do_execute_soon(function checkstate1() {check_state("start", null, run_test_pt2);});
+    check_state("start", null, run_test_pt2);
   });
 }
 

@@ -155,10 +155,6 @@ let tests = [
 
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   for (let i = 0; i < tests.length; i++) {
     dm.cleanUp();
     tests[i]();

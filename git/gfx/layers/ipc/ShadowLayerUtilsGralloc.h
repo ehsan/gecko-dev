@@ -89,12 +89,10 @@ public:
   // see bug 865908 about fixing this.
   void SetDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
 
-  android::GraphicBuffer* GetGraphicBuffer();
-
-  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
-
 private:
   GrallocBufferActor();
+
+  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
 
   android::sp<GraphicBuffer> mGraphicBuffer;
 

@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/audio_conference_mixer/source/time_scheduler.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "critical_section_wrapper.h"
+#include "time_scheduler.h"
 
 namespace webrtc {
 TimeScheduler::TimeScheduler(const uint32_t periodicityInMs)

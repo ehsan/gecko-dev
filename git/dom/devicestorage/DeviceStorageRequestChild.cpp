@@ -33,8 +33,7 @@ DeviceStorageRequestChild::~DeviceStorageRequestChild() {
 }
 
 bool
-DeviceStorageRequestChild::
-  Recv__delete__(const DeviceStorageResponseValue& aValue)
+DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aValue)
 {
   if (mCallback) {
     mCallback->RequestComplete();
@@ -52,11 +51,11 @@ DeviceStorageRequestChild::
 
     case DeviceStorageResponseValue::TSuccessResponse:
     {
-      nsString fullPath;
-      mFile->GetFullPath(fullPath);
+      nsString compositePath;
+      mFile->GetCompositePath(compositePath);
       AutoJSContext cx;
       JS::Rooted<JS::Value> result(cx,
-        StringToJsval(mRequest->GetOwner(), fullPath));
+        StringToJsval(mRequest->GetOwner(), compositePath));
       mRequest->FireSuccess(result);
       break;
     }
@@ -106,14 +105,14 @@ DeviceStorageRequestChild::
     case DeviceStorageResponseValue::TEnumerationResponse:
     {
       EnumerationResponse r = aValue;
-      nsDOMDeviceStorageCursor* cursor
-        = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
+      nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
 
       uint32_t count = r.paths().Length();
       for (uint32_t i = 0; i < count; i++) {
-        nsRefPtr<DeviceStorageFile> dsf
-          = new DeviceStorageFile(r.type(), r.paths()[i].storageName(),
-                                  r.rootdir(), r.paths()[i].name());
+        nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(r.type(),
+                                                                r.paths()[i].storageName(),
+                                                                r.rootdir(),
+                                                                r.paths()[i].name());
         cursor->mFiles.AppendElement(dsf);
       }
 
@@ -132,8 +131,7 @@ DeviceStorageRequestChild::
 }
 
 void
-DeviceStorageRequestChild::
-  SetCallback(DeviceStorageRequestChildCallback *aCallback)
+DeviceStorageRequestChild::SetCallback(DeviceStorageRequestChildCallback *aCallback)
 {
   mCallback = aCallback;
 }

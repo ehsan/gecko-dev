@@ -94,8 +94,12 @@ partial interface Navigator {
 // http://www.w3.org/TR/geolocation-API/#geolocation_interface
 [NoInterfaceObject]
 interface NavigatorGeolocation {
-  [Throws, Pref="geo.enabled"]
-  readonly attribute Geolocation geolocation;
+  // XXXbz This should perhaps be controleld by the "geo.enabled" pref, instead
+  // of checking it in the C++.  Let's not for now to reduce risk.
+  // Also, we violate the spec as a result, since we can return null.  See bug
+  // 884921.
+  [Throws]
+  readonly attribute Geolocation? geolocation;
 };
 Navigator implements NavigatorGeolocation;
 
@@ -221,6 +225,13 @@ partial interface Navigator {
   boolean mozIsLocallyAvailable(DOMString uri, boolean whenOffline);
 };
 
+// nsIDOMMozNavigatorSms
+interface MozSmsManager;
+partial interface Navigator {
+  [Func="Navigator::HasSmsSupport"]
+  readonly attribute MozSmsManager? mozSms;
+};
+
 // nsIDOMMozNavigatorMobileMessage
 interface MozMobileMessageManager;
 partial interface Navigator {
@@ -252,9 +263,11 @@ partial interface Navigator {
 };
 
 #ifdef MOZ_B2G_RIL
+interface MozTelephony;
+// nsIDOMNavigatorTelephony
 partial interface Navigator {
   [Throws, Func="Navigator::HasTelephonySupport"]
-  readonly attribute Telephony? mozTelephony;
+  readonly attribute MozTelephony? mozTelephony;
 };
 
 // nsIMozNavigatorMobileConnection
@@ -264,11 +277,15 @@ partial interface Navigator {
   readonly attribute MozMobileConnection mozMobileConnection;
 };
 
+// nsIMozNavigatorCellBroadcast
+interface MozCellBroadcast;
 partial interface Navigator {
   [Throws, Func="Navigator::HasCellBroadcastSupport"]
   readonly attribute MozCellBroadcast mozCellBroadcast;
 };
 
+// nsIMozNavigatorVoicemail
+interface MozVoicemail;
 partial interface Navigator {
   [Throws, Func="Navigator::HasVoicemailSupport"]
   readonly attribute MozVoicemail mozVoicemail;
@@ -291,18 +308,13 @@ partial interface Navigator {
 #endif // MOZ_GAMEPAD
 
 #ifdef MOZ_B2G_BT
+// nsIDOMNavigatorBluetooth
+interface MozBluetoothManager;
 partial interface Navigator {
   [Throws, Func="Navigator::HasBluetoothSupport"]
-  readonly attribute BluetoothManager mozBluetooth;
+  readonly attribute MozBluetoothManager mozBluetooth;
 };
 #endif // MOZ_B2G_BT
-
-#ifdef MOZ_B2G_FM
-partial interface Navigator {
-  [Throws, Func="Navigator::HasFMRadioSupport"]
-  readonly attribute FMRadio mozFMRadio;
-};
-#endif // MOZ_B2G_FM
 
 #ifdef MOZ_TIME_MANAGER
 // nsIDOMMozNavigatorTime

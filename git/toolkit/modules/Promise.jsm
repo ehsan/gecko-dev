@@ -172,60 +172,6 @@ this.Promise = Object.freeze({
     PromiseWalker.completePromise(promise, STATUS_REJECTED, aReason);
     return promise;
   },
-
-  /**
-   * Returns a promise that is resolved or rejected when all values are
-   * resolved or any is rejected.
-   *
-   * @param aValues
-   *        Array of promises that may be pending, resolved, or rejected. When
-   *        all are resolved or any is rejected, the returned promise will be
-   *        resolved or rejected as well.
-   *
-   * @return A new promise that is fulfilled when all values are resolved or
-   *         that is rejected when any of the values are rejected. Its
-   *         resolution value will be an array of all resolved values in the
-   *         given order, or undefined if aValues is an empty array. The reject
-   *         reason will be forwarded from the first promise in the list of
-   *         given promises to be rejected.
-   */
-  all: function (aValues)
-  {
-    if (!Array.isArray(aValues)) {
-      throw new Error("Promise.all() expects an array of promises or values.");
-    }
-
-    if (!aValues.length) {
-      return Promise.resolve([]);
-    }
-
-    let countdown = aValues.length;
-    let deferred = Promise.defer();
-    let resolutionValues = new Array(countdown);
-
-    function checkForCompletion(aValue, aIndex) {
-      resolutionValues[aIndex] = aValue;
-
-      if (--countdown === 0) {
-        deferred.resolve(resolutionValues);
-      }
-    }
-
-    for (let i = 0; i < aValues.length; i++) {
-      let index = i;
-      let value = aValues[i];
-      let resolve = val => checkForCompletion(val, index);
-
-      if (value && typeof(value.then) == "function") {
-        value.then(resolve, deferred.reject);
-      } else {
-        // Given value is not a promise, forward it as a resolution value.
-        resolve(value);
-      }
-    }
-
-    return deferred.promise;
-  },
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,16 +229,6 @@ this.PromiseWalker = {
   },
 
   /**
-   * Sets up the PromiseWalker loop to start on the next tick of the event loop
-   */
-  scheduleWalkerLoop: function()
-  {
-    this.walkerLoopScheduled = true;
-    Services.tm.currentThread.dispatch(this.walkerLoop,
-                                       Ci.nsIThread.DISPATCH_NORMAL);
-  },
-
-  /**
    * Schedules the resolution or rejection handlers registered on the provided
    * promise for processing.
    *
@@ -310,7 +246,9 @@ this.PromiseWalker = {
 
     // Schedule the walker loop on the next tick of the event loop.
     if (!this.walkerLoopScheduled) {
-      this.scheduleWalkerLoop();
+      this.walkerLoopScheduled = true;
+      Services.tm.currentThread.dispatch(this.walkerLoop,
+                                         Ci.nsIThread.DISPATCH_NORMAL);
     }
   },
 
@@ -329,21 +267,15 @@ this.PromiseWalker = {
    */
   walkerLoop: function ()
   {
-    // If there is more than one handler waiting, reschedule the walker loop
-    // immediately.  Otherwise, use walkerLoopScheduled to tell schedulePromise()
-    // to reschedule the loop if it adds more handlers to the queue.  This makes
-    // this walker resilient to the case where one handler does not return, but
-    // starts a nested event loop.  In that case, the newly scheduled walker will
-    // take over.  In the common case, the newly scheduled walker will be invoked
+    // Allow rescheduling the walker loop immediately.  This makes this walker
+    // resilient to the case where one handler does not return, but starts a
+    // nested event loop.  In that case, the newly scheduled walker will take
+    // over.  In the common case, the newly scheduled walker will be invoked
     // after this one has returned, with no actual handler to process.  This
     // small overhead is required to make nested event loops work correctly, but
     // occurs at most once per resolution chain, thus having only a minor
     // impact on overall performance.
-    if (this.handlers.length > 1) {
-      this.scheduleWalkerLoop();
-    } else {
-      this.walkerLoopScheduled = false;
-    }
+    this.walkerLoopScheduled = false;
 
     // Process all the known handlers eagerly.
     while (this.handlers.length > 0) {

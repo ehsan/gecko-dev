@@ -9,7 +9,6 @@
 #include "nsGlobalWindow.h"
 #include "nsIDocShell.h"
 #include "nsIScrollable.h"
-#include "nsIWebBrowserChrome.h"
 
 namespace mozilla {
 namespace dom {

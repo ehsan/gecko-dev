@@ -1400,10 +1400,6 @@ toolbar[mode="icons"] #zoom-in-button {
     list-style-image: url(chrome://browser/skin/identity-icons-https-mixed-active@2x.png);
   }
 
-  .mixedDisplayContent > #page-proxy-favicon[pageproxystate="valid"] {
-    list-style-image: url(chrome://browser/skin/identity-icons-https-mixed-display@2x.png);
-  }
-
   #identity-box:hover:active > #page-proxy-favicon,
   #identity-box[open=true] > #page-proxy-favicon {
     -moz-image-region: rect(0, 64px, 32px, 32px);
@@ -1616,7 +1612,6 @@ window[tabsontop="false"] richlistitem[type~="action"][actiontype="switchtab"][s
   #go-button,
   #urlbar-go-button {
     -moz-image-region: rect(0, 84px, 28px, 56px);
-    height: 14px;
   }
 
   #go-button:hover:active,
@@ -1687,22 +1682,6 @@ window[tabsontop="false"] richlistitem[type~="action"][actiontype="switchtab"][s
 #social-share-button[open],
 #social-share-button:hover:active {
   list-style-image: url("chrome://browser/skin/social/share-button-active.png");
-}
-
-#social-share-button > .toolbarbutton-icon {
-  width: 13px;
-  height: 14px;
-}
-
-@media (min-resolution: 2dppx) {
-  #social-share-button {
-    list-style-image: url("chrome://browser/skin/social/share-button@2x.png");
-  }
-
-  #social-share-button[open],
-  #social-share-button:hover:active {
-    list-style-image: url("chrome://browser/skin/social/share-button-active@2x.png");
-  }
 }
 
 .social-share-toolbar {
@@ -2260,10 +2239,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   border: none;
   text-align: center;
   -moz-box-align: stretch;
-}
-
-.tabbrowser-tab[remote] {
-  text-decoration: underline;
 }
 
 %define TABSONTOP_TAB #tabbrowser-tabs[tabsontop="true"] > .tabbrowser-tab
@@ -3159,74 +3134,26 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 .webapps-notification-icon,
 #webapps-notification-icon {
-  list-style-image: url(chrome://global/skin/icons/webapps-16.png);
+  list-style-image: url(chrome://browser/skin/webapps-16.png);
 }
 @media (min-resolution: 2dppx) {
   .webapps-notification-icon,
   #webapps-notification-icon {
-    list-style-image: url(chrome://global/skin/icons/webapps-16@2x.png);
+    list-style-image: url(chrome://browser/skin/webapps-16@2x.png);
   }
 }
 
 #plugins-notification-icon {
-  list-style-image: url(chrome://browser/skin/notification-pluginNormal.png);
-}
-
-#alert-plugins-notification-icon {
-  list-style-image: url(chrome://browser/skin/notification-pluginAlert.png);
+  list-style-image: url(chrome://mozapps/skin/plugins/pluginGeneric-16.png);
 }
 
 #blocked-plugins-notification-icon {
-  list-style-image: url(chrome://browser/skin/notification-pluginBlocked.png);
-}
-
-#plugins-notification-icon,
-#alert-plugins-notification-icon,
-#blocked-plugins-notification-icon {
-  -moz-image-region: rect(0, 16px, 16px, 0);
-}
-
-#plugins-notification-icon:hover,
-#alert-plugins-notification-icon:hover,
-#blocked-plugins-notification-icon:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
-#plugins-notification-icon:active,
-#alert-plugins-notification-icon:active,
-#blocked-plugins-notification-icon:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+  list-style-image: url(chrome://mozapps/skin/plugins/notifyPluginBlocked.png);
 }
 
 @media (min-resolution: 2dppx) {
-  #plugins-notification-icon {
-    list-style-image: url(chrome://browser/skin/notification-pluginNormal@2x.png);
-  }
-
-  #alert-plugins-notification-icon {
-    list-style-image: url(chrome://browser/skin/notification-pluginAlert@2x.png);
-  }
-
   #blocked-plugins-notification-icon {
-    list-style-image: url(chrome://browser/skin/notification-pluginBlocked@2x.png);
-  }
-
-  #plugins-notification-icon,
-  #alert-plugins-notification-icon,
-  #blocked-plugins-notification-icon {
-    -moz-image-region: rect(0, 32px, 32px, 0);
-  }
-
-  #plugins-notification-icon:hover,
-  #alert-plugins-notification-icon:hover,
-  #blocked-plugins-notification-icon:hover {
-    -moz-image-region: rect(0, 64px, 32px, 32px);
-  }
-
-  #plugins-notification-icon:active,
-  #alert-plugins-notification-icon:active,
-  #blocked-plugins-notification-icon:active {
-    -moz-image-region: rect(0, 96px, 32px, 64px);
+    list-style-image: url(chrome://mozapps/skin/plugins/pluginBlocked.png);
   }
 }
 
@@ -3256,6 +3183,12 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   }
   to {
     opacity: 1;
+  }
+}
+
+@media (min-resolution: 2dppx) {
+  #plugins-notification-icon {
+    list-style-image: url(chrome://mozapps/skin/plugins/pluginGeneric.png);
   }
 }
 
@@ -3406,7 +3339,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 .popup-notification-icon[popupid="webapps-install"] {
-  list-style-image: url(chrome://global/skin/icons/webapps-64.png);
+  list-style-image: url(chrome://browser/skin/webapps-64.png);
 }
 
 .popup-notification-icon[popupid="mixed-content-blocked"] {
@@ -3629,9 +3562,9 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 #full-screen-warning-message {
-  background-image: url("chrome://browser/skin/fullscreen-darknoise.png");
+  background-color: hsl(0,0%,15%);
   color: white;
-  border-radius: 4px;
+  border-radius: 8px;
   margin-top: 30px;
   padding: 30px 50px;
   box-shadow: 0 0 2px white;
@@ -3658,16 +3591,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 %include ../shared/devtools/highlighter.inc.css
 %include ../shared/devtools/commandline.inc.css
 %include ../shared/plugin-doorhanger.inc.css
-
-/* On mac, the popup notification contents are indented by default and so
-  the default closebutton margins from notification.css require adjustment */
-
-.click-to-play-plugins-notification-description-box > .popup-notification-closebutton {
-  -moz-margin-end: -6px;
-  margin-top: -7px;
-}
-
-
 
 .gclitoolbar-input-node > .textbox-input-box > html|*.textbox-input::-moz-selection {
   color: hsl(210,11%,16%);

@@ -13,7 +13,7 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 function performTest(lastFinishedRequest, aConsole)
 {
   ok(lastFinishedRequest, "charset test page was loaded and logged");
-  HUDService.lastFinishedRequest.callback = null;
+  HUDService.lastFinishedRequestCallback = null;
 
   executeSoon(() => {
     aConsole.webConsoleClient.getResponseContent(lastFinishedRequest.actor,
@@ -27,7 +27,7 @@ function performTest(lastFinishedRequest, aConsole)
         isnot(body.indexOf("<p>" + chars + "</p>"), -1,
           "found the chinese simplified string");
 
-        HUDService.lastFinishedRequest.callback = null;
+        HUDService.lastFinishedRequestCallback = null;
         executeSoon(finishTest);
       });
   });
@@ -45,7 +45,7 @@ function test()
         ok(hud.ui._saveRequestAndResponseBodies,
           "The saveRequestAndResponseBodies property was successfully set.");
 
-        HUDService.lastFinishedRequest.callback = performTest;
+        HUDService.lastFinishedRequestCallback = performTest;
         content.location = TEST_URI;
       });
     });

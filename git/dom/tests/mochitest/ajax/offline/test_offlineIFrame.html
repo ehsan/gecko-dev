@@ -23,7 +23,8 @@ function checkEntries() {
 
 function childFinished()
 {
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 if (OfflineTest.setup()) {

@@ -61,7 +61,7 @@ MonitorModule::Version(char* version,
 }
    
 int32_t 
-MonitorModule::ChangeUniqueId(int32_t id)
+MonitorModule::ChangeUniqueId(const int32_t id)
 {
     return 0;
 }

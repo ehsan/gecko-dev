@@ -29,8 +29,8 @@ this.AccessFu = {
     Utils.init(aWindow);
 
     try {
-      let bridgeCc = Cc['@mozilla.org/android/bridge;1'];
-      bridgeCc.getService(Ci.nsIAndroidBridge).handleGeckoMessage(
+      Cc['@mozilla.org/android/bridge;1'].
+        getService(Ci.nsIAndroidBridge).handleGeckoMessage(
           JSON.stringify({ type: 'Accessibility:Ready' }));
       Services.obs.addObserver(this, 'Accessibility:Settings', false);
     } catch (x) {
@@ -116,8 +116,7 @@ this.AccessFu = {
     Services.obs.addObserver(this, 'Accessibility:PreviousObject', false);
     Services.obs.addObserver(this, 'Accessibility:Focus', false);
     Services.obs.addObserver(this, 'Accessibility:ActivateObject', false);
-    Services.obs.addObserver(this, 'Accessibility:LongPress', false);
-    Services.obs.addObserver(this, 'Accessibility:MoveByGranularity', false);
+    Services.obs.addObserver(this, 'Accessibility:MoveCaret', false);
     Utils.win.addEventListener('TabOpen', this);
     Utils.win.addEventListener('TabClose', this);
     Utils.win.addEventListener('TabSelect', this);
@@ -160,11 +159,7 @@ this.AccessFu = {
     Services.obs.removeObserver(this, 'Accessibility:PreviousObject');
     Services.obs.removeObserver(this, 'Accessibility:Focus');
     Services.obs.removeObserver(this, 'Accessibility:ActivateObject');
-    Services.obs.removeObserver(this, 'Accessibility:LongPress');
-    Services.obs.removeObserver(this, 'Accessibility:MoveByGranularity');
-
-    delete this._quicknavModesPref;
-    delete this._notifyOutputPref;
+    Services.obs.removeObserver(this, 'Accessibility:MoveCaret');
 
     if (this.doneCallback) {
       this.doneCallback();
@@ -174,9 +169,6 @@ this.AccessFu = {
 
   _enableOrDisable: function _enableOrDisable() {
     try {
-      if (!this._activatePref) {
-        return;
-      }
       let activatePref = this._activatePref.value;
       if (activatePref == ACCESSFU_ENABLE ||
           this._systemPref && activatePref == ACCESSFU_AUTO)
@@ -208,9 +200,6 @@ this.AccessFu = {
         break;
       case 'AccessFu:ActivateContextMenu':
         this.Input.activateContextMenu(aMessage.json);
-        break;
-      case 'AccessFu:DoScroll':
-        this.Input.doScroll(aMessage.json);
         break;
     }
   },
@@ -251,7 +240,6 @@ this.AccessFu = {
     aMessageManager.addMessageListener('AccessFu:Input', this);
     aMessageManager.addMessageListener('AccessFu:Ready', this);
     aMessageManager.addMessageListener('AccessFu:ActivateContextMenu', this);
-    aMessageManager.addMessageListener('AccessFu:DoScroll', this);
   },
 
   _removeMessageListeners: function _removeMessageListeners(aMessageManager) {
@@ -259,7 +247,6 @@ this.AccessFu = {
     aMessageManager.removeMessageListener('AccessFu:Input', this);
     aMessageManager.removeMessageListener('AccessFu:Ready', this);
     aMessageManager.removeMessageListener('AccessFu:ActivateContextMenu', this);
-    aMessageManager.removeMessageListener('AccessFu:DoScroll', this);
   },
 
   _handleMessageManager: function _handleMessageManager(aMessageManager) {
@@ -284,17 +271,14 @@ this.AccessFu = {
       case 'Accessibility:ActivateObject':
         this.Input.activateCurrent(JSON.parse(aData));
         break;
-      case 'Accessibility:LongPress':
-        this.Input.sendContextMenuMessage();
-        break;
       case 'Accessibility:Focus':
         this._focused = JSON.parse(aData);
         if (this._focused) {
           this.showCurrent(true);
         }
         break;
-      case 'Accessibility:MoveByGranularity':
-        this.Input.moveByGranularity(JSON.parse(aData));
+      case 'Accessibility:MoveCaret':
+        this.Input.moveCaret(JSON.parse(aData));
         break;
       case 'remote-browser-frame-shown':
       case 'in-process-browser-or-app-frame-shown':
@@ -492,119 +476,6 @@ var Output = {
     }
   },
 
-  speechHelper: {
-    EARCONS: ['chrome://global/content/accessibility/tick.wav'],
-
-    delayedActions: [],
-
-    earconsToLoad: -1, // -1: not inited, 1 or more: initing, 0: inited
-
-    earconBuffers: {},
-
-    webaudioEnabled: false,
-
-    webspeechEnabled: false,
-
-    doDelayedActionsIfLoaded: function doDelayedActionsIfLoaded(aToLoadCount) {
-      if (aToLoadCount === 0) {
-        this.outputActions(this.delayedActions);
-        this.delayedActions = [];
-        return true;
-      }
-
-      return false;
-    },
-
-    init: function init() {
-      if (this.earconsToLoad === 0) {
-        // Already inited.
-        return;
-      }
-
-      let window = Utils.win;
-      this.webaudioEnabled = !!window.AudioContext;
-      this.webspeechEnabled = !!window.speechSynthesis;
-
-      this.earconsToLoad = this.webaudioEnabled ? this.EARCONS.length : 0;
-
-      if (this.doDelayedActionsIfLoaded(this.earconsToLoad)) {
-        // Nothing to load
-        return;
-      }
-
-      this.audioContext = new window.AudioContext();
-
-      for (let earcon of this.EARCONS) {
-        let xhr = new window.XMLHttpRequest();
-        xhr.open('GET', earcon);
-        xhr.responseType = 'arraybuffer';
-        xhr.onerror = () => {
-          Logger.error('Error getting earcon:', xhr.statusText);
-          this.doDelayedActionsIfLoaded(--this.earconsToLoad);
-        };
-        xhr.onload = () => {
-          this.audioContext.decodeAudioData(
-            xhr.response,
-            (audioBuffer) => {
-              try {
-                let earconName = /.*\/(.*)\..*$/.exec(earcon)[1];
-                this.earconBuffers[earconName] = new WeakMap();
-                this.earconBuffers[earconName].set(window, audioBuffer);
-                this.doDelayedActionsIfLoaded(--this.earconsToLoad);
-              } catch (x) {
-                Logger.logException(x);
-              }
-            },
-            () => {
-              this.doDelayedActionsIfLoaded(--this.earconsToLoad);
-              Logger.error('Error decoding earcon');
-            });
-        };
-        xhr.send();
-      }
-    },
-
-    output: function output(aActions) {
-      if (this.earconsToLoad !== 0) {
-        // We did not load the earcons yet.
-        this.delayedActions.push.apply(this.delayedActions, aActions);
-        if (this.earconsToLoad < 0) {
-          // Loading did not start yet, start it.
-          this.init();
-        }
-        return;
-      }
-
-      this.outputActions(aActions);
-    },
-
-    outputActions: function outputActions(aActions) {
-      for (let action of aActions) {
-        let window = Utils.win;
-        Logger.info('tts.' + action.method,
-                    '"' + action.data + '"',
-                    JSON.stringify(action.options));
-
-        if (!action.options.enqueue && this.webspeechEnabled) {
-          window.speechSynthesis.cancel();
-        }
-
-        if (action.method === 'speak' && this.webspeechEnabled) {
-          window.speechSynthesis.speak(
-            new window.SpeechSynthesisUtterance(action.data));
-        } else if (action.method === 'playEarcon' && this.webaudioEnabled) {
-          let audioBufferWeakMap = this.earconBuffers[action.data];
-          if (audioBufferWeakMap) {
-            let node = this.audioContext.createBufferSource();
-            node.connect(this.audioContext.destination);
-            node.buffer = audioBufferWeakMap.get(window);
-            node.start(0);
-          }
-        }
-      }
-    }
-  },
-
   start: function start() {
     Cu.import('resource://gre/modules/Geometry.jsm');
   },
@@ -622,7 +493,8 @@ var Output = {
   },
 
   Speech: function Speech(aDetails, aBrowser) {
-    this.speechHelper.output(aDetails.actions);
+    for each (let action in aDetails.actions)
+      Logger.info('tts.' + action.method, '"' + action.data + '"', JSON.stringify(action.options));
   },
 
   Visual: function Visual(aDetails, aBrowser) {
@@ -781,7 +653,7 @@ var Input = {
     switch (gestureName) {
       case 'dwell1':
       case 'explore1':
-        this.moveToPoint('Simple', aGesture.x, aGesture.y);
+        this.moveToPoint('SimpleTouch', aGesture.x, aGesture.y);
         break;
       case 'doubletap1':
         this.activateCurrent();
@@ -796,16 +668,16 @@ var Input = {
         this.moveCursor('movePrevious', 'Simple', 'gesture');
         break;
       case 'swiperight2':
-        this.sendScrollMessage(-1, true);
+        this.scroll(-1, true);
         break;
       case 'swipedown2':
-        this.sendScrollMessage(-1);
+        this.scroll(-1);
         break;
       case 'swipeleft2':
-        this.sendScrollMessage(1, true);
+        this.scroll(1, true);
         break;
       case 'swipeup2':
-        this.sendScrollMessage(1);
+        this.scroll(1);
         break;
       case 'explore2':
         Utils.CurrentBrowser.contentWindow.scrollBy(
@@ -916,23 +788,16 @@ var Input = {
                          origin: 'top', inputType: aInputType});
   },
 
-  moveByGranularity: function moveByGranularity(aDetails) {
-    const MOVEMENT_GRANULARITY_PARAGRAPH = 8;
-
+  moveCaret: function moveCaret(aDetails) {
     if (!this.editState.editing) {
-      if (aDetails.granularity === MOVEMENT_GRANULARITY_PARAGRAPH) {
-        this.moveCursor('move' + aDetails.direction, 'Paragraph', 'gesture');
-        return;
-      }
-    } else {
-      aDetails.atStart = this.editState.atStart;
-      aDetails.atEnd = this.editState.atEnd;
+      return;
     }
 
+    aDetails.atStart = this.editState.atStart;
+    aDetails.atEnd = this.editState.atEnd;
+
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    let type = this.editState.editing ? 'AccessFu:MoveCaret' :
-                                        'AccessFu:MoveByGranularity';
-    mm.sendAsyncMessage(type, aDetails);
+    mm.sendAsyncMessage('AccessFu:MoveCaret', aDetails);
   },
 
   activateCurrent: function activateCurrent(aData) {
@@ -948,9 +813,9 @@ var Input = {
     mm.sendAsyncMessage('AccessFu:ContextMenu', {});
   },
 
-  activateContextMenu: function activateContextMenu(aDetails) {
+  activateContextMenu: function activateContextMenu(aMessage) {
     if (Utils.MozBuildApp === 'mobile/android') {
-      let p = AccessFu.adjustContentBounds(aDetails.bounds, Utils.CurrentBrowser,
+      let p = AccessFu.adjustContentBounds(aMessage.bounds, Utils.CurrentBrowser,
                                            true, true).center();
       Services.obs.notifyObservers(null, 'Gesture:LongPress',
                                    JSON.stringify({x: p.x, y: p.y}));
@@ -961,27 +826,9 @@ var Input = {
     this.editState = aEditState;
   },
 
-  // XXX: This is here for backwards compatability with screen reader simulator
-  // it should be removed when the extension is updated on amo.
   scroll: function scroll(aPage, aHorizontal) {
-    this.sendScrollMessage(aPage, aHorizontal);
-  },
-
-  sendScrollMessage: function sendScrollMessage(aPage, aHorizontal) {
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
     mm.sendAsyncMessage('AccessFu:Scroll', {page: aPage, horizontal: aHorizontal, origin: 'top'});
-  },
-
-  doScroll: function doScroll(aDetails) {
-    let horizontal = aDetails.horizontal;
-    let page = aDetails.page;
-    let p = AccessFu.adjustContentBounds(aDetails.bounds, Utils.CurrentBrowser,
-                                         true, true).center();
-    let wu = Utils.win.QueryInterface(Ci.nsIInterfaceRequestor).
-      getInterface(Ci.nsIDOMWindowUtils);
-    wu.sendWheelEvent(p.x, p.y,
-                      horizontal ? page : 0, horizontal ? 0 : page, 0,
-                      Utils.win.WheelEvent.DOM_DELTA_PAGE, 0, 0, 0, 0);
   },
 
   get keyMap() {

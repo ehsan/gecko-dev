@@ -22,7 +22,7 @@ extern PRLogModuleInfo* GetMediaManagerLog();
 /**
  * Webrtc video source.
  */
-NS_IMPL_ISUPPORTS1(MediaEngineWebRTCVideoSource, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(MediaEngineWebRTCVideoSource, nsIRunnable)
 
 // ViEExternalRenderer Callback.
 #ifndef MOZ_B2G_CAMERA
@@ -612,7 +612,7 @@ MediaEngineWebRTCVideoSource::AllocImpl() {
                                              mCameraThread,
                                              this,
                                              this,
-                                             nsGlobalWindow::GetInnerWindowWithId(mWindowId));
+                                             mWindowId);
   mCameraManager->Register(mDOMCameraControl);
 }
 
@@ -662,7 +662,7 @@ MediaEngineWebRTCVideoSource::SnapshotImpl() {
 
 // nsICameraGetCameraCallback
 nsresult
-MediaEngineWebRTCVideoSource::HandleEvent(nsISupports* /* unused */) {
+MediaEngineWebRTCVideoSource::HandleEvent(nsICameraControl* camera) {
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
   mNativeCameraControl = static_cast<nsGonkCameraControl*>(mDOMCameraControl->GetNativeCameraControl().get());

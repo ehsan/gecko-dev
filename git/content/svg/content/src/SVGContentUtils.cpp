@@ -141,7 +141,7 @@ SVGContentUtils::ReportToConsole(nsIDocument* doc,
                                  uint32_t aParamsLength)
 {
   return nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                         NS_LITERAL_CSTRING("SVG"), doc,
+                                         "SVG", doc,
                                          nsContentUtils::eSVG_PROPERTIES,
                                          aWarning,
                                          aParams, aParamsLength);

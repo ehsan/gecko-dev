@@ -17,7 +17,7 @@
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS1(Tickler, nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS1(Tickler, nsISupportsWeakReference)
 
 Tickler::Tickler()
     : mLock("Tickler::mLock")
@@ -31,39 +31,14 @@ Tickler::Tickler()
   MOZ_ASSERT(NS_IsMainThread());
 }
 
-class TicklerThreadDestructor  : public nsRunnable
-{
-public:
-  explicit TicklerThreadDestructor(nsIThread *aThread)
-    : mThread(aThread) { }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    if (mThread)
-      mThread->Shutdown();
-    return NS_OK;
-  }
-
-private:
-  ~TicklerThreadDestructor() { }
-  nsCOMPtr<nsIThread> mThread;
-};
-
 Tickler::~Tickler()
 {
   // non main thread uses of the tickler should hold weak
   // references to it if they must hold a reference at all
   MOZ_ASSERT(NS_IsMainThread());
 
-  // Shutting down a thread can spin the event loop - which is a surprising
-  // thing to do from a dtor. Running it on its own event is safer.
-  nsRefPtr<nsIRunnable> event = new TicklerThreadDestructor(mThread);
-  if (NS_FAILED(NS_DispatchToCurrentThread(event))) {
+  if (mThread)
     mThread->Shutdown();
-  }
-  mThread = nullptr;
-
   if (mTimer)
     mTimer->Cancel();
   if (mFD)
@@ -215,7 +190,7 @@ void Tickler::StopTickler()
 
 class TicklerTimer MOZ_FINAL : public nsITimerCallback
 {
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
   TicklerTimer(Tickler *aTickler)
@@ -254,7 +229,7 @@ void Tickler::SetIPV4Port(uint16_t port)
   mAddr.inet.port = port;
 }
 
-NS_IMPL_ISUPPORTS1(TicklerTimer, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(TicklerTimer, nsITimerCallback)
 
 NS_IMETHODIMP TicklerTimer::Notify(nsITimer *timer)
 {
@@ -288,7 +263,7 @@ NS_IMETHODIMP TicklerTimer::Notify(nsITimer *timer)
 
 namespace mozilla {
 namespace net {
-NS_IMPL_ISUPPORTS0(Tickler)
+NS_IMPL_THREADSAFE_ISUPPORTS0(Tickler)
 } // namespace mozilla::net
 } // namespace mozilla
 

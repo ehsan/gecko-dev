@@ -20,11 +20,10 @@ public:
                          nsEvent* aEvent);
   virtual ~SpeechRecognitionError();
 
-  static already_AddRefed<SpeechRecognitionError>
-  Constructor(const GlobalObject& aGlobal,
-              const nsAString& aType,
-              const SpeechRecognitionErrorInit& aParam,
-              ErrorResult& aRv);
+  static already_AddRefed<SpeechRecognitionError> Constructor(const GlobalObject& aGlobal,
+                                                              const nsAString& aType,
+                                                              const SpeechRecognitionErrorInit& aParam,
+                                                              ErrorResult& aRv);
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {

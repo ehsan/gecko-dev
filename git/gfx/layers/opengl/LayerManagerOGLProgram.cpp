@@ -2,22 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "LayerManagerOGLProgram.h"
-#include <stdint.h>                     // for uint32_t
-#include "gfxMatrix.h"                  // for gfxMatrix
-#include "gfxPoint.h"                   // for gfxIntSize, gfxPoint, etc
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/DebugOnly.h"          // for DebugOnly
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsString.h"                   // for nsAutoCString
-#include "prenv.h"                      // for PR_GetEnv
-#include "LayerManagerOGL.h"
-#include "LayerManagerOGLShaders.h"
-#include "Layers.h"
-#include "GLContext.h"
+#include "mozilla/DebugOnly.h"
 
-struct gfxRGBA;
+#include "LayerManagerOGLProgram.h"
+
+#include "LayerManagerOGLShaders.h"
+#include "LayerManagerOGL.h"
+
+#include "GLContext.h"
 
 namespace mozilla {
 namespace layers {
@@ -40,7 +32,6 @@ AddCommonTextureArgs(ProgramProfileOGL& aProfile)
 {
   aProfile.mUniforms.AppendElement(Argument("uLayerOpacity"));
   aProfile.mUniforms.AppendElement(Argument("uTexture"));
-  aProfile.mUniforms.AppendElement(Argument("uTextureTransform"));
   aProfile.mAttributes.AppendElement(Argument("aTexCoord"));
 }
 
@@ -65,6 +56,23 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     }
     AddCommonArgs(result);
     AddCommonTextureArgs(result);
+    result.mTextureCount = 1;
+    break;
+  case RGBALayerExternalProgramType:
+    if (aMask == Mask3d) {
+      result.mVertexShaderString = sLayerMask3DVS;
+      result.mFragmentShaderString = sRGBATextureLayerExternalMask3DFS;
+    } else if (aMask == Mask2d) {
+      result.mVertexShaderString = sLayerMaskVS;
+      result.mFragmentShaderString = sRGBATextureLayerExternalMaskFS;
+    } else {
+      result.mVertexShaderString = sLayerVS;
+      result.mFragmentShaderString = sRGBATextureLayerExternalFS;
+    }
+    AddCommonArgs(result);
+    AddCommonTextureArgs(result);
+    result.mUniforms.AppendElement(Argument("uTextureTransform"));
+    result.mHasTextureTransform = true;
     result.mTextureCount = 1;
     break;
   case BGRALayerProgramType:
@@ -180,7 +188,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uYTexture"));
     result.mUniforms.AppendElement(Argument("uCbTexture"));
     result.mUniforms.AppendElement(Argument("uCrTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 3;
     break;
@@ -196,7 +203,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uLayerOpacity"));
     result.mUniforms.AppendElement(Argument("uBlackTexture"));
     result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 2;
     break;
@@ -212,7 +218,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uLayerOpacity"));
     result.mUniforms.AppendElement(Argument("uBlackTexture"));
     result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 2;
     break;
@@ -228,7 +233,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uLayerOpacity"));
     result.mUniforms.AppendElement(Argument("uBlackTexture"));
     result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 2;
     break;
@@ -244,7 +248,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mUniforms.AppendElement(Argument("uLayerOpacity"));
     result.mUniforms.AppendElement(Argument("uBlackTexture"));
     result.mUniforms.AppendElement(Argument("uWhiteTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 2;
     break;
@@ -253,7 +256,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mVertexShaderString = sCopyVS;
     result.mFragmentShaderString = sCopy2DFS;
     result.mUniforms.AppendElement(Argument("uTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aVertexCoord"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 1;
@@ -263,7 +265,6 @@ ProgramProfileOGL::GetProfileFor(ShaderProgramType aType,
     result.mVertexShaderString = sCopyVS;
     result.mFragmentShaderString = sCopy2DRectFS;
     result.mUniforms.AppendElement(Argument("uTexture"));
-    result.mUniforms.AppendElement(Argument("uTextureTransform"));
     result.mAttributes.AppendElement(Argument("aVertexCoord"));
     result.mAttributes.AppendElement(Argument("aTexCoord"));
     result.mTextureCount = 1;
@@ -344,7 +345,7 @@ ShaderProgramOGL::CreateShader(GLenum aShaderType, const char *aShaderSource)
   GLint success, len = 0;
 
   GLint sh = mGL->fCreateShader(aShaderType);
-  mGL->fShaderSource(sh, 1, (const GLchar**)&aShaderSource, nullptr);
+  mGL->fShaderSource(sh, 1, (const GLchar**)&aShaderSource, NULL);
   mGL->fCompileShader(sh);
   mGL->fGetShaderiv(sh, LOCAL_GL_COMPILE_STATUS, &success);
   mGL->fGetShaderiv(sh, LOCAL_GL_INFO_LOG_LENGTH, (GLint*) &len);

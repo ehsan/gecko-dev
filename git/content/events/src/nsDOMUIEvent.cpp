@@ -7,6 +7,7 @@
 #include "ipc/IPCMessageUtils.h"
 #include "nsCOMPtr.h"
 #include "nsDOMUIEvent.h"
+#include "nsIPresShell.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMNode.h"
@@ -14,6 +15,7 @@
 #include "nsContentUtils.h"
 #include "nsEventStateManager.h"
 #include "nsIFrame.h"
+#include "nsIScrollableFrame.h"
 #include "mozilla/Util.h"
 #include "mozilla/Assertions.h"
 #include "prtime.h"
@@ -80,7 +82,7 @@ nsDOMUIEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
                           const mozilla::dom::UIEventInit& aParam,
                           mozilla::ErrorResult& aRv)
 {
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
   nsRefPtr<nsDOMUIEvent> e = new nsDOMUIEvent(t, nullptr, nullptr);
   bool trusted = e->Init(t);
   aRv = e->InitUIEvent(aType, aParam.mBubbles, aParam.mCancelable, aParam.mView,
@@ -100,8 +102,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMUIEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 static nsIntPoint
-DevPixelsToCSSPixels(const LayoutDeviceIntPoint& aPoint,
-                     nsPresContext* aContext)
+DevPixelsToCSSPixels(const nsIntPoint& aPoint, nsPresContext* aContext)
 {
   return nsIntPoint(aContext->DevPixelsToIntCSSPixels(aPoint.x),
                     aContext->DevPixelsToIntCSSPixels(aPoint.y));
@@ -348,7 +349,7 @@ nsDOMUIEvent::IsChar() const
     case NS_KEY_EVENT:
       return static_cast<nsKeyEvent*>(mEvent)->isChar;
     case NS_TEXT_EVENT:
-      return static_cast<nsTextEvent*>(mEvent)->isChar;
+      return static_cast<nsKeyEvent*>(mEvent)->isChar;
     default:
       return false;
   }
@@ -374,7 +375,7 @@ nsDOMUIEvent::DuplicatePrivateData()
                                                        mEvent->refPoint);
   nsresult rv = nsDOMEvent::DuplicatePrivateData();
   if (NS_SUCCEEDED(rv)) {
-    mEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(screenPoint);
+    mEvent->refPoint = screenPoint;
   }
   return rv;
 }
@@ -460,9 +461,6 @@ nsDOMUIEvent::ComputeModifierState(const nsAString& aModifiersList)
 bool
 nsDOMUIEvent::GetModifierStateInternal(const nsAString& aKey)
 {
-  if (!NS_IS_INPUT_EVENT(mEvent)) {
-    MOZ_CRASH("mEvent must be nsInputEvent or derived class");
-  }
   nsInputEvent* inputEvent = static_cast<nsInputEvent*>(mEvent);
   if (aKey.EqualsLiteral(NS_DOM_KEYNAME_SHIFT)) {
     return inputEvent->IsShift();

@@ -66,8 +66,7 @@ public class GeckoEvent {
         CALL_OBSERVER(33),
         REMOVE_OBSERVER(34),
         LOW_MEMORY(35),
-        NETWORK_LINK_CHANGE(36),
-        TELEMETRY_HISTOGRAM_ADD(37);
+        NETWORK_LINK_CHANGE(36);
 
         public final int value;
 
@@ -698,14 +697,6 @@ public class GeckoEvent {
     public static GeckoEvent createNetworkLinkChangeEvent(String status) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.NETWORK_LINK_CHANGE);
         event.mCharacters = status;
-        return event;
-    }
-
-    public static GeckoEvent createTelemetryHistogramAddEvent(String histogram,
-                                                              int value) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.TELEMETRY_HISTOGRAM_ADD);
-        event.mCharacters = histogram;
-        event.mCount = value;
         return event;
     }
 

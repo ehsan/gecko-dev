@@ -916,8 +916,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
 
     nsCOMPtr<nsIURI> referrer = GetReferrerURI();
     nsContentUtils::ReportToConsole(errorFlag,
-                                    NS_LITERAL_CSTRING("CSS Loader"),
-                                    mLoader->mDocument,
+                                    "CSS Loader", mLoader->mDocument,
                                     nsContentUtils::eCSS_PROPERTIES,
                                     errorMessage,
                                     strings, ArrayLength(strings),

@@ -250,8 +250,6 @@ private:
 
     void fillInConfigRenderableTable();
 
-    bool canReadBGRA() const;
-
     GrGLContext fGLContext;
 
     // GL program-related state

@@ -933,7 +933,8 @@ function validateFileName(aFileName)
   }
   else if (navigator.appVersion.indexOf("Macintosh") != -1)
     re = /[\:\/]+/g;
-  else if (navigator.appVersion.indexOf("Android") != -1) {
+  else if (navigator.appVersion.indexOf("Android") != -1 ||
+           navigator.appVersion.indexOf("Maemo") != -1) {
     // On mobile devices, the filesystem may be very limited in what
     // it considers valid characters. To avoid errors, we sanitize
     // conservatively.
@@ -1136,8 +1137,6 @@ function openURL(aURL)
     var channel = Services.io.newChannelFromURI(uri);
     var uriLoader = Components.classes["@mozilla.org/uriloader;1"]
                               .getService(Components.interfaces.nsIURILoader);
-    uriLoader.openURI(channel,
-                      Components.interfaces.nsIURILoader.IS_CONTENT_PREFERRED,
-                      uriListener);
+    uriLoader.openURI(channel, true, uriListener);
   }
 }

@@ -10,11 +10,11 @@
 
 #ifdef JSGC_GENERATIONAL
 
-#include "jsgc.h"
-#include "jspubtd.h"
-
 #include "ds/BitArray.h"
 #include "js/HashTable.h"
+
+#include "jsgc.h"
+#include "jspubtd.h"
 
 namespace js {
 
@@ -24,7 +24,7 @@ namespace gc {
 class MinorCollectionTracer;
 } /* namespace gc */
 
-namespace jit {
+namespace ion {
 class CodeGenerator;
 class MacroAssembler;
 class ICStubCompiler;
@@ -34,7 +34,7 @@ class BaselineCompiler;
 class Nursery
 {
   public:
-    const static int NumNurseryChunks = 16;
+    const static int NumNurseryChunks = 8;
     const static int LastNurseryChunk = NumNurseryChunks - 1;
     const static size_t Alignment = gc::ChunkSize;
     const static size_t NurserySize = gc::ChunkSize * NumNurseryChunks;
@@ -78,9 +78,6 @@ class Nursery
     /* Resize an existing elements vector. */
     ObjectElements *reallocateElements(JSContext *cx, JSObject *obj, ObjectElements *oldHeader,
                                        uint32_t oldCount, uint32_t newCount);
-
-    /* Free a slots array. */
-    void freeSlots(JSContext *cx, HeapSlot *slots);
 
     /* Add a slots to our tracking list if it is out-of-line. */
     void notifyInitialSlots(gc::Cell *cell, HeapSlot *slots);
@@ -209,11 +206,6 @@ class Nursery
      * Move the object at |src| in the Nursery to an already-allocated cell
      * |dst| in Tenured.
      */
-    void collectToFixedPoint(gc::MinorCollectionTracer *trc);
-    JS_ALWAYS_INLINE void traceObject(gc::MinorCollectionTracer *trc, JSObject *src);
-    JS_ALWAYS_INLINE void markSlots(gc::MinorCollectionTracer *trc, HeapSlot *vp, uint32_t nslots);
-    JS_ALWAYS_INLINE void markSlots(gc::MinorCollectionTracer *trc, HeapSlot *vp, HeapSlot *end);
-    JS_ALWAYS_INLINE void markSlot(gc::MinorCollectionTracer *trc, HeapSlot *slotp);
     void *moveToTenured(gc::MinorCollectionTracer *trc, JSObject *src);
     size_t moveObjectToTenured(JSObject *dst, JSObject *src, gc::AllocKind dstKind);
     size_t moveElementsToTenured(JSObject *dst, JSObject *src, gc::AllocKind dstKind);
@@ -223,6 +215,12 @@ class Nursery
     void setSlotsForwardingPointer(HeapSlot *oldSlots, HeapSlot *newSlots, uint32_t nslots);
     void setElementsForwardingPointer(ObjectElements *oldHeader, ObjectElements *newHeader,
                                       uint32_t nelems);
+
+    /* Handle fallback marking. See the comment in MarkStoreBuffer. */
+    void markFallback(gc::Cell *cell);
+    void moveFallbackToTenured(gc::MinorCollectionTracer *trc);
+
+    void markStoreBuffer(gc::MinorCollectionTracer *trc);
 
     /*
      * Frees all non-live nursery-allocated things at the end of a minor
@@ -236,12 +234,14 @@ class Nursery
     void shrinkAllocableSpace();
 
     static void MinorGCCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
+    static void MinorFallbackMarkingCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
+    static void MinorFallbackFixupCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
 
     friend class gc::MinorCollectionTracer;
-    friend class jit::CodeGenerator;
-    friend class jit::MacroAssembler;
-    friend class jit::ICStubCompiler;
-    friend class jit::BaselineCompiler;
+    friend class ion::CodeGenerator;
+    friend class ion::MacroAssembler;
+    friend class ion::ICStubCompiler;
+    friend class ion::BaselineCompiler;
 };
 
 } /* namespace js */

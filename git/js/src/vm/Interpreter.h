@@ -12,11 +12,14 @@
  */
 
 #include "jsiter.h"
+#include "jsprvtd.h"
 #include "jspubtd.h"
 
 #include "vm/Stack.h"
 
 namespace js {
+
+/* Implemented in jsdbgapi: */
 
 /*
  * Announce to the debugger that the thread has entered a new JavaScript frame,
@@ -311,7 +314,55 @@ extern JSType
 TypeOfValue(JSContext *cx, const Value &v);
 
 extern bool
-HasInstance(JSContext *cx, HandleObject obj, HandleValue v, bool *bp);
+HasInstance(JSContext *cx, HandleObject obj, HandleValue v, JSBool *bp);
+
+/*
+ * A linked list of the |FrameRegs regs;| variables belonging to all
+ * js::Interpret C++ frames on this thread's stack.
+ *
+ * Note that this is *not* a list of all JS frames running under the
+ * interpreter; that would include inlined frames, whose FrameRegs are
+ * saved in various pieces in various places. Rather, this lists each
+ * js::Interpret call's live 'regs'; when control returns to that call, it
+ * will resume execution with this 'regs' instance.
+ *
+ * When Debugger puts a script in single-step mode, all js::Interpret
+ * invocations that might be presently running that script must have
+ * interrupts enabled. It's not practical to simply check
+ * script->stepModeEnabled() at each point some callee could have changed
+ * it, because there are so many places js::Interpret could possibly cause
+ * JavaScript to run: each place an object might be coerced to a primitive
+ * or a number, for example. So instead, we simply expose a list of the
+ * 'regs' those frames are using, and let Debugger tweak the affected
+ * js::Interpret frames when an onStep handler is established.
+ *
+ * Elements of this list are allocated within the js::Interpret stack
+ * frames themselves; the list is headed by this thread's js::ThreadData.
+ */
+class InterpreterFrames {
+  public:
+    class InterruptEnablerBase {
+      public:
+        virtual void enable() const = 0;
+    };
+
+    InterpreterFrames(JSContext *cx, FrameRegs *regs, const InterruptEnablerBase &enabler);
+    ~InterpreterFrames();
+
+    /* If this js::Interpret frame is running |script|, enable interrupts. */
+    void enableInterruptsIfRunning(JSScript *script) {
+        if (regs->fp()->script() == script)
+            enabler.enable();
+    }
+    void enableInterruptsUnconditionally() { enabler.enable(); }
+
+    InterpreterFrames *older;
+
+  private:
+    JSContext *context;
+    FrameRegs *regs;
+    const InterruptEnablerBase &enabler;
+};
 
 /* Unwind block and scope chains to match the given depth. */
 extern void
@@ -369,10 +420,10 @@ CallElement(JSContext *cx, MutableHandleValue lref, HandleValue rref, MutableHan
 
 bool
 SetObjectElement(JSContext *cx, HandleObject obj, HandleValue index, HandleValue value,
-                 bool strict);
+                 JSBool strict);
 bool
 SetObjectElement(JSContext *cx, HandleObject obj, HandleValue index, HandleValue value,
-                 bool strict, HandleScript script, jsbytecode *pc);
+                 JSBool strict, HandleScript script, jsbytecode *pc);
 
 bool
 InitElementArray(JSContext *cx, jsbytecode *pc,
@@ -414,11 +465,11 @@ SetProperty(JSContext *cx, HandleObject obj, HandleId id, const Value &value);
 
 template <bool strict>
 bool
-DeleteProperty(JSContext *ctx, HandleValue val, HandlePropertyName name, bool *bv);
+DeleteProperty(JSContext *ctx, HandleValue val, HandlePropertyName name, JSBool *bv);
 
 template <bool strict>
 bool
-DeleteElement(JSContext *cx, HandleValue val, HandleValue index, bool *bv);
+DeleteElement(JSContext *cx, HandleValue val, HandleValue index, JSBool *bv);
 
 bool
 DefFunOperation(JSContext *cx, HandleScript script, HandleObject scopeChain, HandleFunction funArg);
@@ -448,15 +499,15 @@ RunOnceScriptPrologue(JSContext *cx, HandleScript script);
 
 bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandleId id,
-                          HandleObject val);
+                          HandleValue val);
 
 bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandlePropertyName name,
-                          HandleObject val);
+                          HandleValue val);
 
 bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandleValue idval,
-                          HandleObject val);
+                          HandleValue val);
 
 inline bool
 SetConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName name, HandleValue rval)

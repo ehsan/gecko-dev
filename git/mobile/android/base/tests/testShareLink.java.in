@@ -2,26 +2,24 @@
 package @ANDROID_PACKAGE_NAME@.tests;
 
 import @ANDROID_PACKAGE_NAME@.*;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.os.Build;
-import android.util.DisplayMetrics;
+import android.widget.ListView;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AbsListView;
-import android.widget.GridView;
-import android.widget.ListView;
-import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
+import android.app.Activity;
+import android.os.Build;
+import android.util.DisplayMetrics;
 
 /**
  * This test covers the opening and content of the Share Link pop-up list
  * The test opens the Share menu from the app menu, the URL bar, a link context menu and the Awesomescreen tabs
  */
-public class testShareLink extends AboutHomeTest {
+public class testShareLink extends BaseTest {
+    ListView list;
     String url;
     String urlTitle = "Big Link";
 
@@ -35,9 +33,8 @@ public class testShareLink extends AboutHomeTest {
         ArrayList<String> shareOptions;
         blockForGeckoReady();
 
-        inputAndLoadUrl(url);
-        verifyPageTitle(urlTitle); // Waiting for page title to ensure the page is loaded
-
+        loadUrl(url);
+        waitForText(urlTitle); // Waiting for page title to ensure the page is loaded
         selectMenuItem("Share");
         if (Build.VERSION.SDK_INT >= 14) {
             // Check for our own sync in the submenu.
@@ -54,10 +51,10 @@ public class testShareLink extends AboutHomeTest {
              mAsserter.ok(optionDisplayed(option, displayedOptions), "Share option found", option);
         }
 
-        // Test share from the urlbar context menu
+        // Test share from the awesomebar context menu
         mActions.sendSpecialKey(Actions.SpecialKey.BACK); // Close the share menu
         mSolo.clickLongOnText(urlTitle);
-        verifySharePopup(shareOptions,"urlbar");
+        verifySharePopup(shareOptions,"Awesomebar");
 
         // Test link Context Menu
         DisplayMetrics dm = new DisplayMetrics();
@@ -67,59 +64,47 @@ public class testShareLink extends AboutHomeTest {
         float top = mDriver.getGeckoTop() + 30 * dm.density;
         float left = mDriver.getGeckoLeft() + mDriver.getGeckoWidth() / 2;
         mSolo.clickLongOnScreen(left, top);
-        verifySharePopup("Share Link",shareOptions,"Link");
+        verifySharePopup(shareOptions,"Link");
 
-        // Test the share popup in the Bookmarks page
-        openAboutHomeTab(AboutHomeTabs.BOOKMARKS);
+        // Test share popup in Top Sites
+        ListView tslist = getAllPagesList(url);
 
-        ListView bookmarksList = findListViewWithTag("bookmarks");
-        mAsserter.is(waitForListToLoad(bookmarksList), true, "list is properly loaded");
+        // Make sure the keyboard is closed since a back here would just close the Awesomebar
+        mSolo.clickOnText("Bookmarks");
+        mSolo.clickOnText("Sites");
+        waitForText("Big Link");
 
-        int width = mDriver.getGeckoWidth();
-        int height = mDriver.getGeckoHeight();
+        View allpages = tslist.getChildAt(1);
+        if (allpages != null) {
+            mSolo.clickLongOnView(allpages);
+            verifySharePopup(shareOptions,"Top Sites");
+        } else {
+            // The view should not be null but sometimes getChildAt fails
+            // TODO: Investigate why this fails
+            mAsserter.todo_isnot(allpages, null, "View should not be null but sometimes it is");
+        }
 
-        // Scroll down a bit so that the bookmarks list has more
-        // items on screen.
-        mActions.drag(width / 2, width / 2, height - 10, height / 2);
-
-        View bookmarksItem = bookmarksList.getChildAt(bookmarksList.getHeaderViewsCount());
-        mSolo.clickLongOnView(bookmarksItem);
+        // Test the share popup in the Bookmarks tab
+        ListView blist = getBookmarksList("about:firefox");
+        View bookmark = blist.getChildAt(1); // Getting child at 1 because 0 might be the Desktop folder
+        mSolo.clickLongOnView(bookmark);
         verifySharePopup(shareOptions,"bookmarks");
 
-        // Test the share popup in the Most Visited tab
-        openAboutHomeTab(AboutHomeTabs.MOST_VISITED);
-
-        ListView mostVisitedList = findListViewWithTag("most_visited");
-        mAsserter.is(waitForListToLoad(mostVisitedList), true, "list is properly loaded");
-
-        View mostVisitedItem = mostVisitedList.getChildAt(mostVisitedList.getHeaderViewsCount());
-        mSolo.clickLongOnView(mostVisitedItem);
-        verifySharePopup(shareOptions,"most visited");
-
-        // Test the share popup in the Most Recent tab
-        openAboutHomeTab(AboutHomeTabs.MOST_RECENT);
-
-        ListView mostRecentList = findListViewWithTag("most_recent");
-        mAsserter.is(waitForListToLoad(mostRecentList), true, "list is properly loaded");
-
-        // Getting second child after header views because the first is the "Today" label
-        View mostRecentItem = mostRecentList.getChildAt(mostRecentList.getHeaderViewsCount() + 1);
-        mSolo.clickLongOnView(mostRecentItem);
-        verifySharePopup(shareOptions,"most recent");
+        // Test the share popup in the History tab
+        ListView hlist = getHistoryList("Today|Yesterday");
+        View history = hlist.getChildAt(1); // Getting child at 1 because 0 might be the "Today" label
+        mSolo.clickLongOnView(history);
+        verifySharePopup(shareOptions,"history");
     }
 
     public void verifySharePopup(ArrayList<String> shareOptions, String openedFrom) {
-        verifySharePopup("Share", shareOptions, openedFrom);
-    }
-
-    public void verifySharePopup(String shareItemText, ArrayList<String> shareOptions, String openedFrom) {
-        waitForText(shareItemText);
-        mSolo.clickOnText(shareItemText);
+        waitForText("Share");
+        mSolo.clickOnText("Share");
         waitForText("Share via");
         ArrayList<String> displayedOptions = getSharePopupOption();
         for (String option:shareOptions) {
              // Verify if the option is present in the list of displayed share options
-             mAsserter.ok(optionDisplayed(option, displayedOptions), "Share option for " + openedFrom + (openedFrom.equals("urlbar") ? "" : " item") + " found", option);
+             mAsserter.ok(optionDisplayed(option, displayedOptions), "Share option for " + openedFrom + (openedFrom.equals("Awesomebar") ? "" : " item") + " found", option);
         }
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
         /**
@@ -147,54 +132,44 @@ public class testShareLink extends AboutHomeTest {
         return shareOptions;
     }
 
-    // Traverse the group of views, adding strings from TextViews to the list.
-    private void getGroupTextViews(ViewGroup group, ArrayList<String> list) {
-        for (int i = 0; i < group.getChildCount(); i++) {
-            View child = group.getChildAt(i);
-            if (child instanceof AbsListView) {
-                getGroupTextViews((AbsListView)child, list);
-            } else if (child instanceof ViewGroup) {
-                getGroupTextViews((ViewGroup)child, list);
-            } else if (child instanceof TextView) {
-                String viewText = ((TextView)child).getText().toString();
-                if (viewText != null && viewText.length() > 0) {
-                    list.add(viewText);
-                }
-            }
-        }
-    }
-
-    // Traverse the group of views, adding strings from TextViews to the list.
-    // This override is for AbsListView, which has adapters. If adapters are
-    // available, it is better to use them so that child views that are not
-    // yet displayed can be examined.
-    private void getGroupTextViews(AbsListView group, ArrayList<String> list) {
-        for (int i = 0; i < group.getAdapter().getCount(); i++) {
-            View child = group.getAdapter().getView(i, null, group);
-            if (child instanceof AbsListView) {
-                getGroupTextViews((AbsListView)child, list);
-            } else if (child instanceof ViewGroup) {
-                getGroupTextViews((ViewGroup)child, list);
-            } else if (child instanceof TextView) {
-                String viewText = ((TextView)child).getText().toString();
-                if (viewText != null && viewText.length() > 0) {
-                    list.add(viewText);
-                }
-            }
-        }
-    }
-
     public ArrayList<String> getSharePopupOption() {
         ArrayList<String> displayedOptions = new ArrayList();
-        AbsListView shareMenu = getDisplayedShareList();
-        getGroupTextViews(shareMenu, displayedOptions);
+        ListView shareMenu = getDisplayedShareList();
+
+        /* Will have to go in the ListView, get each child, for the child separate the icon and the label
+           and from the label get the label text in a String Array */
+        for (int i = 0; i < shareMenu.getAdapter().getCount();i++) {
+             View shareItem = shareMenu.getAdapter().getView(i, null, null);
+             ViewGroup shareItemEntry = (ViewGroup)shareItem;
+             for (int j = 0; j < shareItemEntry.getChildCount(); j++) {
+                  View shareItemLabel = shareItemEntry.getChildAt(j);
+                  if (shareItemLabel instanceof android.widget.LinearLayout) {
+                      // The Item label is a LinearLayout of LinearLayouts
+                      ViewGroup itemLabel = (ViewGroup)shareItemLabel;
+                      for (int k = 0; k < itemLabel.getChildCount(); k++) {
+                           View shareItemName = itemLabel.getChildAt(k);
+                           if (shareItemName instanceof android.widget.TextView) {
+                               /* The displayedOptions list array will also contain other elements that make up the
+                                  share item label but we will check the option to be present here so there is no need
+                                  at the moment to try and clean this array up further */
+                               displayedOptions.add(((android.widget.TextView)shareItemName).getText().toString());
+                           }
+                      }
+                  }
+             }
+        }
         return displayedOptions;
     }
 
     public ArrayList<String> getShareSubMenuOption() {
         ArrayList<String> displayedOptions = new ArrayList();
-        AbsListView shareMenu = getDisplayedShareList();
-        getGroupTextViews(shareMenu, displayedOptions);
+        ListView shareMenu = getDisplayedShareList();
+        for (int i = 0; i < shareMenu.getAdapter().getCount();i++) {
+             View shareItem = shareMenu.getAdapter().getView(i, null, shareMenu);
+             if (shareItem instanceof android.widget.TextView) {
+                 displayedOptions.add(((android.widget.TextView)shareItem).getText().toString());
+             }
+        }
         return displayedOptions;
     }
 
@@ -215,27 +190,21 @@ public class testShareLink extends AboutHomeTest {
         return false;
     }
 
-    private AbsListView mViewGroup;
+    private ListView getDisplayedShareList() {
+        final ArrayList<ListView> views = mSolo.getCurrentListViews();
 
-    private AbsListView getDisplayedShareList() {
-        mViewGroup = null;
+        list = null;
         boolean success = waitForTest(new BooleanTest() {
             @Override
             public boolean test() {
-                ArrayList<View> views = mSolo.getCurrentViews();
-                for (View view : views) {
-                    // List may be displayed in different view formats. 
-                    // On JB, GridView is common; on ICS-, ListView is common.
-                    if (view instanceof ListView ||
-                        view instanceof GridView) {
-                        mViewGroup = (AbsListView)view;
-                        return true;
-                    }
-                }
-                return false;
+               for (ListView view : views) {
+                   list = view;
+                       return true;
+               }
+               return false;
             }
         }, MAX_WAIT_MS);
-        mAsserter.ok(success,"Got the displayed share options?", "Got the share options view");
-        return mViewGroup;
+        mAsserter.ok(success,"Got the displayed share options?", "Got the share options list");
+        return list;
     }
 }

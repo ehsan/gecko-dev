@@ -26,17 +26,5 @@ SourceSurfaceRawData::InitWrappingData(uint8_t *aData,
   return true;
 }
 
-bool
-SourceSurfaceAlignedRawData::Init(const IntSize &aSize,
-                                  SurfaceFormat aFormat)
-{
-  mStride = GetAlignedStride<16>(aSize.width * BytesPerPixel(aFormat));
-  mArray.Realloc(mStride * aSize.height);
-  mSize = aSize;
-  mFormat = aFormat;
-
-  return mArray != nullptr;
-}
-
 }
 }

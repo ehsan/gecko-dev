@@ -30,7 +30,6 @@ class nsIPresShell;
 class nsDOMCSSValueList;
 class nsROCSSPrimitiveValue;
 class nsStyleContext;
-class gfx3DMatrix;
 
 class nsComputedDOMStyle MOZ_FINAL : public nsDOMCSSDeclaration
 {
@@ -181,7 +180,6 @@ private:
   mozilla::dom::CSSValue* DoGetMaxWidth();
   mozilla::dom::CSSValue* DoGetMinHeight();
   mozilla::dom::CSSValue* DoGetMinWidth();
-  mozilla::dom::CSSValue* DoGetMixBlendMode();
   mozilla::dom::CSSValue* DoGetLeft();
   mozilla::dom::CSSValue* DoGetTop();
   mozilla::dom::CSSValue* DoGetRight();
@@ -196,7 +194,6 @@ private:
   mozilla::dom::CSSValue* DoGetFontLanguageOverride();
   mozilla::dom::CSSValue* DoGetFontSize();
   mozilla::dom::CSSValue* DoGetFontSizeAdjust();
-  mozilla::dom::CSSValue* DoGetOSXFontSmoothing();
   mozilla::dom::CSSValue* DoGetFontStretch();
   mozilla::dom::CSSValue* DoGetFontStyle();
   mozilla::dom::CSSValue* DoGetFontSynthesis();
@@ -308,13 +305,12 @@ private:
   mozilla::dom::CSSValue* DoGetLineHeight();
   mozilla::dom::CSSValue* DoGetTextAlign();
   mozilla::dom::CSSValue* DoGetTextAlignLast();
-  mozilla::dom::CSSValue* DoGetTextCombineHorizontal();
+  mozilla::dom::CSSValue* DoGetMozTextBlink();
   mozilla::dom::CSSValue* DoGetTextDecoration();
   mozilla::dom::CSSValue* DoGetTextDecorationColor();
   mozilla::dom::CSSValue* DoGetTextDecorationLine();
   mozilla::dom::CSSValue* DoGetTextDecorationStyle();
   mozilla::dom::CSSValue* DoGetTextIndent();
-  mozilla::dom::CSSValue* DoGetTextOrientation();
   mozilla::dom::CSSValue* DoGetTextOverflow();
   mozilla::dom::CSSValue* DoGetTextTransform();
   mozilla::dom::CSSValue* DoGetTextShadow();
@@ -344,7 +340,6 @@ private:
   mozilla::dom::CSSValue* DoGetDisplay();
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
-  mozilla::dom::CSSValue* DoGetImageOrientation();
   mozilla::dom::CSSValue* DoGetOverflow();
   mozilla::dom::CSSValue* DoGetOverflowX();
   mozilla::dom::CSSValue* DoGetOverflowY();
@@ -495,11 +490,6 @@ private:
   bool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   bool GetFrameBorderRectWidth(nscoord& aWidth);
   bool GetFrameBorderRectHeight(nscoord& aHeight);
-
-  /* Helper functions for computing the filter property style. */
-  void SetCssTextToCoord(nsAString& aCssText, const nsStyleCoord& aCoord);
-  mozilla::dom::CSSValue* CreatePrimitiveValueForStyleFilter(
-    const nsStyleFilter& aStyleFilter);
 
   struct ComputedStyleMapEntry
   {

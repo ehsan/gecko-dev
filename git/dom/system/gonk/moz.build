@@ -29,6 +29,10 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_system_gonk'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/network/interfaces',
+]
+
 MODULE = 'dom'
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
@@ -63,26 +67,10 @@ CPP_SOURCES += [
     'SystemWorkerManager.cpp',
 ]
 
-EXTRA_COMPONENTS += [
-    'NetworkInterfaceListService.js',
-    'NetworkInterfaceListService.manifest',
-    'NetworkManager.js',
-    'NetworkManager.manifest',
-    'RILContentHelper.js',
-    'RadioInterfaceLayer.js',
-    'RadioInterfaceLayer.manifest',
-]
-
 EXTRA_JS_MODULES += [
     'net_worker.js',
     'ril_consts.js',
     'ril_worker.js',
     'systemlibs.js',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domsystemgonk_s'
 

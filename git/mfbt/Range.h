@@ -1,11 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=78:
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_Range_h
-#define mozilla_Range_h
+#ifndef mozilla_Range_h_
+#define mozilla_Range_h_
 
 #include "mozilla/NullPtr.h"
 #include "mozilla/RangedPtr.h"
@@ -39,13 +40,10 @@ class Range
       return mStart[offset];
     }
 
-    const T& operator[](size_t offset) const {
-      return mStart[offset];
-    }
-
     operator ConvertibleToBool() const { return mStart ? &Range::nonNull : 0; }
 };
 
 } // namespace mozilla
 
-#endif /* mozilla_Range_h */
+#endif // mozilla_Range_h_
+

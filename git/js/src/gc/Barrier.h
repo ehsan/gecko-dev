@@ -8,7 +8,6 @@
 #define gc_Barrier_h
 
 #include "jsapi.h"
-#include "NamespaceImports.h"
 
 #include "gc/Heap.h"
 #include "js/HashTable.h"
@@ -116,8 +115,6 @@
  */
 
 namespace js {
-
-class PropertyName;
 
 template<class T, typename Unioned = uintptr_t>
 class EncapsulatedPtr
@@ -269,7 +266,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
 
     ~RelocatablePtr() {
         if (this->value)
-            relocate(this->value->runtimeFromMainThread());
+            relocate(this->value->runtime());
     }
 
     RelocatablePtr<T> &operator=(T *v) {
@@ -279,7 +276,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
             this->value = v;
             post();
         } else if (this->value) {
-            JSRuntime *rt = this->value->runtimeFromMainThread();
+            JSRuntime *rt = this->value->runtime();
             this->value = v;
             relocate(rt);
         }
@@ -293,7 +290,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
             this->value = v.value;
             post();
         } else if (this->value) {
-            JSRuntime *rt = this->value->runtimeFromMainThread();
+            JSRuntime *rt = this->value->runtime();
             this->value = v;
             relocate(rt);
         }
@@ -353,7 +350,6 @@ struct HeapPtrHasher
 
     static HashNumber hash(Lookup obj) { return DefaultHasher<T *>::hash(obj); }
     static bool match(const Key &k, Lookup l) { return k.get() == l; }
-    static void rekey(Key &k, const Key& newKey) { k.unsafeSet(newKey); }
 };
 
 /* Specialized hashing policy for HeapPtrs. */
@@ -368,7 +364,6 @@ struct EncapsulatedPtrHasher
 
     static HashNumber hash(Lookup obj) { return DefaultHasher<T *>::hash(obj); }
     static bool match(const Key &k, Lookup l) { return k.get() == l; }
-    static void rekey(Key &k, const Key& newKey) { k.unsafeSet(newKey); }
 };
 
 template <class T>
@@ -424,13 +419,9 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
     inline void pre();
     inline void pre(Zone *zone);
 
-    static inline JSRuntime *runtimeFromMainThread(const Value &v) {
+    static inline JSRuntime *runtime(const Value &v) {
         JS_ASSERT(v.isMarkable());
-        return static_cast<js::gc::Cell *>(v.toGCThing())->runtimeFromMainThread();
-    }
-    static inline JSRuntime *runtimeFromAnyThread(const Value &v) {
-        JS_ASSERT(v.isMarkable());
-        return static_cast<js::gc::Cell *>(v.toGCThing())->runtimeFromAnyThread();
+        return static_cast<js::gc::Cell *>(v.toGCThing())->runtime();
     }
 
   private:
@@ -511,13 +502,12 @@ class HeapSlot : public EncapsulatedValue
     inline void set(JSObject *owner, Kind kind, uint32_t slot, const Value &v);
     inline void set(Zone *zone, JSObject *owner, Kind kind, uint32_t slot, const Value &v);
 
-    static inline void writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot, Value target);
-    static inline void writeBarrierPost(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot,
-                                        Value target);
+    static inline void writeBarrierPost(JSObject *obj, Kind kind, uint32_t slot);
+    static inline void writeBarrierPost(JSRuntime *rt, JSObject *obj, Kind kind, uint32_t slot);
 
   private:
-    inline void post(JSObject *owner, Kind kind, uint32_t slot, Value target);
-    inline void post(JSRuntime *rt, JSObject *owner, Kind kind, uint32_t slot, Value target);
+    inline void post(JSObject *owner, Kind kind, uint32_t slot);
+    inline void post(JSRuntime *rt, JSObject *owner, Kind kind, uint32_t slot);
 };
 
 /*
@@ -579,7 +569,6 @@ class EncapsulatedId
 
     jsid get() const { return value; }
     jsid *unsafeGet() { return &value; }
-    void unsafeSet(jsid newId) { value = newId; }
     operator jsid() const { return value; }
 
   protected:

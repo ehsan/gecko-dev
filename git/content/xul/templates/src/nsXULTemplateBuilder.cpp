@@ -234,8 +234,6 @@ TraverseMatchList(nsISupports* aKey, nsTemplateMatch* aMatch, void* aContext)
     return PL_DHASH_NEXT;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateBuilder)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mDataSource)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mDB)
@@ -1406,7 +1404,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         NS_ENSURE_SUCCESS(rv, rv);
 
         bool ok;
-        ok = JS_SetProperty(jscontext, jselement, "database", jsdatabase);
+        ok = JS_SetProperty(jscontext, jselement, "database", jsdatabase.address());
         NS_ASSERTION(ok, "unable to set database property");
         if (! ok)
             return NS_ERROR_FAILURE;
@@ -1423,7 +1421,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
         NS_ENSURE_SUCCESS(rv, rv);
 
         bool ok;
-        ok = JS_SetProperty(jscontext, jselement, "builder", jsbuilder);
+        ok = JS_SetProperty(jscontext, jselement, "builder", jsbuilder.address());
         if (! ok)
             return NS_ERROR_FAILURE;
     }

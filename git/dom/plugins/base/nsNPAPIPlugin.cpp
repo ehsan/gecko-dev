@@ -8,7 +8,6 @@
 /* This must occur *after* layers/PLayerTransaction.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
-#include "pratom.h"
 #include "prmem.h"
 #include "prenv.h"
 #include "prclist.h"
@@ -776,7 +775,7 @@ nsPluginThreadRunnable::Run()
     PluginDestructionGuard guard(mInstance);
 
     NS_TRY_SAFE_CALL_VOID(mFunc(mUserData), nullptr,
-                          NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+                          NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
   }
 
   return NS_OK;
@@ -1247,7 +1246,7 @@ _getpluginelement(NPP npp)
   NS_ENSURE_TRUE(xpc, nullptr);
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  xpc->WrapNative(cx, ::JS::CurrentGlobalOrNull(cx), element,
+  xpc->WrapNative(cx, ::JS_GetGlobalForScopeChain(cx), element,
                   NS_GET_IID(nsIDOMElement),
                   getter_AddRefs(holder));
   NS_ENSURE_TRUE(holder, nullptr);

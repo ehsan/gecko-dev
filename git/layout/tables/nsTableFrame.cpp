@@ -596,8 +596,10 @@ nsTableFrame::CreateAnonymousColGroupFrame(nsTableColGroupType aColGroupType)
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::tableColGroup, mStyleContext);
   // Create a col group frame
   nsIFrame* newFrame = NS_NewTableColGroupFrame(shell, colGroupStyle);
-  ((nsTableColGroupFrame *)newFrame)->SetColType(aColGroupType);
-  newFrame->Init(colGroupContent, this, nullptr);
+  if (newFrame) {
+    ((nsTableColGroupFrame *)newFrame)->SetColType(aColGroupType);
+    newFrame->Init(colGroupContent, this, nullptr);
+  }
   return (nsTableColGroupFrame *)newFrame;
 }
 
@@ -1330,7 +1332,7 @@ nsTableFrame::PaintTableBorderBackground(nsRenderingContext& aRenderingContext,
 }
 
 int
-nsTableFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsTableFrame::GetSkipSides() const
 {
   int skip = 0;
   // frame attribute was accounted for in nsHTMLTableElement::MapTableBorderInto

@@ -10,7 +10,9 @@
 
 #include "mozilla/Attributes.h"
 #include "nsFrame.h"
+#include "nsStyleContext.h"
 
+#include "imgIRequest.h"
 #include "imgINotificationObserver.h"
 
 class imgIContainer;

@@ -153,7 +153,7 @@ const SNIPPETS_OBJECTSTORE_NAME = "snippets";
 let gInitialized = false;
 let gObserver = new MutationObserver(function (mutations) {
   for (let mutation of mutations) {
-    if (mutation.attributeName == "searchEngineName") {
+    if (mutation.attributeName == "searchEngineURL") {
       setupSearchEngine();
       if (!gInitialized) {
         ensureSnippetsMapThen(loadSnippets);
@@ -170,10 +170,6 @@ window.addEventListener("pageshow", function () {
   window.gObserver.observe(document.documentElement, { attributes: true });
   fitToWidth();
   window.addEventListener("resize", fitToWidth);
-
-  // Ask chrome to update snippets.
-  var event = new CustomEvent("AboutHomeLoad", {bubbles:true});
-  document.dispatchEvent(event);
 });
 
 window.addEventListener("pagehide", function() {
@@ -295,17 +291,24 @@ function ensureSnippetsMapThen(aCallback)
 function onSearchSubmit(aEvent)
 {
   let searchTerms = document.getElementById("searchText").value;
-  let engineName = document.documentElement.getAttribute("searchEngineName");
+  let searchURL = document.documentElement.getAttribute("searchEngineURL");
 
-  if (engineName && searchTerms.length > 0) {
-    // Send an event that will perform a search and Firefox Health Report will
-    // record that a search from about:home has occurred.
-    let eventData = JSON.stringify({
-      engineName: engineName,
-      searchTerms: searchTerms
-    });
-    let event = new CustomEvent("AboutHomeSearchEvent", {detail: eventData});
+  if (searchURL && searchTerms.length > 0) {
+    const SEARCH_TOKENS = {
+      "_searchTerms_": encodeURIComponent(searchTerms)
+    }
+    for (let key in SEARCH_TOKENS) {
+      searchURL = searchURL.replace(key, SEARCH_TOKENS[key]);
+    }
+
+    // Send an event that a search was performed. This was originally
+    // added so Firefox Health Report could record that a search from
+    // about:home had occurred.
+    let engineName = document.documentElement.getAttribute("searchEngineName");
+    let event = new CustomEvent("AboutHomeSearchEvent", {detail: engineName});
     document.dispatchEvent(event);
+
+    window.location.href = searchURL;
   }
 
   aEvent.preventDefault();

@@ -107,6 +107,7 @@ nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
   JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
+  // now we want to reevaluate our property using aContext and the script object for this window...
   JS::Rooted<JSObject*> jsMethodObject(aCx, GetCompiledMethod());
   if (jsMethodObject) {
     nsDependentString name(mName);
@@ -136,10 +137,9 @@ nsXBLProtoImplMethod::InstallMember(JSContext* aCx,
 }
 
 nsresult 
-nsXBLProtoImplMethod::CompileMember(const nsCString& aClassStr,
+nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
                                     JS::Handle<JSObject*> aClassObject)
 {
-  AssertInCompilationScope();
   NS_PRECONDITION(!IsCompiled(),
                   "Trying to compile an already-compiled method");
   NS_PRECONDITION(aClassObject,
@@ -199,7 +199,7 @@ nsXBLProtoImplMethod::CompileMember(const nsCString& aClassStr,
     functionUri.Truncate(hash);
   }
 
-  AutoJSContext cx;
+  AutoPushJSContext cx(aContext->GetNativeContext());
   JSAutoCompartment ac(cx, aClassObject);
   JS::CompileOptions options(cx);
   options.setFileAndLine(functionUri.get(),
@@ -234,14 +234,11 @@ nsXBLProtoImplMethod::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
 }
 
 nsresult
-nsXBLProtoImplMethod::Read(nsIObjectInputStream* aStream)
+nsXBLProtoImplMethod::Read(nsIScriptContext* aContext,
+                           nsIObjectInputStream* aStream)
 {
-  AssertInCompilationScope();
-  MOZ_ASSERT(!IsCompiled() && !GetUncompiledMethod());
-
-  AutoJSContext cx;
-  JS::Rooted<JSObject*> methodObject(cx);
-  nsresult rv = XBL_DeserializeFunction(aStream, &methodObject);
+  JS::Rooted<JSObject*> methodObject(aContext->GetNativeContext());
+  nsresult rv = XBL_DeserializeFunction(aContext, aStream, &methodObject);
   if (NS_FAILED(rv)) {
     SetUncompiledMethod(nullptr);
     return rv;
@@ -253,9 +250,9 @@ nsXBLProtoImplMethod::Read(nsIObjectInputStream* aStream)
 }
 
 nsresult
-nsXBLProtoImplMethod::Write(nsIObjectOutputStream* aStream)
+nsXBLProtoImplMethod::Write(nsIScriptContext* aContext,
+                            nsIObjectOutputStream* aStream)
 {
-  AssertInCompilationScope();
   MOZ_ASSERT(IsCompiled());
   if (GetCompiledMethod()) {
     nsresult rv = aStream->Write8(XBLBinding_Serialize_Method);
@@ -264,12 +261,7 @@ nsXBLProtoImplMethod::Write(nsIObjectOutputStream* aStream)
     rv = aStream->WriteWStringZ(mName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Calling fromMarkedLocation() is safe because mMethod is traced by the
-    // Trace() method above, and because its value is never changed after it has
-    // been set to a compiled method.
-    JS::Handle<JSObject*> method =
-      JS::Handle<JSObject*>::fromMarkedLocation(mMethod.AsHeapObject().address());
-    return XBL_SerializeFunction(aStream, method);
+    return XBL_SerializeFunction(aContext, aStream, mMethod.AsHeapObject());
   }
 
   return NS_OK;
@@ -279,7 +271,7 @@ nsresult
 nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 {
   NS_PRECONDITION(IsCompiled(), "Can't execute uncompiled method");
-
+  
   if (!GetCompiledMethod()) {
     // Nothing to do here
     return NS_OK;
@@ -343,7 +335,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   rv = nsContentUtils::GetSecurityManager()->CheckFunctionAccess(cx, method,
                                                                  thisObject);
 
-  bool ok = true;
+  JSBool ok = JS_TRUE;
   if (NS_SUCCEEDED(rv)) {
     JS::Rooted<JS::Value> retval(cx);
     ok = ::JS_CallFunctionValue(cx, thisObject, OBJECT_TO_JSVAL(method),
@@ -363,24 +355,16 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 }
 
 nsresult
-nsXBLProtoImplAnonymousMethod::Write(nsIObjectOutputStream* aStream,
+nsXBLProtoImplAnonymousMethod::Write(nsIScriptContext* aContext,
+                                     nsIObjectOutputStream* aStream,
                                      XBLBindingSerializeDetails aType)
 {
-  AssertInCompilationScope();
   MOZ_ASSERT(IsCompiled());
   if (GetCompiledMethod()) {
     nsresult rv = aStream->Write8(aType);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = aStream->WriteWStringZ(mName);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Calling fromMarkedLocation() is safe because mMethod is traced by the
-    // Trace() method above, and because its value is never changed after it has
-    // been set to a compiled method.
-    JS::Handle<JSObject*> method =
-      JS::Handle<JSObject*>::fromMarkedLocation(mMethod.AsHeapObject().address());
-    rv = XBL_SerializeFunction(aStream, method);
+    rv = XBL_SerializeFunction(aContext, aStream, mMethod.AsHeapObject());
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

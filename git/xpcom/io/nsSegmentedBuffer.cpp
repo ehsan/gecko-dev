@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSegmentedBuffer.h"
-#include "nsMemory.h"
+#include "nsCRT.h"
 
 nsresult
 nsSegmentedBuffer::Init(uint32_t segmentSize, uint32_t maxSize,

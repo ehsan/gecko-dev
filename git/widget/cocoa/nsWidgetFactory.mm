@@ -15,7 +15,6 @@
 #include "nsAppShell.h"
 #include "nsAppShellSingleton.h"
 #include "nsFilePicker.h"
-#include "nsColorPicker.h"
 
 #include "nsClipboard.h"
 #include "nsClipboardHelper.h"
@@ -38,7 +37,6 @@
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCocoaWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChildView)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsColorPicker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSound)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
@@ -135,7 +133,6 @@ NS_DEFINE_NAMED_CID(NS_WINDOW_CID);
 NS_DEFINE_NAMED_CID(NS_POPUP_CID);
 NS_DEFINE_NAMED_CID(NS_CHILD_CID);
 NS_DEFINE_NAMED_CID(NS_FILEPICKER_CID);
-NS_DEFINE_NAMED_CID(NS_COLORPICKER_CID);
 NS_DEFINE_NAMED_CID(NS_APPSHELL_CID);
 NS_DEFINE_NAMED_CID(NS_SOUND_CID);
 NS_DEFINE_NAMED_CID(NS_TRANSFERABLE_CID);
@@ -166,7 +163,6 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_POPUP_CID, false, NULL, nsCocoaWindowConstructor },
   { &kNS_CHILD_CID, false, NULL, nsChildViewConstructor },
   { &kNS_FILEPICKER_CID, false, NULL, nsFilePickerConstructor },
-  { &kNS_COLORPICKER_CID, false, NULL, nsColorPickerConstructor },
   { &kNS_APPSHELL_CID, false, NULL, nsAppShellConstructor },
   { &kNS_SOUND_CID, false, NULL, nsSoundConstructor },
   { &kNS_TRANSFERABLE_CID, false, NULL, nsTransferableConstructor },
@@ -201,7 +197,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/widgets/popup/mac;1", &kNS_POPUP_CID },
   { "@mozilla.org/widgets/childwindow/mac;1", &kNS_CHILD_CID },
   { "@mozilla.org/filepicker;1", &kNS_FILEPICKER_CID },
-  { "@mozilla.org/colorpicker;1", &kNS_COLORPICKER_CID },
   { "@mozilla.org/widget/appshell/mac;1", &kNS_APPSHELL_CID },
   { "@mozilla.org/sound;1", &kNS_SOUND_CID },
   { "@mozilla.org/widget/transferable;1", &kNS_TRANSFERABLE_CID },

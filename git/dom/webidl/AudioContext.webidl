@@ -42,10 +42,6 @@ interface AudioContext : EventTarget {
 
     [Creator]
     AnalyserNode createAnalyser();
-    [Creator, Throws]
-    MediaElementAudioSourceNode createMediaElementSource(HTMLMediaElement mediaElement);
-    [Creator, Throws]
-    MediaStreamAudioSourceNode createMediaStreamSource(MediaStream mediaStream);
     [Creator]
     GainNode createGain();
     [Creator, Throws]
@@ -67,8 +63,6 @@ interface AudioContext : EventTarget {
     [Creator]
     DynamicsCompressorNode createDynamicsCompressor();
 
-    [Creator]
-    OscillatorNode createOscillator();
     [Creator, Throws]
     PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag);
 

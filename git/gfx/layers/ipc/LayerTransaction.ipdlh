@@ -17,9 +17,7 @@ include "mozilla/TimeStamp.h";
 include "mozilla/dom/ScreenOrientation.h";
 include "nsCSSProperty.h";
 include "gfxipc/ShadowLayerUtils.h";
-include "mozilla/GfxMessageUtils.h";
 include "ImageLayers.h";
-include "mozilla/layers/CompositorTypes.h";
 
 using gfxPoint3D;
 using nscoord;
@@ -31,10 +29,8 @@ using mozilla::ScreenRotation;
 using nsCSSProperty;
 using mozilla::dom::ScreenOrientation;
 using mozilla::layers::TextureInfo;
-using mozilla::LayerMargin;
-using mozilla::LayerPoint;
-using mozilla::layers::ScaleMode;
-using mozilla::layers::DiagnosticTypes;
+using mozilla::gfx::Margin;
+using mozilla::layers::ImageLayer::ScaleMode;
 
 namespace mozilla {
 namespace layers {
@@ -190,8 +186,8 @@ struct CommonLayerAttributes {
   bool useClipRect;
   nsIntRect clipRect;
   bool isFixedPosition;
-  LayerPoint fixedPositionAnchor;
-  LayerMargin fixedPositionMargin;
+  gfxPoint fixedPositionAnchor;
+  Margin fixedPositionMargin;
   nullable PLayer maskLayer;
   // Animated colors will only honored for ColorLayers.
   Animation[] animations;
@@ -240,12 +236,14 @@ struct OpRemoveChild      { PLayer container; PLayer childLayer; };
 struct OpRepositionChild  { PLayer container; PLayer childLayer; PLayer after; };
 struct OpRaiseToTopChild  { PLayer container; PLayer childLayer; };
 
-struct OpSetDiagnosticTypes { DiagnosticTypes diagnostics; };
+struct OpSetColoredBorders { bool enabled; };
 
 // Paint (buffer update)
 struct OpPaintTiledLayerBuffer {
   PCompositable compositable;
-  SurfaceDescriptorTiles tileLayerDescriptor;
+  // Bug 747811
+  // FIXME: We need to support sharing tile across process.
+  uintptr_t tiledLayerBuffer;
 };
 
 struct OpCreatedTexture {
@@ -291,47 +289,6 @@ struct OpUpdatePictureRect {
   nsIntRect picture;
 };
 
-/**
- * Provides the compositor side with enough information to create a
- * TextureHost.
- */
-struct OpAddTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-  SurfaceDescriptor data;
-  uint32_t textureFlags;
-};
-
-/**
- * Tells the compositor-side to remove the corresponding TextureHost and
- * deallocate its data.
- */
-struct OpRemoveTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-  uint32_t flags;
-};
-
-/**
- * Tells the compositor-side which texture to use (for example, as front buffer
- * if there is several textures for double buffering)
- */
-struct OpUseTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-};
-
-union MaybeRegion {
-  nsIntRegion;
-  null_t;
-};
-
-struct OpUpdateTexture {
-  PCompositable compositable;
-  uint64_t textureID;
-  MaybeRegion region;
-};
-
 union CompositableOperation {
   OpUpdatePictureRect;
 
@@ -344,11 +301,6 @@ union CompositableOperation {
   OpPaintTextureIncremental;
 
   OpPaintTiledLayerBuffer;
-
-  OpAddTexture;
-  OpRemoveTexture;
-  OpUpdateTexture;
-  OpUseTexture;
 };
 
 // A unit of a changeset; a set of these comprise a changeset
@@ -361,7 +313,7 @@ union Edit {
   OpCreateRefLayer;
 
   OpSetLayerAttributes;
-  OpSetDiagnosticTypes;
+  OpSetColoredBorders;
 
   OpSetRoot;
   OpInsertAfter;
@@ -390,18 +342,11 @@ struct OpTextureSwap {
   SurfaceDescriptor image;
 };
 
-struct ReplyTextureRemoved {
-  PCompositable compositable;
-  uint32_t textureId;
-};
-
 // Unit of a "changeset reply".  This is a weird abstraction, probably
 // only to be used for buffer swapping.
 union EditReply {
   OpContentBufferSwap;
   OpTextureSwap;
-
-  ReplyTextureRemoved;
 };
 
 } // namespace

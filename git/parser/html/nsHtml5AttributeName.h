@@ -25,8 +25,8 @@
  * Please edit AttributeName.java instead and regenerate.
  */
 
-#ifndef nsHtml5AttributeName_h
-#define nsHtml5AttributeName_h
+#ifndef nsHtml5AttributeName_h__
+#define nsHtml5AttributeName_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"

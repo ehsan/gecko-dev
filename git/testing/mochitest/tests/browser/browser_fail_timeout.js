@@ -1,6 +1,6 @@
 function test() {
   function end() {
-    ok(false, "should have timed out");
+    ok(true, "didn't time out?");
     finish();
   }
   waitForExplicitFinish();

@@ -65,7 +65,6 @@
 #include "nsEditor.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
-#include "nsITextControlElement.h"
 
 using namespace mozilla::dom;
 
@@ -946,8 +945,7 @@ mozInlineSpellChecker::ReplaceWord(nsIDOMNode *aNode, int32_t aOffset,
     editor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
 
     nsCOMPtr<nsIPlaintextEditor> textEditor(do_QueryReferent(mEditor));
-    if (textEditor)
-      textEditor->InsertText(newword);
+    textEditor->InsertText(newword);
 
     editor->EndTransaction();
   }
@@ -1267,21 +1265,6 @@ mozInlineSpellChecker::SkipSpellCheckForNode(nsIEditor* aEditor,
     if (!content->IsEditable()) {
       *checkSpelling = false;
       return NS_OK;
-    }
-
-    // Make sure that we can always turn on spell checking for inputs/textareas.
-    // Note that because of the previous check, at this point we know that the
-    // node is editable.
-    if (content->IsInAnonymousSubtree()) {
-      nsCOMPtr<nsIContent> node = content->GetParent();
-      while (node && node->IsInNativeAnonymousSubtree()) {
-        node = node->GetParent();
-      }
-      nsCOMPtr<nsITextControlElement> textControl = do_QueryInterface(node);
-      if (textControl) {
-        *checkSpelling = true;
-        return NS_OK;
-      }
     }
 
     // Get HTML element ancestor (might be aNode itself, although probably that

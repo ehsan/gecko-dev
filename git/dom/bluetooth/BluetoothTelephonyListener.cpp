@@ -32,19 +32,12 @@ TelephonyListener::CallStateChanged(uint32_t aCallIndex,
                                     const nsAString& aNumber,
                                     bool aIsActive,
                                     bool aIsOutgoing,
-                                    bool aIsEmergency,
-                                    bool aIsConference)
+                                    bool aIsEmergency)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
                               aIsOutgoing, true);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyListener::ConferenceCallStateChanged(uint16_t aCallState)
-{
   return NS_OK;
 }
 
@@ -61,20 +54,12 @@ TelephonyListener::EnumerateCallState(uint32_t aCallIndex,
                                       bool aIsActive,
                                       bool aIsOutgoing,
                                       bool aIsEmergency,
-                                      bool aIsConference,
                                       bool* aResult)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
                               aIsOutgoing, false);
   *aResult = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyListener::SupplementaryServiceNotification(int32_t aCallIndex,
-                                                    uint16_t aNotification)
-{
   return NS_OK;
 }
 
@@ -97,12 +82,6 @@ TelephonyListener::NotifyError(int32_t aCallIndex,
   }
 
   NS_WARNING(NS_ConvertUTF16toUTF8(aError).get());
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyListener::NotifyCdmaCallWaiting(const nsAString& aNumber)
-{
   return NS_OK;
 }
 

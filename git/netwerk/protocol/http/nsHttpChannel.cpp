@@ -45,11 +45,9 @@
 #include "nsContentUtils.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
-#include "nsISecurityConsoleMessage.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"
-#include "nsIDOMWindow.h"
 
 namespace mozilla { namespace net {
 
@@ -378,18 +376,17 @@ nsHttpChannel::Connect()
 
     if (!usingSSL) {
         // enforce Strict-Transport-Security
-        nsISiteSecurityService* sss = gHttpHandler->GetSSService();
-        NS_ENSURE_TRUE(sss, NS_ERROR_OUT_OF_MEMORY);
+        nsIStrictTransportSecurityService* stss = gHttpHandler->GetSTSService();
+        NS_ENSURE_TRUE(stss, NS_ERROR_OUT_OF_MEMORY);
 
         bool isStsHost = false;
         uint32_t flags = mPrivateBrowsing ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
-        rv = sss->IsSecureURI(nsISiteSecurityService::HEADER_HSTS, mURI, flags,
-                              &isStsHost);
+        rv = stss->IsStsURI(mURI, flags, &isStsHost);
 
-        // if SSS fails, there's no reason to cancel the load, but it's
+        // if STS fails, there's no reason to cancel the load, but it's
         // worrisome.
         NS_ASSERTION(NS_SUCCEEDED(rv),
-                     "Something is wrong with SSS: IsSecureURI failed.");
+                     "Something is wrong with STS: IsStsURI failed.");
 
         if (NS_SUCCEEDED(rv) && isStsHost) {
             LOG(("nsHttpChannel::Connect() STS permissions found\n"));
@@ -400,10 +397,6 @@ nsHttpChannel::Connect()
     // ensure that we are using a valid hostname
     if (!net_IsValidHostName(nsDependentCString(mConnectionInfo->Host())))
         return NS_ERROR_UNKNOWN_HOST;
-
-    // Finalize ConnectionInfo flags before SpeculativeConnect
-    mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
-    mConnectionInfo->SetPrivate(mPrivateBrowsing);
 
     // Consider opening a TCP connection right away
     RetrieveSSLOptions();
@@ -541,6 +534,8 @@ nsHttpChannel::SpeculativeConnect()
     if (!callbacks)
         return;
 
+    mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
+    mConnectionInfo->SetPrivate(mPrivateBrowsing);
     gHttpHandler->SpeculativeConnect(
         mConnectionInfo, callbacks,
         mCaps & (NS_HTTP_ALLOW_RSA_FALSESTART | NS_HTTP_ALLOW_RC4_FALSESTART | NS_HTTP_DISALLOW_SPDY));
@@ -724,17 +719,14 @@ nsHttpChannel::RetrieveSSLOptions()
         return;
 
     uint32_t perm;
-    nsresult rv = permMgr->TestExactPermissionFromPrincipal(principal,
-                                                            "falsestart-rsa",
-                                                            &perm);
+    nsresult rv = permMgr->TestPermissionFromPrincipal(principal,
+                                                       "falsestart-rsa", &perm);
     if (NS_SUCCEEDED(rv) && perm == nsIPermissionManager::ALLOW_ACTION) {
         LOG(("nsHttpChannel::RetrieveSSLOptions [this=%p] "
              "falsestart-rsa permission found\n", this));
         mCaps |= NS_HTTP_ALLOW_RSA_FALSESTART;
     }
-    rv = permMgr->TestExactPermissionFromPrincipal(principal,
-                                                   "falsestart-rc4",
-                                                   &perm);
+    rv = permMgr->TestPermissionFromPrincipal(principal, "falsestart-rc4", &perm);
     if (NS_SUCCEEDED(rv) && perm == nsIPermissionManager::ALLOW_ACTION) {
         LOG(("nsHttpChannel::RetrieveSSLOptions [this=%p] "
              "falsestart-rc4 permission found\n", this));
@@ -890,6 +882,9 @@ nsHttpChannel::SetupTransaction()
 
     if (mTimingEnabled)
         mCaps |= NS_HTTP_TIMING_ENABLED;
+
+    mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
+    mConnectionInfo->SetPrivate(mPrivateBrowsing);
 
     if (mUpgradeProtocolCallback) {
         mRequestHead.SetHeader(nsHttp::Upgrade, mUpgradeProtocol, false);
@@ -1146,8 +1141,8 @@ nsHttpChannel::ProcessSTSHeader()
     if (PR_SUCCESS == PR_StringToNetAddr(asciiHost.get(), &hostAddr))
         return NS_OK;
 
-    nsISiteSecurityService* sss = gHttpHandler->GetSSService();
-    NS_ENSURE_TRUE(sss, NS_ERROR_OUT_OF_MEMORY);
+    nsIStrictTransportSecurityService* stss = gHttpHandler->GetSTSService();
+    NS_ENSURE_TRUE(stss, NS_ERROR_OUT_OF_MEMORY);
 
     // mSecurityInfo may not always be present, and if it's not then it is okay
     // to just disregard any STS headers since we know nothing about the
@@ -1158,7 +1153,7 @@ nsHttpChannel::ProcessSTSHeader()
     // If there are certificate errors, we still load the data, we just ignore
     // any STS headers that are present.
     bool tlsIsBroken = false;
-    rv = sss->ShouldIgnoreHeaders(mSecurityInfo, &tlsIsBroken);
+    rv = stss->ShouldIgnoreStsHeader(mSecurityInfo, &tlsIsBroken);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
     // If this was already an STS host, the connection should have been aborted
@@ -1169,8 +1164,7 @@ nsHttpChannel::ProcessSTSHeader()
     bool wasAlreadySTSHost;
     uint32_t flags =
       NS_UsePrivateBrowsing(this) ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
-    rv = sss->IsSecureURI(nsISiteSecurityService::HEADER_HSTS, mURI, flags,
-                          &wasAlreadySTSHost);
+    rv = stss->IsStsURI(mURI, flags, &wasAlreadySTSHost);
     // Failure here means STS is broken.  Don't prevent the load, but this
     // shouldn't fail.
     NS_ENSURE_SUCCESS(rv, NS_OK);
@@ -1198,12 +1192,10 @@ nsHttpChannel::ProcessSTSHeader()
     // All other failures are fatal.
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = sss->ProcessHeader(nsISiteSecurityService::HEADER_HSTS, mURI,
-                            stsHeader.get(), flags, NULL, NULL);
+    rv = stss->ProcessStsHeader(mURI, stsHeader.get(), flags, NULL, NULL);
     if (NS_FAILED(rv)) {
-        AddSecurityMessage(NS_LITERAL_STRING("InvalidSTSHeaders"),
-                NS_LITERAL_STRING("Invalid HSTS Headers"));
         LOG(("STS: Failed to parse STS header, continuing load.\n"));
+        return NS_OK;
     }
 
     return NS_OK;

@@ -35,19 +35,15 @@ protocol PTCPSocket
   manager PNecko;
 
 parent:
-  Open(nsString host, uint16_t port, bool useSSL, nsString binaryType);
   Data(SendableData data);
-  StartTLS();
   Suspend();
   Resume();
   Close();
+  RequestDelete();
 
 child:
   Callback(nsString type, CallbackData data,
            nsString readyState, uint32_t bufferedAmount);
-
-both:
-  RequestDelete();
   __delete__();
 };
 

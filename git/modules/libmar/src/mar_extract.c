@@ -48,11 +48,8 @@ static int mar_test_callback(MarFile *mar, const MarItem *item, void *unused) {
 #else
   fd = creat(item->name, item->flags);
 #endif
-  if (fd == -1) {
-    fprintf(stderr, "ERROR: could not create file in mar_test_callback()\n");
-    perror(item->name);
+  if (fd == -1)
     return -1;
-  }
 
   fp = fdopen(fd, "wb");
   if (!fp)

@@ -1,8 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-
 var gTestGlobals = [];
 DebuggerServer.addTestGlobal = function(aGlobal) {
   gTestGlobals.push(aGlobal);
@@ -40,8 +38,10 @@ function TestTabList(aConnection) {
 
 TestTabList.prototype = {
   constructor: TestTabList,
-  getList: function () {
-    return promise.resolve([tabActor for (tabActor of this._tabActors)]);
+  iterator: function() {
+    for (let actor of this._tabActors) {
+      yield actor;
+    }
   }
 };
 
@@ -60,40 +60,19 @@ function TestTabActor(aConnection, aGlobal)
   this._threadActor = new ThreadActor(this, this._global);
   this.conn.addActor(this._threadActor);
   this._attached = false;
-  this._extraActors = {};
 }
 
 TestTabActor.prototype = {
   constructor: TestTabActor,
   actorPrefix: "TestTabActor",
 
-  get window() {
-    return { wrappedJSObject: this._global };
-  },
-
-  form: function() {
-    let response = { actor: this.actorID, title: this._global.__name };
-
-    // Walk over tab actors added by extensions and add them to a new ActorPool.
-    let actorPool = new ActorPool(this.conn);
-    this._createExtraActors(DebuggerServer.tabActorFactories, actorPool);
-    if (!actorPool.isEmpty()) {
-      this._tabActorPool = actorPool;
-      this.conn.addActorPool(this._tabActorPool);
-    }
-
-    this._appendExtraActors(response);
-
-    return response;
+  grip: function() {
+    return { actor: this.actorID, title: this._global.__name };
   },
 
   onAttach: function(aRequest) {
     this._attached = true;
-
-    let response = { type: "tabAttached", threadActor: this._threadActor.actorID };
-    this._appendExtraActors(response);
-
-    return response;
+    return { type: "tabAttached", threadActor: this._threadActor.actorID };
   },
 
   onDetach: function(aRequest) {
@@ -102,10 +81,6 @@ TestTabActor.prototype = {
     }
     return { type: "detached" };
   },
-
-  /* Support for DebuggerServer.addTabActor. */
-  _createExtraActors: CommonCreateExtraActors,
-  _appendExtraActors: CommonAppendExtraActors,
 
   // Hooks for use by TestTabActors.
   addToParentPool: function(aActor) {

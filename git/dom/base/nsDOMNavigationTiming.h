@@ -6,11 +6,13 @@
 #ifndef nsDOMNavigationTiming_h___
 #define nsDOMNavigationTiming_h___
 
+#include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "mozilla/TimeStamp.h"
+#include "nsIURI.h"
 
-class nsIURI;
+class nsDOMNavigationTimingClock;
 
 typedef unsigned long long DOMTimeMilliSec;
 typedef double DOMHighResTimeStamp;
@@ -98,7 +100,7 @@ public:
   }
 
 private:
-  nsDOMNavigationTiming(const nsDOMNavigationTiming &) MOZ_DELETE;
+  nsDOMNavigationTiming(const nsDOMNavigationTiming &){};
   ~nsDOMNavigationTiming();
 
   void Clear();

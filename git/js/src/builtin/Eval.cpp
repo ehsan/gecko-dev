@@ -74,13 +74,13 @@ EvalCacheHashPolicy::match(const EvalCacheEntry &cacheEntry, const EvalCacheLook
 }
 
 // There are two things we want to do with each script executed in EvalKernel:
-//  1. notify OldDebugAPI about script creation/destruction
+//  1. notify jsdbgapi about script creation/destruction
 //  2. add the script to the eval cache when EvalKernel is finished
 //
 // NB: Although the eval cache keeps a script alive wrt to the JS engine, from
-// an OldDebugAPI  user's perspective, we want each eval() to create and
-// destroy a script. This hides implementation details and means we don't have
-// to deal with calls to JS_GetScriptObject for scripts in the eval cache.
+// a jsdbgapi user's perspective, we want each eval() to create and destroy a
+// script. This hides implementation details and means we don't have to deal
+// with calls to JS_GetScriptObject for scripts in the eval cache.
 class EvalScriptGuard
 {
     JSContext *cx_;
@@ -316,8 +316,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                     scopeobj, callerScript, options,
+        JSScript *compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
                                                      chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
@@ -381,8 +380,7 @@ js::DirectEvalFromIon(JSContext *cx,
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                     scopeobj, callerScript, options,
+        JSScript *compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
                                                      chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
@@ -424,7 +422,7 @@ WarnOnTooManyArgs(JSContext *cx, const CallArgs &args)
     return true;
 }
 
-bool
+JSBool
 js::IndirectEval(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

@@ -5,9 +5,14 @@
 #include "nsEventListenerService.h"
 #include "nsCOMArray.h"
 #include "nsEventListenerManager.h"
+#include "nsIVariant.h"
+#include "nsIServiceManager.h"
 #include "nsMemory.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsIXPConnect.h"
+#include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
 #include "nsJSUtils.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
@@ -16,8 +21,6 @@
 #include "jsdIDebuggerService.h"
 #endif
 #include "nsDOMClassInfoID.h"
-#include "mozilla/Maybe.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla::dom;
 using mozilla::AutoSafeJSContext;
@@ -297,6 +300,7 @@ nsresult
 NS_NewEventListenerService(nsIEventListenerService** aResult)
 {
   *aResult = new nsEventListenerService();
+  NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aResult);
   return NS_OK;
 }

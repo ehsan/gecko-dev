@@ -7,11 +7,10 @@
 #include "jsfriendapi.h"
 #include "nsJSUtils.h"
 #include "nsIDOMTCPSocket.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "mozilla/unused.h"
 #include "mozilla/AppProcessChecker.h"
-#include "mozilla/net/NeckoCommon.h"
-#include "mozilla/net/PNeckoParent.h"
 
 namespace IPC {
 
@@ -35,62 +34,19 @@ FireInteralError(mozilla::net::PTCPSocketParent* aActor, uint32_t aLineNo)
                            NS_LITERAL_STRING("connecting"), 0);
 }
 
-NS_IMPL_CYCLE_COLLECTION_2(TCPSocketParentBase, mSocket, mIntermediary)
-NS_IMPL_CYCLE_COLLECTING_ADDREF(TCPSocketParentBase)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(TCPSocketParentBase)
+NS_IMPL_CYCLE_COLLECTION_2(TCPSocketParent, mSocket, mIntermediary)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(TCPSocketParent)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(TCPSocketParent)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TCPSocketParentBase)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TCPSocketParent)
   NS_INTERFACE_MAP_ENTRY(nsITCPSocketParent)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-TCPSocketParentBase::TCPSocketParentBase()
-: mIPCOpen(false)
-{
-}
-
-TCPSocketParentBase::~TCPSocketParentBase()
-{
-}
-
-void
-TCPSocketParentBase::ReleaseIPDLReference()
-{
-  MOZ_ASSERT(mIPCOpen);
-  mIPCOpen = false;
-  this->Release();
-}
-
-void
-TCPSocketParentBase::AddIPDLReference()
-{
-  MOZ_ASSERT(!mIPCOpen);
-  mIPCOpen = true;
-  this->AddRef();
-}
-
-NS_IMETHODIMP_(nsrefcnt) TCPSocketParent::Release(void)
-{
-  nsrefcnt refcnt = TCPSocketParentBase::Release();
-  if (refcnt == 1 && mIPCOpen) {
-    mozilla::unused << PTCPSocketParent::SendRequestDelete();
-    return 1;
-  }
-  return refcnt;
-}
-
 bool
-TCPSocketParent::RecvOpen(const nsString& aHost, const uint16_t& aPort, const bool& aUseSSL,
-                          const nsString& aBinaryType)
+TCPSocketParent::Init(const nsString& aHost, const uint16_t& aPort, const bool& aUseSSL,
+                      const nsString& aBinaryType)
 {
-  // We don't have browser actors in xpcshell, and hence can't run automated
-  // tests without this loophole.
-  if (net::UsingNeckoIPCSecurity() &&
-      !AssertAppProcessPermission(Manager()->Manager(), "tcp-socket")) {
-    FireInteralError(this, __LINE__);
-    return true;
-  }
-
   nsresult rv;
   mIntermediary = do_CreateInstance("@mozilla.org/tcp-socket-intermediary;1", &rv);
   if (NS_FAILED(rv)) {
@@ -113,15 +69,6 @@ TCPSocketParent::InitJS(const JS::Value& aIntermediary, JSContext* aCx)
   MOZ_ASSERT(aIntermediary.isObject());
   mIntermediaryObj = &aIntermediary.toObject();
   return NS_OK;
-}
-
-bool
-TCPSocketParent::RecvStartTLS()
-{
-  NS_ENSURE_TRUE(mSocket, true);
-  nsresult rv = mSocket->UpgradeToSecure();
-  NS_ENSURE_SUCCESS(rv, true);
-  return true;
 }
 
 bool
@@ -151,7 +98,6 @@ TCPSocketParent::RecvData(const SendableData& aData)
   switch (aData.type()) {
     case SendableData::TArrayOfuint8_t: {
       AutoSafeJSContext cx;
-      JSAutoRequest ar(cx);
       JS::Rooted<JS::Value> val(cx);
       JS::Rooted<JSObject*> obj(cx, mIntermediaryObj);
       IPC::DeserializeArrayBuffer(obj, aData.get_ArrayOfuint8_t(), &val);
@@ -225,7 +171,7 @@ TCPSocketParent::SendCallback(const nsAString& aType, const JS::Value& aDataVal,
       nsDependentJSString name;
 
       JS::Rooted<JS::Value> val(aCx);
-      if (!JS_GetProperty(aCx, obj, "name", &val)) {
+      if (!JS_GetProperty(aCx, obj, "name", val.address())) {
         NS_ERROR("No name property on supposed error object");
       } else if (JSVAL_IS_STRING(val)) {
         if (!name.init(aCx, JSVAL_TO_STRING(val))) {
@@ -246,19 +192,11 @@ TCPSocketParent::SendCallback(const nsAString& aType, const JS::Value& aDataVal,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-TCPSocketParent::SetSocketAndIntermediary(nsIDOMTCPSocket *socket,
-                                          nsITCPSocketIntermediary *intermediary,
-                                          JSContext* cx)
-{
-  mSocket = socket;
-  mIntermediary = intermediary;
-  return NS_OK;
-}
-
 void
 TCPSocketParent::ActorDestroy(ActorDestroyReason why)
 {
+  MOZ_ASSERT(mIPCOpen);
+  mIPCOpen = false;
   if (mSocket) {
     mSocket->Close();
   }

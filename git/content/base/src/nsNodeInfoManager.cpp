@@ -9,8 +9,6 @@
  */
 
 #include "nsNodeInfoManager.h"
-
-#include "mozilla/DebugOnly.h"
 #include "nsNodeInfo.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -161,8 +159,6 @@ nsNodeInfoManager::~nsNodeInfoManager()
   nsLayoutStatics::Release();
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsNodeInfoManager)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsNodeInfoManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNodeInfoManager)
   if (tmp->mDocument &&
@@ -254,8 +250,8 @@ nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
   nsRefPtr<nsNodeInfo> newNodeInfo =
     new nsNodeInfo(aName, aPrefix, aNamespaceID, aNodeType, aExtraName, this);
 
-  DebugOnly<PLHashEntry*> he =
-    PL_HashTableAdd(mNodeInfoHash, &newNodeInfo->mInner, newNodeInfo);
+  PLHashEntry *he;
+  he = PL_HashTableAdd(mNodeInfoHash, &newNodeInfo->mInner, newNodeInfo);
   MOZ_ASSERT(he, "PL_HashTableAdd() failed");
 
   // Have to do the swap thing, because already_AddRefed<nsNodeInfo>

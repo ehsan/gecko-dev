@@ -4,14 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMMessageEvent.h"
-
-#include "nsCycleCollectionHoldDrop.h"
+#include "nsContentUtils.h"
 #include "jsapi.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMessageEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMMessageEvent, nsDOMEvent)
   tmp->mData = JSVAL_VOID;
@@ -44,7 +41,7 @@ nsDOMMessageEvent::nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
 nsDOMMessageEvent::~nsDOMMessageEvent()
 {
   mData = JSVAL_VOID;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsDOMMessageEvent);
 }
 
 NS_IMETHODIMP
@@ -99,7 +96,7 @@ nsDOMMessageEvent::InitMessageEvent(const nsAString& aType,
   NS_ENSURE_SUCCESS(rv, rv);
 
   mData = aData;
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsDOMMessageEvent);
   mOrigin = aOrigin;
   mLastEventId = aLastEventId;
   mSource = aSource;

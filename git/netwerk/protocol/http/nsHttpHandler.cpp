@@ -98,7 +98,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
 #define DONOTTRACK_HEADER_VALUE   "privacy.donottrackheader.value"
-#define DONOTTRACK_VALUE_UNSET    2
 #ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
 #define TELEMETRY_ENABLED        "toolkit.telemetry.enabledPreRelease"
 #else
@@ -236,13 +235,6 @@ nsHttpHandler::~nsHttpHandler()
         mPipelineTestTimer = nullptr;
     }
 
-    if (!mDoNotTrackEnabled) {
-        Telemetry::Accumulate(Telemetry::DNT_USAGE, DONOTTRACK_VALUE_UNSET);
-    }
-    else {
-        Telemetry::Accumulate(Telemetry::DNT_USAGE, mDoNotTrackValue);
-    }
-
     gHttpHandler = nullptr;
 }
 
@@ -257,12 +249,11 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIIOService> service = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
+    mIOService = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("unable to continue without io service");
         return rv;
     }
-    mIOService = new nsMainThreadPtrHolder<nsIIOService>(service);
 
     if (IsNeckoChild())
         NeckoChild::InitNeckoChild();
@@ -318,8 +309,12 @@ nsHttpHandler::Init()
 #ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
 #else
-    mProductSub.AssignLiteral("20100101");
+    mProductSub.AssignLiteral(MOZ_UA_BUILDID);
 #endif
+    if (mProductSub.IsEmpty() && appInfo)
+        appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
 #if DEBUG
     // dump user agent prefs
@@ -342,8 +337,7 @@ nsHttpHandler::Init()
                                   static_cast<nsISupports*>(static_cast<void*>(this)),
                                   NS_HTTP_STARTUP_TOPIC);
 
-    nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
-    mObserverService = new nsMainThreadPtrHolder<nsIObserverService>(obsService);
+    mObserverService = services::GetObserverService();
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", true);
         mObserverService->AddObserver(this, "profile-change-net-restore", true);
@@ -477,34 +471,27 @@ nsHttpHandler::GetStreamConverterService(nsIStreamConverterService **result)
 {
     if (!mStreamConvSvc) {
         nsresult rv;
-        nsCOMPtr<nsIStreamConverterService> service =
-            do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
-        if (NS_FAILED(rv))
-            return rv;
-        mStreamConvSvc = new nsMainThreadPtrHolder<nsIStreamConverterService>(service);
+        mStreamConvSvc = do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
+        if (NS_FAILED(rv)) return rv;
     }
     *result = mStreamConvSvc;
     NS_ADDREF(*result);
     return NS_OK;
 }
 
-nsISiteSecurityService*
-nsHttpHandler::GetSSService()
+nsIStrictTransportSecurityService*
+nsHttpHandler::GetSTSService()
 {
-    if (!mSSService) {
-        nsCOMPtr<nsISiteSecurityService> service = do_GetService(NS_SSSERVICE_CONTRACTID);
-        mSSService = new nsMainThreadPtrHolder<nsISiteSecurityService>(service);
-    }
-    return mSSService;
+    if (!mSTSService)
+      mSTSService = do_GetService(NS_STSSERVICE_CONTRACTID);
+    return mSTSService;
 }
 
 nsICookieService *
 nsHttpHandler::GetCookieService()
 {
-    if (!mCookieService) {
-        nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
-        mCookieService = new nsMainThreadPtrHolder<nsICookieService>(service);
-    }
+    if (!mCookieService)
+        mCookieService = do_GetService(NS_COOKIESERVICE_CONTRACTID);
     return mCookieService;
 }
 
@@ -674,13 +661,15 @@ nsHttpHandler::InitUserAgentComponents()
     "Windows"
 #elif defined(XP_MACOSX)
     "Macintosh"
+#elif defined(MOZ_PLATFORM_MAEMO)
+    "Maemo"
 #elif defined(MOZ_X11)
     "X11"
 #endif
     );
 #endif
 
-#if defined(ANDROID) || defined(MOZ_B2G)
+#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_B2G)
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
     MOZ_ASSERT(infoService, "Could not find a system info service");
 
@@ -1419,7 +1408,7 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
     const char *comma;
     int32_t available;
 
-    o_Accept = strdup(i_AcceptLanguages);
+    o_Accept = nsCRT::strdup(i_AcceptLanguages);
     if (!o_Accept)
         return NS_ERROR_OUT_OF_MEMORY;
     for (p = o_Accept, n = size = 0; '\0' != *p; p++) {
@@ -1430,7 +1419,7 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
     available = size + ++n * 11 + 1;
     q_Accept = new char[available];
     if (!q_Accept) {
-        free(o_Accept);
+        nsCRT::free(o_Accept);
         return NS_ERROR_OUT_OF_MEMORY;
     }
     *q_Accept = '\0';
@@ -1477,7 +1466,7 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
             MOZ_ASSERT(available > 0, "allocated string not long enough");
         }
     }
-    free(o_Accept);
+    nsCRT::free(o_Accept);
 
     o_AcceptLanguages.Assign((const char *) q_Accept);
     delete [] q_Accept;
@@ -1513,13 +1502,13 @@ nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings)
 // nsHttpHandler::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS6(nsHttpHandler,
-                   nsIHttpProtocolHandler,
-                   nsIProxiedProtocolHandler,
-                   nsIProtocolHandler,
-                   nsIObserver,
-                   nsISupportsWeakReference,
-                   nsISpeculativeConnect)
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsHttpHandler,
+                              nsIHttpProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIProtocolHandler,
+                              nsIObserver,
+                              nsISupportsWeakReference,
+                              nsISpeculativeConnect)
 
 //-----------------------------------------------------------------------------
 // nsHttpHandler::nsIProtocolHandler
@@ -1845,9 +1834,9 @@ NS_IMETHODIMP
 nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
                                   nsIInterfaceRequestor *aCallbacks)
 {
-    nsISiteSecurityService* sss = gHttpHandler->GetSSService();
+    nsIStrictTransportSecurityService* stss = gHttpHandler->GetSTSService();
     bool isStsHost = false;
-    if (!sss)
+    if (!stss)
         return NS_OK;
 
     nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(aCallbacks);
@@ -1855,8 +1844,7 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
     if (loadContext && loadContext->UsePrivateBrowsing())
         flags |= nsISocketProvider::NO_PERMANENT_STORAGE;
     nsCOMPtr<nsIURI> clone;
-    if (NS_SUCCEEDED(sss->IsSecureURI(nsISiteSecurityService::HEADER_HSTS,
-                                      aURI, flags, &isStsHost)) && isStsHost) {
+    if (NS_SUCCEEDED(stss->IsStsURI(aURI, flags, &isStsHost)) && isStsHost) {
         if (NS_SUCCEEDED(aURI->Clone(getter_AddRefs(clone)))) {
             clone->SetScheme(NS_LITERAL_CSTRING("https"));
             aURI = clone.get();
@@ -1951,12 +1939,12 @@ nsHttpHandler::TickleWifi(nsIInterfaceRequestor *cb)
 // nsHttpsHandler implementation
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS5(nsHttpsHandler,
-                   nsIHttpProtocolHandler,
-                   nsIProxiedProtocolHandler,
-                   nsIProtocolHandler,
-                   nsISupportsWeakReference,
-                   nsISpeculativeConnect)
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsHttpsHandler,
+                              nsIHttpProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIProtocolHandler,
+                              nsISupportsWeakReference,
+                              nsISpeculativeConnect)
 
 nsresult
 nsHttpsHandler::Init()

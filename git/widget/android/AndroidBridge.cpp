@@ -26,7 +26,6 @@
 #include "mozilla/dom/mobilemessage/PSms.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
-#include "gfxUtils.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsPIDOMWindow.h"
@@ -45,9 +44,9 @@
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS0(nsFilePickerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS0(nsFilePickerCallback)
 
-StaticRefPtr<AndroidBridge> AndroidBridge::sBridge;
+nsRefPtr<AndroidBridge> AndroidBridge::sBridge = nullptr;
 static unsigned sJavaEnvThreadIndex = 0;
 static void JavaThreadDetachFunc(void *arg);
 
@@ -219,7 +218,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
 
     jPumpMessageLoop = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "pumpMessageLoop", "()Z");
 
-    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;FFFFZ)V");
+    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;IIIIZ)V");
     jRemovePluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "removePluginView", "(Landroid/view/View;Z)V");
 
     jLayerView = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("org/mozilla/gecko/gfx/LayerView"));
@@ -707,10 +706,8 @@ AndroidBridge::ShowAlertNotification(const nsAString& aImageUrl,
 
     AutoLocalJNIFrame jniFrame(env);
 
-    if (nsAppShell::gAppShell && aAlertListener) {
-        // This will remove any observers already registered for this id
+    if (nsAppShell::gAppShell && aAlertListener)
         nsAppShell::gAppShell->AddObserver(aAlertName, aAlertListener);
-    }
 
     jvalue args[5];
     args[0].l = NewJavaString(&jniFrame, aImageUrl);
@@ -1431,7 +1428,7 @@ namespace mozilla {
         nsCOMPtr<nsIThread> mMainThread;
 
     };
-    StaticRefPtr<TracerRunnable> sTracerRunnable;
+    nsCOMPtr<TracerRunnable> sTracerRunnable;
 
     bool InitWidgetTracing() {
         if (!sTracerRunnable)
@@ -1658,18 +1655,16 @@ AndroidBridge::SetURITitle(const nsAString& aURI, const nsAString& aTitle)
 
 nsresult
 AndroidBridge::GetSegmentInfoForText(const nsAString& aText,
-                                     nsIMobileMessageCallback* aRequest)
+                                     dom::mobilemessage::SmsSegmentInfoData* aData)
 {
 #ifndef MOZ_WEBSMS_BACKEND
     return NS_ERROR_FAILURE;
 #else
     ALOG_BRIDGE("AndroidBridge::GetSegmentInfoForText");
 
-    dom::mobilemessage::SmsSegmentInfoData data;
-
-    data.segments() = 0;
-    data.charsPerSegment() = 0;
-    data.charsAvailableInLastSegment() = 0;
+    aData->segments() = 0;
+    aData->charsPerSegment() = 0;
+    aData->charsAvailableInLastSegment() = 0;
 
     JNIEnv *env = GetJNIEnv();
     if (!env)
@@ -1688,17 +1683,13 @@ AndroidBridge::GetSegmentInfoForText(const nsAString& aText,
 
     jint* info = env->GetIntArrayElements(arr, JNI_FALSE);
 
-    data.segments() = info[0]; // msgCount
-    data.charsPerSegment() = info[2]; // codeUnitsRemaining
+    aData->segments() = info[0]; // msgCount
+    aData->charsPerSegment() = info[2]; // codeUnitsRemaining
     // segmentChars = (codeUnitCount + codeUnitsRemaining) / msgCount
-    data.charsAvailableInLastSegment() = (info[1] + info[2]) / info[0];
+    aData->charsAvailableInLastSegment() = (info[1] + info[2]) / info[0];
 
     env->ReleaseIntArrayElements(arr, info, JNI_ABORT);
-
-    // TODO Bug 908598 - Should properly use |QueueSmsRequest(...)| to queue up
-    // the nsIMobileMessageCallback just like other functions.
-    nsCOMPtr<nsIDOMMozSmsSegmentInfo> info = new SmsSegmentInfo(data);
-    return aRequest->NotifySegmentInfoForTextGot(info);
+    return NS_OK;
 #endif
 }
 
@@ -2170,7 +2161,7 @@ AndroidBridge::SetPageRect(const CSSRect& aCssPageRect)
 void
 AndroidBridge::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
                                 bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
-                                LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset)
+                                gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
@@ -2183,7 +2174,7 @@ AndroidBridge::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLay
 
 void AndroidBridge::SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
                                      bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                                     bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset)
+                                     bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
@@ -2490,21 +2481,16 @@ NS_IMETHODIMP nsAndroidBridge::SetBrowserApp(nsIAndroidBrowserApp *aBrowserApp)
 }
 
 void
-AndroidBridge::AddPluginView(jobject view, const LayoutDeviceRect& rect, bool isFullScreen) {
+AndroidBridge::AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen) {
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return;
 
     AutoLocalJNIFrame jniFrame(env);
 
-    nsWindow* win = nsWindow::TopWindow();
-    if (!win)
-        return;
-
-    CSSRect cssRect = rect / CSSToLayoutDeviceScale(win->GetDefaultScale());
     env->CallStaticVoidMethod(sBridge->mGeckoAppShellClass,
                               sBridge->jAddPluginView, view,
-                              cssRect.x, cssRect.y, cssRect.width, cssRect.height,
+                              (int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height,
                               isFullScreen);
 }
 
@@ -2742,9 +2728,6 @@ nsresult AndroidBridge::CaptureThumbnail(nsIDOMWindow *window, int32_t bufW, int
     context->Translate(pt);
     context->Scale(scale * bufW / srcW, scale * bufH / srcH);
     rv = presShell->RenderDocument(r, renderDocFlags, bgColor, context);
-    if (is24bit) {
-        gfxUtils::ConvertBGRAtoRGBA(surf);
-    }
     NS_ENSURE_SUCCESS(rv, rv);
     return NS_OK;
 }
@@ -2830,7 +2813,7 @@ AndroidBridge::RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrame
         return;
     }
 
-    CSSToScreenScale resolution = aFrameMetrics.mZoom;
+    CSSToScreenScale resolution = aFrameMetrics.CalculateResolution();
     ScreenRect dp = (aFrameMetrics.mDisplayPort + aFrameMetrics.mScrollOffset) * resolution;
 
     AutoLocalJNIFrame jniFrame(env, 0);
@@ -2863,9 +2846,7 @@ AndroidBridge::HandleLongTap(const CSSIntPoint& aPoint)
 }
 
 void
-AndroidBridge::SendAsyncScrollDOMEvent(mozilla::layers::FrameMetrics::ViewID aScrollId,
-                                       const CSSRect& aContentRect,
-                                       const CSSSize& aScrollableSize)
+AndroidBridge::SendAsyncScrollDOMEvent(const CSSRect& aContentRect, const CSSSize& aScrollableSize)
 {
     // FIXME implement this
 }

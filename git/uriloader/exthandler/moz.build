@@ -42,14 +42,12 @@ EXPORTS += [
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     EXPORTS += [
-        osdir + '/nsExternalSharingAppService.h',
-        osdir + '/nsExternalURLHandlerService.h',
+        'nsExternalSharingAppService.h',
+        'nsExternalURLHandlerService.h',
     ]
 
 if CONFIG['MOZ_ENABLE_MEEGOTOUCHSHARE']:
-    EXPORTS += [
-        osdir + '/nsExternalSharingAppService.h',
-    ]
+    EXPORTS += ['nsExternalSharingAppService.h']
 
 EXPORTS.mozilla.dom += [
     'ExternalHelperAppChild.h',
@@ -114,20 +112,6 @@ if CONFIG['MOZ_ENABLE_CONTENTACTION']:
         'nsContentHandlerApp.cpp',
     ]
 
-EXTRA_COMPONENTS += [
-    'nsHandlerService.js',
-    'nsHandlerService.manifest',
-    'nsWebHandlerApp.js',
-    'nsWebHandlerApp.manifest',
-]
-
 IPDL_SOURCES += [
     'PExternalHelperApp.ipdl',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'exthandler_s'
-

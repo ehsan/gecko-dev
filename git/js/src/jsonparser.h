@@ -11,7 +11,6 @@
 
 #include "jsapi.h"
 
-#include "ds/IdValuePair.h"
 #include "vm/String.h"
 
 namespace js {

@@ -17,7 +17,6 @@ namespace mozilla {
 namespace gl {
 
 class GLContext;
-class TextureGarbageBin;
 
 class SharedSurface_EGLImage
     : public SharedSurface_GL

@@ -7,19 +7,24 @@
 #ifndef vm_Shape_inl_h
 #define vm_Shape_inl_h
 
-#include "vm/Shape.h"
-
 #include "mozilla/PodOperations.h"
 
+#include "jsarray.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsobj.h"
 
 #include "gc/Marking.h"
+#include "vm/ArgumentsObject.h"
 #include "vm/ScopeObject.h"
+#include "vm/StringObject.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
+#include "jsgcinlines.h"
 
 namespace js {
 
@@ -67,11 +72,11 @@ BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, JSObje
     this->rawSetter = rawSetter;
     if ((attrs & JSPROP_GETTER) && rawGetter) {
         this->flags |= HAS_GETTER_OBJECT;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->getterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->getterObj);
     }
     if ((attrs & JSPROP_SETTER) && rawSetter) {
         this->flags |= HAS_SETTER_OBJECT;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->setterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->setterObj);
     }
     this->compartment_ = comp;
 }
@@ -87,9 +92,9 @@ BaseShape::BaseShape(const StackBaseShape &base)
     this->rawGetter = base.rawGetter;
     this->rawSetter = base.rawSetter;
     if ((base.flags & HAS_GETTER_OBJECT) && base.rawGetter)
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->getterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->getterObj);
     if ((base.flags & HAS_SETTER_OBJECT) && base.rawSetter)
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &this->setterObj);
+        GetterSetterWriteBarrierPost(runtime(), &this->setterObj);
     this->compartment_ = base.compartment;
 }
 
@@ -103,18 +108,18 @@ BaseShape::operator=(const BaseShape &other)
     slotSpan_ = other.slotSpan_;
     if (flags & HAS_GETTER_OBJECT) {
         getterObj = other.getterObj;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &getterObj);
+        GetterSetterWriteBarrierPost(runtime(), &getterObj);
     } else {
         if (rawGetter)
-            GetterSetterWriteBarrierPostRemove(runtimeFromMainThread(), &getterObj);
+            GetterSetterWriteBarrierPostRemove(runtime(), &getterObj);
         rawGetter = other.rawGetter;
     }
     if (flags & HAS_SETTER_OBJECT) {
         setterObj = other.setterObj;
-        GetterSetterWriteBarrierPost(runtimeFromMainThread(), &setterObj);
+        GetterSetterWriteBarrierPost(runtime(), &setterObj);
     } else {
         if (rawSetter)
-            GetterSetterWriteBarrierPostRemove(runtimeFromMainThread(), &setterObj);
+            GetterSetterWriteBarrierPostRemove(runtime(), &setterObj);
         rawSetter = other.rawSetter;
     }
     compartment_ = other.compartment_;
@@ -365,7 +370,7 @@ inline void
 Shape::writeBarrierPre(Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!shape || !shape->runtimeFromAnyThread()->needsBarrier())
+    if (!shape || !shape->runtime()->needsBarrier())
         return;
 
     JS::Zone *zone = shape->zone();
@@ -403,7 +408,7 @@ inline void
 BaseShape::writeBarrierPre(BaseShape *base)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!base || !base->runtimeFromAnyThread()->needsBarrier())
+    if (!base || !base->runtime()->needsBarrier())
         return;
 
     JS::Zone *zone = base->zone();

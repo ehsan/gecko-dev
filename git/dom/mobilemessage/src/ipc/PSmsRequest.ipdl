@@ -66,16 +66,6 @@ struct ReplyMarkeMessageReadFail
   int32_t error;
 };
 
-struct ReplyGetSegmentInfoForText
-{
-  SmsSegmentInfoData infoData;
-};
-
-struct ReplyGetSegmentInfoForTextFail
-{
-  int32_t error;
-};
-
 union MessageReply
 {
   ReplyMessageSend;
@@ -86,8 +76,6 @@ union MessageReply
   ReplyMessageDeleteFail;
   ReplyMarkeMessageRead;
   ReplyMarkeMessageReadFail;
-  ReplyGetSegmentInfoForText;
-  ReplyGetSegmentInfoForTextFail;
 };
 
 } // namespace mobilemessage

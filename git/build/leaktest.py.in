@@ -38,10 +38,7 @@ if __name__ == '__main__':
     t.start()
 
     automation.setServerInfo("localhost", PORT)
-
-    # keep a profile reference so that it is not cleaned up immediately via __del__
-    profile = automation.initializeProfile(PROFILE_DIRECTORY)
-
+    automation.initializeProfile(PROFILE_DIRECTORY)
     browserEnv = automation.environment()
 
     if not "XPCOM_DEBUG_BREAK" in browserEnv:

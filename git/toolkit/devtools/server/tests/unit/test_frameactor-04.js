@@ -87,5 +87,6 @@ function test_pause_frame()
       depth2();
     };
     depth1();
+    ")"
   } + ")()");
 }

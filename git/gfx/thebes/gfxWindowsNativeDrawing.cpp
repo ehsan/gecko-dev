@@ -11,7 +11,6 @@
 #include "gfxWindowsSurface.h"
 #include "gfxAlphaRecovery.h"
 #include "gfxPattern.h"
-#include "mozilla/gfx/2D.h"
 
 enum {
     RENDER_STATE_INIT,
@@ -147,7 +146,7 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         SetViewportOrgEx(mDC,
                          mOrigViewportOrigin.x + (int)mDeviceOffset.x,
                          mOrigViewportOrigin.y + (int)mDeviceOffset.y,
-                         nullptr);
+                         NULL);
 
         return mDC;
     } else if (mRenderState == RENDER_STATE_ALPHA_RECOVERY_BLACK ||
@@ -183,9 +182,7 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
 bool
 gfxWindowsNativeDrawing::IsDoublePass()
 {
-    if (!mContext->IsCairo() &&
-        (mContext->GetDrawTarget()->GetType() != mozilla::gfx::BACKEND_CAIRO ||
-         mContext->GetDrawTarget()->IsDualDrawTarget())) {
+    if (!mContext->IsCairo()) {
       return true;
     }
 
@@ -230,7 +227,7 @@ gfxWindowsNativeDrawing::EndNativeDrawing()
 {
     if (mRenderState == RENDER_STATE_NATIVE_DRAWING) {
         // we drew directly to the HDC in the context; undo our changes
-        SetViewportOrgEx(mDC, mOrigViewportOrigin.x, mOrigViewportOrigin.y, nullptr);
+        SetViewportOrgEx(mDC, mOrigViewportOrigin.x, mOrigViewportOrigin.y, NULL);
 
         if (mTransformType != TRANSLATION_ONLY)
             SetWorldTransform(mDC, &mOldWorldTransform);

@@ -9,9 +9,9 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/PodOperations.h"
+#include "mozilla/StandardInteger.h"
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include "jspubtd.h"
 #include "jstypes.h"
@@ -28,10 +28,8 @@ struct JSRuntime;
 
 namespace js {
 
-// Whether the current thread is permitted access to any part of the specified
-// runtime or zone.
-extern bool CurrentThreadCanAccessRuntime(JSRuntime *rt);
-extern bool CurrentThreadCanAccessZone(JS::Zone *zone);
+// Defined in vm/ForkJoin.cpp
+extern bool InSequentialOrExclusiveParallelSection();
 
 class FreeOp;
 
@@ -99,13 +97,9 @@ struct Cell
     MOZ_ALWAYS_INLINE bool markIfUnmarked(uint32_t color = BLACK) const;
     MOZ_ALWAYS_INLINE void unmark(uint32_t color) const;
 
-    inline JSRuntime *runtimeFromMainThread() const;
-    inline JS::Zone *tenuredZone() const;
-    inline bool tenuredIsInsideZone(JS::Zone *zone) const;
-
-    // Note: Unrestricted access to the runtime of a GC thing from an arbitrary
-    // thread can easily lead to races. Use this method very carefully.
-    inline JSRuntime *runtimeFromAnyThread() const;
+    inline JSRuntime *runtime() const;
+    inline Zone *tenuredZone() const;
+    inline bool tenuredIsInsideZone(Zone *zone) const;
 
 #ifdef DEBUG
     inline bool isAligned() const;
@@ -463,7 +457,7 @@ struct ArenaHeader : public JS::shadow::ArenaHeader
         return allocKind < size_t(FINALIZE_LIMIT);
     }
 
-    void init(JS::Zone *zoneArg, AllocKind kind) {
+    void init(Zone *zoneArg, AllocKind kind) {
         JS_ASSERT(!allocated());
         JS_ASSERT(!markOverflow);
         JS_ASSERT(!allocatedDuringIncremental);
@@ -787,7 +781,7 @@ struct Chunk
         return info.numArenasFree != 0;
     }
 
-    inline void addToAvailableList(JS::Zone *zone);
+    inline void addToAvailableList(Zone *zone);
     inline void insertToAvailableList(Chunk **insertPoint);
     inline void removeFromAvailableList();
 
@@ -956,16 +950,9 @@ Cell::arenaHeader() const
 }
 
 inline JSRuntime *
-Cell::runtimeFromMainThread() const
+Cell::runtime() const
 {
-    JSRuntime *rt = chunk()->info.runtime;
-    JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
-    return rt;
-}
-
-inline JSRuntime *
-Cell::runtimeFromAnyThread() const
-{
+    JS_ASSERT(InSequentialOrExclusiveParallelSection());
     return chunk()->info.runtime;
 }
 
@@ -1000,17 +987,16 @@ Cell::unmark(uint32_t color) const
     chunk()->bitmap.unmark(this, color);
 }
 
-JS::Zone *
+Zone *
 Cell::tenuredZone() const
 {
-    JS::Zone *zone = arenaHeader()->zone;
-    JS_ASSERT(CurrentThreadCanAccessZone(zone));
+    JS_ASSERT(InSequentialOrExclusiveParallelSection());
     JS_ASSERT(isTenured());
-    return zone;
+    return arenaHeader()->zone;
 }
 
 bool
-Cell::tenuredIsInsideZone(JS::Zone *zone) const
+Cell::tenuredIsInsideZone(Zone *zone) const
 {
     JS_ASSERT(isTenured());
     return zone == arenaHeader()->zone;

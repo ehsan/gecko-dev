@@ -180,19 +180,19 @@ TimeZoneSettingObserver::Observe(nsISupports *aSubject,
 
   // Get the key, which should be the JS string "time.timezone".
   JSObject &obj(val.toObject());
-  JS::Rooted<JS::Value> key(cx);
+  JS::Value key;
   if (!JS_GetProperty(cx, &obj, "key", &key) ||
       !key.isString()) {
     return NS_OK;
   }
-  bool match;
+  JSBool match;
   if (!JS_StringEqualsAscii(cx, key.toString(), TIME_TIMEZONE, &match) ||
-      !match) {
+      match != JS_TRUE) {
     return NS_OK;
   }
 
   // Get the value, which should be a JS string like "America/Chicago".
-  JS::Rooted<JS::Value> value(cx);
+  JS::Value value;
   if (!JS_GetProperty(cx, &obj, "value", &value) ||
       !value.isString()) {
     return NS_OK;

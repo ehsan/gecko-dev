@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GLContextTypes.h"
-struct PRLibrary;
+#include "GLContext.h"
 
 namespace mozilla {
 namespace gl {
@@ -80,7 +79,7 @@ public:
     int GetWindowPixelFormat() const { return mWindowPixelFormat; }
     bool UseDoubleBufferedWindows() const { return mUseDoubleBufferedWindows; }
     LibraryType GetLibraryType() const { return mLibType; }
-    static LibraryType SelectLibrary(const ContextFlags& aFlags);
+    static LibraryType SelectLibrary(const GLContext::ContextFlags& aFlags);
     
 private:
     bool mInitialized;

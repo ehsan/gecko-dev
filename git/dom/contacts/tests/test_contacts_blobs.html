@@ -30,11 +30,6 @@ SpecialPowers.addPermission("contacts-write", true, document);
 SpecialPowers.addPermission("contacts-read", true, document);
 SpecialPowers.addPermission("contacts-create", true, document);
 
-var isAndroid = (navigator.userAgent.indexOf("Android") !== -1);
-var androidVersion = SpecialPowers.Cc['@mozilla.org/system-info;1']
-                                  .getService(SpecialPowers.Ci.nsIPropertyBag2)
-                                  .getProperty('version');
-
 var utils = SpecialPowers.getDOMWindowUtils(window);
 
 function getView(size)
@@ -90,13 +85,11 @@ var randomBlob = getRandomBlob(1024);
 var randomBlob2 = getRandomBlob(1024);
 
 var properties1 = {
-  name: "xTestname1",
   givenName: "xTestname1",
   photo: [randomBlob]
 };
 
 var properties2 = {
-  name: "yTestname2",
   givenName: "yTestname2",
   photo: [randomBlob, randomBlob2]
 };
@@ -111,7 +104,6 @@ function onUnwantedSuccess() {
 
 function onFailure() {
   ok(false, "in on Failure!");
-  next();
 }
 
 function verifyBlob(blob1, blob2, isLast)
@@ -309,14 +301,8 @@ function next() {
   index += 1;
 }
 
-// Skip tests on Android < 4.0 due to test failures on tbpl (see bugs 897924 & 888891)
-if (!isAndroid || androidVersion >= 14) {
-  SimpleTest.waitForExplicitFinish();
-  addLoadEvent(next);
-} else {
-  ok(true, "Skip tests on Android < 4.0 (bugs 897924 & 888891");
-}
-
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(next);
 </script>
 </pre>
 </body>

@@ -488,7 +488,7 @@ typedef enum {
 
 typedef enum {
     SDP_RTCP_FB_NACK_NOT_FOUND = -1,
-    SDP_RTCP_FB_NACK_BASIC = 0,
+    SDP_RTCP_FB_NACK_UNSPECIFIED = 0,
     SDP_RTCP_FB_NACK_SLI,
     SDP_RTCP_FB_NACK_PLI,
     SDP_RTCP_FB_NACK_RPSI,
@@ -518,11 +518,6 @@ typedef enum {
     SDP_MAX_RTCP_FB_CCM,
     SDP_RTCP_FB_CCM_UNKNOWN
 } sdp_rtcp_fb_ccm_type_e;
-
-#define SDP_RTCP_FB_NACK_TO_BITMAP(type) (1 << (type))
-#define SDP_RTCP_FB_ACK_TO_BITMAP(type)  (1 << (SDP_MAX_RTCP_FB_NACK + (type)))
-#define SDP_RTCP_FB_CCM_TO_BITMAP(type)  (1 << (SDP_MAX_RTCP_FB_NACK + \
-                                                SDP_MAX_RTCP_FB_ACK + (type)))
 
 /*
  * sdp_srtp_fec_order_t
@@ -661,8 +656,6 @@ typedef struct sdp_encryptspec {
 #define SDP_MAX_RCMD_NALU_SIZE_FLAG   0x4
 #define SDP_DEINT_BUF_CAP_FLAG   0x8
 
-#define SDP_FMTP_UNUSED          0xFFFF
-
 typedef struct sdp_fmtp {
     u16                       payload_num;
     u32                       maxval;  /* maxval optimizes bmap search */
@@ -734,7 +727,7 @@ typedef struct sdp_fmtp {
     tinybool                  redundant_pic_cap;
     u32                       deint_buf_cap;
     u32                       max_rcmd_nalu_size;
-    u16                       parameter_add;
+    tinybool                  parameter_add;
 
     tinybool                  annex_d;
 
@@ -1139,6 +1132,7 @@ extern void sdp_debug(sdp_t *sdp_ptr, sdp_debug_e debug_type, tinybool debug_fla
 extern void sdp_set_string_debug(sdp_t *sdp_ptr, const char *debug_str);
 extern sdp_result_e sdp_parse(sdp_t *sdp_ptr, char **bufp, u16 len);
 extern sdp_result_e sdp_build(sdp_t *sdp_ptr, flex_string *fs);
+extern sdp_t *sdp_copy(sdp_t *sdp_ptr);
 extern sdp_result_e sdp_free_description(sdp_t *sdp_ptr);
 extern void sdp_parse_error(const char *peerconnection, const char *format, ...);
 
@@ -1585,7 +1579,7 @@ extern sdp_result_e sdp_attr_set_fmtp_h264_parameter_add (void *sdp_ptr,
                                                           u16 level,
                                                           u8 cap_num,
                                                           u16 inst_num,
-                                                          u16 parameter_add);
+                                                          tinybool parameter_add);
 
 extern sdp_result_e sdp_attr_set_fmtp_h261_annex_params (void *sdp_ptr,
                                                          u16 level,

@@ -8,6 +8,7 @@
 #define mozJSLoaderUtils_h
 
 #include "nsString.h"
+#include "jsapi.h"
 
 class nsIURI;
 namespace mozilla {

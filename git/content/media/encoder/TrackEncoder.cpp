@@ -16,8 +16,7 @@
 
 namespace mozilla {
 
-static const int  DEFAULT_CHANNELS = 1;
-static const int  DEFAULT_SAMPLING_RATE = 16000;
+#define MAX_FRAMES_TO_DROP  48000
 
 void
 AudioTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
@@ -27,10 +26,6 @@ AudioTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
                                             uint32_t aTrackEvents,
                                             const MediaSegment& aQueuedMedia)
 {
-  if (mCanceled) {
-    return;
-  }
-
   AudioSegment* audio = const_cast<AudioSegment*>
                         (static_cast<const AudioSegment*>(&aQueuedMedia));
 
@@ -39,27 +34,16 @@ AudioTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
     AudioSegment::ChunkIterator iter(*audio);
     while (!iter.IsEnded()) {
       AudioChunk chunk = *iter;
-
-      // The number of channels is determined by the first non-null chunk, and
-      // thus the audio encoder is initialized at this time.
-      if (!chunk.IsNull()) {
-        nsresult rv = Init(chunk.mChannelData.Length(), aTrackRate);
-        if (NS_FAILED(rv)) {
-          LOG("[AudioTrackEncoder]: Fail to initialize the encoder!");
-          NotifyCancel();
-        }
+      if (chunk.mBuffer) {
+        Init(chunk.mChannelData.Length(), aTrackRate);
         break;
-      } else {
-        mSilentDuration += chunk.mDuration;
       }
       iter.Next();
     }
   }
 
   // Append and consume this raw segment.
-  if (mInitialized) {
-    AppendAudioSegment(audio);
-  }
+  AppendAudioSegment(audio);
 
   // The stream has stopped and reached the end of track.
   if (aTrackEvents == MediaStreamListener::TRACK_EVENT_ENDED) {
@@ -76,47 +60,32 @@ AudioTrackEncoder::NotifyRemoved(MediaStreamGraph* aGraph)
   NotifyEndOfStream();
 }
 
-void
-AudioTrackEncoder::NotifyEndOfStream()
-{
-  // If source audio chunks are completely silent till the end of encoding,
-  // initialize the encoder with default channel counts and sampling rate, and
-  // append this many null data to the segment of track encoder.
-  if (!mCanceled && !mInitialized) {
-    Init(DEFAULT_CHANNELS, DEFAULT_SAMPLING_RATE);
-    mRawSegment->AppendNullData(mSilentDuration);
-    mSilentDuration = 0;
-  }
-
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  mEndOfStream = true;
-  mReentrantMonitor.NotifyAll();
-}
-
 nsresult
 AudioTrackEncoder::AppendAudioSegment(MediaSegment* aSegment)
 {
+  // Drop the in-coming segment if buffer(mRawSegment) is overflow.
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   AudioSegment* audio = static_cast<AudioSegment*>(aSegment);
   AudioSegment::ChunkIterator iter(*audio);
 
-  // Append this many null data to our queued segment if there is a complete
-  // silence before the audio track encoder has initialized.
-  if (mSilentDuration > 0) {
-    mRawSegment->AppendNullData(mSilentDuration);
-    mSilentDuration = 0;
+  if (mRawSegment->GetDuration() < MAX_FRAMES_TO_DROP) {
+    while(!iter.IsEnded()) {
+      AudioChunk chunk = *iter;
+      if (chunk.mBuffer) {
+        mRawSegment->AppendAndConsumeChunk(&chunk);
+      }
+      iter.Next();
+    }
+    if (mRawSegment->GetDuration() >= GetPacketDuration()) {
+      mReentrantMonitor.NotifyAll();
+    }
   }
-
-  while (!iter.IsEnded()) {
-    AudioChunk chunk = *iter;
-    // Append and consume both non-null and null chunks.
-    mRawSegment->AppendAndConsumeChunk(&chunk);
-    iter.Next();
+#ifdef DEBUG
+  else {
+    LOG("[AudioTrackEncoder]: A segment has dropped!");
   }
-  if (mRawSegment->GetDuration() >= GetPacketDuration()) {
-    mReentrantMonitor.NotifyAll();
-  }
+#endif
 
   return NS_OK;
 }

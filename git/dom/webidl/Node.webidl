@@ -42,7 +42,7 @@ interface Node : EventTarget {
   [Pure]
   readonly attribute Element? parentElement;
   boolean hasChildNodes();
-  [SameObject]
+  [Constant]
   readonly attribute NodeList childNodes;
   [Pure]
   readonly attribute Node? firstChild;
@@ -96,9 +96,9 @@ interface Node : EventTarget {
   readonly attribute DOMString? localName;
 
   boolean hasAttributes();
-  [Throws, Func="IsChromeOrXBL"]
+  [Throws, Func="nsINode::IsChromeOrXBL"]
   any setUserData(DOMString key, any data, UserDataHandler? handler);
-  [Throws, Func="IsChromeOrXBL"]
+  [Throws, Func="nsINode::IsChromeOrXBL"]
   any getUserData(DOMString key);
   [ChromeOnly]
   readonly attribute Principal nodePrincipal;

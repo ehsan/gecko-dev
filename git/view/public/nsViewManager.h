@@ -203,8 +203,12 @@ public:
    * relative to the view's siblings.
    * @param aView view to change z depth of
    * @param aZindex explicit z depth
+   * @param aTopMost used when this view is z-index:auto to compare against 
+   *        other z-index:auto views.
+   *        true if the view should be topmost when compared with 
+   *        other z-index:auto views.
    */
-  void SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZindex);
+  void SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZindex, bool aTopMost = false);
 
   /**
    * Set whether the view "floats" above all other views,

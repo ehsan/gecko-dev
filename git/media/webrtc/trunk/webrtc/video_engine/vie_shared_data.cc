@@ -8,39 +8,59 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/utility/interface/process_thread.h"
-#include "webrtc/system_wrappers/interface/cpu_info.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/video_engine/vie_channel_manager.h"
-#include "webrtc/video_engine/vie_defines.h"
-#include "webrtc/video_engine/vie_input_manager.h"
-#include "webrtc/video_engine/vie_render_manager.h"
-#include "webrtc/video_engine/vie_shared_data.h"
+#include "modules/utility/interface/process_thread.h"
+#include "system_wrappers/interface/cpu_info.h"
+#include "system_wrappers/interface/trace.h"
+#include "video_engine/vie_channel_manager.h"
+#include "video_engine/vie_defines.h"
+#include "video_engine/vie_input_manager.h"
+#include "video_engine/vie_render_manager.h"
+#include "video_engine/vie_shared_data.h"
 
 namespace webrtc {
 
-ViESharedData::ViESharedData(const Config& config)
-    : number_cores_(CpuInfo::DetectNumberOfCores()),
-      channel_manager_(new ViEChannelManager(0, number_cores_, config)),
-      input_manager_(new ViEInputManager(0, config)),
-      render_manager_(new ViERenderManager(0)),
+// Active instance counter
+int ViESharedData::instance_counter_ = 0;
+
+ViESharedData::ViESharedData()
+    : instance_id_(++instance_counter_),
+      initialized_(false),
+      number_cores_(CpuInfo::DetectNumberOfCores()),
+      over_use_detector_options_(),
+      channel_manager_(*new ViEChannelManager(instance_id_, number_cores_,
+                                              over_use_detector_options_)),
+      input_manager_(*new ViEInputManager(instance_id_)),
+      render_manager_(*new ViERenderManager(instance_id_)),
       module_process_thread_(ProcessThread::CreateProcessThread()),
       last_error_(0) {
   Trace::CreateTrace();
-  channel_manager_->SetModuleProcessThread(module_process_thread_);
-  input_manager_->SetModuleProcessThread(module_process_thread_);
+  channel_manager_.SetModuleProcessThread(module_process_thread_);
+  input_manager_.SetModuleProcessThread(module_process_thread_);
   module_process_thread_->Start();
 }
 
 ViESharedData::~ViESharedData() {
-  // Release these ones before the process thread and the trace.
-  input_manager_.reset();
-  channel_manager_.reset();
-  render_manager_.reset();
+  delete &input_manager_;
+  delete &channel_manager_;
+  delete &render_manager_;
 
   module_process_thread_->Stop();
   ProcessThread::DestroyProcessThread(module_process_thread_);
   Trace::ReturnTrace();
+}
+
+bool ViESharedData::Initialized() const {
+  return initialized_;
+}
+
+int ViESharedData::SetInitialized() {
+  initialized_ = true;
+  return 0;
+}
+
+int ViESharedData::SetUnInitialized() {
+  initialized_ = false;
+  return 0;
 }
 
 void ViESharedData::SetLastError(const int error) const {
@@ -51,6 +71,11 @@ int ViESharedData::LastErrorInternal() const {
   int error = last_error_;
   last_error_ = 0;
   return error;
+}
+
+void ViESharedData::SetOverUseDetectorOptions(
+    const OverUseDetectorOptions& options) {
+  over_use_detector_options_ = options;
 }
 
 int ViESharedData::NumberOfCores() const {

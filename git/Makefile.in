@@ -3,6 +3,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
 ifndef .PYMAKE
 ifeq (,$(MAKE_VERSION))
 $(error GNU Make is required)
@@ -13,6 +18,8 @@ endif
 endif
 
 export TOPLEVEL_BUILD := 1
+
+include $(DEPTH)/config/autoconf.mk
 
 default::
 
@@ -26,9 +33,9 @@ include $(topsrcdir)/config/config.mk
 GARBAGE_DIRS += dist _javagen _profile _tests staticlib
 DIST_GARBAGE = config.cache config.log config.status* config-defs.h \
    config/autoconf.mk \
-   mozilla-config.h \
+   unallmakefiles mozilla-config.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
-   .mozconfig.mk
+   $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
 
 ifndef MOZ_PROFILE_USE
 # One of the first things we do in the build is purge "unknown" files
@@ -53,7 +60,6 @@ ifndef MOZ_PROFILE_USE
 # We need to explicitly put backend.RecursiveMakeBackend.built here
 # otherwise the rule in rules.mk doesn't run early enough.
 default alldep all:: CLOBBER $(topsrcdir)/configure config.status backend.RecursiveMakeBackend.built
-	$(call SUBMAKE,backend.RecursiveMakeBackend.built,js/src,1)
 	$(call py_action,purge_manifests,-d _build_manifests/purge .)
 endif
 
@@ -80,27 +86,19 @@ config.status: $(topsrcdir)/configure
 # Build pseudo-external modules first when export is explicitly called
 export::
 	$(RM) -r $(DIST)/sdk
+	$(MAKE) -C config export
+	$(MAKE) tier_nspr
 
 ifdef ENABLE_TESTS
 # Additional makefile targets to call automated test suites
 include $(topsrcdir)/testing/testsuite-targets.mk
 endif
 
-# Hacky way for precompile tier to bypass default tier traversal mechanism.
-TIER_precompile_CUSTOM := 1
-
 include $(topsrcdir)/config/rules.mk
 
-default all alldep::
-	$(call py_action,process_install_manifest,$(DIST)/include _build_manifests/install/dist_include js/src/_build_manifests/install/dist_include)
-	$(call BUILDSTATUS,TIERS $(TIERS))
-	$(foreach tier,$(TIERS),$(call SUBMAKE,tier_$(tier)))
-
-include $(topsrcdir)/config/makefiles/tiers.mk
-$(foreach tier,$(TIERS),$(eval $(call CREATE_TIER_RULE,$(tier))))
-
 distclean::
-	$(RM) $(DIST_GARBAGE)
+	cat unallmakefiles | $(XARGS) rm -f
+	$(RM) unallmakefiles $(DIST_GARBAGE)
 
 ifeq ($(OS_ARCH),WINNT)
 # we want to copy PDB files on Windows
@@ -169,6 +167,9 @@ uploadsymbols:
 ifdef MOZ_CRASHREPORTER
 	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh $(SYMBOL_INDEX_NAME) "$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip"
 endif
+
+codesighs:
+	$(MAKE) -C $(MOZ_BUILD_APP)/installer codesighs
 
 # defined in package-name.mk
 export MOZ_SOURCE_STAMP

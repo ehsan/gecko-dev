@@ -156,42 +156,13 @@ class DeviceManagerADB(DeviceManager):
 
         return None
 
-    def forward(self, local, remote):
-        """
-        Forward socket connections.
-        
-        Forward specs are one of:
-          tcp:<port>
-          localabstract:<unix domain socket name>
-          localreserved:<unix domain socket name>
-          localfilesystem:<unix domain socket name>
-          dev:<character device name>
-          jdwp:<process pid> (remote only)
-        """
-        return self._checkCmd(['forward', local, remote])
-
-    def remount(self):
-        "Remounts the /system partition on the device read-write."
-        return self._checkCmd(['remount'])
-
-    def devices(self):
-        "Return a list of connected devices as (serial, status) tuples."
-        proc = self._runCmd(['devices'])
-        proc.stdout.readline() # ignore first line of output
-        devices = []
-        for line in iter(proc.stdout.readline, ''):
-            result = re.match('(.*?)\t(.*)', line)
-            if result:
-                devices.append((result.group(1), result.group(2)))
-        return devices
-
     def _connectRemoteADB(self):
         self._checkCmd(["connect", self.host + ":" + str(self.port)])
 
     def _disconnectRemoteADB(self):
         self._checkCmd(["disconnect", self.host + ":" + str(self.port)])
 
-    def pushFile(self, localname, destname, retryLimit=None, createDir=True):
+    def pushFile(self, localname, destname, retryLimit=None):
         # you might expect us to put the file *in* the directory in this case,
         # but that would be different behaviour from devicemanagerSUT. Throw
         # an exception so we have the same behaviour between the two
@@ -218,7 +189,7 @@ class DeviceManagerADB(DeviceManager):
         if 'read-only file system' in result.lower():
             raise DMError("Error creating directory: read only file system")
 
-    def pushDir(self, localDir, remoteDir, retryLimit=None, timeout=None):
+    def pushDir(self, localDir, remoteDir, retryLimit=None):
         # adb "push" accepts a directory as an argument, but if the directory
         # contains symbolic links, the links are pushed, rather than the linked
         # files; we either zip/unzip or re-copy the directory into a temporary
@@ -232,7 +203,7 @@ class DeviceManagerADB(DeviceManager):
                 remoteZip = remoteDir + "/adbdmtmp.zip"
                 subprocess.Popen(["zip", "-r", localZip, '.'], cwd=localDir,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-                self.pushFile(localZip, remoteZip, retryLimit=retryLimit, createDir=False)
+                self.pushFile(localZip, remoteZip, retryLimit=retryLimit)
                 os.remove(localZip)
                 data = self._runCmdAs(["shell", "unzip", "-o", remoteZip,
                                        "-d", remoteDir]).stdout.read()
@@ -248,7 +219,7 @@ class DeviceManagerADB(DeviceManager):
             # copytree's target dir must not already exist, so create a subdir
             tmpDirTarget = os.path.join(tmpDir, "tmp")
             shutil.copytree(localDir, tmpDirTarget)
-            self._checkCmd(["push", tmpDirTarget, remoteDir], retryLimit=retryLimit, timeout=timeout)
+            self._checkCmd(["push", tmpDirTarget, remoteDir], retryLimit=retryLimit)
             shutil.rmtree(tmpDir)
 
     def dirExists(self, remotePath):
@@ -430,7 +401,7 @@ class DeviceManagerADB(DeviceManager):
         elif offset is not None:
             f.seek(offset)
             ret = f.read()
-        else:
+        else: 
             ret = f.read()
 
         f.close()
@@ -521,10 +492,12 @@ class DeviceManagerADB(DeviceManager):
         raise DMError("Failed to get application root for: %s" % packageName)
 
     def reboot(self, wait = False, **kwargs):
-        self._checkCmd(["reboot"])
-        if not wait:
+        self._runCmd(["reboot"])
+        if (not wait):
             return
-        self._checkCmd(["wait-for-device", "shell", "ls", "/sbin"])
+        countdown = 40
+        while (countdown > 0):
+            self._checkCmd(["wait-for-device", "shell", "ls", "/sbin"])
 
     def updateApp(self, appBundlePath, **kwargs):
         return self._runCmd(["install", "-r", appBundlePath]).stdout.read()
@@ -533,7 +506,7 @@ class DeviceManagerADB(DeviceManager):
         timestr = self._runCmd(["shell", "date", "+%s"]).stdout.read().strip()
         if (not timestr or not timestr.isdigit()):
             raise DMError("Unable to get current time using date (got: '%s')" % timestr)
-        return int(timestr)*1000
+        return str(int(timestr)*1000)
 
     def getInfo(self, directive=None):
         ret = {}

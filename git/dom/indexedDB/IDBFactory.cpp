@@ -88,7 +88,7 @@ IDBFactory::~IDBFactory()
   }
   if (mRootedOwningObject) {
     mOwningObject = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, IDBFactory);
   }
 }
 
@@ -231,7 +231,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   rv = Create(cx, global, aContentParent, getter_AddRefs(factory));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mozilla::HoldJSObjects(factory.get());
+  NS_HOLD_JS_OBJECTS(factory, IDBFactory);
   factory->mRootedOwningObject = true;
 
   factory.forget(aFactory);
@@ -497,8 +497,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IDBFactory)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBFactory)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBFactory)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
@@ -510,7 +508,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
     tmp->mOwningObject = nullptr;
   }
   if (tmp->mRootedOwningObject) {
-    mozilla::DropJSObjects(tmp);
+    NS_DROP_JS_OBJECTS(tmp, IDBFactory);
     tmp->mRootedOwningObject = false;
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
@@ -647,9 +645,9 @@ IDBFactory::Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
   return Key::CompareKeys(first, second);
 }
 
-already_AddRefed<IDBOpenDBRequest>
+already_AddRefed<nsIIDBOpenDBRequest>
 IDBFactory::OpenForPrincipal(nsIPrincipal* aPrincipal,
-                             const nsAString& aName,
+                             const NonNull<nsAString>& aName,
                              const Optional<uint64_t>& aVersion,
                              ErrorResult& aRv)
 {
@@ -661,9 +659,9 @@ IDBFactory::OpenForPrincipal(nsIPrincipal* aPrincipal,
   return Open(aPrincipal, aName, aVersion, false, aRv);
 }
 
-already_AddRefed<IDBOpenDBRequest>
+already_AddRefed<nsIIDBOpenDBRequest>
 IDBFactory::DeleteForPrincipal(nsIPrincipal* aPrincipal,
-                               const nsAString& aName,
+                               const NonNull<nsAString>& aName,
                                ErrorResult& aRv)
 {
   // Just to be on the extra-safe side
@@ -674,7 +672,7 @@ IDBFactory::DeleteForPrincipal(nsIPrincipal* aPrincipal,
   return Open(aPrincipal, aName, Optional<uint64_t>(), true, aRv);
 }
 
-already_AddRefed<IDBOpenDBRequest>
+already_AddRefed<nsIIDBOpenDBRequest>
 IDBFactory::Open(nsIPrincipal* aPrincipal,
                  const nsAString& aName, const Optional<uint64_t>& aVersion,
                  bool aDelete, ErrorResult& aRv)

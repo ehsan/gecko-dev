@@ -4,10 +4,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
 include $(srcdir)/../glue/objs.mk
 
 EXTRA_DEPS += $(srcdir)/../glue/objs.mk
 
+LIBRARY_NAME	= xpcom_core
+MSVC_ENABLE_PGO := 1
+LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
 MOZILLA_INTERNAL_API = 1
@@ -50,8 +59,14 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../docshell/base \
 		$(NULL)
 
+DISABLED_SDK_HEADERS =  \
+  nsXPCOM.h       \
+  nsXPCOMCID.h    \
+  $(NULL)
+
 GARBAGE         += $(XPCOM_GLUE_SRC_LCPPSRCS) $(XPCOM_GLUENS_SRC_LCPPSRCS)
 
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 

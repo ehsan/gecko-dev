@@ -37,17 +37,26 @@ function test() {
 
 // var helpers = require('gclitest/helpers');
 // var mockCommands = require('gclitest/mockCommands');
+var cli = require('gcli/cli');
+
+var origLogErrors = undefined;
 
 exports.setup = function(options) {
   mockCommands.setup();
+
+  origLogErrors = cli.logErrors;
+  cli.logErrors = false;
 };
 
 exports.shutdown = function(options) {
   mockCommands.shutdown();
+
+  cli.logErrors = origLogErrors;
+  origLogErrors = undefined;
 };
 
 exports.testBaseline = function(options) {
-  return helpers.audit(options, [
+  helpers.audit(options, [
     // These 3 establish a baseline for comparison when we have used the
     // context command
     {
@@ -76,12 +85,12 @@ exports.testBaseline = function(options) {
       setup:    'tsn',
       check: {
         input:  'tsn',
-        hints:     ' deep down nested cmd',
+        hints:     '',
         markup: 'III',
         cursor: 3,
         current: '__command',
         status: 'ERROR',
-        predictionsContains: [ 'tsn deep down nested cmd', 'tsn ext', 'tsn exte' ],
+        predictionsContains: [ 'tsn', 'tsn deep', 'tsn ext', 'tsn exte' ],
         args: {
           command: { name: 'tsn' },
         }
@@ -91,16 +100,16 @@ exports.testBaseline = function(options) {
 };
 
 exports.testContext = function(options) {
-  return helpers.audit(options, [
+  helpers.audit(options, [
     // Use the 'tsn' context
     {
       setup:    'context tsn',
       check: {
         input:  'context tsn',
-        hints:             ' deep down nested cmd',
+        hints:             '',
         markup: 'VVVVVVVVVVV',
         message: '',
-        predictionsContains: [ 'tsn deep down nested cmd', 'tsn ext', 'tsn exte' ],
+        predictionsContains: [ 'tsn', 'tsn deep', 'tsn ext', 'tsn exte' ],
         args: {
           command: { name: 'context' },
           prefix: {
@@ -159,10 +168,10 @@ exports.testContext = function(options) {
       setup:    'tsn',
       check: {
         input:  'tsn',
-        hints:     ' deep down nested cmd',
+        hints:     '',
         markup: 'III',
         message: '',
-        predictionsContains: [ 'tsn deep down nested cmd', 'tsn ext', 'tsn exte' ],
+        predictionsContains: [ 'tsn', 'tsn deep', 'tsn ext', 'tsn exte' ],
         args: {
           command: { name: 'tsn' },
         }
@@ -197,7 +206,7 @@ exports.testContext = function(options) {
         hints:                   '',
         markup: 'VVVVVVVVVVVVVVVVV',
         message: '',
-        predictions: [ 'tsn ext', 'tsn exte', 'tsn exten', 'tsn extend' ],
+        predictions: [ ],
         unassigned: [ ],
         args: {
           command: { name: 'context' },

@@ -5,6 +5,7 @@
 
 #include "SVGPathSegUtils.h"
 #include "nsSVGPathDataParser.h"
+#include "nsContentUtils.h"
 #include "nsTextFormatter.h"
 
 using namespace mozilla;

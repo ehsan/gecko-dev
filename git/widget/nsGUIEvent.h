@@ -8,8 +8,10 @@
 
 #include "mozilla/MathAlgorithms.h"
 
+#include "nsCOMArray.h"
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "nsRegion.h"
 #include "nsEvent.h"
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
@@ -18,16 +20,17 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsIDOMTouchEvent.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
 #include "nsTraceRefcnt.h"
 #include "nsITransferable.h"
+#include "nsIVariant.h"
 #include "nsStyleConsts.h"
 #include "nsAutoPtr.h"
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/Touch.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace dom {
@@ -75,6 +78,7 @@ enum nsEventStructType {
   NS_SELECTION_EVENT,                // nsSelectionEvent
 
   // Scroll related events
+  NS_SCROLLBAR_EVENT,                // nsScrollbarEvent
   NS_SCROLLPORT_EVENT,               // nsScrollPortEvent
   NS_SCROLLAREA_EVENT,               // nsScrollAreaEvent
 
@@ -590,7 +594,7 @@ private:
 
   inline void SetRawFlags(RawFlags aRawFlags)
   {
-    static_assert(sizeof(BaseEventFlags) <= sizeof(RawFlags),
+    MOZ_STATIC_ASSERT(sizeof(BaseEventFlags) <= sizeof(RawFlags),
       "mozilla::widget::EventFlags must not be bigger than the RawFlags");
     memcpy(this, &aRawFlags, sizeof(BaseEventFlags));
   }
@@ -673,9 +677,9 @@ public:
   uint32_t    message;
   // Relative to the widget of the event, or if there is no widget then it is
   // in screen coordinates. Not modified by layout code.
-  mozilla::LayoutDeviceIntPoint refPoint;
+  nsIntPoint  refPoint;
   // The previous refPoint, if known, used to calculate mouse movement deltas.
-  mozilla::LayoutDeviceIntPoint lastRefPoint;
+  nsIntPoint  lastRefPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
   uint64_t    time;
@@ -684,27 +688,10 @@ public:
 
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
-
-  nsString typeString; // always set on non-main-thread events
-
   // Event targets, needed by DOM Events
   nsCOMPtr<mozilla::dom::EventTarget> target;
   nsCOMPtr<mozilla::dom::EventTarget> currentTarget;
   nsCOMPtr<mozilla::dom::EventTarget> originalTarget;
-
-  void AssignEventData(const nsEvent& aEvent, bool aCopyTargets)
-  {
-    // eventStructType, message should be initialized with the constructor.
-    refPoint = aEvent.refPoint;
-    // lastRefPoint doesn't need to be copied.
-    time = aEvent.time;
-    // mFlags should be copied manually if it's necessary.
-    userType = aEvent.userType;
-    // typeString should be copied manually if it's necessary.
-    target = aCopyTargets ? aEvent.target : nullptr;
-    currentTarget = aCopyTargets ? aEvent.currentTarget : nullptr;
-    originalTarget = aCopyTargets ? aEvent.originalTarget : nullptr;
-  }
 };
 
 /**
@@ -738,17 +725,6 @@ public:
 
   /// Event for NPAPI plugin
   void* pluginEvent;
-
-  void AssignGUIEventData(const nsGUIEvent& aEvent, bool aCopyTargets)
-  {
-    AssignEventData(aEvent, aCopyTargets);
-
-    // widget should be initialized with the constructor.
-
-    // pluginEvent shouldn't be copied because it may be referred after its
-    // instance is destroyed.
-    pluginEvent = nullptr;
-  }
 };
 
 /**
@@ -767,20 +743,23 @@ public:
   int32_t           lineNr;
   const PRUnichar*  errorMsg;
   const PRUnichar*  fileName;
+};
 
-  // XXX Not tested by test_assign_event_data.html
-  void AssignScriptErrorEventData(const nsScriptErrorEvent& aEvent,
-                                  bool aCopyTargets)
+/**
+ * Scrollbar event
+ */
+
+class nsScrollbarEvent : public nsGUIEvent
+{
+public:
+  nsScrollbarEvent(bool isTrusted, uint32_t msg, nsIWidget *w)
+    : nsGUIEvent(isTrusted, msg, w, NS_SCROLLBAR_EVENT),
+      position(0)
   {
-    AssignEventData(aEvent, aCopyTargets);
-
-    lineNr = aEvent.lineNr;
-
-    // We don't copy errorMsg and fileName.  If it's necessary, perhaps, this
-    // should duplicate the characters and free them at destructing.
-    errorMsg = nullptr;
-    fileName = nullptr;
   }
+
+  /// ranges between scrollbar 0 and (maxRange - thumbSize). See nsIScrollbar
+  uint32_t        position; 
 };
 
 class nsScrollPortEvent : public nsGUIEvent
@@ -799,14 +778,6 @@ public:
   }
 
   orientType orient;
-
-  void AssignScrollPortEventData(const nsScrollPortEvent& aEvent,
-                                 bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    orient = aEvent.orient;
-  }
 };
 
 class nsScrollAreaEvent : public nsGUIEvent
@@ -818,14 +789,6 @@ public:
   }
 
   nsRect mArea;
-
-  void AssignScrollAreaEventData(const nsScrollAreaEvent& aEvent,
-                                 bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    mArea = aEvent.mArea;
-  }
 };
 
 class nsInputEvent : public nsGUIEvent
@@ -931,13 +894,6 @@ public:
   }
 
   mozilla::widget::Modifiers modifiers;
-
-  void AssignInputEventData(const nsInputEvent& aEvent, bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    modifiers = aEvent.modifiers;
-  }
 };
 
 /**
@@ -973,18 +929,6 @@ public:
 
   // Possible values at nsIDOMMouseEvent
   uint16_t              inputSource;
-
-  void AssignMouseEventBaseData(const nsMouseEvent_base& aEvent,
-                                bool aCopyTargets)
-  {
-    AssignInputEventData(aEvent, aCopyTargets);
-
-    relatedTarget = aCopyTargets ? aEvent.relatedTarget : nullptr;
-    button = aEvent.button;
-    buttons = aEvent.buttons;
-    pressure = aEvent.pressure;
-    inputSource = aEvent.inputSource;
-  }
 };
 
 class nsMouseEvent : public nsMouseEvent_base
@@ -1080,15 +1024,6 @@ public:
 
   /// The number of mouse clicks
   uint32_t     clickCount;
-
-  void AssignMouseEventData(const nsMouseEvent& aEvent, bool aCopyTargets)
-  {
-    AssignMouseEventBaseData(aEvent, aCopyTargets);
-
-    acceptActivation = aEvent.acceptActivation;
-    ignoreRootScrollFrame = aEvent.ignoreRootScrollFrame;
-    clickCount = aEvent.clickCount;
-  }
 };
 
 /**
@@ -1110,16 +1045,6 @@ public:
 
   nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
   bool userCancelled;
-
-  // XXX Not tested by test_assign_event_data.html
-  void AssignDragEventData(const nsDragEvent& aEvent, bool aCopyTargets)
-  {
-    AssignMouseEventData(aEvent, aCopyTargets);
-
-    dataTransfer = aEvent.dataTransfer;
-    // XXX userCancelled isn't copied, is this instentionally?
-    userCancelled = false;
-  }
 };
 
 /**
@@ -1190,21 +1115,6 @@ public:
         return;
     }
 #undef NS_DEFINE_KEYNAME
-  }
-
-  void AssignKeyEventData(const nsKeyEvent& aEvent, bool aCopyTargets)
-  {
-    AssignInputEventData(aEvent, aCopyTargets);
-
-    keyCode = aEvent.keyCode;
-    charCode = aEvent.charCode;
-    location = aEvent.location;
-    alternativeCharCodes = aEvent.alternativeCharCodes;
-    isChar = aEvent.isChar;
-    mKeyNameIndex = aEvent.mKeyNameIndex;
-    // Don't copy mNativeKeyEvent because it may be referred after its instance
-    // is destroyed.
-    mNativeKeyEvent = nullptr;
   }
 };
 
@@ -1331,7 +1241,7 @@ struct nsTextRange
 
 typedef nsTextRange* nsTextRangeArray;
 
-class nsTextEvent : public nsGUIEvent
+class nsTextEvent : public nsInputEvent
 {
 private:
   friend class mozilla::dom::PBrowserParent;
@@ -1347,7 +1257,7 @@ public:
 
 public:
   nsTextEvent(bool isTrusted, uint32_t msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_TEXT_EVENT),
+    : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
       rangeCount(0), rangeArray(nullptr), isChar(false)
   {
   }
@@ -1359,16 +1269,6 @@ public:
   // array.
   nsTextRangeArray  rangeArray;
   bool              isChar;
-
-  void AssignTextEventData(const nsTextEvent& aEvent, bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    isChar = aEvent.isChar;
-
-    // Currently, we don't need to copy the other members because they are
-    // for internal use only (not available from JS).
-  }
 };
 
 class nsCompositionEvent : public nsGUIEvent
@@ -1395,14 +1295,6 @@ public:
   }
 
   nsString data;
-
-  void AssignCompositionEventData(const nsCompositionEvent& aEvent,
-                                  bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    data = aEvent.data;
-  }
 };
 
 /**
@@ -1427,15 +1319,6 @@ public:
 
   int32_t               delta;
   bool                  isHorizontal;
-
-  void AssignMouseScrollEventData(const nsMouseScrollEvent& aEvent,
-                                  bool aCopyTargets)
-  {
-    AssignMouseEventBaseData(aEvent, aCopyTargets);
-
-    delta = aEvent.delta;
-    isHorizontal = aEvent.isHorizontal;
-  }
 };
 
 /**
@@ -1462,7 +1345,8 @@ public:
     deltaMode(nsIDOMWheelEvent::DOM_DELTA_PIXEL),
     customizedByUserPrefs(false), isMomentum(false), isPixelOnlyDevice(false),
     lineOrPageDeltaX(0), lineOrPageDeltaY(0), scrollType(SCROLL_DEFAULT),
-    overflowDeltaX(0.0), overflowDeltaY(0.0)
+    overflowDeltaX(0.0), overflowDeltaY(0.0),
+    viewPortIsScrollTargetParent(false)
   {
   }
 
@@ -1542,23 +1426,10 @@ public:
   double overflowDeltaX;
   double overflowDeltaY;
 
-  void AssignWheelEventData(const WheelEvent& aEvent, bool aCopyTargets)
-  {
-    AssignMouseEventBaseData(aEvent, aCopyTargets);
-
-    deltaX = aEvent.deltaX;
-    deltaY = aEvent.deltaY;
-    deltaZ = aEvent.deltaZ;
-    deltaMode = aEvent.deltaMode;
-    customizedByUserPrefs = aEvent.customizedByUserPrefs;
-    isMomentum = aEvent.isMomentum;
-    isPixelOnlyDevice = aEvent.isPixelOnlyDevice;
-    lineOrPageDeltaX = aEvent.lineOrPageDeltaX;
-    lineOrPageDeltaY = aEvent.lineOrPageDeltaY;
-    scrollType = aEvent.scrollType;
-    overflowDeltaX = aEvent.overflowDeltaX;
-    overflowDeltaY = aEvent.overflowDeltaY;
-  }
+  // Whether or not the parent of the currently scrolled frame is the ViewPort.
+  // This is false in situations when an element on the page is being scrolled
+  // (such as a text field), but true when the 'page' is being scrolled.
+  bool viewPortIsScrollTargetParent;
 };
 
 } // namespace widget
@@ -1638,7 +1509,7 @@ public:
     mInput.mLength = aLength;
   }
 
-  void InitForQueryDOMWidgetHittest(const mozilla::LayoutDeviceIntPoint& aPoint)
+  void InitForQueryDOMWidgetHittest(nsIntPoint& aPoint)
   {
     NS_ASSERTION(message == NS_QUERY_DOM_WIDGET_HITTEST,
                  "wrong initializer is called");
@@ -1785,13 +1656,6 @@ public:
   }
 
   nsTArray< nsRefPtr<mozilla::dom::Touch> > touches;
-
-  void AssignTouchEventData(const nsTouchEvent& aEvent, bool aCopyTargets)
-  {
-    AssignInputEventData(aEvent, aCopyTargets);
-
-    // Currently, we don't need to copy touches.
-  }
 };
 
 /**
@@ -1811,13 +1675,6 @@ public:
   }
 
   nsIContent *originator;
-
-  void AssignFormEventData(const nsFormEvent& aEvent, bool aCopyTargets)
-  {
-    AssignEventData(aEvent, aCopyTargets);
-
-    // Don't copy originator due to a weak pointer.
-  }
 };
 
 /**
@@ -1838,14 +1695,6 @@ public:
   }
 
   nsCOMPtr<nsIAtom> command;
-
-  // XXX Not tested by test_assign_event_data.html
-  void AssignCommandEventData(const nsCommandEvent& aEvent, bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    // command must have been initialized with the constructor.
-  }
 };
 
 /**
@@ -1860,14 +1709,6 @@ public:
   }
 
   nsCOMPtr<nsIDOMDataTransfer> clipboardData;
-
-  void AssignClipboardEventData(const nsClipboardEvent& aEvent,
-                                bool aCopyTargets)
-  {
-    AssignEventData(aEvent, aCopyTargets);
-
-    clipboardData = aEvent.clipboardData;
-  }
 };
 
 /**
@@ -1883,13 +1724,6 @@ public:
   }
 
   int32_t detail;
-
-  void AssignUIEventData(const nsUIEvent& aEvent, bool aCopyTargets)
-  {
-    AssignGUIEventData(aEvent, aCopyTargets);
-
-    // detail must have been initialized with the constructor.
-  }
 };
 
 class nsFocusEvent : public nsUIEvent
@@ -1908,15 +1742,6 @@ public:
 
   bool fromRaise;
   bool isRefocus;
-
-  void AssignFocusEventData(const nsFocusEvent& aEvent, bool aCopyTargets)
-  {
-    AssignUIEventData(aEvent, aCopyTargets);
-
-    relatedTarget = aCopyTargets ? aEvent.relatedTarget : nullptr;
-    fromRaise = aEvent.fromRaise;
-    isRefocus = aEvent.isRefocus;
-  }
 };
 
 /**
@@ -1944,18 +1769,6 @@ public:
   uint32_t direction;         // See nsIDOMSimpleGestureEvent for values
   double delta;               // Delta for magnify and rotate events
   uint32_t clickCount;        // The number of taps for tap events
-
-  // XXX Not tested by test_assign_event_data.html
-  void AssignSimpleGestureEventData(const nsSimpleGestureEvent& aEvent,
-                                    bool aCopyTargets)
-  {
-    AssignMouseEventBaseData(aEvent, aCopyTargets);
-
-    // allowedDirections isn't copied
-    direction = aEvent.direction;
-    delta = aEvent.delta;
-    clickCount = aEvent.clickCount;
-  }
 };
 
 class nsTransitionEvent : public nsEvent
@@ -1973,15 +1786,6 @@ public:
   nsString propertyName;
   float elapsedTime;
   nsString pseudoElement;
-
-  void AssignTransitionEventData(const nsTransitionEvent& aEvent,
-                                 bool aCopyTargets)
-  {
-    AssignEventData(aEvent, aCopyTargets);
-
-    // propertyName, elapsedTime and pseudoElement must have been initialized
-    // with the constructor.
-  }
 };
 
 class nsAnimationEvent : public nsEvent
@@ -1999,15 +1803,6 @@ public:
   nsString animationName;
   float elapsedTime;
   nsString pseudoElement;
-
-  void AssignAnimationEventData(const nsAnimationEvent& aEvent,
-                                bool aCopyTargets)
-  {
-    AssignEventData(aEvent, aCopyTargets);
-
-    // animationName, elapsedTime and pseudoElement must have been initialized
-    // with the constructor.
-  }
 };
 
 /**
@@ -2045,10 +1840,10 @@ enum nsDragDropEventStatus {
        (((evnt)->eventStructType == NS_INPUT_EVENT) || \
         ((evnt)->eventStructType == NS_MOUSE_EVENT) || \
         ((evnt)->eventStructType == NS_KEY_EVENT) || \
+        ((evnt)->eventStructType == NS_TEXT_EVENT) || \
         ((evnt)->eventStructType == NS_TOUCH_EVENT) || \
         ((evnt)->eventStructType == NS_DRAG_EVENT) || \
         ((evnt)->eventStructType == NS_MOUSE_SCROLL_EVENT) || \
-        ((evnt)->eventStructType == NS_WHEEL_EVENT) || \
         ((evnt)->eventStructType == NS_SIMPLE_GESTURE_EVENT))
 
 #define NS_IS_MOUSE_EVENT(evnt) \

@@ -56,7 +56,7 @@ public:
                          uint32_t aLength,
                          nsIInputStream** _retval);
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   // These are mandatory.
   NS_FORWARD_NSIINPUTSTREAM(mStream->)
@@ -82,8 +82,8 @@ private:
   nsCOMPtr<nsIIPCSerializableInputStream> mSerializableInputStream;
 };
 
-NS_IMPL_ADDREF(DataOwnerAdapter)
-NS_IMPL_RELEASE(DataOwnerAdapter)
+NS_IMPL_THREADSAFE_ADDREF(DataOwnerAdapter)
+NS_IMPL_THREADSAFE_RELEASE(DataOwnerAdapter)
 
 NS_INTERFACE_MAP_BEGIN(DataOwnerAdapter)
   NS_INTERFACE_MAP_ENTRY(nsIInputStream)
@@ -123,14 +123,6 @@ nsDOMFileBase::GetName(nsAString &aFileName)
 {
   NS_ASSERTION(mIsFile, "Should only be called on files");
   aFileName = mName;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMFileBase::GetPath(nsAString &aPath)
-{
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-  aPath = mPath;
   return NS_OK;
 }
 
@@ -453,13 +445,11 @@ NS_INTERFACE_MAP_BEGIN(nsDOMFile)
 NS_INTERFACE_MAP_END
 
 // Threadsafe when GetMutable() == false
-NS_IMPL_ADDREF(nsDOMFile)
-NS_IMPL_RELEASE(nsDOMFile)
+NS_IMPL_THREADSAFE_ADDREF(nsDOMFile)
+NS_IMPL_THREADSAFE_RELEASE(nsDOMFile)
 
 ////////////////////////////////////////////////////////////////////////////
 // nsDOMFileCC implementation
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileCC)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsDOMFileCC)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMFileCC)
@@ -599,15 +589,6 @@ nsDOMFileFile::GetInternalStream(nsIInputStream **aStream)
                                       -1, -1, sFileStreamFlags);
 }
 
-void
-nsDOMFileFile::SetPath(const nsAString& aPath)
-{
-  MOZ_ASSERT(aPath.IsEmpty() ||
-             aPath[aPath.Length() - 1] == PRUnichar('/'),
-             "Path must end with a path separator");
-  mPath = aPath;
-}
-
 ////////////////////////////////////////////////////////////////////////////
 // nsDOMMemoryFile implementation
 
@@ -643,7 +624,7 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(DOMMemoryFileDataOwnerMallocSizeOf)
 class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
   : public nsIMemoryMultiReporter
 {
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   NS_IMETHOD GetName(nsACString& aName)
   {
@@ -724,7 +705,7 @@ class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
   }
 };
 
-NS_IMPL_ISUPPORTS1(nsDOMMemoryFileDataOwnerMemoryReporter,
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDOMMemoryFileDataOwnerMemoryReporter,
                    nsIMemoryMultiReporter)
 
 /* static */ void

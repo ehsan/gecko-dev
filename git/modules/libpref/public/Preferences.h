@@ -17,7 +17,6 @@
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsWeakReference.h"
-#include "mozilla/MemoryReporting.h"
 
 class nsIFile;
 class nsCString;
@@ -44,7 +43,7 @@ class Preferences : public nsIPrefService,
 public:
   typedef mozilla::dom::PrefSetting PrefSetting;
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFSERVICE
   NS_FORWARD_NSIPREFBRANCH(sRootBranch->)
   NS_DECL_NSIOBSERVER
@@ -349,7 +348,7 @@ public:
   static void GetPreference(PrefSetting* aPref);
   static void SetPreference(const PrefSetting& aPref);
 
-  static int64_t SizeOfIncludingThisAndOtherStuff(mozilla::MallocSizeOf aMallocSizeOf);
+  static int64_t GetPreferencesMemoryUsed();
   static nsresult SetFloat(const char* aPref, float aValue);
 
 protected:

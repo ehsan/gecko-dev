@@ -16,20 +16,25 @@
 #include "nsGeolocation.h"
 #include "nsIHttpProtocolHandler.h"
 #include "nsICachingChannel.h"
+#include "nsIDocShell.h"
 #include "nsIWebContentHandlerRegistrar.h"
 #include "nsICookiePermission.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsVariant.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "BatteryManager.h"
 #include "PowerManager.h"
 #include "nsIDOMWakeLock.h"
 #include "nsIPowerManagerService.h"
+#include "mozilla/dom/SmsManager.h"
 #include "mozilla/dom/MobileMessageManager.h"
+#include "nsISmsService.h"
 #include "mozilla/Hal.h"
+#include "nsIWebNavigation.h"
 #include "nsISiteSpecificUserAgent.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/StaticPtr.h"
@@ -47,8 +52,6 @@
 #include "nsNetUtil.h"
 #include "nsIHttpChannel.h"
 #include "TimeManager.h"
-#include "DeviceStorage.h"
-#include "nsIDOMNavigatorSystemMessages.h"
 
 #ifdef MOZ_MEDIA_NAVIGATOR
 #include "MediaManager.h"
@@ -57,16 +60,14 @@
 #include "Telephony.h"
 #endif
 #ifdef MOZ_B2G_BT
+#include "nsIDOMBluetoothManager.h"
 #include "BluetoothManager.h"
 #endif
+#include "nsIDOMCameraManager.h"
 #include "DOMCameraManager.h"
 
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
 #include "AudioChannelManager.h"
-#endif
-
-#ifdef MOZ_B2G_FM
-#include "mozilla/dom/FMRadio.h"
 #endif
 
 #include "nsIDOMGlobalPropertyInitializer.h"
@@ -127,8 +128,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Navigator)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Navigator)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(Navigator)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Navigator)
   tmp->Invalidate();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
@@ -142,6 +141,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotification)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBatteryManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPowerManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSmsManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMobileMessageManager)
 #ifdef MOZ_B2G_RIL
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTelephony)
@@ -199,16 +199,14 @@ Navigator::Invalidate()
     mBatteryManager = nullptr;
   }
 
-#ifdef MOZ_B2G_FM
-  if (mFMRadio) {
-    mFMRadio->Shutdown();
-    mFMRadio = nullptr;
-  }
-#endif
-
   if (mPowerManager) {
     mPowerManager->Shutdown();
     mPowerManager = nullptr;
+  }
+
+  if (mSmsManager) {
+    mSmsManager->Shutdown();
+    mSmsManager = nullptr;
   }
 
   if (mMobileMessageManager) {
@@ -463,7 +461,8 @@ Navigator::GetMimeTypes(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mMimeTypes = new nsMimeTypeArray(mWindow);
+    nsWeakPtr win = do_GetWeakReference(mWindow);
+    mMimeTypes = new nsMimeTypeArray(win);
   }
 
   return mMimeTypes;
@@ -477,7 +476,8 @@ Navigator::GetPlugins(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mPlugins = new nsPluginArray(mWindow);
+    nsWeakPtr win = do_GetWeakReference(mWindow);
+    mPlugins = new nsPluginArray(win);
     mPlugins->Init();
   }
 
@@ -591,7 +591,8 @@ Navigator::JavaEnabled(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return false;
     }
-    mMimeTypes = new nsMimeTypeArray(mWindow);
+    nsWeakPtr win = do_GetWeakReference(mWindow);
+    mMimeTypes = new nsMimeTypeArray(win);
   }
 
   RefreshMIMEArray();
@@ -959,7 +960,7 @@ Navigator::GetDeviceStorages(const nsAString& aType,
     return;
   }
 
-  nsDOMDeviceStorage::CreateDeviceStoragesFor(mWindow, aType, aStores);
+  nsDOMDeviceStorage::CreateDeviceStoragesFor(mWindow, aType, aStores, false);
 
   mDeviceStorageStores.AppendElements(aStores);
 }
@@ -967,6 +968,10 @@ Navigator::GetDeviceStorages(const nsAString& aType,
 Geolocation*
 Navigator::GetGeolocation(ErrorResult& aRv)
 {
+  if (!Preferences::GetBool("geo.enabled", true)) {
+    return nullptr;
+  }
+
   if (mGeolocation) {
     return mGeolocation;
   }
@@ -1055,34 +1060,6 @@ Navigator::GetMozNotification(ErrorResult& aRv)
   return mNotification;
 }
 
-#ifdef MOZ_B2G_FM
-
-using mozilla::dom::FMRadio;
-
-FMRadio*
-Navigator::GetMozFMRadio(ErrorResult& aRv)
-{
-  if (!mFMRadio) {
-    if (!mWindow) {
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
-    }
-
-    NS_ENSURE_TRUE(mWindow->GetDocShell(), nullptr);
-
-    mFMRadio = new FMRadio();
-    mFMRadio->Init(mWindow);
-  }
-
-  return mFMRadio;
-}
-
-#endif  // MOZ_B2G_FM
-
-//*****************************************************************************
-//    Navigator::nsINavigatorBattery
-//*****************************************************************************
-
 battery::BatteryManager*
 Navigator::GetBattery(ErrorResult& aRv)
 {
@@ -1137,6 +1114,19 @@ Navigator::RequestWakeLock(const nsAString &aTopic, ErrorResult& aRv)
   return wakelock.forget();
 }
 
+nsIDOMMozSmsManager*
+Navigator::GetMozSms()
+{
+  if (!mSmsManager) {
+    NS_ENSURE_TRUE(mWindow, nullptr);
+    NS_ENSURE_TRUE(mWindow->GetDocShell(), nullptr);
+
+    mSmsManager = SmsManager::CreateInstance(mWindow);
+  }
+
+  return mSmsManager;
+}
+
 nsIDOMMozMobileMessageManager*
 Navigator::GetMozMobileMessage()
 {
@@ -1154,7 +1144,7 @@ Navigator::GetMozMobileMessage()
 
 #ifdef MOZ_B2G_RIL
 
-CellBroadcast*
+nsIDOMMozCellBroadcast*
 Navigator::GetMozCellBroadcast(ErrorResult& aRv)
 {
   if (!mCellBroadcast) {
@@ -1162,13 +1152,17 @@ Navigator::GetMozCellBroadcast(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mCellBroadcast = CellBroadcast::Create(mWindow, aRv);
+
+    aRv = NS_NewCellBroadcast(mWindow, getter_AddRefs(mCellBroadcast));
+    if (aRv.Failed()) {
+      return nullptr;
+    }
   }
 
   return mCellBroadcast;
 }
 
-telephony::Telephony*
+nsIDOMTelephony*
 Navigator::GetMozTelephony(ErrorResult& aRv)
 {
   if (!mTelephony) {
@@ -1182,7 +1176,7 @@ Navigator::GetMozTelephony(ErrorResult& aRv)
   return mTelephony;
 }
 
-Voicemail*
+nsIDOMMozVoicemail*
 Navigator::GetMozVoicemail(ErrorResult& aRv)
 {
   if (!mVoicemail) {
@@ -1277,7 +1271,7 @@ Navigator::GetMozMobileConnection(ErrorResult& aRv)
 #endif // MOZ_B2G_RIL
 
 #ifdef MOZ_B2G_BT
-bluetooth::BluetoothManager*
+nsIDOMBluetoothManager*
 Navigator::GetMozBluetooth(ErrorResult& aRv)
 {
   if (!mBluetooth) {
@@ -1304,7 +1298,7 @@ Navigator::EnsureMessagesManager()
   nsresult rv;
   nsCOMPtr<nsIDOMNavigatorSystemMessages> messageManager =
     do_CreateInstance("@mozilla.org/system-message-manager;1", &rv);
-
+  
   nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi =
     do_QueryInterface(messageManager);
   NS_ENSURE_TRUE(gpi, NS_ERROR_FAILURE);
@@ -1484,7 +1478,8 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
     return true;
   }
 
-  nsScriptNameSpaceManager* nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   if (!nameSpaceManager) {
     return Throw<true>(aCx, NS_ERROR_NOT_INITIALIZED);
   }
@@ -1518,15 +1513,6 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
       if (name_struct->mConstructorEnabled &&
           !(*name_struct->mConstructorEnabled)(aCx, naviObj)) {
         return true;
-      }
-
-      if (name.EqualsLiteral("mozSettings")) {
-        bool hasPermission = CheckPermission("settings-read") ||
-                             CheckPermission("settings-write");
-        if (!hasPermission) {
-          aValue.setNull();
-          return true;
-        }
       }
 
       domObject = construct(aCx, naviObj);
@@ -1586,28 +1572,6 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
   return true;
 }
 
-static PLDHashOperator
-SaveNavigatorName(const nsAString& aName, void* aClosure)
-{
-  nsTArray<nsString>* arr = static_cast<nsTArray<nsString>*>(aClosure);
-  arr->AppendElement(aName);
-  return PL_DHASH_NEXT;
-}
-
-void
-Navigator::GetOwnPropertyNames(JSContext* aCx, nsTArray<nsString>& aNames,
-                               ErrorResult& aRv)
-{
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
-  if (!nameSpaceManager) {
-    NS_ERROR("Can't get namespace manager.");
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
-
-  nameSpaceManager->EnumerateNavigatorNames(SaveNavigatorName, &aNames);
-}
-
 JSObject*
 Navigator::WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
 {
@@ -1631,14 +1595,6 @@ Navigator::HasPowerSupport(JSContext* /* unused */, JSObject* aGlobal)
 
 /* static */
 bool
-Navigator::HasPhoneNumberSupport(JSContext* /* unused */, JSObject* aGlobal)
-{
-  nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  return CheckPermission(win, "phonenumberservice");
-}
-
-/* static */
-bool
 Navigator::HasIdleSupport(JSContext*  /* unused */, JSObject* aGlobal)
 {
   if (!nsContentUtils::IsIdleObserverAPIEnabled()) {
@@ -1657,6 +1613,14 @@ Navigator::HasWakeLockSupport(JSContext* /* unused*/, JSObject* /*unused */)
     do_GetService(POWERMANAGERSERVICE_CONTRACTID);
   // No service means no wake lock support
   return !!pmService;
+}
+
+/* static */
+bool
+Navigator::HasSmsSupport(JSContext* /* unused */, JSObject* aGlobal)
+{
+  nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
+  return win && SmsManager::CreationIsAllowed(win);
 }
 
 /* static */
@@ -1749,16 +1713,6 @@ Navigator::HasBluetoothSupport(JSContext* /* unused */, JSObject* aGlobal)
 }
 #endif // MOZ_B2G_BT
 
-#ifdef MOZ_B2G_FM
-/* static */
-bool
-Navigator::HasFMRadioSupport(JSContext* /* unused */, JSObject* aGlobal)
-{
-  nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  return win && CheckPermission(win, "fmradio");
-}
-#endif // MOZ_B2G_FM
-
 #ifdef MOZ_TIME_MANAGER
 /* static */
 bool
@@ -1779,14 +1733,6 @@ bool Navigator::HasUserMediaSupport(JSContext* /* unused */,
          Preferences::GetBool("media.peerconnection.enabled", false);
 }
 #endif // MOZ_MEDIA_NAVIGATOR
-
-/* static */
-bool Navigator::HasPushNotificationsSupport(JSContext* /* unused */,
-                                            JSObject* aGlobal)
-{
-  nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  return win && Preferences::GetBool("services.push.enabled", false) && CheckPermission(win, "push");
-}
 
 /* static */
 already_AddRefed<nsPIDOMWindow>

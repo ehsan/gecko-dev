@@ -3,6 +3,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir  = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 MOCHITEST_FILES = \
   utils.js \
   test_defaultValue.html \
@@ -106,6 +114,7 @@ MOCHITEST_CHROME_FILES = \
 
 ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 MOCHITEST_FILES += \
+  test_instance_re-parent-windowed.html \
   test_visibility.html \
   $(NULL)
 
@@ -160,3 +169,5 @@ MOCHITEST_FILES += \
 		test_crash_nested_loop.html \
 		$(NULL)
 endif
+
+include $(topsrcdir)/config/rules.mk

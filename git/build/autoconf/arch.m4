@@ -37,6 +37,16 @@ if test -z "$MOZ_ARCH"; then
         MOZ_ARCH=toolchain-default
         MOZ_THUMB=yes
         ;;
+    arm-*)
+        if test -n "$MOZ_PLATFORM_MAEMO"; then
+            MOZ_THUMB=no
+            MOZ_ARCH=armv7-a
+            MOZ_FLOAT_ABI=softfp
+        fi
+        if test "$MOZ_PLATFORM_MAEMO" = 6; then
+            MOZ_THUMB=yes
+        fi
+        ;;
     esac
 fi
 
@@ -212,9 +222,8 @@ if test "$CPU_ARCH" = "arm"; then
       dnl This matches media/webrtc/trunk/webrtc/build/common.gypi.
       if test -n "$ARM_ARCH"; then
           if test "$ARM_ARCH" -lt 7; then
-              BUILD_ARM_NEON=
+              BUILD_ARM_NEON=0
           else
-              AC_DEFINE(BUILD_ARM_NEON)
               BUILD_ARM_NEON=1
           fi
       fi

@@ -16,13 +16,9 @@
 //#define GFX_TILEDLAYER_DEBUG_OVERLAY
 //#define GFX_TILEDLAYER_PREF_WARNINGS
 
-#include <stdint.h>                     // for uint16_t, uint32_t
-#include <sys/types.h>                  // for int32_t
-#include "nsDebug.h"                    // for NS_ABORT_IF_FALSE
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTArray.h"                   // for nsTArray
+#include "nsRect.h"
+#include "nsRegion.h"
+#include "nsTArray.h"
 
 namespace mozilla {
 namespace layers {
@@ -115,10 +111,6 @@ public:
   bool RemoveTile(int x, int y, Tile& aRemovedTile);
 
   uint16_t GetTileLength() const { return TILEDLAYERBUFFER_TILE_SIZE; }
-
-#ifdef MOZ_WIDGET_ANDROID
-  MOZ_NEVER_INLINE // bug 881018 causes wrong results when GetScaledTileLength is inlined
-#endif
   uint32_t GetScaledTileLength() const { return TILEDLAYERBUFFER_TILE_SIZE / mResolution; }
 
   unsigned int GetTileCount() const { return mRetainedTiles.Length(); }
@@ -188,8 +180,6 @@ private:
 };
 
 class BasicTiledLayerBuffer;
-class SurfaceDescriptorTiles;
-class ISurfaceAllocator;
 
 // Shadow layers may implement this interface in order to be notified when a
 // tiled layer buffer is updated.
@@ -198,13 +188,11 @@ class TiledLayerComposer
 public:
   /**
    * Update the current retained layer with the updated layer data.
-   * It is expected that the tiles described by aTiledDescriptor are all in the
-   * ReadLock state, so that the locks can be adopted when recreating a
-   * BasicTiledLayerBuffer locally. This lock will be retained until the buffer
-   * has completed uploading.
+   * The BasicTiledLayerBuffer is expected to be in the ReadLock state
+   * prior to this being called. aTiledBuffer is copy constructed and
+   * is retained until it has been uploaded/copyed and unlocked.
    */
-  virtual void PaintedTiledLayerBuffer(ISurfaceAllocator* aAllocator,
-                                       const SurfaceDescriptorTiles& aTiledDescriptor) = 0;
+  virtual void PaintedTiledLayerBuffer(const BasicTiledLayerBuffer* aTiledBuffer) = 0;
 
   /**
    * If some part of the buffer is being rendered at a lower precision, this
@@ -237,6 +225,7 @@ TiledLayerBuffer<Derived, Tile>::GetTile(const nsIntPoint& aTileOrigin) const
   // TODO Cache firstTileOriginX/firstTileOriginY
   // Find the tile x/y of the first tile and the target tile relative to the (0, 0)
   // origin, the difference is the tile x/y relative to the start of the tile buffer.
+  volatile float resolution = mResolution; // bug 881018 investigation
   int firstTileX = floor_div(mValidRegion.GetBounds().x, GetScaledTileLength());
   int firstTileY = floor_div(mValidRegion.GetBounds().y, GetScaledTileLength());
   return GetTile(floor_div(aTileOrigin.x, GetScaledTileLength()) - firstTileX,

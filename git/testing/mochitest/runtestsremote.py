@@ -12,13 +12,13 @@ import shutil
 import math
 import base64
 
-sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(__file__))))
+sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0]))))
 
 from automation import Automation
 from remoteautomation import RemoteAutomation, fennecLogcatFilters
 from runtests import Mochitest
+from runtests import MochitestOptions
 from runtests import MochitestServer
-from mochitest_options import MochitestOptions
 
 import devicemanager
 import droid
@@ -26,9 +26,9 @@ import manifestparser
 
 class RemoteOptions(MochitestOptions):
 
-    def __init__(self, automation, **kwargs):
+    def __init__(self, automation, scriptdir, **kwargs):
         defaults = {}
-        MochitestOptions.__init__(self, automation)
+        MochitestOptions.__init__(self, automation, scriptdir)
 
         self.add_option("--remote-app-path", action="store",
                     type = "string", dest = "remoteAppPath",
@@ -209,7 +209,7 @@ class RemoteOptions(MochitestOptions):
     def verifyOptions(self, options, mochitest):
         # since we are reusing verifyOptions, it will exit if App is not found
         temp = options.app
-        options.app = __file__
+        options.app = sys.argv[0]
         tempPort = options.httpPort
         tempSSL = options.sslPort
         tempIP = options.webServer
@@ -519,8 +519,9 @@ class MochiRemote(Mochitest):
 
         
 def main():
+    scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
     auto = RemoteAutomation(None, "fennec")
-    parser = RemoteOptions(auto)
+    parser = RemoteOptions(auto, scriptdir)
     options, args = parser.parse_args()
 
     if (options.dm_trans == "adb"):
@@ -589,7 +590,7 @@ def main():
         options.extraPrefs.append('robocop.logfile="%s/robocop.log"' % deviceRoot)
         options.extraPrefs.append('browser.search.suggest.enabled=true')
         options.extraPrefs.append('browser.search.suggest.prompted=true')
-        options.extraPrefs.append('layout.css.devPixelsPerPx="1.0"')
+        options.extraPrefs.append('browser.viewport.scaleRatio=100')
         options.extraPrefs.append('browser.chrome.dynamictoolbar=false')
 
         if (options.dm_trans == 'adb' and options.robocopApk):
@@ -603,13 +604,6 @@ def main():
             if not test['name'] in my_tests:
                 continue
 
-            # When running in a loop, we need to create a fresh profile for each cycle
-            if mochitest.localProfile:
-                options.profilePath = mochitest.localProfile
-                os.system("rm -Rf %s" % options.profilePath)
-                options.profilePath = tempfile.mkdtemp()
-                mochitest.localProfile = options.profilePath
-
             options.app = "am"
             options.browserArgs = ["instrument", "-w", "-e", "deviceroot", deviceRoot, "-e", "class"]
             options.browserArgs.append("%s.tests.%s" % (options.remoteappname, test['name']))
@@ -621,10 +615,6 @@ def main():
                 # Get the OS so we can run the insert in the apropriate database and following the correct table schema
                 osInfo = dm.getInfo("os")
                 devOS = " ".join(osInfo['os'])
-
-                # Bug 900664: stock browser db not available on x86 emulator
-                if ("sdk_x86" in devOS):
-                    continue
 
                 if ("pandaboard" in devOS):
                     delete = ['execsu', 'sqlite3', "/data/data/com.android.browser/databases/browser2.db \'delete from bookmarks where _id > 14;\'"]

@@ -6,33 +6,17 @@
 #ifndef THEBESLAYERBUFFER_H_
 #define THEBESLAYERBUFFER_H_
 
-#include <stdint.h>                     // for uint32_t
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxContext.h"                 // for gfxContext
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
-#include "mozilla/gfx/2D.h"             // for DrawTarget, etc
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsISupportsImpl.h"            // for gfxContext::AddRef, etc
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-
-struct gfxMatrix;
-struct nsIntSize;
+#include "gfxContext.h"
+#include "gfxASurface.h"
+#include "nsRegion.h"
+#include "mozilla/layers/TextureClient.h"
+#include "mozilla/gfx/2D.h"
+#include "Layers.h"
 
 namespace mozilla {
-namespace gfx {
-class Matrix;
-}
-
 namespace layers {
 
-class DeprecatedTextureClient;
+class AutoOpenSurface;
 class ThebesLayer;
 
 /**
@@ -249,7 +233,7 @@ public:
   virtual already_AddRefed<gfxASurface>
   CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, gfxASurface** aWhiteSurface) = 0;
   virtual TemporaryRef<gfx::DrawTarget>
-  CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, RefPtr<gfx::DrawTarget>* aWhiteDT)
+  CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags)
   { NS_RUNTIMEABORT("CreateDTBuffer not implemented on this platform!"); return nullptr; }
   virtual bool SupportsAzureContent() const 
   { return false; }
@@ -261,8 +245,6 @@ public:
    */
   gfxASurface* GetBuffer() { return mBuffer; }
   gfxASurface* GetBufferOnWhite() { return mBufferOnWhite; }
-  gfx::DrawTarget* GetDTBuffer() { return mDTBuffer; }
-  gfx::DrawTarget* GetDTBufferOnWhite() { return mDTBufferOnWhite; }
 
   /**
    * Complete the drawing operation. The region to draw must have been
@@ -273,14 +255,11 @@ public:
               gfxASurface* aMask, const gfxMatrix* aMaskTransform);
 
 protected:
-  // If this buffer is currently using Azure.
-  bool IsAzureBuffer();
 
   already_AddRefed<gfxASurface>
   SetBuffer(gfxASurface* aBuffer,
             const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
   {
-    MOZ_ASSERT(!SupportsAzureContent());
     nsRefPtr<gfxASurface> tmp = mBuffer.forget();
     mBuffer = aBuffer;
     mBufferRect = aBufferRect;
@@ -291,30 +270,8 @@ protected:
   already_AddRefed<gfxASurface>
   SetBufferOnWhite(gfxASurface* aBuffer)
   {
-    MOZ_ASSERT(!SupportsAzureContent());
     nsRefPtr<gfxASurface> tmp = mBufferOnWhite.forget();
     mBufferOnWhite = aBuffer;
-    return tmp.forget();
-  }
-
-  TemporaryRef<gfx::DrawTarget>
-  SetDTBuffer(gfx::DrawTarget* aBuffer,
-            const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
-  {
-    MOZ_ASSERT(SupportsAzureContent());
-    RefPtr<gfx::DrawTarget> tmp = mDTBuffer.forget();
-    mDTBuffer = aBuffer;
-    mBufferRect = aBufferRect;
-    mBufferRotation = aBufferRotation;
-    return tmp.forget();
-  }
-
-  TemporaryRef<gfx::DrawTarget>
-  SetDTBufferOnWhite(gfx::DrawTarget* aBuffer)
-  {
-    MOZ_ASSERT(SupportsAzureContent());
-    RefPtr<gfx::DrawTarget> tmp = mDTBufferOnWhite.forget();
-    mDTBufferOnWhite = aBuffer;
     return tmp.forget();
   }
 

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="Windows-1252" ?>
+<?xml version="1.0"?>
 
 <!-- This Source Code Form is subject to the terms of the Mozilla Public
    - License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -32,6 +32,7 @@
 <window id="main-window"
         onload="Browser.startup();"
         onunload="Browser.shutdown();"
+        onclose="return Browser.closing();"
         windowtype="navigator:browser"
         chromedir="&locale.dir;"
         title="&brandShortName;"
@@ -46,14 +47,12 @@
   <script type="application/javascript" src="chrome://browser/content/browser-ui.js"/>
   <script type="application/javascript" src="chrome://browser/content/Util.js"/>
   <script type="application/javascript" src="chrome://browser/content/input.js"/>
-  <script type="application/javascript" src="chrome://browser/content/appbar.js"/>
-  <script type="application/javascript" src="chrome://browser/content/apzc.js"/>
+  <script type="application/javascript;version=1.8" src="chrome://browser/content/appbar.js"/>
   <broadcasterset id="broadcasterset">
     <broadcaster id="bcast_contentShowing" disabled="false"/>
-    <broadcaster id="bcast_urlbarState" mode="editing"/>
+    <broadcaster id="bcast_urlbarState" mode="view"/>
     <broadcaster id="bcast_preciseInput" input="precise"/>
     <broadcaster id="bcast_windowState" viewstate=""/>
-    <broadcaster id="bcast_loadingState" loading="false"/>
   </broadcasterset>
 
   <observerset id="observerset">
@@ -63,7 +62,7 @@
   <commandset id="mainCommandSet">
     <!-- basic navigation -->
     <command id="cmd_back" disabled="true" oncommand="CommandUpdater.doCommand(this.id);"/>
-    <command id="cmd_forward" disabled="true" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_forward" disabled="true" oncommand="CommandUpdater.doCommand(this.id);" observes="bcast_urlbarState"/>
     <command id="cmd_handleBackspace" oncommand="BrowserUI.handleBackspace();" />
     <command id="cmd_handleShiftBackspace" oncommand="BrowserUI.handleShiftBackspace();" />
     <command id="cmd_reload" oncommand="CommandUpdater.doCommand(this.id);"/>
@@ -95,6 +94,12 @@
     <command id="cmd_sanitize" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_contextUI" oncommand="CommandUpdater.doCommand(this.id);"/>
 
+    <!-- screen/display -->
+    <command id="cmd_lockscreen" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <command id="cmd_volumeLeft" observes="bcast_contentShowing" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_volumeRight" observes="bcast_contentShowing" oncommand="CommandUpdater.doCommand(this.id);"/>
+
     <!-- scrolling -->
     <command id="cmd_scrollPageUp" oncommand="CommandUpdater.doCommand(this.id);"/>
     <command id="cmd_scrollPageDown" oncommand="CommandUpdater.doCommand(this.id);"/>
@@ -121,39 +126,37 @@
     <key id="key_backspace" keycode="VK_BACK" command="cmd_handleBackspace"/>
     <key id="key_shift_backspace" keycode="VK_BACK" command="cmd_handleShiftBackspace" modifiers="shift"/>
     <key id="key_reload" keycode="VK_F5" command="cmd_reload"/>
-    <key id="key_reload2" key="&reload.key;" modifiers="accel" command="cmd_reload"/>
+    <key id="key_reload2" key="r" modifiers="accel" command="cmd_reload"/>
     <key id="key_forceReload" keycode="VK_F5" modifiers="shift" command="cmd_forceReload"/>
-    <key id="key_forceReload2" key="&reload.key;" modifiers="accel,shift" command="cmd_forceReload"/>
-    <key id="key_focusURL" key="&focusURL.key;" modifiers="accel" command="cmd_openLocation"/>
+    <key id="key_forceReload2" key="r" modifiers="accel,shift" command="cmd_forceReload"/>
+    <key id="key_focusURL" key="l" modifiers="accel" command="cmd_openLocation"/>
     <key id="key_focusURL2" key="&urlbar.accesskey;" modifiers="alt" command="cmd_openLocation"/>
     <key id="key_home" keycode="VK_HOME" modifiers="accel" command="cmd_home"/>
-    <key id="key_open" key="&openFile.key;" modifiers="accel" command="cmd_openFile"/>
-    <key id="key_save" key="&savePage.key;" modifiers="accel" command="cmd_savePage"/>
+    <key id="key_open" key="o" modifiers="accel" command="cmd_openFile"/>
+    <key id="key_save" key="s" modifiers="accel" command="cmd_savePage"/>
 
     <!-- misc -->
-    <key id="key_find" key="&find.key;" modifiers="accel" command="cmd_find"/>
+    <key id="key_find" key="f" modifiers="accel" command="cmd_find"/>
     <key id="key_find" key="/" command="cmd_find"/>
     <key id="key_findNext" keycode="VK_F3" command="cmd_findNext"/>
-    <key id="key_findNext2" key="&findNext.key;" modifiers="accel" command="cmd_findNext"/>
+    <key id="key_findNext2" key="g" modifiers="accel" command="cmd_findNext"/>
     <key id="key_findPrevious" keycode="VK_F3" modifiers="shift" command="cmd_findPrevious"/>
-    <key id="key_findPrevious2" key="&findNext.key;" modifiers="accel,shift" command="cmd_findPrevious"/>
-    <key id="key_quit" key="&quit.key;" modifiers="accel" command="cmd_quit"/>
-    <key id="key_addBoomkark" key="&addBookmark.key;" modifiers="accel" command="cmd_addBookmark"/>
-
-    <!-- development/testing -->
-    <key id="key_console" key="&jsConsole.key;" modifiers="accel,shift" oncommand="PanelUI.show('console-container')"/>
-    <key id="key_options" key="&optionsFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('PrefsFlyoutPanel')" />
+    <key id="key_findPrevious2" key="g" modifiers="accel,shift" command="cmd_findPrevious"/>
+    <key id="key_quit" key="q" modifiers="accel" command="cmd_quit"/>
+    <key id="key_addBoomkark" key="d" modifiers="accel" command="cmd_addBookmark"/>
+    <key id="key_console" key="j" modifiers="accel,shift" oncommand="PanelUI.show('console-container')"/>
+    <key id="key_options" key="o" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('PrefsFlyout')" />
 #ifdef MOZ_SERVICES_SYNC
-    <key id="key_options" key="&syncFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('SyncFlyoutPanel')" />
+    <key id="key_options" key="s" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('SyncFlyout')" />
 #endif
-    <key id="key_options" key="&aboutFlyout.key;" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('AboutFlyoutPanel')" />
+    <key id="key_options" key="a" modifiers="accel,shift" oncommand="FlyoutPanelsUI.show('AboutFlyout')" />
 
     <!-- manage tabs -->
-    <key id="key_newTab" key="&newTab.key;" modifiers="accel" command="cmd_newTab"/>
-    <key id="key_newTab2" key="&newTab2.key;" modifiers="accel" command="cmd_newTab"/>
-    <key id="key_closeTab" key="&closeTab.key;" modifiers="accel" command="cmd_closeTab"/>
+    <key id="key_newTab" key="t" modifiers="accel" command="cmd_newTab"/>
+    <key id="key_newTab2" key="n" modifiers="accel" command="cmd_newTab"/>
+    <key id="key_closeTab" key="w" modifiers="accel" command="cmd_closeTab"/>
     <key id="key_closeTab2" keycode="VK_F4" modifiers="accel" command="cmd_closeTab"/>
-    <key id="key_undoCloseTab" key="&newTab.key;" modifiers="accel,shift" command="cmd_undoCloseTab"/>
+    <key id="key_undoCloseTab" key="t" modifiers="accel,shift" command="cmd_undoCloseTab"/>
 
     <!-- tab selection -->
     <key id="key_nextTab" oncommand="BrowserUI.selectNextTab();" keycode="VK_TAB" modifiers="accel"/>
@@ -172,12 +175,12 @@
   </keyset>
 
   <stack id="stack" flex="1">
-    <observes element="bcast_urlbarState" attribute="*"/>
     <!-- Page Area -->
     <vbox id="page">
       <vbox id="tray" class="tray-toolbar" observes="bcast_windowState" >
         <!-- Tabs -->
-        <hbox id="tabs-container" observes="bcast_windowState">
+        <!-- onclick handler to work around bug 837242 -->
+        <hbox id="tabs-container" observes="bcast_windowState" onclick="void(0);">
           <box id="tabs" flex="1"
                 observes="bcast_preciseInput"
                 onselect="BrowserUI.selectTabAndDismiss(this);"
@@ -186,17 +189,58 @@
             <toolbarbutton id="newtab-button" command="cmd_newTab" label="&newtab.label;"/>
           </vbox>
         </hbox>
+
+        <!-- Start UI -->
+        <hbox id="start-container" flex="1" observes="bcast_windowState" class="meta content-height content-width">
+          <!-- portrait/landscape/filled view -->
+          <hbox id="start" class="start-page" flex="1" observes="bcast_windowState">
+            <scrollbox id="start-scrollbox" orient="horizontal" observes="bcast_preciseInput" flex="1">
+              <vbox id="start-topsites" class="meta-section">
+                <label class="meta-section-title" value="&startTopSitesHeader.label;"/>
+                <richgrid id="start-topsites-grid" noun="topsite" rows="3" columns="3" tiletype="thumbnail" seltype="multiple" flex="1"/>
+              </vbox>
+              <vbox id="start-bookmarks" class="meta-section">
+                <label class="meta-section-title" value="&startBookmarksHeader.label;"/>
+                <richgrid id="start-bookmarks-grid" noun="bookmark" seltype="multiple" flex="1"/>
+              </vbox>
+              <vbox id="start-history" class="meta-section">
+                <label class="meta-section-title" value="&startHistoryHeader.label;"/>
+                <richgrid id="start-history-grid" noun="history" seltype="multiple" flex="1"/>
+              </vbox>
+              <vbox id="start-remotetabs" class="meta-section">
+                <label class="meta-section-title" value="&startRemoteTabsHeader.label;"/>
+                <richgrid id="start-remotetabs-grid" noun="tab" seltype="multiple" flex="1"/>
+              </vbox>
+            </scrollbox>
+          </hbox>
+
+          <!-- snapped view -->
+          <hbox id="snapped-start" class="start-page" flex="1" observes="bcast_windowState">
+            <scrollbox id="snapped-scrollbox" orient="vertical" flex="1">
+              <vbox id="snapped-topsites">
+                <label class="meta-section-title" value="&startTopSitesHeader.label;"/>
+                <richgrid id="snapped-topsites-grid" noun="topsite" class="canSnapTiles" rows="8" columns="1" flex="1"/>
+              </vbox>
+              <label class="meta-section-title" value="&snappedBookmarksHeader.label;"
+                onclick="PanelUI.show('bookmarks-container');"/>
+              <label class="meta-section-title" value="&snappedHistoryHeader.label;"
+                onclick="PanelUI.show('history-container');" inputProcessing="true"/>
+              <label id="snappedRemoteTabsLabel" class="meta-section-title" value="&snappedRemoteTabsHeader.label;"
+                onclick="PanelUI.show('remotetabs-container');" inputProcessing="true"/>
+            </scrollbox>
+          </hbox>
+        </hbox>
       </vbox> <!-- end tray -->
 
       <!-- Content viewport -->
       <stack id="content-viewport">
-        <observes element="bcast_windowState" attribute="startpage"/>
         <deck id="browsers" flex="1" observes="bcast_preciseInput"/>
         <box id="vertical-scroller" class="scroller" orient="vertical" end="0" top="0"/>
         <box id="horizontal-scroller" class="scroller" orient="horizontal" left="0" bottom="0"/>
 
         <!-- Content touch selection overlay -->
-        <box class="selection-overlay-hidden" id="content-selection-overlay"/>
+        <!-- onclick addresses dom bug 835175 -->
+        <box onclick="false" class="selection-overlay-hidden" id="content-selection-overlay"/>
       </stack>
     </vbox>
 
@@ -205,163 +249,128 @@
     <html:div id="overlay-plus" class="overlay-button"
               observes="cmd_back"></html:div>
 
-    <!-- Navigation bar -->
+    <!-- Navbar -->
     <appbar id="navbar" mousethrough="never" observes="bcast_windowState">
       <hbox id="progress-container" layer="true">
         <hbox id="progress-control" />
       </hbox>
 
-      <vbox id="toolbar-overlay" flex="1">
+      <vbox id="toolbar-autocomplete" flex="1">
         <!-- Autocomplete -->
         <scrollbox flex="1">
           <hbox id="urlbar-autocomplete" observes="bcast_windowState"/>
         </scrollbox>
 
-        <!-- Main toolbar -->
-        <toolbar id="toolbar" flex="1" observes="bcast_windowState">
-          <toolbarbutton id="back-button" class="appbar-primary"
-                         command="cmd_back"/>
-          <toolbarbutton id="forward-button" class="appbar-primary"
-                         command="cmd_forward"/>
+        <!-- Main Toolbar -->
+        <toolbar id="toolbar" observes="bcast_windowState" flex="1">
+          <observes element="bcast_windowState" attribute="*"/>
+          <observes element="bcast_urlbarState" attribute="*"/>
 
-          <hbox id="urlbar" flex="1">
-            <observes element="bcast_urlbarState" attribute="*"/>
-            <observes element="bcast_loadingState" attribute="*"/>
-            <box id="identity-box" align="center" role="button">
-              <image id="identity-icon"/>
-            </box>
+          <toolbarbutton id="back-button" class="appbar-primary" command="cmd_back"/>
+          <toolbarbutton id="forward-button" class="appbar-primary" command="cmd_forward"/>
 
-            <textbox id="urlbar-edit" type="url" flex="1"
-                     autocompletesearch="history"
-                     autocompletepopup="urlbar-autocomplete"
-                     completeselectedindex="true"
-                     placeholder="&urlbar.emptytext;"/>
+          <hbox id="urlbar-container" flex="1" observes="bcast_urlbarState">
+            <hbox id="urlbar" flex="1">
+              <box id="identity-box" role="button">
+                <hbox id="identity-box-inner" align="center" mousethrough="always">
+                  <image id="identity-icon"/>
+                </hbox>
+              </box>
 
-            <toolbarbutton id="go-button" class="urlbar-button"
-                           command="cmd_go"/>
-            <toolbarbutton id="reload-button" class="urlbar-button"
-                           oncommand="CommandUpdater.doCommand(
-                                        event.shiftKey ? 'cmd_forceReload'
-                                                       : 'cmd_reload');"/>
-            <toolbarbutton id="stop-button" class="urlbar-button"
-                           command="cmd_stop"/>
+              <textbox id="urlbar-edit"
+                       type="url"
+                       class="uri-element"
+                       autocompletesearch="history"
+                       autocompletepopup="urlbar-autocomplete"
+                       completeselectedindex="true"
+                       placeholder="&urlbar.emptytext;"
+                       flex="1"/>
+            </hbox>
+
+            <toolbarbutton id="reload-button" oncommand="CommandUpdater.doCommand(event.shiftKey ? 'cmd_forceReload' : 'cmd_reload');"/>
+            <toolbarbutton id="stop-button" command="cmd_stop"/>
           </hbox>
 
-          <stack id="toolbar-contextual">
-            <observes element="bcast_windowState" attribute="*"/>
-            <observes element="bcast_urlbarState" attribute="*"/>
-            <hbox id="toolbar-context-page" pack="end">
-              <circularprogressindicator id="download-progress"
-                                     oncommand="Appbar.onDownloadButton()"/>
-              <toolbarbutton id="star-button" class="appbar-primary"
-                             type="checkbox"
-                             oncommand="Appbar.onStarButton()"/>
-              <toolbarbutton id="pin-button" class="appbar-primary"
-                             type="checkbox"
-                             oncommand="Appbar.onPinButton()"/>
-              <toolbarbutton id="menu-button" class="appbar-primary"
-                             oncommand="Appbar.onMenuButton(event)"/>
-            </hbox>
-
-            <hbox id="toolbar-context-autocomplete" pack="end">
-              <toolbarbutton id="close-button" class="appbar-secondary"
-                             oncommand="Appbar.onAutocompleteCloseButton()"/>
-            </hbox>
-          </stack>
+          <toolbarbutton id="download-button" class="appbar-secondary" oncommand="Appbar.onDownloadButton()"/>
+          <toolbarbutton id="star-button" class="appbar-primary" type="checkbox" oncommand="Appbar.onStarButton()"/>
+          <toolbarbutton id="pin-button" class="appbar-primary" type="checkbox" oncommand="Appbar.onPinButton()"/>
+          <toolbarbutton id="menu-button" class="appbar-primary" oncommand="Appbar.onMenuButton(event)"/>
         </toolbar>
       </vbox>
     </appbar>
 
-    <vbox id="panel-container" class="window-width window-height meta"
-          hidden="true" observes="bcast_windowState">
+    <vbox id="panel-container" hidden="true" class="window-width window-height meta" observes="bcast_windowState">
       <hbox id="panel-header">
-        <toolbarbutton id="panel-close-button" class="appbar-primary"
-                       command="cmd_panel"/>
+        <toolbarbutton id="panel-close-button" command="cmd_panel"/>
+
+        <menulist id="panel-view-switcher" oncommand="PanelUI.switchPane(this.value);">
+          <menupopup>
+            <menuitem label="&bookmarksHeader.label;" value="bookmarks-container" id="menuitem-bookmarks"/>
+            <menuitem label="&startHistoryHeader.label;" value="history-container" id="menuitem-history"/>
+            <menuitem label="&startRemoteTabsHeader.label;" value="remotetabs-container" id="menuitem-remotetabs"/>
+            <menuitem label="&consoleHeader.label;" value="console-container" id="menuitem-console"/>
+          </menupopup>
+        </menulist>
       </hbox>
 
       <deck id="panel-items" selectedIndex="0" flex="1" >
         <scrollbox id="bookmarks-container" flex="1">
-          <richgrid id="bookmarks-list" class="canSnapTiles"
-                    set-name="bookmarks" seltype="multiple" flex="1"/>
+          <richgrid id="bookmarks-list" noun="bookmark" class="canSnapTiles" seltype="multiple" flex="1"/>
         </scrollbox>
         <scrollbox id="history-container" flex="1">
-          <richgrid id="history-list" class="canSnapTiles"
-                    set-name="recentHistory" seltype="multiple" flex="1"/>
+          <richgrid id="history-list" noun="history" class="canSnapTiles" seltype="multiple" flex="1"/>
         </scrollbox>
         <scrollbox id="remotetabs-container" flex="1">
-          <richgrid id="remotetabs-list" class="canSnapTiles"
-                    set-name="remoteTabs" seltype="single" flex="1"/>
+          <richgrid id="remotetabs-list" noun="tab" class="canSnapTiles" seltype="single" flex="1"/>
         </scrollbox>
         <vbox id="console-container" flex="1">
           <vbox id="console-header" class="panel-list">
             <label class="panel-header" value="&consoleHeader.label;"/>
             <hbox align="center">
-              <label value="&consoleCodeEval.label;"
-                     control="console-eval-textbox"/>
-              <textbox id="console-eval-textbox" class="toolbar search-bar"
-                       value="" flex="1"
-                       onkeypress="ConsolePanelView.onEvalKeyPress(event)"/>
-              <button id="console-button-eval" class="show-text"
-                      label="&consoleEvaluate.label;"
-                      oncommand="ConsolePanelView.evaluateTypein()"/>
+              <label value="&consoleCodeEval.label;" control="console-eval-textbox"/>
+              <textbox id="console-eval-textbox" class="toolbar search-bar" value="" onkeypress="ConsolePanelView.onEvalKeyPress(event)" flex="1"/>
+              <button id="console-button-eval" class="show-text" label="&consoleEvaluate.label;" oncommand="ConsolePanelView.evaluateTypein()"/>
             </hbox>
             <hbox align="center" pack="end">
-              <radiogroup id="console-filter"
-                          oncommand="ConsolePanelView.changeMode();">
-                <radio id="console-filter-all" value="all" selected="true"
-                       label="&consoleAll.label;"/>
-                <radio id="console-filter-messages" value="message"
-                       label="&consoleMessages.label;" />
-                <radio id="console-filter-warnings" value="warning"
-                       label="&consoleWarnings.label;"/>
-                <radio id="console-filter-errors" value="error"
-                       label="&consoleErrors.label;"/>
+              <radiogroup id="console-filter" oncommand="ConsolePanelView.changeMode();">
+                <radio id="console-filter-all" label="&consoleAll.label;" value="all" selected="true"/>
+                <radio id="console-filter-messages" label="&consoleMessages.label;" value="message"/>
+                <radio id="console-filter-warnings" label="&consoleWarnings.label;" value="warning"/>
+                <radio id="console-filter-errors" label="&consoleErrors.label;" value="error"/>
               </radiogroup>
-              <button id="console-clear" class="show-text"
-                      label="&consoleClear.label;"
-                      oncommand="ConsolePanelView.clearConsole();"/>
+              <button id="console-clear" class="show-text" oncommand="ConsolePanelView.clearConsole();" label="&consoleClear.label;"/>
             </hbox>
           </vbox>
 
-          <richlistbox id="console-box" class="panel-list console-box" flex="1"
-                       onkeypress="ConsolePanelView.onConsoleBoxKeyPress(event)"
-                       oncontextmenu="ConsolePanelView.onContextMenu(event);"/>
+          <richlistbox id="console-box" class="panel-list console-box" flex="1" onkeypress="ConsolePanelView.onConsoleBoxKeyPress(event)" oncontextmenu="ConsolePanelView.onContextMenu(event);"/>
         </vbox>
       </deck>
     </vbox>
 
     <!-- Find bar -->
-    <appbar id="findbar" class="window-width" pack="start">
-      <textbox id="findbar-textbox" type="search"
-               oncommand="FindHelperUI.search(this.value)"
-               oninput="FindHelperUI.updateCommands(this.value); "/>
-
-      <toolbarbutton id="findbar-previous-button" class="appbar-secondary"
-                     command="cmd_findPrevious"/>
-      <toolbarbutton id="findbar-next-button" class="appbar-secondary"
-                     command="cmd_findNext"/>
-
+    <appbar id="findbar" class="window-width findbar-box" orient="horizontal" pack="start">
+      <textbox id="findbar-textbox" class="search-bar findbar-item" oncommand="FindHelperUI.search(this.value)" oninput="FindHelperUI.updateCommands(this.value);" type="search"/>
+      <button class="findbar-item previous-button" command="cmd_findPrevious"/>
+      <button class="findbar-item next-button" command="cmd_findNext"/>
       <spacer flex="1"/>
-
-      <toolbarbutton id="findbar-close-button" class="appbar-secondary"
-                     command="cmd_findClose"/>
+      <button id="findbar-close" class="findbar-item close-button" command="cmd_findClose"/>
     </appbar>
 
     <!-- Context button bar -->
     <appbar id="contextappbar">
       <toolbar id="contextualactions-tray" labelled="true" flex="1">
-        <toolbarbutton id="pin-selected-button" class="appbar-secondary"
-                       label-uses-set-name="true" hidden="true" fade="true"
-                       oncommand="Appbar.dispatchContextualAction('pin')"/>
-        <toolbarbutton id="unpin-selected-button" class="appbar-secondary"
-                       label-uses-set-name="true" hidden="true" fade="true"
-                       oncommand="Appbar.dispatchContextualAction('unpin')"/>
         <toolbarbutton id="delete-selected-button" class="appbar-secondary"
-                       hidden="true" fade="true"
+                       modifies-noun="true" hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('delete')"/>
         <toolbarbutton id="restore-selected-button" class="appbar-secondary"
-                       hidden="true" fade="true"
+                       modifies-noun="true" hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('restore')"/>
+        <toolbarbutton id="pin-selected-button" class="appbar-secondary"
+                       modifies-noun="true" hidden="true" fade="true"
+                       oncommand="Appbar.dispatchContextualAction('pin')"/>
+        <toolbarbutton id="unpin-selected-button" class="appbar-secondary"
+                       modifies-noun="true" hidden="true" fade="true"
+                       oncommand="Appbar.dispatchContextualAction('unpin')"/>
         <toolbarbutton id="clear-selected-button" class="appbar-secondary"
                        hidden="true" fade="true"
                        oncommand="Appbar.dispatchContextualAction('clear')"/>
@@ -370,7 +379,7 @@
 
     <autoscroller class="autoscroller" id="autoscrollerid"/>
 
-    <flyoutpanel id="about-flyoutpanel" class="flyout-narrow" headertext="&aboutHeader.title;">
+    <flyoutpanel id="about-flyoutpanel" headertext="&aboutHeader.title;">
       <label id="about-product-label" value="&aboutHeader.product.label;"/>
       <label value="&aboutHeader.company.label;"/>
 #expand <label id="about-version-label">__MOZ_APP_VERSION__</label>
@@ -379,7 +388,7 @@
         <deck id="updateDeck" orient="vertical">
           <hbox id="updateButtonBox" align="center">
             <button id="updateButton" align="start"
-                    oncommand="FlyoutPanelsUI.AboutFlyoutPanel.appUpdater.buttonOnCommand();"/>
+                    oncommand="gAppUpdater.buttonOnCommand();"/>
             <spacer flex="1"/>
           </hbox>
           <hbox id="checkingForUpdates" align="center">
@@ -415,21 +424,22 @@
 
 #if MOZ_UPDATE_CHANNEL != release
 #ifdef MOZ_UPDATER
-      <description class="text-blurb" id="currentChannelText">&channel.description.start;<label id="currentChannel"/>&channel.description.end;</description>
+      <description class="text-blurb" id="currentChannelText">&channel.description.start;<label id="currentChannel"/></description>
+      <description class="text-blurb" id="currentChannelText2">&channel.description.end;</description>
 #endif
 #endif
       <label id="about-policy-label"
-            onclick="if (event.button == 0) { BrowserUI.onAboutPolicyClick(); }"
+            onclick="if (event.button == 0) { Browser.onAboutPolicyClick(); }"
             class="text-link" value="&aboutHeader.policy.label;"/>
     </flyoutpanel>
 
 #ifdef MOZ_SERVICES_SYNC
-    <flyoutpanel id="sync-flyoutpanel" class="flyout-narrow" headertext="&sync.flyout.title;">
+    <flyoutpanel id="sync-flyoutpanel" headertext="&sync.flyout.title;">
 
       <vbox id="sync-presetup-container" collapsed="true">
         <description>&sync.flyout.presetup.description1;</description>
         <separator />
-        <hbox onclick="FlyoutPanelsUI.SyncFlyoutPanel.startEasySetup();"
+        <hbox onclick="FlyoutPanelsUI.SyncFlyout.startEasySetup();"
               align="center"
               class="text-link">
           <image src="chrome://browser/skin/images/plus-34.png" />
@@ -470,34 +480,34 @@
         <separator />
         <description class="text-link"
                      flex="1"
-                     onclick="FlyoutPanelsUI.SyncFlyoutPanel.abortEasySetup();
-                              FlyoutPanelsUI.SyncFlyoutPanel.showManualSetup()">
-          &sync.flyout.setup.manual.label_2;
+                     onclick="FlyoutPanelsUI.SyncFlyout.abortEasySetup();
+                              FlyoutPanelsUI.SyncFlyout.showManualSetup()">
+          &sync.flyout.setup.manual.label;
         </description>
         <separator />
         <description>&sync.flyout.setup.description3;</description>
-        <description>&sync.flyout.setup.description4_2;</description>
+        <description>&sync.flyout.setup.description4;</description>
         <description class="syncInstructionText">
-          &sync.flyout.setup.description5_2;
+          &sync.flyout.setup.description5;
         </description>
         <description class="syncInstructionText">
-          &sync.flyout.setup.description6_2;
+          &sync.flyout.setup.description6;
         </description>
       </vbox>
 
       <vbox id="sync-manualsetup-container" collapsed="true">
-        <description>&sync.flyout.manualsetup.description1_2;</description>
+        <description>&sync.flyout.manualsetup.description1;</description>
         <separator/>
         <textbox id="sync-manualsetup-account"
                  placeholder="&sync.flyout.manualsetup.account.placeholder;"
-                 oninput="FlyoutPanelsUI.SyncFlyoutPanel.updateManualSetupConnectButtonState();"/>
+                 oninput="FlyoutPanelsUI.SyncFlyout.updateManualSetupConnectButtonState();"/>
         <textbox id="sync-manualsetup-password"
                  placeholder="&sync.flyout.manualsetup.password.placeholder;"
                  type="password"
-                 oninput="FlyoutPanelsUI.SyncFlyoutPanel.updateManualSetupConnectButtonState();"/>
+                 oninput="FlyoutPanelsUI.SyncFlyout.updateManualSetupConnectButtonState();"/>
         <textbox id="sync-manualsetup-syncKey"
                  placeholder="&sync.flyout.manualsetup.recoveryKey.placeholder;"
-                 oninput="FlyoutPanelsUI.SyncFlyoutPanel.updateManualSetupConnectButtonState();"/>
+                 oninput="FlyoutPanelsUI.SyncFlyout.updateManualSetupConnectButtonState();"/>
         <description id="sync-manualsetup-failure"
                      class="syncErrorText"
                      collapsed="true" />
@@ -505,7 +515,7 @@
         <hbox>
           <button id="sync-manualsetup-connect"
                   class="syncButton"
-                  oncommand="FlyoutPanelsUI.SyncFlyoutPanel.manualSetupConnect();"
+                  oncommand="FlyoutPanelsUI.SyncFlyout.manualSetupConnect();"
                   label="&sync.flyout.manualsetup.connect.label;"
                   disabled="true" />
           <spacer flex="1" />
@@ -521,10 +531,10 @@
         <description>&sync.flyout.setupfailure.description;</description>
         <hbox>
           <button class="syncButton"
-                  oncommand="FlyoutPanelsUI.SyncFlyoutPanel.onCancelButton();"
+                  oncommand="FlyoutPanelsUI.SyncFlyout.onCancelButton();"
                   label="&sync.flyout.setupfailure.cancelButton;" />
           <button class="syncButton"
-                  oncommand="FlyoutPanelsUI.SyncFlyoutPanel.onTryAgainButton();"
+                  oncommand="FlyoutPanelsUI.SyncFlyout.onTryAgainButton();"
                   label="&sync.flyout.setupfailure.tryAgainButton;" />
         </hbox>
       </vbox>
@@ -542,12 +552,11 @@
           </vbox>
           <cssthrobber id="sync-connected-throbber"
                        class="syncThrobber"
-                       collapsed="true"
-                       disabled="true" />
+                       collapsed="true" />
         </hbox>
         <label id="sync-disconnect-label"
                class="text-link"
-               onclick="FlyoutPanelsUI.SyncFlyoutPanel.onDisconnectLink();">
+               onclick="FlyoutPanelsUI.SyncFlyout.onDisconnectLink();">
           &sync.flyout.connected.disconnect;
         </label>
         <separator />
@@ -561,14 +570,14 @@
           <hbox>
             <separator />
             <button label="&sync.flyout.connected.cancel;"
-                    oncommand="FlyoutPanelsUI.SyncFlyoutPanel.onDisconnectCancel();" />
+                    oncommand="FlyoutPanelsUI.SyncFlyout.onDisconnectCancel();" />
             <button label="&sync.flyout.connected.disconnect;"
-                    oncommand="FlyoutPanelsUI.SyncFlyoutPanel.onDisconnectButton();" />
+                    oncommand="FlyoutPanelsUI.SyncFlyout.onDisconnectButton();" />
 
           </hbox>
           <separator />
         </vbox>
-        <hbox onclick="FlyoutPanelsUI.SyncFlyoutPanel.onPairDeviceLink();"
+        <hbox onclick="FlyoutPanelsUI.SyncFlyout.onPairDeviceLink();"
               class="text-link">
           <image src="chrome://browser/skin/images/plus-24.png" />
           <separator />
@@ -584,15 +593,15 @@
             <textbox id="sync-pair-entry1"
                      class="syncJPAKECode"
                      maxlength="4"
-                     oninput="FlyoutPanelsUI.SyncFlyoutPanel.updatePairButtonState();" />
+                     oninput="FlyoutPanelsUI.SyncFlyout.updatePairButtonState();" />
             <textbox id="sync-pair-entry2"
                      class="syncJPAKECode"
                      maxlength="4"
-                     oninput="FlyoutPanelsUI.SyncFlyoutPanel.updatePairButtonState();" />
+                     oninput="FlyoutPanelsUI.SyncFlyout.updatePairButtonState();" />
             <textbox id="sync-pair-entry3"
                      class="syncJPAKECode"
                      maxlength="4"
-                     oninput="FlyoutPanelsUI.SyncFlyoutPanel.updatePairButtonState();" />
+                     oninput="FlyoutPanelsUI.SyncFlyout.updatePairButtonState();" />
           </vbox>
           <spacer flex="1" />
         </hbox>
@@ -604,14 +613,14 @@
         <hbox>
           <button id="sync-pair-button"
                   label="&sync.flyout.pairNewDevice.pair;"
-                  oncommand="FlyoutPanelsUI.SyncFlyoutPanel.onPairButton();"
+                  oncommand="FlyoutPanelsUI.SyncFlyout.onPairButton();"
                   disabled="true" />
           <spacer flex="1" />
         </hbox>
         <description>&sync.flyout.pairNewDevice.note1;</description>
-        <description>&sync.flyout.pairNewDevice.note2_2;</description>
+        <description>&sync.flyout.pairNewDevice.note2;</description>
         <description class="syncInstructionText">
-          &sync.flyout.pairNewDevice.note3_2;
+          &sync.flyout.pairNewDevice.note3;
         </description>
         <description class="syncInstructionText">
           &sync.flyout.pairNewDevice.note4;
@@ -626,7 +635,7 @@
     </flyoutpanel>
 #endif
 
-    <flyoutpanel id="prefs-flyoutpanel" class="flyout-narrow" headertext="&optionsHeader.title;">
+    <flyoutpanel id="prefs-flyoutpanel" headertext="&optionsHeader.title;">
       <settings id="prefs-startup" label="&optionsHeader.startup.title;"> <!-- note, this element has a custom margin-top -->
         <setting id="prefs-homepage" title="&optionsHeader.homepage.title;" type="menulist" pref="browser.startup.sessionRestore" class="setting-expanded">
           <menulist id="prefs-homepage-options">
@@ -673,11 +682,11 @@
         <setting pref="app.crashreporter.autosubmit" type="bool" title="&optionsHeader.reporting.crashes.label;" oncommand="BrowserUI.crashReportingPrefChanged(this.value);"/>
       </settings>
       <settings id="prefs-telemetry" label="&optionsHeader.telemetry.title;">
-        <setting pref="toolkit.telemetry.enabled" type="bool" title="&optionsHeader.telemetry.label;"/>
+        <setting pref="toolkit.telemetry.enabled" type="bool" title="&optionsHeader.telemetry.label;" oncommand="FlyoutPanelsUI.PrefsFlyout.onTelemetryPreferenceChanged(this.value);"/>
       </settings>
       <settings id="prefs-dnt" label="&doNotTrack.title;">
         <description>&doNotTrack.desc;</description>
-        <setting id="prefs-dnt-value" pref="privacy.donottrackheader.value" type="radio" >
+        <setting id="prefs-dnt-value" pref="privacy.donottrackheader.value" onpreferencechanged="FlyoutPanelsUI.PrefsFlyout.onDNTPreferenceChanged();" type="radio" >
           <radiogroup id="prefs-dnt-options">
             <radio id="prefs-dnt-notrack" label="&doNotTrack.options.trackingNotOkay;" value="1"/>
             <radio id="prefs-dnt-nopref" label="&doNotTrack.options.noPreference;" value="-1"/>
@@ -688,9 +697,11 @@
     </flyoutpanel>
 
     <!-- Chrome touch selection overlay -->
-    <box class="selection-overlay-hidden" id="chrome-selection-overlay"/>
+    <!-- onclick addresses dom bug 835175 -->
+    <box onclick="false" class="selection-overlay-hidden" id="chrome-selection-overlay"/>
 
     <box onclick="event.stopPropagation();" id="context-container" class="menu-container" hidden="true">
+      <!-- onclick is dom bug 835175 -->
       <vbox id="context-popup" class="menu-popup">
         <richlistbox id="context-commands" bindingType="contextmenu" flex="1">
           <!-- priority="low" items are hidden by default when a context is being displayed
@@ -812,6 +823,15 @@
         <richlistbox id="menupopup-commands" onclick="if (event.target != this) AutofillMenuUI.selectByIndex(this.selectedIndex);" flex="1"/>
       </vbox>
     </box>
+
+    <!-- alerts for content -->
+    <hbox id="alerts-container" hidden="true" align="start" bottom="0" onclick="AlertsHelper.click(event);">
+      <image id="alerts-image"/>
+      <vbox flex="1">
+        <label id="alerts-title" value=""/>
+        <description id="alerts-text" flex="1"/>
+      </vbox>
+    </hbox>
   </stack>
 
 </window>

@@ -11,7 +11,6 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
-#include "nsAutoPtr.h"
 
 //-----------------------------------------------------------------------------
 
@@ -106,6 +105,8 @@ nsWindowsRegKey::OpenChild(const nsAString &path, uint32_t mode,
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIWindowsRegKey> child = new nsWindowsRegKey();
+  if (!child)
+    return NS_ERROR_OUT_OF_MEMORY;
   
   nsresult rv = child->Open((uintptr_t) mKey, path, mode);
   if (NS_FAILED(rv))
@@ -122,6 +123,8 @@ nsWindowsRegKey::CreateChild(const nsAString &path, uint32_t mode,
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIWindowsRegKey> child = new nsWindowsRegKey();
+  if (!child)
+    return NS_ERROR_OUT_OF_MEMORY;
   
   nsresult rv = child->Create((uintptr_t) mKey, path, mode);
   if (NS_FAILED(rv))
@@ -490,8 +493,11 @@ nsWindowsRegKey::IsWatching(bool *result)
 nsresult
 NS_NewWindowsRegKey(nsIWindowsRegKey **result)
 {
-  nsRefPtr<nsWindowsRegKey> key = new nsWindowsRegKey();
-  key.forget(result);
+  *result = new nsWindowsRegKey();
+  if (!*result)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(*result);
   return NS_OK;
 }
 

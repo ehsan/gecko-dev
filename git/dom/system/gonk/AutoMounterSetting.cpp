@@ -11,6 +11,7 @@
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
 #include "nsIObserverService.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsISettingsService.h"
 #include "nsJSUtils.h"
@@ -36,7 +37,7 @@ namespace system {
 class SettingsServiceCallback MOZ_FINAL : public nsISettingsServiceCallback
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   SettingsServiceCallback() {}
 
@@ -56,12 +57,12 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(SettingsServiceCallback, nsISettingsServiceCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(SettingsServiceCallback, nsISettingsServiceCallback)
 
 class CheckVolumeSettingsCallback MOZ_FINAL : public nsISettingsServiceCallback
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   CheckVolumeSettingsCallback(const nsACString& aVolumeName)
   : mVolumeName(aVolumeName) {}
@@ -84,7 +85,7 @@ private:
   nsCString mVolumeName;
 };
 
-NS_IMPL_ISUPPORTS1(CheckVolumeSettingsCallback, nsISettingsServiceCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(CheckVolumeSettingsCallback, nsISettingsServiceCallback)
 
 AutoMounterSetting::AutoMounterSetting()
 {
@@ -185,7 +186,7 @@ AutoMounterSetting::Observe(nsISupports* aSubject,
     return NS_OK;
   }
   JSObject& obj(val.toObject());
-  JS::Rooted<JS::Value> key(cx);
+  JS::Value key;
   if (!JS_GetProperty(cx, &obj, "key", &key) ||
       !key.isString()) {
     return NS_OK;
@@ -197,7 +198,7 @@ AutoMounterSetting::Observe(nsISupports* aSubject,
     return NS_OK;
   }
 
-  JS::Rooted<JS::Value> value(cx);
+  JS::Value value;
   if (!JS_GetProperty(cx, &obj, "value", &value)) {
     return NS_OK;
   }

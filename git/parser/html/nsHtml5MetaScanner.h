@@ -26,8 +26,8 @@
  * Please edit MetaScanner.java instead and regenerate.
  */
 
-#ifndef nsHtml5MetaScanner_h
-#define nsHtml5MetaScanner_h
+#ifndef nsHtml5MetaScanner_h__
+#define nsHtml5MetaScanner_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"

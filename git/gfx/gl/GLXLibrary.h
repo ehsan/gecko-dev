@@ -6,11 +6,9 @@
 #ifndef GFX_GLXLIBRARY_H
 #define GFX_GLXLIBRARY_H
 
-#include "GLContextTypes.h"
+#include "GLContext.h"
 typedef realGLboolean GLboolean;
 #include <GL/glx.h>
-
-struct PRLibrary;
 
 namespace mozilla {
 namespace gl {
@@ -20,7 +18,7 @@ class GLXLibrary
 public:
     GLXLibrary() : mInitialized(false), mTriedInitializing(false),
                    mUseTextureFromPixmap(false), mDebug(false),
-                   mHasRobustness(false), mIsATI(false), mIsNVIDIA(false),
+                   mHasRobustness(false), mIsATI(false),
                    mClientIsMesa(false), mGLXMajorVersion(0),
                    mGLXMinorVersion(0), mLibType(OPENGL_LIB),
                    mOGLLibrary(nullptr) {}
@@ -101,7 +99,7 @@ public:
     bool SupportsTextureFromPixmap(gfxASurface* aSurface);
     bool IsATI() { return mIsATI; }
     bool GLXVersionCheck(int aMajor, int aMinor);
-    static LibraryType SelectLibrary(const ContextFlags& aFlags);
+    static LibraryType SelectLibrary(const GLContext::ContextFlags& aFlags);
 
 private:
     
@@ -204,7 +202,6 @@ private:
     bool mDebug;
     bool mHasRobustness;
     bool mIsATI;
-    bool mIsNVIDIA;
     bool mClientIsMesa;
     int mGLXMajorVersion;
     int mGLXMinorVersion;

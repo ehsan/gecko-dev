@@ -4,9 +4,7 @@
 
 "use strict";
 
-// Everything but "ContactDB" is only exported here for testing.
-this.EXPORTED_SYMBOLS = ["ContactDB", "DB_NAME", "STORE_NAME", "SAVED_GETALL_STORE_NAME",
-                         "REVISION_STORE", "DB_VERSION"];
+this.EXPORTED_SYMBOLS = ['ContactDB'];
 
 const DEBUG = false;
 function debug(s) { dump("-*- ContactDB component: " + s + "\n"); }
@@ -20,7 +18,7 @@ Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
 
 const DB_NAME = "contacts";
-const DB_VERSION = 14;
+const DB_VERSION = 13;
 const STORE_NAME = "contacts";
 const SAVED_GETALL_STORE_NAME = "getallcache";
 const CHUNK_SIZE = 20;
@@ -97,19 +95,18 @@ function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearD
   };
 }
 
-this.ContactDB = function ContactDB() {
+this.ContactDB = function ContactDB(aGlobal) {
   if (DEBUG) debug("Constructor");
-};
+  this._global = aGlobal;
+}
 
 ContactDB.prototype = {
   __proto__: IndexedDBHelper.prototype,
 
   _dispatcher: {},
 
-  useFastUpgrade: true,
-
   upgradeSchema: function upgradeSchema(aTransaction, aDb, aOldVersion, aNewVersion) {
-    let loadInitialContacts = function() {
+    function loadInitialContacts() {
       // Add default contacts
       let jsm = {};
       Cu.import("resource://gre/modules/FileUtils.jsm", jsm);
@@ -158,34 +155,11 @@ ContactDB.prototype = {
         if (DEBUG) debug("import: " + JSON.stringify(contact));
         objectStore.put(contact);
       }
-    }.bind(this);
-
-    function createFinalSchema() {
-      if (DEBUG) debug("creating final schema");
-      let objectStore = aDb.createObjectStore(STORE_NAME, {keyPath: "id"});
-      objectStore.createIndex("familyName", "properties.familyName", { multiEntry: true });
-      objectStore.createIndex("givenName",  "properties.givenName",  { multiEntry: true });
-      objectStore.createIndex("familyNameLowerCase", "search.familyName", { multiEntry: true });
-      objectStore.createIndex("givenNameLowerCase",  "search.givenName",  { multiEntry: true });
-      objectStore.createIndex("telLowerCase",        "search.tel",        { multiEntry: true });
-      objectStore.createIndex("emailLowerCase",      "search.email",      { multiEntry: true });
-      objectStore.createIndex("tel", "search.exactTel", { multiEntry: true });
-      objectStore.createIndex("category", "properties.category", { multiEntry: true });
-      objectStore.createIndex("email", "search.email", { multiEntry: true });
-      objectStore.createIndex("telMatch", "search.parsedTel", {multiEntry: true});
-      aDb.createObjectStore(SAVED_GETALL_STORE_NAME);
-      aDb.createObjectStore(REVISION_STORE).put(0, REVISION_KEY);
     }
 
     if (DEBUG) debug("upgrade schema from: " + aOldVersion + " to " + aNewVersion + " called!");
     let db = aDb;
     let objectStore;
-
-    if (aOldVersion === 0 && this.useFastUpgrade) {
-      createFinalSchema();
-      loadInitialContacts();
-      return;
-    }
 
     let steps = [
       function upgrade0to1() {
@@ -518,43 +492,16 @@ ContactDB.prototype = {
         } else {
           next();
         }
-      },
-      function upgrade13to14() {
-        if (DEBUG) debug("Cleaning up empty substring entries in telMatch index");
-        if (!objectStore) {
-          objectStore = aTransaction.objectStore(STORE_NAME);
-        }
-        objectStore.openCursor().onsuccess = function(event) {
-          function removeEmptyStrings(value) {
-            if (value) {
-              const oldLength = value.length;
-              for (let i = 0; i < value.length; ++i) {
-                if (!value[i] || value[i] == "null") {
-                  value.splice(i, 1);
-                }
-              }
-              return oldLength !== value.length;
-            }
-          }
-
-          let cursor = event.target.result;
-          if (cursor) {
-            let modified = removeEmptyStrings(cursor.value.search.parsedTel);
-            let modified2 = removeEmptyStrings(cursor.value.search.tel);
-            if (modified || modified2) {
-              cursor.update(cursor.value);
-            }
-          } else {
-            next();
-          }
-        };
-      },
+      }
     ];
 
     let index = aOldVersion;
     let outer = this;
     function next() {
       if (index == aNewVersion) {
+        if (aOldVersion === 0) {
+          loadInitialContacts();
+        }
         outer.incrementRevision(aTransaction);
         return;
       }
@@ -639,15 +586,15 @@ ContactDB.prototype = {
                     debug("InternationalNumber: " + parsedNumber.internationalNumber);
                     debug("NationalNumber: " + parsedNumber.nationalNumber);
                     debug("NationalFormat: " + parsedNumber.nationalFormat);
-                    debug("NationalMatchingFormat: " + parsedNumber.nationalMatchingFormat);
                   }
                   matchSearch[parsedNumber.nationalNumber] = 1;
                   matchSearch[parsedNumber.internationalNumber] = 1;
                   matchSearch[PhoneNumberUtils.normalize(parsedNumber.nationalFormat)] = 1;
                   matchSearch[PhoneNumberUtils.normalize(parsedNumber.internationalFormat)] = 1;
-                  matchSearch[PhoneNumberUtils.normalize(parsedNumber.nationalMatchingFormat)] = 1;
-                } else if (this.substringMatching && normalized.length > this.substringMatching) {
-                  matchSearch[normalized.slice(-this.substringMatching)] = 1;
+
+                  if (this.substringMatching && normalized.length > this.substringMatching) {
+                    matchSearch[normalized.slice(-this.substringMatching)] = 1;
+                  }
                 }
 
                 // containsSearch holds incremental search values for:
@@ -663,14 +610,10 @@ ContactDB.prototype = {
                 }
               }
               for (let num in containsSearch) {
-                if (num && num != "null") {
-                  contact.search.tel.push(num);
-                }
+                contact.search.tel.push(num);
               }
               for (let num in matchSearch) {
-                if (num && num != "null") {
-                  contact.search.parsedTel.push(num);
-                }
+                contact.search.parsedTel.push(num);
               }
             } else if ((field == "impp" || field == "email") && aContact.properties[field][i].value) {
               let value = aContact.properties[field][i].value;
@@ -928,24 +871,15 @@ ContactDB.prototype = {
             }
             xIndex++;
           }
+          if (!x) {
+            return sortOrder == "descending" ? 1 : -1;
+          }
           while (yIndex < sortBy.length && !y) {
             y = b.properties[sortBy[yIndex]];
             if (y) {
               y = y.join("").toLowerCase();
             }
             yIndex++;
-          }
-          if (!x) {
-            if (!y) {
-              let px, py;
-              px = JSON.stringify(a.published);
-              py = JSON.stringify(b.published);
-              if (px && py) {
-                return px.localeCompare(py);
-              }
-            } else {
-              return sortOrder == 'descending' ? 1 : -1;
-            }
           }
           if (!y) {
             return sortOrder == "ascending" ? 1 : -1;
@@ -1016,7 +950,6 @@ ContactDB.prototype = {
     let filter_keys = fields.slice();
     for (let key = filter_keys.shift(); key; key = filter_keys.shift()) {
       let request;
-      let substringResult = {};
       if (key == "id") {
         // store.get would return an object and not an array
         request = store.mozGetAll(options.filterValue);
@@ -1044,26 +977,10 @@ ContactDB.prototype = {
         let normalized = PhoneNumberUtils.normalize(options.filterValue,
                                                     /*numbersOnly*/ true);
 
-        if (!normalized.length) {
-          dump("ContactDB: normalized filterValue is empty, can't perform match search.\n");
-          return txn.abort();
-        }
-
         // Some countries need special handling for number matching. Bug 877302
         if (this.substringMatching && normalized.length > this.substringMatching) {
-          let substring = normalized.slice(-this.substringMatching);
-          if (DEBUG) debug("Substring: " + substring);
-
-          let substringRequest = index.mozGetAll(substring, limit);
-
-          substringRequest.onsuccess = function (event) {
-            if (DEBUG) debug("Request successful. Record count: " + event.target.result.length);
-            for (let i in event.target.result) {
-              substringResult[event.target.result[i].id] = event.target.result[i];
-            }
-          }.bind(this);
+          normalized = normalized.slice(-this.substringMatching);
         }
-
         request = index.mozGetAll(normalized, limit);
       } else {
         // XXX: "contains" should be handled separately, this is "startsWith"
@@ -1087,7 +1004,7 @@ ContactDB.prototype = {
           }
         }
         if (DEBUG) debug("lowerCase: " + lowerCase);
-        let range = this.dbGlobal.IDBKeyRange.bound(lowerCase, lowerCase + "\uFFFF");
+        let range = this._global.IDBKeyRange.bound(lowerCase, lowerCase + "\uFFFF");
         let index = store.index(key + "LowerCase");
         request = index.mozGetAll(range, limit);
       }
@@ -1096,11 +1013,6 @@ ContactDB.prototype = {
 
       request.onsuccess = function (event) {
         if (DEBUG) debug("Request successful. Record count: " + event.target.result.length);
-        if (Object.keys(substringResult).length > 0) {
-          for (let attrname in substringResult) {
-            event.target.result[attrname] = substringResult[attrname];
-          }
-        }
         this.sortResults(event.target.result, options);
         for (let i in event.target.result)
           txn.result[event.target.result[i].id] = exportContact(event.target.result[i]);

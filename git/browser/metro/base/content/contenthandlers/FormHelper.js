@@ -80,9 +80,8 @@ FormAssistant.prototype = {
       // Sometimes the element inner frame get destroyed while the element
       // receive the focus because the display is turned to 'none' for
       // example, in this "fun" case just do nothing if the element is hidden
-      if (self._isVisibleElement(gFocusManager.focusedElement)) {
-        self._sendJsonMsgWrapper("FormAssist:Show");
-      }
+      if (self._isVisibleElement(gFocusManager.focusedElement))
+        sendAsyncMessage("FormAssist:Show", self._getJSON());
     });
     return this._currentElement;
   },
@@ -205,7 +204,7 @@ FormAssistant.prototype = {
         break;
 
       case "FormAssist:Update":
-        this._sendJsonMsgWrapper("FormAssist:Show");
+        sendAsyncMessage("FormAssist:Show", this._getJSON());
         break;
     }
   },
@@ -282,9 +281,8 @@ FormAssistant.prototype = {
         break;
 
       case "text":
-        if (this._isAutocomplete(aEvent.target)) {
-          this._sendJsonMsgWrapper("FormAssist:AutoComplete");
-        }
+        if (this._isAutocomplete(aEvent.target))
+          sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
         break;
 
       case "keyup":
@@ -294,7 +292,7 @@ FormAssistant.prototype = {
           return;
 
         if (this._isAutocomplete(aEvent.target)) {
-          this._sendJsonMsgWrapper("FormAssist:AutoComplete");
+          sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
         }
 
         let caretRect = this._getCaretRect();
@@ -428,10 +426,7 @@ FormAssistant.prototype = {
   },
 
   _isVisibleElement: function formHelperIsVisibleElement(aElement) {
-    if (!aElement || !aElement.ownerDocument) {
-      return false;
-    }
-    let style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, null);
+    let style = aElement ? aElement.ownerDocument.defaultView.getComputedStyle(aElement, null) : null;
     if (!style)
       return false;
 
@@ -509,18 +504,8 @@ FormAssistant.prototype = {
     return associatedLabels;
   },
 
-  _sendJsonMsgWrapper: function (aMsg) {
-    let json = this._getJSON();
-    if (json) {
-      sendAsyncMessage(aMsg, json);
-    }
-  },
-
   _getJSON: function() {
     let element = this.currentElement;
-    if (!element) {
-      return null;
-    }
     let choices = getListForElement(element);
     let editable = (element instanceof HTMLInputElement && element.mozIsTextField(false)) || this._isEditable(element);
 

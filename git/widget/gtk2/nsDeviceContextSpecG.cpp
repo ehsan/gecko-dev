@@ -540,11 +540,7 @@ nsresult nsDeviceContextSpecGTK::GetPrintMethod(const char *aPrinter, PrintMetho
 }
 
 static void
-#if (MOZ_WIDGET_GTK == 3)
-print_callback(GtkPrintJob *aJob, gpointer aData, const GError *aError) {
-#else
 print_callback(GtkPrintJob *aJob, gpointer aData, GError *aError) {
-#endif
   g_object_unref(aJob);
   ((nsIFile*) aData)->Remove(false);
 }
@@ -555,7 +551,7 @@ ns_release_macro(gpointer aData) {
   NS_RELEASE(spoolFile);
 }
 
-NS_IMETHODIMP nsDeviceContextSpecGTK::BeginDocument(const nsAString& aTitle, PRUnichar * aPrintToFileName,
+NS_IMETHODIMP nsDeviceContextSpecGTK::BeginDocument(PRUnichar * aTitle, PRUnichar * aPrintToFileName,
                                                     int32_t aStartPage, int32_t aEndPage)
 {
   if (mToPrinter) {

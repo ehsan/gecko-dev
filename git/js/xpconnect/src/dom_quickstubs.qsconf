@@ -19,6 +19,7 @@ members = [
     #
     # Note that many implementations of interfaces in this directory
     # use GetCurrentNativeCallContext, notably:
+    #   - nsIDOMCrypto.{generateCRMFRequest,signText}
     #   - nsIDOMLocation.reload
     #   - nsIDOMNSHistory.go
     #   - nsIDOMJSPluginArray.refresh
@@ -83,7 +84,15 @@ members = [
     'nsIBoxObject.height',
 
     # dom/indexedDB
+    'nsIIDBCursor.*',
+    'nsIIDBCursorWithValue.*',
+    'nsIIDBDatabase.*',
+    'nsIIDBIndex.*',
     'nsIIDBKeyRange.*',
+    'nsIIDBObjectStore.*',
+    'nsIIDBRequest.*',
+    'nsIIDBTransaction.*',
+    'nsIIDBOpenDBRequest.*',
     'nsIIndexedDatabaseManager.*',
 
     # dom/file
@@ -151,5 +160,5 @@ customMethodCalls = {
 newBindingProperties = {
     # Once the last entry here goes away, we can make the sNativePropertyHooks
     # of bindings static.
-    'nsIDOMEventTarget': 'mozilla::dom::EventTargetBinding::sNativePropertyHooks->mNativeProperties.regular',
+    'nsIDOMEventTarget': 'mozilla::dom::EventTargetBinding::sNativePropertyHooks.mNativeProperties.regular',
     }

@@ -56,7 +56,7 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
 
   nsCOMPtr<nsIDOMBlob> blob = static_cast<BlobParent*>(aAttachment.contentParent())->GetBlob();
   JS::Rooted<JS::Value> content(aContext);
-  JS::Rooted<JSObject*> global(aContext, JS::CurrentGlobalOrNull(aContext));
+  JS::Rooted<JSObject*> global(aContext, JS_GetGlobalForScopeChain(aContext));
   nsresult rv = nsContentUtils::WrapNative(aContext,
                                            global,
                                            blob,
@@ -120,7 +120,7 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
       MmsAttachmentDataToJSObject(aCx, aRequest.attachments().ElementAt(i)));
     NS_ENSURE_TRUE(obj, false);
     JS::Rooted<JS::Value> val(aCx, JS::ObjectValue(*obj));
-    if (!JS_SetElement(aCx, attachmentArray, i, &val)) {
+    if (!JS_SetElement(aCx, attachmentArray, i, val.address())) {
       return false;
     }
   }
@@ -151,7 +151,6 @@ SmsParent::SmsParent()
   obs->AddObserver(this, kSmsFailedObserverTopic, false);
   obs->AddObserver(this, kSmsDeliverySuccessObserverTopic, false);
   obs->AddObserver(this, kSmsDeliveryErrorObserverTopic, false);
-  obs->AddObserver(this, kSilentSmsReceivedObserverTopic, false);
 }
 
 void
@@ -169,7 +168,6 @@ SmsParent::ActorDestroy(ActorDestroyReason why)
   obs->RemoveObserver(this, kSmsFailedObserverTopic);
   obs->RemoveObserver(this, kSmsDeliverySuccessObserverTopic);
   obs->RemoveObserver(this, kSmsDeliveryErrorObserverTopic);
-  obs->RemoveObserver(this, kSilentSmsReceivedObserverTopic);
 }
 
 NS_IMETHODIMP
@@ -253,24 +251,6 @@ SmsParent::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-  if (!strcmp(aTopic, kSilentSmsReceivedObserverTopic)) {
-    nsCOMPtr<nsIDOMMozSmsMessage> smsMsg = do_QueryInterface(aSubject);
-    if (!smsMsg) {
-      return NS_OK;
-    }
-
-    nsString sender;
-    if (NS_FAILED(smsMsg->GetSender(sender)) ||
-        !mSilentNumbers.Contains(sender)) {
-      return NS_OK;
-    }
-
-    MobileMessageData msgData =
-      static_cast<SmsMessage*>(smsMsg.get())->GetData();
-    unused << SendNotifyReceivedSilentMessage(msgData);
-    return NS_OK;
-  }
-
   return NS_OK;
 }
 
@@ -312,38 +292,31 @@ SmsParent::RecvHasSupport(bool* aHasSupport)
 }
 
 bool
-SmsParent::RecvAddSilentNumber(const nsString& aNumber)
+SmsParent::RecvGetSegmentInfoForText(const nsString& aText,
+                                     SmsSegmentInfoData* aResult)
 {
-  if (mSilentNumbers.Contains(aNumber)) {
-    return true;
-  }
+  aResult->segments() = 0;
+  aResult->charsPerSegment() = 0;
+  aResult->charsAvailableInLastSegment() = 0;
 
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsService, true);
 
-  nsresult rv = smsService->AddSilentNumber(aNumber);
-  if (NS_SUCCEEDED(rv)) {
-    mSilentNumbers.AppendElement(aNumber);
-  }
+  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info;
+  nsresult rv = smsService->GetSegmentInfoForText(aText, getter_AddRefs(info));
+  NS_ENSURE_SUCCESS(rv, true);
 
-  return true;
-}
-
-bool
-SmsParent::RecvRemoveSilentNumber(const nsString& aNumber)
-{
-  if (!mSilentNumbers.Contains(aNumber)) {
+  int segments, charsPerSegment, charsAvailableInLastSegment;
+  if (NS_FAILED(info->GetSegments(&segments)) ||
+      NS_FAILED(info->GetCharsPerSegment(&charsPerSegment)) ||
+      NS_FAILED(info->GetCharsAvailableInLastSegment(&charsAvailableInLastSegment))) {
+    NS_ERROR("Can't get attribute values from nsIDOMMozSmsSegmentInfo");
     return true;
   }
 
-  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(smsService, true);
-
-  nsresult rv = smsService->RemoveSilentNumber(aNumber);
-  if (NS_SUCCEEDED(rv)) {
-    mSilentNumbers.RemoveElement(aNumber);
-  }
-
+  aResult->segments() = segments;
+  aResult->charsPerSegment() = charsPerSegment;
+  aResult->charsAvailableInLastSegment() = charsAvailableInLastSegment;
   return true;
 }
 
@@ -364,8 +337,6 @@ SmsParent::RecvPSmsRequestConstructor(PSmsRequestParent* aActor,
       return actor->DoRequest(aRequest.get_DeleteMessageRequest());
     case IPCSmsRequest::TMarkMessageReadRequest:
       return actor->DoRequest(aRequest.get_MarkMessageReadRequest());
-    case IPCSmsRequest::TGetSegmentInfoForTextRequest:
-      return actor->DoRequest(aRequest.get_GetSegmentInfoForTextRequest());
     default:
       MOZ_CRASH("Unknown type!");
   }
@@ -451,7 +422,7 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
       NS_ENSURE_TRUE(smsService, true);
 
       const SendSmsMessageRequest &data = aRequest.get_SendSmsMessageRequest();
-      smsService->Send(data.number(), data.message(), data.silent(), this);
+      smsService->Send(data.number(), data.message(), this);
     }
     break;
   case SendMessageRequest::TSendMmsMessageRequest: {
@@ -545,24 +516,6 @@ SmsRequestParent::DoRequest(const MarkMessageReadRequest& aRequest)
 
   if (NS_FAILED(rv)) {
     return NS_SUCCEEDED(NotifyMarkMessageReadFailed(nsIMobileMessageCallback::INTERNAL_ERROR));
-  }
-
-  return true;
-}
-
-bool
-SmsRequestParent::DoRequest(const GetSegmentInfoForTextRequest& aRequest)
-{
-  nsresult rv = NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  if (smsService) {
-    rv = smsService->GetSegmentInfoForText(aRequest.text(), this);
-  }
-
-  if (NS_FAILED(rv)) {
-    return NS_SUCCEEDED(NotifyGetSegmentInfoForTextFailed(
-                          nsIMobileMessageCallback::INTERNAL_ERROR));
   }
 
   return true;
@@ -663,19 +616,6 @@ NS_IMETHODIMP
 SmsRequestParent::NotifyMarkMessageReadFailed(int32_t aError)
 {
   return SendReply(ReplyMarkeMessageReadFail(aError));
-}
-
-NS_IMETHODIMP
-SmsRequestParent::NotifySegmentInfoForTextGot(nsIDOMMozSmsSegmentInfo *aInfo)
-{
-  SmsSegmentInfo* info = static_cast<SmsSegmentInfo*>(aInfo);
-  return SendReply(ReplyGetSegmentInfoForText(info->GetData()));
-}
-
-NS_IMETHODIMP
-SmsRequestParent::NotifyGetSegmentInfoForTextFailed(int32_t aError)
-{
-  return SendReply(ReplyGetSegmentInfoForTextFail(aError));
 }
 
 /*******************************************************************************

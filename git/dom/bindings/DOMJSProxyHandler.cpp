@@ -6,7 +6,7 @@
 
 #include "mozilla/Util.h"
 
-#include "mozilla/dom/DOMJSProxyHandler.h"
+#include "DOMJSProxyHandler.h"
 #include "xpcpublic.h"
 #include "xpcprivate.h"
 #include "XPCQuickStubs.h"
@@ -40,7 +40,7 @@ DOMProxyShadows(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
 {
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
   if (v.isObject()) {
-    bool hasOwn;
+    JSBool hasOwn;
     if (!JS_AlreadyHasOwnPropertyById(cx, &v.toObject(), id, &hasOwn))
       return js::ShadowCheckFailed;
 
@@ -160,16 +160,13 @@ DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy)
 }
 
 bool
-BaseDOMProxyHandler::getPropertyDescriptor(JSContext* cx,
-                                           JS::Handle<JSObject*> proxy,
-                                           JS::Handle<jsid> id,
-                                           MutableHandle<JSPropertyDescriptor> desc,
-                                           unsigned flags)
+DOMProxyHandler::getPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
+                                       JSPropertyDescriptor* desc, unsigned flags)
 {
   if (!getOwnPropertyDescriptor(cx, proxy, id, desc, flags)) {
     return false;
   }
-  if (desc.object()) {
+  if (desc->obj) {
     return true;
   }
 
@@ -178,7 +175,7 @@ BaseDOMProxyHandler::getPropertyDescriptor(JSContext* cx,
     return false;
   }
   if (!proto) {
-    desc.object().set(nullptr);
+    desc->obj = NULL;
     return true;
   }
 
@@ -187,9 +184,9 @@ BaseDOMProxyHandler::getPropertyDescriptor(JSContext* cx,
 
 bool
 DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                                MutableHandle<JSPropertyDescriptor> desc, bool* defined)
+                                JSPropertyDescriptor* desc, bool* defined)
 {
-  if (desc.hasGetterObject() && desc.setter() == JS_StrictPropertyStub) {
+  if ((desc->attrs & JSPROP_GETTER) && desc->setter == JS_StrictPropertyStub) {
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
                                         JSREPORT_STRICT_MODE_ERROR,
@@ -206,29 +203,34 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return false;
   }
 
-  bool dummy;
-  return js_DefineOwnProperty(cx, expando, id, desc, &dummy);
+  JSBool dummy;
+  return js_DefineOwnProperty(cx, expando, id, *desc, &dummy);
 }
 
 bool
 DOMProxyHandler::delete_(JSContext* cx, JS::Handle<JSObject*> proxy,
                          JS::Handle<jsid> id, bool* bp)
 {
+  JSBool b = true;
+
   JS::Rooted<JSObject*> expando(cx);
   if (!xpc::WrapperFactory::IsXrayWrapper(proxy) && (expando = GetExpandoObject(proxy))) {
-    return JS_DeletePropertyById2(cx, expando, id, bp);
+    JS::Rooted<Value> v(cx);
+    if (!JS_DeletePropertyById2(cx, expando, id, v.address()) ||
+        !JS_ValueToBoolean(cx, v, &b)) {
+      return false;
+    }
   }
 
-  *bp = true;
+  *bp = !!b;
   return true;
 }
 
 bool
-BaseDOMProxyHandler::enumerate(JSContext* cx, JS::Handle<JSObject*> proxy,
-                               AutoIdVector& props)
+DOMProxyHandler::enumerate(JSContext* cx, JS::Handle<JSObject*> proxy, AutoIdVector& props)
 {
   JS::Rooted<JSObject*> proto(cx);
-  if (!JS_GetPrototype(cx, proxy, &proto))  {
+  if (!JS_GetPrototype(cx, proxy, proto.address())) {
     return false;
   }
   return getOwnPropertyNames(cx, proxy, props) &&
@@ -256,12 +258,41 @@ DOMProxyHandler::has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid
   if (!proto) {
     return true;
   }
-  bool protoHasProp;
+  JSBool protoHasProp;
   bool ok = JS_HasPropertyById(cx, proto, id, &protoHasProp);
   if (ok) {
     *bp = protoHasProp;
   }
   return ok;
+}
+
+bool
+DOMProxyHandler::AppendNamedPropertyIds(JSContext* cx,
+                                        JS::Handle<JSObject*> proxy,
+                                        nsTArray<nsString>& names,
+                                        bool shadowPrototypeProperties,
+                                        JS::AutoIdVector& props)
+{
+  for (uint32_t i = 0; i < names.Length(); ++i) {
+    JS::Rooted<JS::Value> v(cx);
+    if (!xpc::NonVoidStringToJsval(cx, names[i], v.address())) {
+      return false;
+    }
+
+    JS::Rooted<jsid> id(cx);
+    if (!JS_ValueToId(cx, v, id.address())) {
+      return false;
+    }
+
+    if (shadowPrototypeProperties ||
+        !HasPropertyOnPrototype(cx, proxy, this, id)) {
+      if (!props.append(id)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 int32_t

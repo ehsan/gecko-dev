@@ -6,11 +6,11 @@
 #ifndef GFX_FRAMEMETRICS_H
 #define GFX_FRAMEMETRICS_H
 
-#include <stdint.h>                     // for uint32_t, uint64_t
-#include "Units.h"                      // for CSSRect, CSSPixel, etc
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/gfx/Rect.h"           // for RoundedIn
-#include "mozilla/gfx/ScaleFactor.h"    // for ScaleFactor
+#include "gfxPoint.h"
+#include "gfxTypes.h"
+#include "nsRect.h"
+#include "mozilla/gfx/Rect.h"
+#include "Units.h"
 
 namespace mozilla {
 namespace layers {
@@ -103,9 +103,20 @@ public:
     return CSSToScreenScale(float(mCompositionBounds.width) / float(mViewport.width));
   }
 
+  /**
+   * Return the resolution that content should be rendered at given
+   * the configuration in this metrics object: viewport dimensions,
+   * zoom factor, etc. (The mResolution member of this metrics is
+   * ignored.)
+   */
+  CSSToScreenScale CalculateResolution() const
+  {
+    return CalculateIntrinsicScale() * mZoom;
+  }
+
   CSSRect CalculateCompositedRectInCssPixels() const
   {
-    return CSSRect(gfx::RoundedIn(mCompositionBounds / mZoom));
+    return CSSRect(gfx::RoundedIn(mCompositionBounds / CalculateResolution()));
   }
 
   // ---------------------------------------------------------------------------
@@ -195,9 +206,9 @@ public:
   ViewID mScrollId;
 
   // The scrollable bounds of a frame. This is determined by reflow.
-  // Ordinarily the x and y will be 0 and the width and height will be the
-  // size of the element being scrolled. However for RTL pages or elements
-  // the x value may be negative.
+  // For the top-level |window|,
+  // { x = window.scrollX, y = window.scrollY, // could be 0, 0
+  //   width = window.innerWidth, height = window.innerHeight }
   //
   // This is relative to the document. It is in the same coordinate space as
   // |mScrollOffset|, but a different coordinate space than |mViewport| and
@@ -221,11 +232,19 @@ public:
   // resolution of parent layers is opaque to this metric.
   LayoutDeviceToLayerScale mResolution;
 
-  // The "user zoom". Content is painted by gecko at mResolution * mDevPixelsPerCSSPixel,
-  // but will be drawn to the screen at mZoom. In the steady state, the
-  // two will be the same, but during an async zoom action the two may
-  // diverge.
-  CSSToScreenScale mZoom;
+  // The resolution-independent "user zoom".  For example, if a page
+  // configures the viewport to a zoom value of 2x, then this member
+  // will always be 2.0 no matter what the viewport or composition
+  // bounds.
+  //
+  // In the steady state (no animations), the following is usually true
+  //
+  //  intrinsicScale = (mCompositionBounds / mViewport)
+  //  mResolution = mZoom * intrinsicScale / mDevPixelsPerCSSPixel
+  //
+  // When this is not true, we're probably asynchronously sampling a
+  // zoom animation for content.
+  ScreenToScreenScale mZoom;
 
   // The conversion factor between CSS pixels and device pixels for this frame.
   // This can vary based on a variety of things, such as reflowing-zoom. The

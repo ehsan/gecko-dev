@@ -4,27 +4,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gc/Zone.h"
-
 #include "jsgc.h"
 
 #ifdef JS_ION
-#include "jit/BaselineJIT.h"
-#include "jit/Ion.h"
-#include "jit/IonCompartment.h"
+#include "ion/BaselineJIT.h"
+#include "ion/IonCompartment.h"
+#include "ion/Ion.h"
 #endif
 #include "vm/Debugger.h"
 #include "vm/Runtime.h"
 
 #include "jsgcinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-
 using namespace js;
 using namespace js::gc;
 
 JS::Zone::Zone(JSRuntime *rt)
-  : runtime_(rt),
+  : rt(rt),
     allocator(this),
     hold(false),
     ionUsingBarriers_(false),
@@ -36,7 +32,6 @@ JS::Zone::Zone(JSRuntime *rt)
     gcTriggerBytes(0),
     gcHeapGrowthFactor(3.0),
     isSystem(false),
-    usedByExclusiveThread(false),
     scheduledForDestruction(false),
     maybeAlive(true),
     gcMallocBytes(0),
@@ -52,8 +47,8 @@ JS::Zone::Zone(JSRuntime *rt)
 
 Zone::~Zone()
 {
-    if (this == runtimeFromMainThread()->systemZone)
-        runtimeFromMainThread()->systemZone = NULL;
+    if (this == rt->systemZone)
+        rt->systemZone = NULL;
 }
 
 bool
@@ -68,15 +63,11 @@ Zone::setNeedsBarrier(bool needs, ShouldUpdateIon updateIon)
 {
 #ifdef JS_ION
     if (updateIon == UpdateIon && needs != ionUsingBarriers_) {
-        jit::ToggleBarriers(this, needs);
+        ion::ToggleBarriers(this, needs);
         ionUsingBarriers_ = needs;
     }
 #endif
 
-    if (needs && runtimeFromMainThread()->isAtomsZone(this))
-        JS_ASSERT(!runtimeFromMainThread()->exclusiveThreadsPresent());
-
-    JS_ASSERT_IF(needs, canCollect());
     needsBarrier_ = needs;
 }
 
@@ -99,7 +90,7 @@ Zone::markTypes(JSTracer *trc)
     for (size_t thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
         ArenaHeader *aheader = allocator.arenas.getFirstArena(static_cast<AllocKind>(thingKind));
         if (aheader)
-            trc->runtime->gcMarker.pushArenaList(aheader);
+            rt->gcMarker.pushArenaList(aheader);
     }
 
     for (CellIterUnderGC i(this, FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
@@ -143,11 +134,11 @@ Zone::sweep(FreeOp *fop, bool releaseTypes)
         releaseTypes = false;
 
     if (!isPreservingCode()) {
-        gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
+        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
         types.sweep(fop, releaseTypes);
     }
 
-    if (!fop->runtime()->debuggerList.isEmpty())
+    if (!rt->debuggerList.isEmpty())
         sweepBreakpoints(fop);
 
     active = false;
@@ -161,8 +152,8 @@ Zone::sweepBreakpoints(FreeOp *fop)
      * to iterate over the scripts belonging to a single compartment in a zone.
      */
 
-    gcstats::AutoPhase ap1(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_TABLES);
-    gcstats::AutoPhase ap2(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_TABLES_BREAKPOINT);
+    gcstats::AutoPhase ap1(rt->gcStats, gcstats::PHASE_SWEEP_TABLES);
+    gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_TABLES_BREAKPOINT);
 
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
@@ -201,20 +192,20 @@ Zone::discardJitCode(FreeOp *fop, bool discardConstraints)
 # endif
 
         /* Mark baseline scripts on the stack as active. */
-        jit::MarkActiveBaselineScripts(this);
+        ion::MarkActiveBaselineScripts(this);
 
         /* Only mark OSI points if code is being discarded. */
-        jit::InvalidateAll(fop, this);
+        ion::InvalidateAll(fop, this);
 
         for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation(fop, script);
+            ion::FinishInvalidation(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that
              * this also resets the active flag.
              */
-            jit::FinishDiscardBaselineScript(fop, script);
+            ion::FinishDiscardBaselineScript(fop, script);
 
             /*
              * Use counts for scripts are reset on GC. After discarding code we

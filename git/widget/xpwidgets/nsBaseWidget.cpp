@@ -822,7 +822,7 @@ nsBaseWidget::AutoUseBasicLayerManager::~AutoUseBasicLayerManager()
 bool
 nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
 {
-#if defined(XP_WIN) || defined(ANDROID) || \
+#if defined(XP_WIN) || defined(ANDROID) || (MOZ_PLATFORM_MAEMO > 5) || \
     defined(MOZ_GL_PROVIDER) || defined(XP_MACOSX)
   bool accelerateByDefault = true;
 #else
@@ -848,8 +848,12 @@ nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
   }
 #endif
 
+  // We don't want to accelerate small popup windows like menu, but we still
+  // want to accelerate xul panels that may contain arbitrarily complex content.
+  bool isSmallPopup = ((mWindowType == eWindowType_popup) &&
+                      (mPopupType != ePopupTypePanel));
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = IsSmallPopup() || gfxPlatform::GetPrefLayersAccelerationDisabled();
+  bool disableAcceleration = isSmallPopup || gfxPlatform::GetPrefLayersAccelerationDisabled() || (mWindowType == eWindowType_invisible);
   mForceLayersAcceleration = gfxPlatform::GetPrefLayersAccelerationForceEnabled();
 
   const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
@@ -914,27 +918,14 @@ void nsBaseWidget::CreateCompositor()
   CreateCompositor(rect.width, rect.height);
 }
 
-void
-nsBaseWidget::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
+mozilla::layers::LayersBackend
+nsBaseWidget::GetPreferredCompositorBackend()
 {
   if (mUseLayersAcceleration) {
-    aHints.AppendElement(LAYERS_OPENGL);
+    return mozilla::layers::LAYERS_OPENGL;
   }
 
-  aHints.AppendElement(LAYERS_BASIC);
-}
-
-static void
-CheckForBasicBackends(nsTArray<LayersBackend>& aHints)
-{
-  for (size_t i = 0; i < aHints.Length(); ++i) {
-    if (aHints[i] == LAYERS_BASIC &&
-        !Preferences::GetBool("layers.offmainthreadcomposition.force-basic", false) &&
-        !Preferences::GetBool("browser.tabs.remote", false)) {
-      // basic compositor is not stable enough for regular use
-      aHints[i] = LAYERS_NONE;
-    }
-  }
+  return mozilla::layers::LAYERS_BASIC;
 }
 
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
@@ -958,18 +949,12 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 
   TextureFactoryIdentifier textureFactoryIdentifier;
   PLayerTransactionChild* shadowManager;
-  nsTArray<LayersBackend> backendHints;
-  GetPreferredCompositorBackends(backendHints);
+  mozilla::layers::LayersBackend backendHint = GetPreferredCompositorBackend();
 
-  CheckForBasicBackends(backendHints);
+  shadowManager = mCompositorChild->SendPLayerTransactionConstructor(
+    backendHint, 0, &textureFactoryIdentifier);
 
-  bool success = false;
-  if (!backendHints.IsEmpty()) {
-    shadowManager = mCompositorChild->SendPLayerTransactionConstructor(
-      backendHints, 0, &textureFactoryIdentifier, &success);
-  }
-
-  if (success) {
+  if (shadowManager) {
     ShadowLayerForwarder* lf = lm->AsShadowForwarder();
     if (!lf) {
       delete lm;
@@ -979,27 +964,23 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
     lf->SetShadowManager(shadowManager);
     lf->IdentifyTextureHost(textureFactoryIdentifier);
     ImageBridgeChild::IdentifyCompositorTextureHost(textureFactoryIdentifier);
-    WindowUsesOMTC();
 
     mLayerManager = lm;
     return;
   }
 
+  // Failed to create a compositor!
   NS_WARNING("Failed to create an OMT compositor.");
   DestroyCompositor();
   // Compositor child had the only reference to LayerManager and will have
   // deallocated it when being freed.
 }
 
-bool nsBaseWidget::IsSmallPopup()
-{
-  return mWindowType == eWindowType_popup &&
-         mPopupType != ePopupTypePanel;
-}
-
 bool nsBaseWidget::ShouldUseOffMainThreadCompositing()
 {
-  return CompositorParent::CompositorLoop() && !IsSmallPopup();
+  bool isSmallPopup = ((mWindowType == eWindowType_popup) &&
+                      (mPopupType != ePopupTypePanel)) || (mWindowType == eWindowType_invisible);
+  return CompositorParent::CompositorLoop() && !isSmallPopup;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
@@ -1050,7 +1031,7 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayerTransactionChild* aShadowManag
   return usedLayerManager;
 }
 
-LayerManager* nsBaseWidget::CreateBasicLayerManager()
+BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()
 {
   return new BasicLayerManager(this);
 }

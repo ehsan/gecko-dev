@@ -142,20 +142,15 @@ private:
    * nsGhostWindowReporter generates the "ghost-windows" single-report, which
    * counts the number of ghost windows present.
    */
-  class NumGhostsReporter MOZ_FINAL : public mozilla::MemoryReporterBase
+  class NumGhostsReporter MOZ_FINAL : public nsIMemoryReporter
   {
   public:
-    NumGhostsReporter(nsWindowMemoryReporter* aWindowReporter)
-        // Description is "???" because we define GetDescription below.
-      : MemoryReporterBase("ghost-windows", KIND_OTHER, UNITS_COUNT, "???")
-      , mWindowReporter(aWindowReporter)
-    {}
+    NumGhostsReporter(nsWindowMemoryReporter* aWindowReporter);
 
-    NS_IMETHOD GetDescription(nsACString& aDesc);
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEMORYREPORTER
 
   private:
-    int64_t Amount() MOZ_OVERRIDE;
-
     nsRefPtr<nsWindowMemoryReporter> mWindowReporter;
   };
 

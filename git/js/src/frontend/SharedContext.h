@@ -7,11 +7,12 @@
 #ifndef frontend_SharedContext_h
 #define frontend_SharedContext_h
 
+#include "jstypes.h"
 #include "jsatom.h"
 #include "jsopcode.h"
-#include "jspubtd.h"
 #include "jsscript.h"
-#include "jstypes.h"
+#include "jsprvtd.h"
+#include "jspubtd.h"
 
 #include "builtin/Module.h"
 #include "frontend/ParseMaps.h"
@@ -72,6 +73,9 @@ class FunctionContextFlags
     // This class's data is all private and so only visible to these friends.
     friend class FunctionBox;
 
+    // We parsed a yield statement in the function.
+    bool isGenerator:1;
+
     // The function or a function that encloses it may define new local names
     // at runtime through means other than calling eval.
     bool mightAliasLocals:1;
@@ -125,7 +129,8 @@ class FunctionContextFlags
 
   public:
     FunctionContextFlags()
-     :  mightAliasLocals(false),
+     :  isGenerator(false),
+        mightAliasLocals(false),
         hasExtensibleScope(false),
         needsDeclEnvObject(false),
         argumentsHasLocalBinding(false),
@@ -258,9 +263,7 @@ class FunctionBox : public ObjectBox, public SharedContext
     uint32_t        bufEnd;
     uint32_t        startLine;
     uint32_t        startColumn;
-    uint16_t        length;
-
-    uint8_t         generatorKindBits_;     /* The GeneratorKind of this function. */
+    uint16_t        ndefaults;
     bool            inWith:1;               /* some enclosing scope is a with-statement */
     bool            inGenexpLambda:1;       /* lambda from generator expression */
     bool            hasDestructuringArgs:1; /* arguments list contains destructuring expression */
@@ -276,40 +279,25 @@ class FunctionBox : public ObjectBox, public SharedContext
     template <typename ParseHandler>
     FunctionBox(ExclusiveContext *cx, ObjectBox* traceListHead, JSFunction *fun,
                 ParseContext<ParseHandler> *pc, Directives directives,
-                bool extraWarnings, GeneratorKind generatorKind);
+                bool extraWarnings);
 
     ObjectBox *toObjectBox() { return this; }
     JSFunction *function() const { return &object->as<JSFunction>(); }
 
-    GeneratorKind generatorKind() const { return GeneratorKindFromBits(generatorKindBits_); }
-    bool isGenerator() const { return generatorKind() != NotGenerator; }
-    bool isLegacyGenerator() const { return generatorKind() == LegacyGenerator; }
-    bool isStarGenerator() const { return generatorKind() == StarGenerator; }
-
-    void setGeneratorKind(GeneratorKind kind) {
-        // A generator kind can be set at initialization, or when "yield" is
-        // first seen.  In both cases the transition can only happen from
-        // NotGenerator.
-        JS_ASSERT(!isGenerator());
-        generatorKindBits_ = GeneratorKindAsBits(kind);
-    }
-
+    bool isGenerator()              const { return funCxFlags.isGenerator; }
     bool mightAliasLocals()         const { return funCxFlags.mightAliasLocals; }
     bool hasExtensibleScope()       const { return funCxFlags.hasExtensibleScope; }
     bool needsDeclEnvObject()       const { return funCxFlags.needsDeclEnvObject; }
     bool argumentsHasLocalBinding() const { return funCxFlags.argumentsHasLocalBinding; }
     bool definitelyNeedsArgsObj()   const { return funCxFlags.definitelyNeedsArgsObj; }
 
+    void setIsGenerator()                  { funCxFlags.isGenerator              = true; }
     void setMightAliasLocals()             { funCxFlags.mightAliasLocals         = true; }
     void setHasExtensibleScope()           { funCxFlags.hasExtensibleScope       = true; }
     void setNeedsDeclEnvObject()           { funCxFlags.needsDeclEnvObject       = true; }
     void setArgumentsHasLocalBinding()     { funCxFlags.argumentsHasLocalBinding = true; }
     void setDefinitelyNeedsArgsObj()       { JS_ASSERT(funCxFlags.argumentsHasLocalBinding);
                                              funCxFlags.definitelyNeedsArgsObj   = true; }
-
-    bool hasDefaults() const {
-        return length != function()->nargs - function()->hasRest();
-    }
 
     // Return whether this function has either specified "use asm" or is
     // (transitively) nested inside a function that has.

@@ -63,9 +63,6 @@ def main():
     cPickle.dump(config, resultsFile, -1)
     resultsFile.close()
 
-    # Generate the atom list.
-    generate_file(config, 'GeneratedAtomList', 'declare')
-
     # Generate the prototype list.
     generate_file(config, 'PrototypeList', 'declare')
 

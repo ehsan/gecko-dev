@@ -44,7 +44,7 @@ gfxGdkNativeRenderer::DrawWithXlib(gfxXlibSurface* surface,
     }
 
     return DrawWithGDK(drawable, offset.x, offset.y,
-                       numClipRects ? &clipRect : nullptr, numClipRects);
+                       numClipRects ? &clipRect : NULL, numClipRects);
 }
 
 void

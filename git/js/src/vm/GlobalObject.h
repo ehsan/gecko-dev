@@ -27,9 +27,6 @@ js_InitFunctionClass(JSContext *cx, js::HandleObject obj);
 extern JSObject *
 js_InitTypedArrayClasses(JSContext *cx, js::HandleObject obj);
 
-extern JSObject *
-js_InitBinaryDataClasses(JSContext *cx, js::HandleObject obj);
-
 namespace js {
 
 class Debugger;
@@ -90,9 +87,8 @@ class GlobalObject : public JSObject
 
     /* One-off properties stored after slots for built-ins. */
     static const unsigned ELEMENT_ITERATOR_PROTO  = FROM_BUFFER_UINT8CLAMPED + 1;
-    static const unsigned LEGACY_GENERATOR_OBJECT_PROTO = ELEMENT_ITERATOR_PROTO + 1;
-    static const unsigned STAR_GENERATOR_OBJECT_PROTO = LEGACY_GENERATOR_OBJECT_PROTO + 1;
-    static const unsigned MAP_ITERATOR_PROTO      = STAR_GENERATOR_OBJECT_PROTO + 1;
+    static const unsigned GENERATOR_PROTO         = ELEMENT_ITERATOR_PROTO + 1;
+    static const unsigned MAP_ITERATOR_PROTO      = GENERATOR_PROTO + 1;
     static const unsigned SET_ITERATOR_PROTO      = MAP_ITERATOR_PROTO + 1;
     static const unsigned COLLATOR_PROTO          = SET_ITERATOR_PROTO + 1;
     static const unsigned NUMBER_FORMAT_PROTO     = COLLATOR_PROTO + 1;
@@ -331,18 +327,6 @@ class GlobalObject : public JSObject
         return &getPrototype(JSProto_Iterator).toObject();
     }
 
-    JSObject *getOrCreateDataObject(JSContext *cx) {
-        return getOrCreateObject(cx, JSProto_Data, initDataObject);
-    }
-
-    JSObject *getOrCreateTypeObject(JSContext *cx) {
-        return getOrCreateObject(cx, JSProto_Type, initTypeObject);
-    }
-
-    JSObject *getOrCreateArrayTypeObject(JSContext *cx) {
-        return getOrCreateObject(cx, JSProto_ArrayTypeObject, initArrayTypeObject);
-    }
-
   private:
     typedef bool (*ObjectInitOp)(JSContext *cx, Handle<GlobalObject*> global);
 
@@ -365,21 +349,8 @@ class GlobalObject : public JSObject
         return getOrCreateObject(cx, ELEMENT_ITERATOR_PROTO, initIteratorClasses);
     }
 
-    JSObject *getOrCreateLegacyGeneratorObjectPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, LEGACY_GENERATOR_OBJECT_PROTO, initIteratorClasses);
-    }
-
-    JSObject *getOrCreateStarGeneratorObjectPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, STAR_GENERATOR_OBJECT_PROTO, initIteratorClasses);
-    }
-
-    JSObject *getOrCreateStarGeneratorFunctionPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, JSProto_LIMIT + JSProto_GeneratorFunction,
-                                 initIteratorClasses);
-    }
-
-    JSObject *getOrCreateStarGeneratorFunction(JSContext *cx) {
-        return getOrCreateObject(cx, JSProto_GeneratorFunction, initIteratorClasses);
+    JSObject *getOrCreateGeneratorPrototype(JSContext *cx) {
+        return getOrCreateObject(cx, GENERATOR_PROTO, initIteratorClasses);
     }
 
     JSObject *getOrCreateMapIteratorPrototype(JSContext *cx) {
@@ -457,11 +428,6 @@ class GlobalObject : public JSObject
     static bool initCollatorProto(JSContext *cx, Handle<GlobalObject*> global);
     static bool initNumberFormatProto(JSContext *cx, Handle<GlobalObject*> global);
     static bool initDateTimeFormatProto(JSContext *cx, Handle<GlobalObject*> global);
-
-    // Implemented in builtin/BinaryData.cpp
-    static bool initTypeObject(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initDataObject(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initArrayTypeObject(JSContext *cx, Handle<GlobalObject*> global);
 
     static bool initStandardClasses(JSContext *cx, Handle<GlobalObject*> global);
 

@@ -15,6 +15,7 @@
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
 #include "mozilla/Telemetry.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace places {
@@ -216,7 +217,7 @@ bool GetHiddenState(bool aIsRedirect,
 class PlacesEvent : public nsRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   PlacesEvent(const char* aTopic);

@@ -6,6 +6,7 @@
 #ifndef nsDOMJSUtils_h__
 #define nsDOMJSUtils_h__
 
+#include "jsapi.h"
 #include "nsIScriptContext.h"
 
 class nsIJSArgArray;
@@ -27,8 +28,6 @@ GetScriptContextFromJSContext(JSContext *cx)
   // released, but that's ok here.
   return scx;
 }
-
-JSObject* GetDefaultScopeFromJSContext(JSContext *cx);
 
 // A factory function for turning a JS::Value argv into an nsIArray
 // but also supports an effecient way of extracting the original argv.

@@ -8,6 +8,7 @@
 
 #include "nsIAtom.h"
 #include "nsString.h"
+#include "jsapi.h"
 #include "nsString.h"
 #include "nsIServiceManager.h"
 #include "nsContentUtils.h" // For NS_CONTENT_DELETE_LIST_MEMBER.
@@ -15,6 +16,7 @@
 
 class nsIContent;
 class nsIObjectOutputStream;
+class nsIScriptContext;
 
 struct nsXBLTextWithLineNumber
 {
@@ -73,12 +75,14 @@ public:
 
   virtual nsresult InstallMember(JSContext* aCx,
                                  JS::Handle<JSObject*> aTargetClassObject) = 0;
-  virtual nsresult CompileMember(const nsCString& aClassStr,
+  virtual nsresult CompileMember(nsIScriptContext* aContext,
+                                 const nsCString& aClassStr,
                                  JS::Handle<JSObject*> aClassObject) = 0;
 
   virtual void Trace(const TraceCallbacks& aCallbacks, void *aClosure) = 0;
 
-  virtual nsresult Write(nsIObjectOutputStream* aStream)
+  virtual nsresult Write(nsIScriptContext* aContext,
+                         nsIObjectOutputStream* aStream)
   {
     return NS_OK;
   }

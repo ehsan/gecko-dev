@@ -6,6 +6,7 @@
 #include "ScrollbarActivity.h"
 #include "nsIScrollbarOwner.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMNSEvent.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIFrame.h"
@@ -432,8 +433,11 @@ ScrollbarActivity::HoveredScrollbar(nsIContent* aScrollbar)
 nsRefreshDriver*
 ScrollbarActivity::GetRefreshDriver()
 {
-  nsIFrame* scrollableFrame = do_QueryFrame(mScrollableFrame);
-  return scrollableFrame->PresContext()->RefreshDriver();
+  nsIFrame* box = mScrollableFrame->GetScrollbarBox(false);
+  if (!box) {
+    box = mScrollableFrame->GetScrollbarBox(true);
+  }
+  return box ? box->PresContext()->RefreshDriver() : nullptr;
 }
 
 nsIContent*

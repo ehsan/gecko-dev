@@ -51,7 +51,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'xpcomthreads_s'
 
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-

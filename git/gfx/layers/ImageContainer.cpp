@@ -4,21 +4,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
+#include "mozilla/layers/ImageBridgeChild.h"
+
 #include "ImageContainer.h"
-#include <string.h>                     // for memcpy, memset
-#include "SharedTextureImage.h"         // for SharedTextureImage
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxUtils.h"                   // for gfxUtils
-#include "mozilla/RefPtr.h"             // for TemporaryRef
-#include "mozilla/ipc/CrossProcessMutex.h"  // for CrossProcessMutex, etc
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
-#include "mozilla/layers/ImageClient.h"  // for ImageClient
-#include "nsISupportsUtils.h"           // for NS_IF_ADDREF
-#ifdef MOZ_WIDGET_GONK
+#include "GonkIOSurfaceImage.h"
 #include "GrallocImages.h"
-#endif
+#include "mozilla/ipc/Shmem.h"
+#include "mozilla/ipc/CrossProcessMutex.h"
+#include "SharedTextureImage.h"
+#include "gfxImageSurface.h"
+#include "gfxSharedImageSurface.h"
+#include "yuv_convert.h"
+#include "gfxUtils.h"
+#include "gfxPlatform.h"
+#include "mozilla/layers/ImageClient.h"
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
@@ -41,10 +40,7 @@ using mozilla::gfx::SourceSurface;
 namespace mozilla {
 namespace layers {
 
-class DataSourceSurface;
-class SourceSurface;
-
-Atomic<int32_t> Image::sSerialCounter(0);
+int32_t Image::sSerialCounter = 0;
 
 already_AddRefed<Image>
 ImageFactory::CreateImage(const ImageFormat *aFormats,
@@ -58,7 +54,7 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
   nsRefPtr<Image> img;
 #ifdef MOZ_WIDGET_GONK
   if (FormatInList(aFormats, aNumFormats, GRALLOC_PLANAR_YCBCR)) {
-    img = new GrallocImage();
+    img = new GrallocPlanarYCbCrImage();
     return img.forget();
   }
 #endif
@@ -74,6 +70,12 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
     img = new SharedTextureImage();
     return img.forget();
   }
+#ifdef MOZ_WIDGET_GONK
+  if (FormatInList(aFormats, aNumFormats, GONK_IO_SURFACE)) {
+    img = new GonkIOSurfaceImage();
+    return img.forget();
+  }
+#endif
 #ifdef XP_WIN
   if (FormatInList(aFormats, aNumFormats, D3D9_RGB32_TEXTURE)) {
     img = new D3D9SurfaceImage();

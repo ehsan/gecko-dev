@@ -17,7 +17,7 @@
 
 #include <stddef.h>  // size_t
 
-#include "webrtc/typedefs.h"
+#include "webrtc/typedefs.h"  // NOLINT(build/include)
 
 #ifdef __cplusplus
 extern "C" {

@@ -56,7 +56,7 @@ function compareBuffers(buf1, buf2,
 
   is(difference, 0, "Found " + difference + " different samples, maxDifference: " +
      maxDifference + ", first bad index: " + firstBadIndex +
-     " with source offset " + sourceOffset + " and destination offset " +
+     " with source offset " + sourceOffset + " and desitnation offset " +
      destOffset);
 }
 
@@ -68,6 +68,8 @@ function getEmptyBuffer(context, length) {
  * This function assumes that the test file defines a single gTest variable with
  * the following properties and methods:
  *
+ * + length: mandatory property equal to the total number of frames which we
+ *           are waiting to see in the output.
  * + numberOfChannels: optional property which specifies the number of channels
  *                     in the output.  The default value is 2.
  * + createGraph: mandatory method which takes a context object and does
@@ -82,19 +84,9 @@ function getEmptyBuffer(context, length) {
  *                          returns either one expected buffer or an array of
  *                          them, designating what is expected to be observed
  *                          in the output.  If omitted, the output is expected
- *                          to be silence.  All buffers must have the same
- *                          length, which must be a bufferSize supported by
- *                          ScriptProcessorNode.  This function is guaranteed
- *                          to be called before createGraph.
- * + length: property equal to the total number of frames which we are waiting
- *           to see in the output, mandatory if createExpectedBuffers is not
- *           provided, in which case it must be a bufferSize supported by
- *           ScriptProcessorNode (256, 512, 1024, 2048, 4096, 8192, or 16384).
- *           If createExpectedBuffers is provided then this must be equal to
- *           the number of expected buffers * the expected buffer length.
- *
- * + skipOfflineContextTests: optional. when true, skips running tests on an offline
- *                            context by circumventing testOnOfflineContext.
+ *                          to be silence.  The sum of the length of the expected
+ *                          buffers should be equal to gTest.length.  This
+ *                          function is guaranteed to be called before createGraph.
  */
 function runTest()
 {
@@ -103,7 +95,7 @@ function runTest()
   }
 
   SimpleTest.waitForExplicitFinish();
-  function runTestFunction () {
+  addLoadEvent(function() {
     if (!gTest.numberOfChannels) {
       gTest.numberOfChannels = 2; // default
     }
@@ -126,9 +118,7 @@ function runTest()
            "Correct number of channels for expected buffer " + i);
         expectedFrames += expectedBuffers[i].length;
       }
-      if (gTest.length && gTest.createExpectedBuffers) {
-        is(expectedFrames, gTest.length, "Correct number of expected frames");
-      }
+      is(expectedFrames, gTest.length, "Correct number of expected frames");
 
       if (gTest.createGraphAsync) {
         gTest.createGraphAsync(context, function(nodeToInspect) {
@@ -187,25 +177,14 @@ function runTest()
         };
         context.startRendering();
       }
-
       var context = new OfflineAudioContext(gTest.numberOfChannels, testLength, sampleRate);
       runTestOnContext(context, callback, testOutput);
     }
 
     testOnNormalContext(function() {
-      if (!gTest.skipOfflineContextTests) {
-        testOnOfflineContext(function() {
-          testOnOfflineContext(done, 44100);
-        }, 48000);
-      } else {
-        done();
-      }
+      testOnOfflineContext(function() {
+        testOnOfflineContext(done, 44100);
+      }, 48000);
     });
-  };
-
-  if (document.readyState !== 'complete') {
-    addLoadEvent(runTestFunction);
-  } else {
-    runTestFunction();
-  }
+  });
 }

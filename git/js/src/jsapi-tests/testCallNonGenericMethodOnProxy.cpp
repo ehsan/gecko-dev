@@ -21,7 +21,7 @@ static JSClass CustomClass = {
 static const uint32_t CUSTOM_SLOT = 0;
 
 static bool
-IsCustomClass(JS::Handle<JS::Value> v)
+IsCustomClass(const Value &v)
 {
   return v.isObject() && JS_GetClass(&v.toObject()) == &CustomClass;
 }
@@ -34,7 +34,7 @@ CustomMethodImpl(JSContext *cx, CallArgs args)
   return true;
 }
 
-static bool
+static JSBool
 CustomMethod(JSContext *cx, unsigned argc, Value *vp)
 {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -44,7 +44,7 @@ CustomMethod(JSContext *cx, unsigned argc, Value *vp)
 BEGIN_TEST(test_CallNonGenericMethodOnProxy)
 {
   // Create the first global object and compartment
-  JS::RootedObject globalA(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL, JS::FireOnNewGlobalHook));
+  JS::RootedObject globalA(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
   CHECK(globalA);
 
   JS::RootedObject customA(cx, JS_NewObject(cx, &CustomClass, NULL, NULL));
@@ -60,7 +60,7 @@ BEGIN_TEST(test_CallNonGenericMethodOnProxy)
 
   // Now create the second global object and compartment...
   {
-    JS::RootedObject globalB(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL, JS::FireOnNewGlobalHook));
+    JS::RootedObject globalB(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
     CHECK(globalB);
 
     // ...and enter it.

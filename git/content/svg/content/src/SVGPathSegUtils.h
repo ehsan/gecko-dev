@@ -9,7 +9,6 @@
 #include "gfxPoint.h"
 #include "nsDebug.h"
 #include "nsMemory.h"
-#include "prtypes.h"
 
 namespace mozilla {
 

@@ -1,3 +1,4 @@
+/* vim:set ts=2 sw=2 sts=2 expandtab */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -67,11 +68,19 @@ exports.exit = function exit(code) {
   appStartup.quit(code ? E_ATTEMPT : E_FORCE);
 };
 
-// Adapter for nodejs's stdout & stderr:
-// http://nodejs.org/api/process.html#process_process_stdout
-let stdout = Object.freeze({ write: dump, end: dump });
-exports.stdout = stdout;
-exports.stderr = stdout;
+exports.stdout = new function() {
+  let write = dump
+  if ('logFile' in options && options.logFile) {
+    let mode = PR_WRONLY | PR_CREATE_FILE | PR_APPEND;
+    let stream = openFile(options.logFile, mode);
+    write = function write(data) {
+      let text = String(data);
+      stream.write(text, text.length);
+      stream.flush();
+    }
+  }
+  return Object.freeze({ write: write });
+};
 
 /**
  * Returns a path of the system's or application's special directory / file
@@ -125,7 +134,7 @@ exports.build = appInfo.appBuildID;
 exports.id = appInfo.ID;
 
 /**
- * The name of the application.
+ * The name of the application. 
  */
 exports.name = appInfo.name;
 

@@ -51,11 +51,7 @@ const NETD_COMMAND_UNSOLICITED  = 600;
 const NETD_COMMAND_INTERFACE_CHANGE     = 600;
 const NETD_COMMAND_BANDWIDTH_CONTROLLER = 601;
 
-const INTERFACE_DELIMIT = "\0";
-
 importScripts("systemlibs.js");
-
-const SDK_VERSION = libcutils.property_get("ro.build.version.sdk", "0");
 
 function netdResponseType(code) {
   return Math.floor(code/100)*100;
@@ -168,18 +164,6 @@ function updateUpStreamFail(params) {
   return true;
 }
 
-function wifiOperationModeFail(params) {
-  // Notify the main thread.
-  postMessage(params);
-  return true;
-}
-
-function wifiOperationModeSuccess(params) {
-  // Notify the main thread.
-  postMessage(params);
-  return true;
-}
-
 /**
  * Get network interface properties from the system property table.
  *
@@ -214,20 +198,6 @@ self.onmessage = function onmessage(event) {
 };
 
 /**
- * Set DNS servers for given network interface.
- */
-function setDNS(options) {
-  let ifprops = getIFProperties(options.ifname);
-  let dns1_str = options.dns1_str || ifprops.dns1_str;
-  let dns2_str = options.dns2_str || ifprops.dns2_str;
-  libcutils.property_set("net.dns1", dns1_str);
-  libcutils.property_set("net.dns2", dns2_str);
-  // Bump the DNS change property.
-  let dnschange = libcutils.property_get("net.dnschange", "0");
-  libcutils.property_set("net.dnschange", (parseInt(dnschange, 10) + 1).toString());
-}
-
-/**
  * Set default route and DNS servers for given network interface.
  */
 function setDefaultRouteAndDNS(options) {
@@ -248,6 +218,21 @@ function setDefaultRouteAndDNS(options) {
   // Bump the DNS change property.
   let dnschange = libcutils.property_get("net.dnschange", "0");
   libcutils.property_set("net.dnschange", (parseInt(dnschange, 10) + 1).toString());
+}
+
+/**
+ * Run DHCP and set default route and DNS servers for a given
+ * network interface.
+ */
+function runDHCPAndSetDefaultRouteAndDNS(options) {
+  let dhcp = libnetutils.dhcp_do_request(options.ifname);
+  dhcp.ifname = options.ifname;
+  dhcp.oldIfname = options.oldIfname;
+
+  //TODO this could be race-y... by the time we've finished the DHCP request
+  // and are now fudging with the routes, another network interface may have
+  // come online that's preferred...
+  setDefaultRouteAndDNS(dhcp);
 }
 
 /**
@@ -294,51 +279,25 @@ let gPending = false;
 let gReason = [];
 
 /**
- * This helper function acts like String.split() fucntion.
- * The function finds the first token in the javascript
- * uint8 type array object, where tokens are delimited by
- * the delimiter. The first token and the index pointer to
- * the next token are returned in this function.
- */
-function split(start, data, delimiter) {
-  // Sanity check.
-  if (start < 0 || data.length <= 0) {
-    return null;
-  }
-
-  let result = "";
-  let i = start;
-  while (i < data.length) {
-    let octet = data[i];
-    i += 1;
-    if (octet === delimiter) {
-      return {token: result, index: i};
-    }
-    result += String.fromCharCode(octet);
-  }
-  return null;
-}
-
-/**
  * Handle received data from netd.
  */
 function onNetdMessage(data) {
-  let result = split(0, data, 32);
-  if (!result) {
-    nextNetdCommand();
-    return;
-  }
-  let code = parseInt(result.token);
-
-  // Netd response contains the command sequence number
-  // in non-broadcast message for Android jb version.
-  // The format is ["code" "optional sequence number" "reason"]
-  if (!isBroadcastMessage(code) && SDK_VERSION >= 16) {
-    result = split(result.index, data, 32);
-  }
-
-  let i = result.index;
+  let result = "";
   let reason = "";
+
+  // The return result is separated from the reason by a space character.
+  let i = 0;
+  while (i < data.length) {
+    let octet = data[i];
+    i += 1;
+    if (octet == 32) {
+      break;
+    }
+    result += String.fromCharCode(octet);
+  }
+
+  let code = parseInt(result);
+
   for (; i < data.length; i++) {
     let octet = data[i];
     reason += String.fromCharCode(octet);
@@ -369,8 +328,7 @@ function onNetdMessage(data) {
   }
 
   if (gCurrentCallback) {
-    gCurrentCallback(isError(code),
-                     {code: code, reason: gReason.join(INTERFACE_DELIMIT)});
+    gCurrentCallback(isError(code), {code: code, reason: gReason.join(" ")});
     gReason = [];
   }
 
@@ -396,31 +354,18 @@ function nextNetdCommand() {
   [gCurrentCommand, gCurrentCallback] = gCommandQueue.shift();
   debug("Sending '" + gCurrentCommand + "' command to netd.");
   gPending = true;
-
-  // Android JB version adds sequence number to netd command.
-  let command = (SDK_VERSION >= 16) ? "0 " + gCurrentCommand : gCurrentCommand;
-  return postNetdCommand(command);
+  return postNetdCommand(gCurrentCommand);
 }
 
 function setInterfaceUp(params, callback) {
   let command = "interface setcfg " + params.ifname + " " + params.ip + " " +
-                params.prefix + " ";
-  if (SDK_VERSION >= 16) {
-    command += params.link;
-  } else {
-    command += "[" + params.link + "]";
-  }
+                params.prefix + " " + "[" + params.link + "]";
   return doCommand(command, callback);
 }
 
 function setInterfaceDown(params, callback) {
   let command = "interface setcfg " + params.ifname + " " + params.ip + " " +
-                params.prefix + " ";
-  if (SDK_VERSION >= 16) {
-    command += params.link;
-  } else {
-    command += "[" + params.link + "]";
-  }
+                params.prefix + " " + "[" + params.link + "]";
   return doCommand(command, callback);
 }
 
@@ -432,7 +377,7 @@ function setIpForwardingEnabled(params, callback) {
   } else {
     // Don't disable ip forwarding because others interface still need it.
     // Send the dummy command to continue the function chain.
-    if ("interfaceList" in params && params.interfaceList.length > 1) {
+    if (params.interfaceList.length > 1) {
       command = DUMMY_COMMAND;
     } else {
       command = "ipfwd disable";
@@ -464,7 +409,7 @@ function stopTethering(params, callback) {
 
   // Don't stop tethering because others interface still need it.
   // Send the dummy to continue the function chain.
-  if ("interfaceList" in params && params.interfaceList.length > 1) {
+  if (params.interfaceList.length > 1) {
     command = DUMMY_COMMAND;
   } else {
     command = "tether stop";
@@ -478,13 +423,12 @@ function tetherInterface(params, callback) {
 }
 
 function preTetherInterfaceList(params, callback) {
-  let command = (SDK_VERSION >= 16) ? "tether interface list"
-                                    : "tether interface list 0";
+  let command = "tether interface list 0";
   return doCommand(command, callback);
 }
 
 function postTetherInterfaceList(params, callback) {
-  params.interfaceList = params.resultReason.split(INTERFACE_DELIMIT);
+  params.interfaceList = params.resultReason.split(" ");
 
   // Send the dummy command to continue the function chain.
   let command = DUMMY_COMMAND;
@@ -512,7 +456,7 @@ function disableNat(params, callback) {
 
   // Don't disable nat because others interface still need it.
   // Send the dummy command to continue the function chain.
-  if ("interfaceList" in params && params.interfaceList.length > 1) {
+  if (params.interfaceList.length > 1) {
     command = DUMMY_COMMAND;
   } else {
     command = "nat disable " + params.internalIfname + " " +
@@ -527,21 +471,11 @@ function wifiFirmwareReload(params, callback) {
 }
 
 function startAccessPointDriver(params, callback) {
-  // Skip the command for sdk version >= 16.
-  if (SDK_VERSION >= 16) {
-    callback(false, {code: "", reason: ""});
-    return true;
-  }
   let command = "softap start " + params.ifname;
   return doCommand(command, callback);
 }
 
 function stopAccessPointDriver(params, callback) {
-  // Skip the command for sdk version >= 16.
-  if (SDK_VERSION >= 16) {
-    callback(false, {code: "", reason: ""});
-    return true;
-  }
   let command = "softap stop " + params.ifname;
   return doCommand(command, callback);
 }
@@ -573,39 +507,14 @@ function escapeQuote(str) {
   return str.replace(/"/g, "\\\"");
 }
 
-/**
- * Command format for sdk version < 16
- *   Arguments:
- *     argv[2] - wlan interface
- *     argv[3] - SSID
- *     argv[4] - Security
- *     argv[5] - Key
- *     argv[6] - Channel
- *     argv[7] - Preamble
- *     argv[8] - Max SCB
- *
- * Command format for sdk version >= 16
- *   Arguments:
- *     argv[2] - wlan interface
- *     argv[3] - SSID
- *     argv[4] - Security
- *     argv[5] - Key
- */
+// The command format is "softap set wlan0 wl0.1 hotspot456 open null 6 0 8".
 function setAccessPoint(params, callback) {
-  let command;
-  if (SDK_VERSION >= 16) {
-    command = "softap set " + params.ifname +
-              " \"" + escapeQuote(params.ssid) + "\"" +
-              " " + params.security +
-              " \"" + escapeQuote(params.key) + "\"";
-  } else {
-    command = "softap set " + params.ifname +
-              " " + params.wifictrlinterfacename +
-              " \"" + escapeQuote(params.ssid) + "\"" +
-              " " + params.security +
-              " \"" + escapeQuote(params.key) + "\"" +
-              " " + "6 0 8";
-  }
+  let command = "softap set " + params.ifname +
+                " " + params.wifictrlinterfacename +
+                " \"" + escapeQuote(params.ssid) + "\"" +
+                " " + params.security +
+                " \"" + escapeQuote(params.key) + "\"" +
+                " " + "6 0 8";
   return doCommand(command, callback);
 }
 
@@ -703,10 +612,8 @@ function dumpParams(params, type) {
   debug("     ip: " + params.ip);
   debug("     link: " + params.link);
   debug("     prefix: " + params.prefix);
-  debug("     wifiStartIp: " + params.wifiStartIp);
-  debug("     wifiEndIp: " + params.wifiEndIp);
-  debug("     usbStartIp: " + params.usbStartIp);
-  debug("     usbEndIp: " + params.usbEndIp);
+  debug("     startIp: " + params.startIp);
+  debug("     endIp: " + params.endIp);
   debug("     dnsserver1: " + params.dns1);
   debug("     dnsserver2: " + params.dns2);
   debug("     internalIfname: " + params.internalIfname);
@@ -872,18 +779,6 @@ function getNetworkInterfaceStats(params) {
   params.date = new Date();
 
   chain(params, gNetworkInterfaceStatsChain, networkInterfaceStatsFail);
-  return true;
-}
-
-let gWifiOperationModeChain = [wifiFirmwareReload,
-                               wifiOperationModeSuccess];
-
-/**
- * handling main thread's reload Wifi firmware request
- */
-function setWifiOperationMode(params) {
-  debug("setWifiOperationMode: " + params.ifname + " " + params.mode);
-  chain(params, gWifiOperationModeChain, wifiOperationModeFail);
   return true;
 }
 

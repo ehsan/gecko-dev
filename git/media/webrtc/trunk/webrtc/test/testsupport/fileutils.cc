@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/fileutils.h"
+#include "test/testsupport/fileutils.h"
 
 #ifdef WIN32
 #include <direct.h>
@@ -26,7 +26,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "webrtc/typedefs.h"  // For architecture defines
+#include "typedefs.h"  // For architecture defines
 
 namespace webrtc {
 namespace test {

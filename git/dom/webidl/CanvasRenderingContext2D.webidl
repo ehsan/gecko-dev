@@ -46,8 +46,10 @@ interface CanvasRenderingContext2D {
            attribute DOMString globalCompositeOperation; // (default source-over)
 
   // colors and styles (see also the CanvasDrawingStyles interface)
-           attribute (DOMString or CanvasGradient or CanvasPattern) strokeStyle; // (default black)
-           attribute (DOMString or CanvasGradient or CanvasPattern) fillStyle; // (default black)
+           [GetterThrows]
+           attribute any strokeStyle; // (default black)
+           [GetterThrows]
+           attribute any fillStyle; // (default black)
   [Creator]
   CanvasGradient createLinearGradient(double x0, double y0, double x1, double y1);
   [Creator, Throws]
@@ -207,12 +209,6 @@ interface CanvasRenderingContext2D {
   void asyncDrawXULElement(XULElement elem, double x, double y, double w,
                            double h, DOMString bgColor,
                            optional unsigned long flags = 0);
-  /**
-   * This causes a context that is currently using a hardware-accelerated
-   * backend to fallback to a software one. All state should be preserved.
-   */
-  [ChromeOnly]
-  void demote();
 };
 CanvasRenderingContext2D implements CanvasDrawingStyles;
 CanvasRenderingContext2D implements CanvasPathMethods;

@@ -9,6 +9,8 @@
 
 #include "Workers.h"
 
+#include "jspubtd.h"
+
 // DOMException Codes.
 #define INDEX_SIZE_ERR 1
 #define DOMSTRING_SIZE_ERR 2

@@ -7,6 +7,7 @@
 #define nsIJSNativeInitializer_h__
 
 #include "nsISupports.h"
+#include "jsapi.h"
 
 #define NS_IJSNATIVEINITIALIZER_IID \
 { 0xdb48eee5, 0x89a4, 0x4f18,       \

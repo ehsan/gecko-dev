@@ -13,7 +13,6 @@
 #include "mozilla/PodOperations.h"
 
 #include <stdio.h>
-
 #include "jstypes.h"
 
 #ifdef WIN32

@@ -22,7 +22,6 @@
 #include "mozilla/dom/ScreenOrientation.h"
 
 namespace mozilla {
-class ProcessOrientation;
 namespace hal {
 class SensorData;
 typedef mozilla::Observer<SensorData> ISensorObserver;
@@ -57,9 +56,11 @@ public:
 
 private:
   bool mAutoOrientationEnabled;
+  PRTime mLastUpdate;
   uint32_t mAllowedOrientations;
-  mozilla::ScopedDeletePtr<mozilla::ProcessOrientation> mOrientation;
 
+  // 200 ms, the latency which is barely perceptible by human.
+  static const PRTime sMinUpdateInterval = 200 * PR_USEC_PER_MSEC;
   static const uint32_t sDefaultOrientations =
       mozilla::dom::eScreenOrientation_PortraitPrimary |
       mozilla::dom::eScreenOrientation_PortraitSecondary |

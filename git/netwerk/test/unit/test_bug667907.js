@@ -9,14 +9,8 @@ var httpserver = null;
 var simplePath = "/simple";
 var normalPath = "/normal";
 var httpbody = "<html></html>";
-
-XPCOMUtils.defineLazyGetter(this, "uri1", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort + simplePath;
-});
-
-XPCOMUtils.defineLazyGetter(this, "uri2", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort + normalPath;
-});
+var uri1 = "http://localhost:4444" + simplePath;
+var uri2 = "http://localhost:4444" + normalPath;
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -60,7 +54,7 @@ function run_test()
   httpserver = new HttpServer();
   httpserver.registerPathHandler(simplePath, simpleHandler);
   httpserver.registerPathHandler(normalPath, normalHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   var channel = make_channel(uri1);
   channel.asyncOpen(new listener("text/plain", function() {

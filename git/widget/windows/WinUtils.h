@@ -9,8 +9,6 @@
 #include "nscore.h"
 #include <windows.h>
 #include <shobjidl.h>
-#include <uxtheme.h>
-#include <dwmapi.h>
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsRegion.h"
@@ -28,7 +26,6 @@
 #include "mozilla/Attributes.h"
 
 class nsWindow;
-class nsWindowBase;
 struct KeyPair;
 
 namespace mozilla {
@@ -67,19 +64,6 @@ public:
                           UINT aLastMessage, UINT aOption);
   static bool GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
                          UINT aLastMessage);
-
-  /**
-   * Wait until a message is ready to be processed.
-   * Prefer using this method to directly calling ::WaitMessage since
-   * ::WaitMessage will wait if there is an unread message in the queue.
-   * That can cause freezes until another message enters the queue if the
-   * message is marked read by a call to PeekMessage which the caller is
-   * not aware of (e.g., from a different thread).
-   * Note that this method may cause sync dispatch of sent (as opposed to
-   * posted) messages.
-   */
-  static void WaitForMessage();
-
   /**
    * Gets the value of a string-typed registry value.
    *
@@ -137,15 +121,12 @@ public:
                               bool aStopIfNotPopup = true);
 
   /**
-   * SetNSWindowBasePtr() associates an nsWindowBase to aWnd.  If aWidget is NULL,
-   * it dissociate any nsBaseWidget pointer from aWnd.
-   * GetNSWindowBasePtr() returns an nsWindowBase pointer which was associated by
-   * SetNSWindowBasePtr().
-   * GetNSWindowPtr() is a legacy api for win32 nsWindow and should be avoided
-   * outside of nsWindow src.
+   * SetNSWindowPtr() associates an nsWindow to aWnd.  If aWindow is NULL,
+   * it dissociate any nsWindow pointer from aWnd.
+   * GetNSWindowPtr() returns an nsWindow pointer which was associated by
+   * SetNSWindowPtr().
    */
-  static bool SetNSWindowBasePtr(HWND aWnd, nsWindowBase* aWidget);
-  static nsWindowBase* GetNSWindowBasePtr(HWND aWnd);
+  static bool SetNSWindowPtr(HWND aWnd, nsWindow* aWindow);
   static nsWindow* GetNSWindowPtr(HWND aWnd);
 
   /**
@@ -277,29 +258,6 @@ public:
   static void SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray,
                                         uint32_t aModifiers);
 
-  // dwmapi.dll function typedefs and declarations
-  typedef HRESULT (WINAPI*DwmExtendFrameIntoClientAreaProc)(HWND hWnd, const MARGINS *pMarInset);
-  typedef HRESULT (WINAPI*DwmIsCompositionEnabledProc)(BOOL *pfEnabled);
-  typedef HRESULT (WINAPI*DwmSetIconicThumbnailProc)(HWND hWnd, HBITMAP hBitmap, DWORD dwSITFlags);
-  typedef HRESULT (WINAPI*DwmSetIconicLivePreviewBitmapProc)(HWND hWnd, HBITMAP hBitmap, POINT *pptClient, DWORD dwSITFlags);
-  typedef HRESULT (WINAPI*DwmGetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
-  typedef HRESULT (WINAPI*DwmSetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
-  typedef HRESULT (WINAPI*DwmInvalidateIconicBitmapsProc)(HWND hWnd);
-  typedef HRESULT (WINAPI*DwmDefWindowProcProc)(HWND hWnd, UINT msg, LPARAM lParam, WPARAM wParam, LRESULT *aRetValue);
-  typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_INFO *info);
-
-  static DwmExtendFrameIntoClientAreaProc dwmExtendFrameIntoClientAreaPtr;
-  static DwmIsCompositionEnabledProc dwmIsCompositionEnabledPtr;
-  static DwmSetIconicThumbnailProc dwmSetIconicThumbnailPtr;
-  static DwmSetIconicLivePreviewBitmapProc dwmSetIconicLivePreviewBitmapPtr;
-  static DwmGetWindowAttributeProc dwmGetWindowAttributePtr;
-  static DwmSetWindowAttributeProc dwmSetWindowAttributePtr;
-  static DwmInvalidateIconicBitmapsProc dwmInvalidateIconicBitmapsPtr;
-  static DwmDefWindowProcProc dwmDwmDefWindowProcPtr;
-  static DwmGetCompositionTimingInfoProc dwmGetCompositionTimingInfoPtr;
-
-  static void Initialize();
-
 private:
   typedef HRESULT (WINAPI * SHCreateItemFromParsingNamePtr)(PCWSTR pszPath,
                                                             IBindCtx *pbc,
@@ -338,7 +296,7 @@ class AsyncEncodeAndWriteIcon : public nsIRunnable
 {
 public:
   const bool mURLShortcut;
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   // Warning: AsyncEncodeAndWriteIcon assumes ownership of the aData buffer passed in
@@ -352,7 +310,6 @@ private:
   nsAutoString mIconPath;
   nsAutoCString mMimeTypeOfInputData;
   nsAutoArrayPtr<uint8_t> mBuffer;
-  HMODULE sDwmDLL;
   uint32_t mBufferLength;
   uint32_t mStride;
   uint32_t mWidth;
@@ -363,7 +320,7 @@ private:
 class AsyncDeleteIconFromDisk : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteIconFromDisk(const nsAString &aIconPath);
@@ -376,7 +333,7 @@ private:
 class AsyncDeleteAllFaviconsFromDisk : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteAllFaviconsFromDisk();

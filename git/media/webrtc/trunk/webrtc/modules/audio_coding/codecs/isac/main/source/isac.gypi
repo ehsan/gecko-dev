@@ -12,7 +12,7 @@
       'target_name': 'iSAC',
       'type': 'static_library',
       'dependencies': [
-        '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+        '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
       ],
       'include_dirs': [
         '../interface',

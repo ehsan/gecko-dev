@@ -2,7 +2,9 @@
 # Any copyright is dedicated to the Public Domain.
 # http://creativecommons.org/publicdomain/zero/1.0/
 
-MODULE = 'module_name'
+XPIDL_SOURCES += ['bar.idl', 'biz.idl', 'foo.idl']
+XPIDL_MODULE = 'module_name'
+XPIDL_FLAGS += ['-Idir1', '-Idir2', '-Idir3']
 
 ASFILES += ['fans.asm', 'tans.s']
 
@@ -10,11 +12,6 @@ DEFINES=['-Dfans', '-Dtans']
 
 EXTRA_COMPONENTS=['fans.js', 'tans.js']
 EXTRA_PP_COMPONENTS=['fans.pp.js', 'tans.pp.js']
-
-EXTRA_JS_MODULES = ['bar.jsm', 'foo.jsm']
-EXTRA_PP_JS_MODULES = ['bar.pp.jsm', 'foo.pp.jsm']
-
-CPP_UNIT_TESTS = ['foo.cpp']
 
 GTEST_C_SOURCES = ['test1.c', 'test2.c']
 GTEST_CMM_SOURCES = ['test1.mm', 'test2.mm']
@@ -40,13 +37,4 @@ CMMSRCS = ['fans.mm', 'tans.mm']
 
 SSRCS = ['fans.S', 'tans.S']
 
-FAIL_ON_WARNINGS = True
-LIBXUL_LIBRARY = True
-MSVC_ENABLE_PGO = True
-
 NO_DIST_INSTALL = True
-
-FORCE_SHARED_LIB = True
-FORCE_STATIC_LIB = True
-EXPORT_LIBRARY = True
-IS_COMPONENT = True

@@ -8,14 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/stream_synchronization.h"
+#include "video_engine/stream_synchronization.h"
 
-#include <algorithm>
 #include <assert.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "system_wrappers/interface/trace.h"
 
 namespace webrtc {
 
@@ -30,14 +30,12 @@ struct ViESyncDelay {
     extra_video_delay_ms = 0;
     last_video_delay_ms = 0;
     extra_audio_delay_ms = 0;
-    last_audio_delay_ms = 0;
     network_delay = 120;
   }
 
   int extra_video_delay_ms;
   int last_video_delay_ms;
   int extra_audio_delay_ms;
-  int last_audio_delay_ms;
   int network_delay;
 };
 
@@ -90,9 +88,9 @@ bool StreamSynchronization::ComputeRelativeDelay(
 
 bool StreamSynchronization::ComputeDelays(int relative_delay_ms,
                                           int current_audio_delay_ms,
-                                          int* total_audio_delay_target_ms,
+                                          int* extra_audio_delay_ms,
                                           int* total_video_delay_target_ms) {
-  assert(total_audio_delay_target_ms && total_video_delay_target_ms);
+  assert(extra_audio_delay_ms && total_video_delay_target_ms);
 
   int current_video_delay_ms = *total_video_delay_target_ms;
   WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, video_channel_id_,
@@ -176,26 +174,17 @@ bool StreamSynchronization::ComputeDelays(int relative_delay_ms,
   new_video_delay_ms =
       std::min(new_video_delay_ms, base_target_delay_ms_ + kMaxDeltaDelayMs);
 
-  int new_audio_delay_ms;
-  if (channel_delay_->extra_audio_delay_ms > base_target_delay_ms_) {
-    new_audio_delay_ms = channel_delay_->extra_audio_delay_ms;
-  } else {
-    // No change to the audio delay. We are changing video and we only
-    // allow to change one at the time.
-    new_audio_delay_ms = channel_delay_->last_audio_delay_ms;
-  }
-
-  // Make sure that we don't go below the extra audio delay.
-  new_audio_delay_ms = std::max(
-      new_audio_delay_ms, channel_delay_->extra_audio_delay_ms);
+  // Make sure that audio is never below our target.
+  channel_delay_->extra_audio_delay_ms =
+      std::max(base_target_delay_ms_, channel_delay_->extra_audio_delay_ms);
 
   // Verify we don't go above the maximum allowed audio delay.
-  new_audio_delay_ms =
-      std::min(new_audio_delay_ms, base_target_delay_ms_ + kMaxDeltaDelayMs);
+  channel_delay_->extra_audio_delay_ms = std::min(
+      channel_delay_->extra_audio_delay_ms,
+      base_target_delay_ms_ + kMaxDeltaDelayMs);
 
-  // Remember our last audio and video delays.
+  // Remember our last video delay.
   channel_delay_->last_video_delay_ms = new_video_delay_ms;
-  channel_delay_->last_audio_delay_ms = new_audio_delay_ms;
 
   WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, video_channel_id_,
       "Sync video delay %d ms for video channel and audio delay %d for audio "
@@ -204,16 +193,14 @@ bool StreamSynchronization::ComputeDelays(int relative_delay_ms,
       audio_channel_id_);
 
   // Return values.
+  *extra_audio_delay_ms = channel_delay_->extra_audio_delay_ms;
   *total_video_delay_target_ms = new_video_delay_ms;
-  *total_audio_delay_target_ms = new_audio_delay_ms;
   return true;
 }
 
 void StreamSynchronization::SetTargetBufferingDelay(int target_delay_ms) {
   // Initial extra delay for audio (accounting for existing extra delay).
   channel_delay_->extra_audio_delay_ms +=
-      target_delay_ms - base_target_delay_ms_;
-  channel_delay_->last_audio_delay_ms +=
       target_delay_ms - base_target_delay_ms_;
 
   // The video delay is compared to the last value (and how much we can update

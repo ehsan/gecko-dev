@@ -7,9 +7,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
 
 #include "jsapi-tests/tests.h"
+
+#include "jscntxt.h"
 
 static js::ProfileEntry pstack[10];
 static uint32_t psize = 0;
@@ -30,43 +31,43 @@ static JSClass ptestClass = {
     JS_StrictPropertyStub, JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
-static bool
+static JSBool
 test_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
     max_stack = psize;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 test_fn2(JSContext *cx, unsigned argc, jsval *vp)
 {
     jsval r;
-    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
     return JS_CallFunctionName(cx, global, "d", 0, NULL, &r);
 }
 
-static bool
+static JSBool
 enable(JSContext *cx, unsigned argc, jsval *vp)
 {
     js::EnableRuntimeProfilingStack(cx->runtime(), true);
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 disable(JSContext *cx, unsigned argc, jsval *vp)
 {
     js::EnableRuntimeProfilingStack(cx->runtime(), false);
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 Prof(JSContext* cx, unsigned argc, jsval *vp)
 {
     JSObject *obj = JS_NewObjectForConstructor(cx, &ptestClass, vp);
     if (!obj)
-        return false;
+        return JS_FALSE;
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
-    return true;
+    return JS_TRUE;
 }
 
 static const JSFunctionSpec ptestFunctions[] = {
@@ -81,7 +82,7 @@ static JSObject*
 initialize(JSContext *cx)
 {
     js::SetRuntimeProfilingStack(cx->runtime(), pstack, &psize, 10);
-    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
     return JS_InitClass(cx, global, NULL, &ptestClass, Prof, 0,
                         NULL, ptestFunctions, NULL, NULL);
 }
@@ -198,7 +199,7 @@ BEGIN_TEST(testProfileStrings_isCalledWhenError)
     {
         JS::RootedValue rval(cx);
         /* Make sure the stack resets and we have an entry for each stack */
-        bool ok = JS_CallFunctionName(cx, global, "check2", 0, NULL, rval.address());
+        JSBool ok = JS_CallFunctionName(cx, global, "check2", 0, NULL, rval.address());
         CHECK(!ok);
         CHECK(psize == 0);
         CHECK(cx->runtime()->spsProfiler.stringsCount() == 1);

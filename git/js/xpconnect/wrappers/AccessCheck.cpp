@@ -14,6 +14,7 @@
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
+#include "nsContentUtils.h"
 #include "nsJSUtils.h"
 
 #include "XPCWrapper.h"
@@ -24,7 +25,6 @@
 #include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
-using namespace JS;
 using namespace js;
 
 namespace xpc {
@@ -238,7 +238,7 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapperArg, j
 
     const char *name;
     js::Class *clasp = js::GetObjectClass(obj);
-    MOZ_ASSERT(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
+    NS_ASSERTION(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
     if (clasp->ext.innerObject)
         name = "Window";
     else
@@ -306,7 +306,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
     // Unfortunately, |cx| can be in either compartment when we call ::check. :-(
     JSAutoCompartment ac(cx, wrappedObject);
 
-    bool found = false;
+    JSBool found = false;
     if (!JS_HasPropertyById(cx, wrappedObject, exposedPropsId, &found))
         return false;
 
@@ -327,7 +327,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
         return true;
 
     RootedValue exposedProps(cx);
-    if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, &exposedProps))
+    if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, exposedProps.address()))
         return false;
 
     if (exposedProps.isNullOrUndefined())
@@ -348,7 +348,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapperArg, jsid idArg, Wr
     Access access = NO_ACCESS;
 
     Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, &desc)) {
+    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, desc.address())) {
         return false; // Error
     }
     if (!desc.object() || !desc.isEnumerable())

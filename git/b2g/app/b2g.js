@@ -177,8 +177,6 @@ pref("content.sink.perf_parse_time", 50000000);
 
 // Maximum scripts runtime before showing an alert
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
-// Disable the watchdog thread for B2G. See bug 870043 comment 31.
-pref("dom.use_watchdog", false);
 
 // plugins
 pref("plugin.disable", true);
@@ -255,8 +253,10 @@ pref("layers.async-pan-zoom.enabled", true);
 
 // Web Notifications
 pref("notification.feature.enabled", true);
+pref("dom.webnotifications.enabled", false);
 
 // IndexedDB
+pref("indexedDB.feature.enabled", true);
 pref("dom.indexedDB.warningQuota", 5);
 
 // prevent video elements from preloading too much data
@@ -377,11 +377,10 @@ pref("dom.ipc.processCount", 100000);
 
 pref("dom.ipc.browser_frames.oop_by_default", false);
 
-// SMS/MMS
+// WebSMS
 pref("dom.sms.enabled", true);
 pref("dom.sms.strict7BitEncoding", false); // Disabled by default.
 pref("dom.sms.requestStatusReport", true); // Enabled by default.
-pref("dom.mms.requestStatusReport", true); // Enabled by default.
 
 // WebContacts
 pref("dom.mozContacts.enabled", true);
@@ -658,13 +657,13 @@ pref("accessibility.accessfu.utterance", 1);
 pref("accessibility.accessfu.skip_empty_images", true);
 
 // Enable hit-target fluffing
-pref("ui.touch.radius.enabled", true);
+pref("ui.touch.radius.enabled", false);
 pref("ui.touch.radius.leftmm", 3);
 pref("ui.touch.radius.topmm", 5);
 pref("ui.touch.radius.rightmm", 3);
 pref("ui.touch.radius.bottommm", 2);
 
-pref("ui.mouse.radius.enabled", true);
+pref("ui.mouse.radius.enabled", false);
 pref("ui.mouse.radius.leftmm", 3);
 pref("ui.mouse.radius.topmm", 5);
 pref("ui.mouse.radius.rightmm", 3);
@@ -746,7 +745,3 @@ pref("disk_space_watcher.enabled", true);
 // Enable promise
 pref("dom.promise.enabled", false);
 
-// Allow ADB to run for this many hours before disabling
-// (only applies when marionette is disabled)
-// 0 disables the timer.
-pref("b2g.adb.timeout-hours", 12);

@@ -9,6 +9,7 @@
 
 #include "mozilla/plugins/PPluginScriptableObjectParent.h"
 
+#include "jsapi.h"
 #include "npfunctions.h"
 #include "npruntime.h"
 
@@ -136,10 +137,10 @@ public:
     return mType;
   }
 
-  bool GetPropertyHelper(NPIdentifier aName,
-                         bool* aHasProperty,
-                         bool* aHasMethod,
-                         NPVariant* aResult);
+  JSBool GetPropertyHelper(NPIdentifier aName,
+                           bool* aHasProperty,
+                           bool* aHasMethod,
+                           NPVariant* aResult);
 
 private:
   static NPObject*

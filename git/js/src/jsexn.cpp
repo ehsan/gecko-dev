@@ -7,23 +7,21 @@
 /*
  * JS standard exception implementation.
  */
-
 #include "jsexn.h"
+
+#include <string.h>
 
 #include "mozilla/PodOperations.h"
 #include "mozilla/Util.h"
 
-#include <string.h>
-
+#include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsscript.h"
-#include "jstypes.h"
-#include "jsutil.h"
-#include "jswrapper.h"
 
 #include "gc/Marking.h"
 #include "vm/ErrorObject.h"
@@ -32,7 +30,6 @@
 
 #include "jsfuninlines.h"
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::gc;
@@ -43,7 +40,7 @@ using mozilla::PodArrayZero;
 using mozilla::PodZero;
 
 /* Forward declarations for ErrorObject::class_'s initializer. */
-static bool
+static JSBool
 Exception(JSContext *cx, unsigned argc, Value *vp);
 
 static void
@@ -52,7 +49,7 @@ exn_trace(JSTracer *trc, JSObject *obj);
 static void
 exn_finalize(FreeOp *fop, JSObject *obj);
 
-static bool
+static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp);
 
@@ -70,8 +67,8 @@ Class ErrorObject::class_ = {
     exn_finalize,
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
-    NULL,                 /* hasInstance */
     NULL,                 /* construct   */
+    NULL,                 /* hasInstance */
     exn_trace
 };
 
@@ -383,7 +380,7 @@ exn_finalize(FreeOp *fop, JSObject *obj)
     }
 }
 
-static bool
+static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp)
 {
@@ -525,7 +522,7 @@ FilenameToString(JSContext *cx, const char *filename)
     return JS_NewStringCopyZ(cx, filename);
 }
 
-static bool
+static JSBool
 Exception(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -555,7 +552,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
     /* Set the 'message' property. */
     RootedString message(cx);
     if (args.hasDefined(0)) {
-        message = ToString<CanGC>(cx, args[0]);
+        message = ToString<CanGC>(cx, args.handleAt(0));
         if (!message)
             return false;
         args[0].setString(message);
@@ -570,7 +567,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
     RootedScript script(cx, iter.done() ? NULL : iter.script());
     RootedString filename(cx);
     if (args.length() > 1) {
-        filename = ToString<CanGC>(cx, args[1]);
+        filename = ToString<CanGC>(cx, args.handleAt(1));
         if (!filename)
             return false;
         args[1].setString(filename);
@@ -603,7 +600,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.11.4.4 (NB: with subsequent errata). */
-static bool
+static JSBool
 exn_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
@@ -682,7 +679,7 @@ exn_toString(JSContext *cx, unsigned argc, Value *vp)
 /*
  * Return a string that may eval to something similar to the original object.
  */
-static bool
+static JSBool
 exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
@@ -857,29 +854,22 @@ js_InitExceptionClasses(JSContext *cx, HandleObject obj)
 }
 
 const JSErrorFormatString*
-js_GetLocalizedErrorMessage(ExclusiveContext *cx, void *userRef, const char *locale,
+js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
                             const unsigned errorNumber)
 {
     const JSErrorFormatString *errorString = NULL;
 
-    // The locale callbacks might not be thread safe, so don't call them if
-    // we're not on the main thread. When used with XPConnect,
-    // |localeGetErrorMessage| will be NULL anyways.
-    if (cx->isJSContext() &&
-        cx->asJSContext()->runtime()->localeCallbacks &&
-        cx->asJSContext()->runtime()->localeCallbacks->localeGetErrorMessage)
-    {
-        JSLocaleCallbacks *callbacks = cx->asJSContext()->runtime()->localeCallbacks;
-        errorString = callbacks->localeGetErrorMessage(userRef, locale, errorNumber);
+    if (cx->runtime()->localeCallbacks && cx->runtime()->localeCallbacks->localeGetErrorMessage) {
+        errorString = cx->runtime()->localeCallbacks
+                                   ->localeGetErrorMessage(userRef, locale, errorNumber);
     }
-
     if (!errorString)
         errorString = js_GetErrorMessage(userRef, locale, errorNumber);
     return errorString;
 }
 
 JS_FRIEND_API(const jschar*)
-js::GetErrorTypeName(JSRuntime* rt, int16_t exnType)
+js::GetErrorTypeName(JSContext* cx, int16_t exnType)
 {
     /*
      * JSEXN_INTERNALERR returns null to prevent that "InternalError: "
@@ -891,7 +881,7 @@ js::GetErrorTypeName(JSRuntime* rt, int16_t exnType)
         return NULL;
     }
     JSProtoKey key = GetExceptionProtoKey(exnType);
-    return ClassName(key, rt)->chars();
+    return ClassName(key, cx)->chars();
 }
 
 #if defined ( DEBUG_mccabe ) && defined ( PRINTNAMES )
@@ -904,7 +894,7 @@ static const struct exnname { char *name; char *exception; } errortoexnname[] = 
 };
 #endif /* DEBUG */
 
-bool
+JSBool
 js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
                     JSErrorCallback callback, void *userRef)
 {
@@ -993,7 +983,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
 static bool
 IsDuckTypedErrorObject(JSContext *cx, HandleObject exnObject, const char **filename_strp)
 {
-    bool found;
+    JSBool found;
     if (!JS_HasProperty(cx, exnObject, js_message_str, &found) || !found)
         return false;
 
@@ -1012,9 +1002,10 @@ IsDuckTypedErrorObject(JSContext *cx, HandleObject exnObject, const char **filen
     return true;
 }
 
-bool
+JSBool
 js_ReportUncaughtException(JSContext *cx)
 {
+    jsval roots[6];
     JSErrorReport *reportp, report;
 
     if (!JS_IsExceptionPending(cx))
@@ -1024,8 +1015,8 @@ js_ReportUncaughtException(JSContext *cx)
     if (!JS_GetPendingException(cx, exn.address()))
         return false;
 
-    AutoValueVector roots(cx);
-    roots.resize(6);
+    PodArrayZero(roots);
+    AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
 
     /*
      * Because ToString below could error and an exception object could become
@@ -1055,12 +1046,18 @@ js_ReportUncaughtException(JSContext *cx)
         (exnObject->is<ErrorObject>() || IsDuckTypedErrorObject(cx, exnObject, &filename_str)))
     {
         RootedString name(cx);
-        if (JS_GetProperty(cx, exnObject, js_name_str, roots.handleAt(2)) && roots[2].isString())
-            name = roots[2].toString();
+        if (JS_GetProperty(cx, exnObject, js_name_str, &roots[2]) &&
+            JSVAL_IS_STRING(roots[2]))
+        {
+            name = JSVAL_TO_STRING(roots[2]);
+        }
 
         RootedString msg(cx);
-        if (JS_GetProperty(cx, exnObject, js_message_str, roots.handleAt(3)) && roots[3].isString())
-            msg = roots[3].toString();
+        if (JS_GetProperty(cx, exnObject, js_message_str, &roots[3]) &&
+            JSVAL_IS_STRING(roots[3]))
+        {
+            msg = JSVAL_TO_STRING(roots[3]);
+        }
 
         if (name && msg) {
             RootedString colon(cx, JS_NewStringCopyZ(cx, ": "));
@@ -1078,22 +1075,22 @@ js_ReportUncaughtException(JSContext *cx)
             str = msg;
         }
 
-        if (JS_GetProperty(cx, exnObject, filename_str, roots.handleAt(4))) {
-            JSString *tmp = ToString<CanGC>(cx, roots.handleAt(4));
+        if (JS_GetProperty(cx, exnObject, filename_str, &roots[4])) {
+            JSString *tmp = ToString<CanGC>(cx, HandleValue::fromMarkedLocation(&roots[4]));
             if (tmp)
                 filename.encodeLatin1(cx, tmp);
         }
 
         uint32_t lineno;
-        if (!JS_GetProperty(cx, exnObject, js_lineNumber_str, roots.handleAt(5)) ||
-            !ToUint32(cx, roots.handleAt(5), &lineno))
+        if (!JS_GetProperty(cx, exnObject, js_lineNumber_str, &roots[5]) ||
+            !ToUint32(cx, roots[5], &lineno))
         {
             lineno = 0;
         }
 
         uint32_t column;
-        if (!JS_GetProperty(cx, exnObject, js_columnNumber_str, roots.handleAt(5)) ||
-            !ToUint32(cx, roots.handleAt(5), &column))
+        if (!JS_GetProperty(cx, exnObject, js_columnNumber_str, &roots[5]) ||
+            !ToUint32(cx, roots[5], &column))
         {
             column = 0;
         }

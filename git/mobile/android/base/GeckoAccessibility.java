@@ -301,13 +301,12 @@ public class GeckoAccessibility {
                             default:
                                 info.setParent(host);
                                 info.setSource(host, virtualDescendantId);
-                                info.setVisibleToUser(host.isFocused());
+                                info.setVisibleToUser(true);
                                 info.setPackageName(GeckoAppShell.getContext().getPackageName());
                                 info.setClassName(host.getClass().getName());
                                 info.addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS);
                                 info.addAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);
                                 info.addAction(AccessibilityNodeInfo.ACTION_CLICK);
-                                info.addAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
                                 info.addAction(AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY);
                                 info.addAction(AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY);
                                 info.setMovementGranularities(AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER |
@@ -341,10 +340,6 @@ public class GeckoAccessibility {
                                 GeckoAppShell.
                                     sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:ActivateObject", null));
                                 return true;
-                            } else if (action == AccessibilityNodeInfo.ACTION_LONG_CLICK && virtualViewId == VIRTUAL_CURSOR_POSITION) {
-                                GeckoAppShell.
-                                    sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:LongPress", null));
-                                return true;
                             } else if (action == AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY &&
                                        virtualViewId == VIRTUAL_CURSOR_POSITION) {
                                 // XXX: Self brailling gives this action with a bogus argument instead of an actual click action;
@@ -369,7 +364,7 @@ public class GeckoAccessibility {
                                         return true;
                                     }
                                     GeckoAppShell.
-                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:MoveByGranularity", movementData.toString()));
+                                        sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:MoveCaret", movementData.toString()));
                                 }
                                 return true;
                             } else if (action == AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY &&
@@ -382,7 +377,7 @@ public class GeckoAccessibility {
                                     return true;
                                 }
                                 GeckoAppShell.
-                                    sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:MoveByGranularity", movementData.toString()));
+                                    sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:MoveCaret", movementData.toString()));
                                 return true;
                             }
                             return host.performAccessibilityAction(action, arguments);

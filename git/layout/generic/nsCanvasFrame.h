@@ -12,6 +12,7 @@
 #include "nsContainerFrame.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
+#include "nsGkAtoms.h"
 
 class nsPresContext;
 class nsRenderingContext;

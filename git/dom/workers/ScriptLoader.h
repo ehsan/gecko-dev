@@ -8,6 +8,8 @@
 
 #include "Workers.h"
 
+#include "jsapi.h"
+
 class nsIPrincipal;
 class nsIURI;
 class nsIDocument;

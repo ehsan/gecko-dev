@@ -7,16 +7,14 @@
 }
 
 .click-to-play-plugins-notification-center-box {
-  border: 1px solid ThreeDShadow;
-  margin: 10px;
+  background-color: rgba(255,255,255,0.3);
 }
 
-.plugin-popupnotification-centeritem:nth-child(odd) {
-  background-color: rgba(0,0,0,0.1);
+.plugin-popupnotification-centeritem {
+  border-top: 1px solid ThreeDShadow;
 }
 
 .center-item-label {
-  -moz-margin-start: 6px;
   margin-bottom: 0;
   text-overflow: ellipsis;
 }
@@ -30,9 +28,7 @@
 }
 
 .click-to-play-plugins-notification-button-container {
-  background: linear-gradient(rgba(0,0,0,0.04) 60%, transparent);
-  padding: 10px;
-  margin-top: 5px;
+  border-top: 1px solid ThreeDShadow;
 }
 
 .click-to-play-popup-button {
@@ -40,11 +36,18 @@
 }
 
 .click-to-play-plugins-notification-description-box {
-  padding: 10px;
+  margin-left: 10px;
+  margin-right: 10px;
+  margin-top: 2px;
+  padding-bottom: 2px;
 }
 
 .click-to-play-plugins-outer-description {
   margin-top: 8px;
+}
+
+.click-to-play-plugins-notification-description-box > .popup-notification-closebutton {
+  margin: 0;
 }
 
 .click-to-play-plugins-notification-link,

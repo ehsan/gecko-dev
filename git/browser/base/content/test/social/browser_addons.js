@@ -50,10 +50,9 @@ function installListener(next, aManifest) {
   let expectEvent = "onInstalling";
   let prefname = getManifestPrefname(aManifest);
   // wait for the actual removal to call next
-  SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
-    if (topic == "provider-disabled") {
+  SocialService.registerProviderListener(function providerListener(topic, data) {
+    if (topic == "provider-removed") {
       SocialService.unregisterProviderListener(providerListener);
-      is(origin, aManifest.origin, "provider disabled");
       executeSoon(next);
     }
   });
@@ -292,38 +291,38 @@ var tests = {
       Services.prefs.setCharPref("social.whitelist", installFrom);
       Social.installProvider(doc, manifest2, function(addonManifest) {
         SocialService.addBuiltinProvider(addonManifest.origin, function(provider) {
-          is(provider.manifest.version, 1, "manifest version is 1");
           Social.enabled = true;
-
-          // watch for the provider-update and test the new version
-          SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
+          checkSocialUI();
+          is(Social.provider.manifest.version, 1, "manifest version is 1")
+          // watch for the provider-update and tell the worker to update
+          SocialService.registerProviderListener(function providerListener(topic, data) {
             if (topic != "provider-update")
               return;
-            is(origin, addonManifest.origin, "provider updated")
             SocialService.unregisterProviderListener(providerListener);
-            Services.prefs.clearUserPref("social.whitelist");
-            let provider = Social._getProviderFromOrigin(origin);
-            is(provider.manifest.version, 2, "manifest version is 2");
-            Social.uninstallProvider(origin, function() {
-              gBrowser.removeTab(tab);
-              next();
+            observeProviderSet(function() {
+              Services.prefs.clearUserPref("social.whitelist");
+              executeSoon(function() {
+                is(Social.provider.manifest.version, 2, "manifest version is 2");
+                Social.uninstallProvider(addonManifest.origin);
+                gBrowser.removeTab(tab);
+                next();
+              })
             });
           });
-
-          let port = provider.getWorkerPort();
-          port.onmessage = function (e) {
-            let topic = e.data.topic;
-            switch (topic) {
-              case "got-sidebar-message":
-                ok(true, "got the sidebar message from provider 1");
-                port.postMessage({topic: "worker.update", data: true});
-                break;
-            }
-          };
-          port.postMessage({topic: "test-init"});
-
+          let port = Social.provider.getWorkerPort();
+          port.postMessage({topic: "worker.update", data: true});
         });
       });
     });
   }
+}
+
+
+function observeProviderSet(cb) {
+  Services.obs.addObserver(function providerSet(subject, topic, data) {
+    Services.obs.removeObserver(providerSet, "social:provider-set");
+    info("social:provider-set observer was notified");
+    // executeSoon to let the browser UI observers run first
+    executeSoon(cb);
+  }, "social:provider-set", false);
 }

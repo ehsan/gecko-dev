@@ -13,10 +13,11 @@
 #endif
 
 #include "mozilla/Attributes.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIClassInfo.h"
+#include "nsINode.h"
 #include "nsISupports.h"
 #include "nsIXPCScriptable.h"
 #include "nsWrapperCache.h"
@@ -28,6 +29,7 @@ public:
       : mCanonical(NULL)
       , mObject(aObject)
       , mCache(aCache)
+      , mIsNode(false)
     {
         if (!mCache) {
             if (aObject)
@@ -53,7 +55,7 @@ public:
 
     already_AddRefed<nsISupports> forgetCanonical()
     {
-        MOZ_ASSERT(mCanonical, "Huh, no canonical to forget?");
+        NS_ASSERTION(mCanonical, "Huh, no canonical to forget?");
 
         if (!mCanonicalStrong)
             mCanonicalStrong = mCanonical;
@@ -72,7 +74,15 @@ public:
     nsXPCClassInfo *GetXPCClassInfo()
     {
         if (!mXPCClassInfo) {
-            CallQueryInterface(mObject, getter_AddRefs(mXPCClassInfo));
+            if (mIsNode) {
+                mXPCClassInfo =
+                    static_cast<nsINode*>(GetCanonical())->GetClassInfo();
+#ifdef DEBUG
+                AssertGetClassInfoResult();
+#endif
+            } else {
+                CallQueryInterface(mObject, getter_AddRefs(mXPCClassInfo));
+            }
         }
         return mXPCClassInfo;
     }
@@ -108,10 +118,11 @@ public:
 
 protected:
     xpcObjectHelper(nsISupports *aObject, nsISupports *aCanonical,
-                    nsWrapperCache *aCache)
+                    nsWrapperCache *aCache, bool aIsNode)
       : mCanonical(aCanonical)
       , mObject(aObject)
       , mCache(aCache)
+      , mIsNode(aIsNode)
     {
         if (!mCache && aObject)
             CallQueryInterface(aObject, &mCache);
@@ -123,10 +134,15 @@ protected:
 private:
     xpcObjectHelper(xpcObjectHelper& aOther) MOZ_DELETE;
 
+#ifdef DEBUG
+    void AssertGetClassInfoResult();
+#endif
+
     nsISupports*             mObject;
     nsWrapperCache*          mCache;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     nsRefPtr<nsXPCClassInfo> mXPCClassInfo;
+    bool                     mIsNode;
 };
 
 #endif

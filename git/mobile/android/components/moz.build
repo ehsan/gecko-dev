@@ -10,21 +10,6 @@ XPIDL_SOURCES += [
 
 MODULE = 'MobileComponents'
 
-EXTRA_COMPONENTS += [
-    'AddonUpdateService.js',
-    'BlocklistPrompt.js',
-    'ContentDispatchChooser.js',
-    'ContentPermissionPrompt.js',
-    'DownloadManagerUI.js',
-    'FilePicker.js',
-    'LoginManagerPrompter.js',
-    'NSSDialogService.js',
-    'PaymentsUI.js',
-    'PromptService.js',
-    'SiteSpecificUserAgent.js',
-    'XPIDialogService.js',
-]
-
 EXTRA_PP_COMPONENTS += [
     'AboutRedirector.js',
     'BrowserCLH.js',
@@ -34,4 +19,3 @@ EXTRA_PP_COMPONENTS += [
     'SessionStore.js',
     'Sidebar.js',
 ]
-

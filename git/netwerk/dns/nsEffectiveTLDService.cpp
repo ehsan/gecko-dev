@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+//* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -47,8 +46,8 @@ void
 nsDomainEntry::FuncForStaticAsserts(void)
 {
 #define ETLD_ENTRY(name, ex, wild)                                      \
-  static_assert(ETLD_ENTRY_OFFSET(name) < (1 << ETLD_ENTRY_N_INDEX_BITS), \
-                "invalid strtab index");
+  MOZ_STATIC_ASSERT(ETLD_ENTRY_OFFSET(name) < (1 << ETLD_ENTRY_N_INDEX_BITS), \
+                    "invalid strtab index");
 #include "etld_data.inc"
 #undef ETLD_ENTRY
 }
@@ -61,21 +60,21 @@ nsDomainEntry::FuncForStaticAsserts(void)
 
 static nsEffectiveTLDService *gService = nullptr;
 
-class EffectiveTLDServiceReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-  EffectiveTLDServiceReporter()
-    : MemoryReporterBase("explicit/xpcom/effective-TLD-service",
-                         KIND_HEAP, UNITS_BYTES,
-                         "Memory used by the effective TLD service.")
-  {}
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(EffectiveTLDServiceMallocSizeOf)
 
-private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    return gService ? gService->SizeOfIncludingThis(MallocSizeOf) : 0;
-  }
-};
+static int64_t
+GetEffectiveTLDSize()
+{
+  return gService->SizeOfIncludingThis(EffectiveTLDServiceMallocSizeOf);
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(
+  EffectiveTLDService,
+  "explicit/xpcom/effective-TLD-service",
+  KIND_HEAP,
+  nsIMemoryReporter::UNITS_BYTES,
+  GetEffectiveTLDSize,
+  "Memory used by the effective TLD service.")
 
 nsresult
 nsEffectiveTLDService::Init()
@@ -109,15 +108,16 @@ nsEffectiveTLDService::Init()
 
   MOZ_ASSERT(!gService);
   gService = this;
-  mReporter = new EffectiveTLDServiceReporter();
-  NS_RegisterMemoryReporter(mReporter);
+  mReporter = new NS_MEMORY_REPORTER_NAME(EffectiveTLDService);
+  (void)::NS_RegisterMemoryReporter(mReporter);
 
   return NS_OK;
 }
 
 nsEffectiveTLDService::~nsEffectiveTLDService()
 {
-  NS_UnregisterMemoryReporter(mReporter);
+  (void)::NS_UnregisterMemoryReporter(mReporter);
+  mReporter = nullptr;
   gService = nullptr;
 }
 

@@ -6,7 +6,3 @@
 
 MODULE = 'reftest'
 
-EXTRA_COMPONENTS += [
-    'reftest-cmdline.js',
-]
-

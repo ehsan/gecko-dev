@@ -15,6 +15,7 @@
 #include "nsProxyRelease.h"
 #include "prinrval.h"
 #include "ASpdySession.h"
+#include "mozilla/TimeStamp.h"
 
 #include "nsIStreamListener.h"
 #include "nsISocketTransport.h"
@@ -24,7 +25,6 @@
 
 class nsHttpRequestHead;
 class nsHttpResponseHead;
-class nsHttpHandler;
 
 //-----------------------------------------------------------------------------
 // nsHttpConnection - represents a connection to a HTTP server (or proxy)
@@ -41,7 +41,7 @@ class nsHttpConnection : public nsAHttpSegmentReader
                        , public nsIInterfaceRequestor
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSAHTTPSEGMENTREADER
     NS_DECL_NSAHTTPSEGMENTWRITER
     NS_DECL_NSIINPUTSTREAMCALLBACK
@@ -206,15 +206,12 @@ private:
     // transaction is open, otherwise it is null.
     nsRefPtr<nsAHttpTransaction>    mTransaction;
 
-    nsRefPtr<nsHttpHandler>         mHttpHandler; // keep gHttpHandler alive
-
     mozilla::Mutex                  mCallbacksLock;
     nsMainThreadPtrHandle<nsIInterfaceRequestor> mCallbacks;
 
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
 
     PRIntervalTime                  mLastReadTime;
-    PRIntervalTime                  mLastWriteTime;
     PRIntervalTime                  mMaxHangTime;    // max download time before dropping keep-alive status
     PRIntervalTime                  mIdleTimeout;    // value of keep-alive: timeout=
     PRIntervalTime                  mConsiderReusedAfterInterval;

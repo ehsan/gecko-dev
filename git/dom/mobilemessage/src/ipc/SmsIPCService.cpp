@@ -13,6 +13,7 @@
 #include "SmsSegmentInfo.h"
 #include "DictionaryHelpers.h"
 #include "nsJSUtils.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "mozilla/dom/MobileMessageManagerBinding.h"
 #include "mozilla/dom/MozMmsMessageBinding.h"
@@ -96,51 +97,29 @@ SmsIPCService::HasSupport(bool* aHasSupport)
 }
 
 NS_IMETHODIMP
-SmsIPCService::GetSegmentInfoForText(const nsAString& aText,
-                                     nsIMobileMessageCallback* aRequest)
+SmsIPCService::GetSegmentInfoForText(const nsAString & aText,
+                                     nsIDOMMozSmsSegmentInfo** aResult)
 {
-  return SendRequest(GetSegmentInfoForTextRequest(nsString(aText)),
-                                                  aRequest);
+  PSmsChild* smsChild = GetSmsChild();
+  NS_ENSURE_TRUE(smsChild, NS_ERROR_FAILURE);
+
+  SmsSegmentInfoData data;
+  bool ok = smsChild->SendGetSegmentInfoForText(nsString(aText), &data);
+  NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info = new SmsSegmentInfo(data);
+  info.forget(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 SmsIPCService::Send(const nsAString& aNumber,
                     const nsAString& aMessage,
-                    const bool aSilent,
                     nsIMobileMessageCallback* aRequest)
 {
   return SendRequest(SendMessageRequest(SendSmsMessageRequest(nsString(aNumber),
-                                                              nsString(aMessage),
-                                                              aSilent)),
+                                                              nsString(aMessage))),
                      aRequest);
-}
-
-NS_IMETHODIMP
-SmsIPCService::IsSilentNumber(const nsAString& aNumber,
-                              bool*            aIsSilent)
-{
-  NS_ERROR("We should not be here!");
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-SmsIPCService::AddSilentNumber(const nsAString& aNumber)
-{
-  PSmsChild* smsChild = GetSmsChild();
-  NS_ENSURE_TRUE(smsChild, NS_ERROR_FAILURE);
-
-  smsChild->SendAddSilentNumber(nsString(aNumber));
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsIPCService::RemoveSilentNumber(const nsAString& aNumber)
-{
-  PSmsChild* smsChild = GetSmsChild();
-  NS_ENSURE_TRUE(smsChild, NS_ERROR_FAILURE);
-
-  smsChild->SendRemoveSilentNumber(nsString(aNumber));
-  return NS_OK;
 }
 
 /*
@@ -242,7 +221,7 @@ SmsIPCService::Send(const JS::Value& aParameters,
 {
   SendMmsMessageRequest req;
   if (!GetSendMmsMessageRequestFromParams(aParameters, req)) {
-    return NS_ERROR_INVALID_ARG;
+    return NS_ERROR_UNEXPECTED;
   }
   return SendRequest(SendMessageRequest(req), aRequest);
 }

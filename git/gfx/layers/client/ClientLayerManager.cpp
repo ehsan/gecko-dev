@@ -4,27 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ClientLayerManager.h"
-#include "CompositorChild.h"            // for CompositorChild
-#include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "ipc/AutoOpenSurface.h"        // for AutoOpenSurface
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
+#include "nsIWidget.h"
+#include "mozilla/dom/TabChild.h"
 #include "mozilla/Hal.h"
-#include "mozilla/dom/ScreenOrientation.h"  // for ScreenOrientation
-#include "mozilla/dom/TabChild.h"       // for TabChild
-#include "mozilla/hal_sandbox/PHal.h"   // for ScreenConfiguration
-#include "mozilla/layers/CompositableClient.h"  // for CompositableChild, etc
-#include "mozilla/layers/ContentClient.h"  // for ContentClientRemote
-#include "mozilla/layers/ISurfaceAllocator.h"
-#include "mozilla/layers/LayerTransaction.h"  // for EditReply, etc
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
-#include "mozilla/layers/PLayerChild.h"  // for PLayerChild
+#include "mozilla/layers/PLayerChild.h"
 #include "mozilla/layers/PLayerTransactionChild.h"
-#include "nsAString.h"
-#include "nsIWidget.h"                  // for nsIWidget
-#include "nsTArray.h"                   // for AutoInfallibleTArray
-#include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
+#include "mozilla/layers/PLayerTransactionParent.h"
+#include "CompositorChild.h"
+#include "ipc/AutoOpenSurface.h"
+#include "ipc/ShadowLayerChild.h"
+#include "mozilla/layers/CompositableClient.h"
+#include "mozilla/layers/ContentClient.h"
+
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #endif
@@ -241,16 +232,6 @@ ClientLayerManager::EndEmptyTransaction(EndTransactionFlags aFlags)
   return true;
 }
 
-CompositorChild *
-ClientLayerManager::GetRemoteRenderer()
-{
-  if (!mWidget) {
-    return nullptr;
-  }
-
-  return mWidget->GetRemoteRenderer();
-}
-
 void 
 ClientLayerManager::MakeSnapshotIfRequired()
 {
@@ -258,7 +239,7 @@ ClientLayerManager::MakeSnapshotIfRequired()
     return;
   }
   if (mWidget) {
-    if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
+    if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
       nsIntRect bounds;
       mWidget->GetBounds(bounds);
       SurfaceDescriptor inSnapshot, snapshot;
@@ -332,13 +313,6 @@ ClientLayerManager::ForwardTransaction()
           ->SetDescriptorFromReply(ots.textureId(), ots.image());
         break;
       }
-      case EditReply::TReplyTextureRemoved: {
-        // XXX - to manage reuse of gralloc buffers, we'll need to add some
-        // glue code here to find the TextureClient and invoke a callback to
-        // let the camera know that the gralloc buffer is not used anymore on
-        // the compositor side and that it can reuse it.
-        break;
-      }
 
       default:
         NS_RUNTIMEABORT("not reached");
@@ -409,7 +383,7 @@ ClientLayerManager::ClearLayer(Layer* aLayer)
 void
 ClientLayerManager::GetBackendName(nsAString& aName)
 {
-  switch (GetCompositorBackendType()) {
+  switch (Compositor::GetBackend()) {
     case LAYERS_BASIC: aName.AssignLiteral("Basic"); return;
     case LAYERS_OPENGL: aName.AssignLiteral("OpenGL"); return;
     case LAYERS_D3D9: aName.AssignLiteral("Direct3D 9"); return;

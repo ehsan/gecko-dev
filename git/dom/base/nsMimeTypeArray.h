@@ -8,19 +8,20 @@
 #define nsMimeTypeArray_h___
 
 #include "nsString.h"
+#include "nsCOMPtr.h"
 #include "nsTArray.h"
+#include "nsWeakReference.h"
 #include "nsWrapperCache.h"
-#include "nsAutoPtr.h"
-#include "nsPIDOMWindow.h"
 
-class nsMimeType;
+class nsPIDOMWindow;
 class nsPluginElement;
+class nsMimeType;
 
 class nsMimeTypeArray MOZ_FINAL : public nsISupports,
                                   public nsWrapperCache
 {
 public:
-  nsMimeTypeArray(nsPIDOMWindow* aWindow);
+  nsMimeTypeArray(nsWeakPtr aWindow);
   virtual ~nsMimeTypeArray();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -44,7 +45,7 @@ protected:
   void EnsureMimeTypes();
   void Clear();
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
 
   // mMimeTypes contains all mime types handled by plugins followed by
   // any other mime types that we handle internally and have been
@@ -63,14 +64,19 @@ public:
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsMimeType)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsMimeType)
 
-  nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
+  nsMimeType(nsWeakPtr aWindow, nsPluginElement* aPluginElement,
              uint32_t aPluginTagMimeIndex, const nsAString& aMimeType);
-  nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aMimeType);
+  nsMimeType(nsWeakPtr aWindow, const nsAString& aMimeType);
   virtual ~nsMimeType();
 
   nsPIDOMWindow* GetParentObject() const;
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+
+  void Invalidate()
+  {
+    mPluginElement = nullptr;
+  }
 
   const nsString& Type() const
   {
@@ -84,13 +90,10 @@ public:
   void GetType(nsString& retval) const;
 
 protected:
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
 
-  // Strong reference to the active plugin, if any. Note that this
-  // creates an explicit reference cycle through the plugin element's
-  // mimetype array. We rely on the cycle collector to break this
-  // cycle.
-  nsRefPtr<nsPluginElement> mPluginElement;
+  // Weak pointer to the active plugin, if any.
+  nsPluginElement *mPluginElement;
   uint32_t mPluginTagMimeIndex;
   nsString mType;
 };

@@ -14,10 +14,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "jstypes.h"
-
-#include "js/Utility.h"
+#include "jsutil.h"
 
 using namespace js;
 
@@ -168,7 +166,7 @@ JS_HashTableRawLookup(JSHashTable *ht, JSHashNumber keyHash, const void *key)
     return hep;
 }
 
-static bool
+static JSBool
 Resize(JSHashTable *ht, uint32_t newshift)
 {
     size_t nb, nentries, i;
@@ -181,14 +179,14 @@ Resize(JSHashTable *ht, uint32_t newshift)
 
     /* Integer overflow protection. */
     if (nb > (size_t)-1 / sizeof(JSHashEntry*))
-        return false;
+        return JS_FALSE;
     nb *= sizeof(JSHashEntry*);
 
     oldbuckets = ht->buckets;
     ht->buckets = (JSHashEntry**)ht->allocOps->allocTable(ht->allocPriv, nb);
     if (!ht->buckets) {
         ht->buckets = oldbuckets;
-        return false;
+        return JS_FALSE;
     }
     memset(ht->buckets, 0, nb);
 
@@ -217,7 +215,7 @@ Resize(JSHashTable *ht, uint32_t newshift)
 #endif
     ht->allocOps->freeTable(ht->allocPriv, oldbuckets,
                             nold * sizeof oldbuckets[0]);
-    return true;
+    return JS_TRUE;
 }
 
 JSHashEntry *
@@ -291,7 +289,7 @@ JS_HashTableRawRemove(JSHashTable *ht, JSHashEntry **hep, JSHashEntry *he)
     }
 }
 
-bool
+JSBool
 JS_HashTableRemove(JSHashTable *ht, const void *key)
 {
     JSHashNumber keyHash;
@@ -300,11 +298,11 @@ JS_HashTableRemove(JSHashTable *ht, const void *key)
     keyHash = ht->keyHash(key);
     hep = JS_HashTableRawLookup(ht, keyHash, key);
     if ((he = *hep) == NULL)
-        return false;
+        return JS_FALSE;
 
     /* Hit; remove element */
     JS_HashTableRawRemove(ht, hep, he);
-    return true;
+    return JS_TRUE;
 }
 
 void *

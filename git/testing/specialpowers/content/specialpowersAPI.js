@@ -561,7 +561,7 @@ SpecialPowersAPI.prototype = {
      [{'type': 'SystemXHR', 'allow': 1, 'context': document}, 
       {'type': 'SystemXHR', 'allow': Ci.nsIPermissionManager.PROMPT_ACTION, 'context': document}]
 
-     Allow can be a boolean value of true/false or ALLOW_ACTION/DENY_ACTION/PROMPT_ACTION/UNKNOWN_ACTION
+    allow is a boolean and can be true/false or 1/0
   */
   pushPermissions: function(inPermissions, callback) {
     var pendingPermissions = [];
@@ -588,18 +588,10 @@ SpecialPowersAPI.prototype = {
                              : Ci.nsIPermissionManager.DENY_ACTION;
         }
 
-        if (permission.remove == true)
-          perm = Ci.nsIPermissionManager.UNKNOWN_ACTION;
-
         if (originalValue == perm) {
           continue;
         }
-
-        var todo = {'op': 'add', 'type': permission.type, 'permission': perm, 'value': perm, 'url': url, 'appId': appId, 'isInBrowserElement': isInBrowserElement};
-        if (permission.remove == true)
-          todo.op = 'remove';
-
-        pendingPermissions.push(todo);
+        pendingPermissions.push({'op': 'add', 'type': permission.type, 'permission': perm, 'value': perm, 'url': url, 'appId': appId, 'isInBrowserElement': isInBrowserElement});
 
         /* Push original permissions value or clear into cleanup array */
         var cleanupTodo = {'op': 'add', 'type': permission.type, 'permission': perm, 'value': perm, 'url': url, 'appId': appId, 'isInBrowserElement': isInBrowserElement};
@@ -1299,12 +1291,6 @@ SpecialPowersAPI.prototype = {
       addCategoryEntry(category, entry, value, persists, replace);
   },
 
-  deleteCategoryEntry: function(category, entry, persists) {
-    Components.classes["@mozilla.org/categorymanager;1"].
-      getService(Components.interfaces.nsICategoryManager).
-      deleteCategoryEntry(category, entry, persists);
-  },
-
   copyString: function(str, doc) {
     Components.classes["@mozilla.org/widget/clipboardhelper;1"].
       getService(Components.interfaces.nsIClipboardHelper).
@@ -1360,19 +1346,17 @@ SpecialPowersAPI.prototype = {
     sendAsyncMessage("SpecialPowers.Focus", {});
   },
 
-  getClipboardData: function(flavor, whichClipboard) {
+  getClipboardData: function(flavor) {
     if (this._cb == null)
       this._cb = Components.classes["@mozilla.org/widget/clipboard;1"].
                             getService(Components.interfaces.nsIClipboard);
-    if (whichClipboard === undefined)
-      whichClipboard = this._cb.kGlobalClipboard;
 
     var xferable = Components.classes["@mozilla.org/widget/transferable;1"].
                    createInstance(Components.interfaces.nsITransferable);
     xferable.init(this._getDocShell(content.window)
                       .QueryInterface(Components.interfaces.nsILoadContext));
     xferable.addDataFlavor(flavor);
-    this._cb.getData(xferable, whichClipboard);
+    this._cb.getData(xferable, this._cb.kGlobalClipboard);
     var data = {};
     try {
       xferable.getTransferData(flavor, data, {});

@@ -37,7 +37,6 @@ MtransportTestUtils *test_utils;
 nsCOMPtr<nsIThread> gThread;
 
 static int kDefaultTimeout = 5000;
-static bool fRtcpMux = false;
 
 static std::string callerName = "caller";
 static std::string calleeName = "callee";
@@ -138,15 +137,6 @@ enum offerAnswerFlags
   ANSWER_AV = ANSWER_AUDIO | ANSWER_VIDEO
 };
 
-enum mediaPipelineFlags
-{
-  PIPELINE_LOCAL = (1<<0),
-  PIPELINE_RTCP_MUX = (1<<1),
-  PIPELINE_SEND = (1<<2),
-  PIPELINE_VIDEO = (1<<3)
-};
-
-
 static bool SetupGlobalThread() {
   if (!gThread) {
     nsIThread *thread;
@@ -187,7 +177,7 @@ public:
 
   std::vector<DOMMediaStream *> GetStreams() { return streams; }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_IPEERCONNECTIONOBSERVER
 
   ResponseState state;
@@ -203,9 +193,9 @@ private:
   std::vector<DOMMediaStream *> streams;
 };
 
-NS_IMPL_ISUPPORTS2(TestObserver,
-                   IPeerConnectionObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS2(TestObserver,
+                              IPeerConnectionObserver,
+                              nsISupportsWeakReference)
 
 NS_IMETHODIMP
 TestObserver::OnCreateOfferSuccess(const char* offer)
@@ -465,14 +455,7 @@ class ParsedSDP {
     Parse();
   }
 
-  void DeleteLine(std::string objType)
-  {
-    ReplaceLine(objType, "");
-  }
 
-  // Replaces the first instance of objType in the SDP with
-  // a new string.
-  // If content is an empty string then the line will be removed
   void ReplaceLine(std::string objType, std::string content)
   {
     std::multimap<std::string, SdpLine>::iterator it;
@@ -481,9 +464,6 @@ class ParsedSDP {
       SdpLine sdp_line_pair = (*it).second;
       int line_no = sdp_line_pair.first;
       sdp_map_.erase(it);
-      if(content.empty()) {
-        return;
-      }
       std::string value = content.substr(objType.length());
       sdp_map_.insert(std::pair<std::string, SdpLine>(objType,
         std::make_pair(line_no,value)));
@@ -772,7 +752,7 @@ void CreateAnswer(sipcc::MediaConstraints& constraints, std::string offer,
                                         DONT_CHECK_VIDEO|
                                         DONT_CHECK_DATA,
                     sipcc::PeerConnectionImpl::SignalingState endState =
-                    sipcc::PeerConnectionImpl::kSignalingHaveRemoteOffer) {
+                      sipcc::PeerConnectionImpl::kSignalingHaveRemoteOffer) {
 
     uint32_t aHintContents = 0;
     if (offerAnswerFlags & ANSWER_AUDIO) {
@@ -954,42 +934,6 @@ void CreateAnswer(sipcc::MediaConstraints& constraints, std::string offer,
       streams[i]->GetStream()->AsSourceStream()->StopStream();
     }
   }
-
-  mozilla::RefPtr<mozilla::MediaPipeline> GetMediaPipeline(
-    bool local, int stream, int track) {
-    sipcc::SourceStreamInfo *streamInfo;
-
-    if (local) {
-      streamInfo = pc->media()->GetLocalStream(stream);
-    } else {
-      streamInfo = pc->media()->GetRemoteStream(stream);
-    }
-
-    if (!streamInfo) {
-      return nullptr;
-    }
-
-    return streamInfo->GetPipeline(track);
-  }
-
-
-  void CheckMediaPipeline(int stream, int track, uint32_t flags) {
-    mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
-      GetMediaPipeline((flags & PIPELINE_LOCAL), stream, track);
-    ASSERT_TRUE(pipeline);
-    ASSERT_EQ(pipeline->IsDoingRtcpMux(), !!(flags & PIPELINE_RTCP_MUX));
-    // We cannot yet test send/recv with video.
-    if (!(flags & PIPELINE_VIDEO)) {
-      if (flags & PIPELINE_SEND) {
-        ASSERT_GE(pipeline->rtp_packets_sent(), 40);
-        ASSERT_GE(pipeline->rtcp_packets_received(), 1);
-      } else {
-        ASSERT_GE(pipeline->rtp_packets_received(), 40);
-        ASSERT_GE(pipeline->rtcp_packets_sent(), 1);
-      }
-    }
-  }
-
 
 public:
   mozilla::RefPtr<sipcc::PeerConnectionImpl> pc;
@@ -1680,18 +1624,6 @@ TEST_F(SignalingTest, FullCall)
   //ASSERT_GE(a2_.GetPacketsSent(0), 40);
   //ASSERT_GE(a1_.GetPacketsReceived(0), 40);
   ASSERT_GE(a2_.GetPacketsReceived(0), 40);
-
-  // Check the low-level media pipeline
-  // for RTP and RTCP flows
-  // The first Local pipeline gets stored at 0
-  a1_.CheckMediaPipeline(0, 0, fRtcpMux ?
-    PIPELINE_LOCAL | PIPELINE_RTCP_MUX | PIPELINE_SEND :
-    PIPELINE_LOCAL | PIPELINE_SEND);
-
-  // The first Remote pipeline gets stored at 1
-  a2_.CheckMediaPipeline(0, 1, fRtcpMux ?
-    PIPELINE_RTCP_MUX :
-    0);
 }
 
 TEST_F(SignalingTest, FullCallAudioOnly)
@@ -1885,8 +1817,6 @@ TEST_F(SignalingTest, ChromeOfferAnswer)
     "a=rtpmap:100 VP8/90000\r\n"
     "a=rtpmap:101 red/90000\r\n"
     "a=rtpmap:102 ulpfec/90000\r\n"
-    "a=rtcp-fb:100 nack\r\n"
-    "a=rtcp-fb:100 ccm fir\r\n"
     "a=ssrc:3012607008 cname:KIXaNxUlU5DP3fVS\r\n"
     "a=ssrc:3012607008 msid:A5UL339RyGxT7zwgyF12BFqesxkmbUsaycp5 v0\r\n"
     "a=ssrc:3012607008 mslabel:A5UL339RyGxT7zwgyF12BFqesxkmbUsaycp5\r\n"
@@ -2353,103 +2283,15 @@ TEST_F(SignalingTest, missingUfrag)
   // FSM. This may change in the future.
   a1_.CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
   a1_.SetLocal(TestObserver::OFFER, offer, true);
-  // We now detect the missing ICE parameters at SetRemoteDescription
-  a2_.SetRemote(TestObserver::OFFER, offer, true,
-    sipcc::PeerConnectionImpl::kSignalingStable);
-  ASSERT_TRUE(a2_.pObserver->state == TestObserver::stateError);
-}
-
-TEST_F(SignalingTest, AudioOnlyCalleeNoRtcpMux)
-{
-  sipcc::MediaConstraints constraints;
-
-  a1_.CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
-  a1_.SetLocal(TestObserver::OFFER, a1_.offer(), false);
-  ParsedSDP sdpWrapper(a1_.offer());
-  sdpWrapper.DeleteLine("a=rtcp-mux");
-  std::cout << "Modified SDP " << std::endl
-            << indent(sdpWrapper.getSdp()) << std::endl;
-  a2_.SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
-  a2_.CreateAnswer(constraints, sdpWrapper.getSdp(),
-    OFFER_AUDIO | ANSWER_AUDIO);
-  a2_.SetLocal(TestObserver::ANSWER, a2_.answer(), false);
-  a1_.SetRemote(TestObserver::ANSWER, a2_.answer(), false);
-
-  // Answer should not have a=rtcp-mux
-  ASSERT_EQ(a2_.getLocalDescription().find("\r\na=rtcp-mux"),
-            std::string::npos);
-
-  ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
-  ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
-
-  PR_Sleep(kDefaultTimeout * 2); // Wait for some data to get written
-
-  a1_.CloseSendStreams();
-  a2_.CloseReceiveStreams();
-
-  ASSERT_GE(a1_.GetPacketsSent(0), 40);
-  ASSERT_GE(a2_.GetPacketsReceived(0), 40);
-
-  // Check the low-level media pipeline
-  // for RTP and RTCP flows
-  // The first Local pipeline gets stored at 0
-  a1_.CheckMediaPipeline(0, 0, PIPELINE_LOCAL | PIPELINE_SEND);
-
-  // The first Remote pipeline gets stored at 1
-  a2_.CheckMediaPipeline(0, 1, 0);
-}
-
-TEST_F(SignalingTest, FullCallAudioNoMuxVideoMux)
-{
-  sipcc::MediaConstraints constraints;
-
-  a1_.CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV);
-  a1_.SetLocal(TestObserver::OFFER, a1_.offer(), false);
-  ParsedSDP sdpWrapper(a1_.offer());
-  sdpWrapper.DeleteLine("a=rtcp-mux");
-  std::cout << "Modified SDP " << std::endl
-            << indent(sdpWrapper.getSdp()) << std::endl;
-  a2_.SetRemote(TestObserver::OFFER, sdpWrapper.getSdp(), false);
-  a2_.CreateAnswer(constraints, sdpWrapper.getSdp(), OFFER_AV | ANSWER_AV);
-  a2_.SetLocal(TestObserver::ANSWER, a2_.answer(), false);
-  a1_.SetRemote(TestObserver::ANSWER, a2_.answer(), false);
-
-  // Answer should have only one a=rtcp-mux line
-  size_t match = a2_.getLocalDescription().find("\r\na=rtcp-mux");
-  if (fRtcpMux) {
-    ASSERT_NE(match, std::string::npos);
-    match = a2_.getLocalDescription().find("\r\na=rtcp-mux", match + 1);
-  }
-  ASSERT_EQ(match, std::string::npos);
-
-  ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
-  ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
-
-  PR_Sleep(kDefaultTimeout * 2); // Wait for some data to get written
-
-  a1_.CloseSendStreams();
-  a2_.CloseReceiveStreams();
-
-  ASSERT_GE(a1_.GetPacketsSent(0), 40);
-  ASSERT_GE(a2_.GetPacketsReceived(0), 40);
-
-  // Check the low-level media pipeline
-  // for RTP and RTCP flows
-  // The first Local pipeline gets stored at 0
-  a1_.CheckMediaPipeline(0, 0, PIPELINE_LOCAL | PIPELINE_SEND);
-
-  // Now check video mux.
-  a1_.CheckMediaPipeline(0, 1, fRtcpMux ?
-    PIPELINE_LOCAL | PIPELINE_RTCP_MUX | PIPELINE_SEND | PIPELINE_VIDEO :
-    PIPELINE_LOCAL | PIPELINE_SEND | PIPELINE_VIDEO);
-
-  // The first Remote pipeline gets stored at 1
-  a2_.CheckMediaPipeline(0, 1, 0);
-
-  // Now check video mux.
-  a2_.CheckMediaPipeline(0, 2, fRtcpMux ?
-    PIPELINE_RTCP_MUX | PIPELINE_VIDEO :
-    PIPELINE_VIDEO);
+  // Really we should detect failure at the SetRemote point,
+  // since without a ufrag, we aren't going to be successful.
+  // But for now, this isn't detected till SIPCC tries to impose
+  // the parameters on the ICE stack in SetLocal. Bug 892161.
+  a2_.SetRemote(TestObserver::OFFER, offer, true);
+  a2_.CreateAnswer(constraints, offer, OFFER_AV | ANSWER_AV);
+  a2_.SetLocal(TestObserver::ANSWER, a2_.answer(),
+               true, sipcc::PeerConnectionImpl::kSignalingHaveRemoteOffer);
+  // Since things have now failed, just stop.
 }
 
 } // End namespace test.

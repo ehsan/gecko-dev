@@ -61,8 +61,6 @@ pref("browser.cache.disk_cache_ssl",        true);
 pref("browser.cache.check_doc_frequency",   3);
 
 pref("browser.cache.offline.enable",           true);
-// enable offline apps by default, disable prompt
-pref("offline-apps.allow_by_default",          true);
 
 // offline cache capacity in kilobytes
 pref("browser.cache.offline.capacity",         512000);
@@ -171,9 +169,6 @@ pref("media.windows-media-foundation.enabled", true);
 pref("media.windows-media-foundation.use-dxva", true);
 pref("media.windows-media-foundation.play-stand-alone", true);
 #endif
-#ifdef MOZ_DIRECTSHOW
-pref("media.directshow.enabled", true);
-#endif
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
 #endif
@@ -231,7 +226,7 @@ pref("media.webspeech.recognition.enable", false);
 #endif
 
 // Whether to enable Web Audio support
-pref("media.webaudio.enabled", true);
+pref("media.webaudio.enabled", false);
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
@@ -319,14 +314,12 @@ pref("gfx.font_rendering.opentype_svg.enabled", false);
 // comma separated list of backends to use in order of preference
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
 pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
-pref("gfx.content.azure.backends", "direct2d,cairo");
+pref("gfx.content.azure.backends", "direct2d");
 pref("gfx.content.azure.enabled", true);
 #else
 pref("gfx.content.azure.enabled", false);
 #ifdef XP_MACOSX
-pref("gfx.content.azure.backends", "cg");
 pref("gfx.canvas.azure.backends", "cg");
-pref("gfx.content.azure.enabled", true);
 // Accelerated cg canvas where available (10.7+)
 pref("gfx.canvas.azure.accelerated", false);
 #else
@@ -458,10 +451,6 @@ pref("devtools.debugger.remote-enabled", false);
 pref("devtools.debugger.remote-port", 6000);
 // Force debugger server binding on the loopback interface
 pref("devtools.debugger.force-local", true);
-// Display a prompt when a new connection starts to accept/reject it
-pref("devtools.debugger.prompt-connection", true);
-// Temporary setting to enable webapps actors
-pref("devtools.debugger.enable-content-actors", false);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -475,13 +464,14 @@ pref("view_source.editor.args", "");
 // When true this will word-wrap plain text documents.
 pref("plain_text.wrap_long_lines", false);
 
+// dispatch left clicks only to content in browser (still allows clicks to chrome/xul)
+pref("nglayout.events.dispatchLeftClickOnly", true);
+
 // whether or not to draw images while dragging
 pref("nglayout.enable_drag_images", true);
 
 // enable/disable paint flashing --- useful for debugging
-// the first one applies to everything, the second one only to chrome
 pref("nglayout.debug.paint_flashing", false);
-pref("nglayout.debug.paint_flashing_chrome", false);
 
 // enable/disable widget update area flashing --- only supported with 
 // BasicLayers (other layer managers always update the entire widget area)
@@ -776,6 +766,9 @@ pref("dom.min_timeout_value", 4);
 // And for background windows
 pref("dom.min_background_timeout_value", 1000);
 
+// Stop defining the Components object in content.
+pref("dom.omit_components_in_content", true);
+
 // Don't use new input types
 pref("dom.experimental_forms", false);
 
@@ -819,13 +812,10 @@ pref("javascript.options.strict.debug",     true);
 pref("javascript.options.baselinejit.content", true);
 pref("javascript.options.baselinejit.chrome",  true);
 pref("javascript.options.ion.content",      true);
-pref("javascript.options.ion.chrome",       false);
 pref("javascript.options.asmjs",            true);
-pref("javascript.options.parallel_parsing", true);
 pref("javascript.options.ion.parallel_compilation", true);
 pref("javascript.options.jit_hardening", true);
-pref("javascript.options.typeinference.content", true);
-pref("javascript.options.typeinference.chrome", false);
+pref("javascript.options.typeinference", true);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
@@ -833,6 +823,7 @@ pref("javascript.options.typeinference.chrome", false);
 pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
+pref("javascript.options.mem.disable_explicit_compartment_gc", true);
 pref("javascript.options.mem.gc_incremental", true);
 pref("javascript.options.mem.gc_incremental_slice_ms", 10);
 pref("javascript.options.mem.log", false);
@@ -849,6 +840,8 @@ pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 30);
 pref("javascript.options.mem.gc_decommit_threshold_mb", 32);
+
+pref("javascript.options.mem.analysis_purge_mb", 100);
 
 pref("javascript.options.showInConsole", false);
 
@@ -911,9 +904,6 @@ pref("network.protocol-handler.external.moz-icon", false);
 // This pref controls the default settings.  Per protocol settings can be used
 // to override this value.
 pref("network.protocol-handler.expose-all", true);
-
-// Warning for about:networking page
-pref("network.warnOnAboutNetworking", true);
 
 // Example: make IMAP an exposed protocol
 // pref("network.protocol-handler.expose.imap", true);
@@ -1383,11 +1373,7 @@ pref("network.proxy.socks_remote_dns",      false);
 pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
-#ifdef RELEASE_BUILD
-pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse, 3-limitForeign
-#else
 pref("network.cookie.cookieBehavior",       3); // 0-Accept, 1-dontAcceptForeign, 2-dontUse, 3-limitForeign
-#endif
 #ifdef ANDROID
 pref("network.cookie.cookieBehavior",       0); // Keep the old default of accepting all cookies
 #endif
@@ -1783,20 +1769,11 @@ pref("layout.css.masking.enabled", false);
 pref("layout.css.masking.enabled", true);
 #endif
 
-// Is support for mix-blend-mode enabled? 
-pref("layout.css.mix-blend-mode.enabled", false);
-
 // Is support for the the @supports rule enabled?
 pref("layout.css.supports-rule.enabled", true);
 
-// Is support for CSS Filters enabled?
-pref("layout.css.filters.enabled", false);
-
 // Is support for CSS Flexbox enabled?
 pref("layout.css.flexbox.enabled", true);
-
-// Is support for the CSS4 image-orientation property enabled?
-pref("layout.css.image-orientation.enabled", true);
 
 // Is support for CSS3 Fonts features enabled?
 // (includes font-variant-*, font-kerning, font-synthesis
@@ -1826,14 +1803,6 @@ pref("layout.css.scope-pseudo.enabled", true);
 
 // Is support for CSS vertical text enabled?
 pref("layout.css.vertical-text.enabled", false);
-
-// Is -moz-osx-font-smoothing enabled?
-// Only supported in OSX builds
-#ifdef XP_MACOSX
-pref("layout.css.osx-font-smoothing.enabled", true);
-#else
-pref("layout.css.osx-font-smoothing.enabled", false);
-#endif
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1879,7 +1848,6 @@ pref("gestures.enable_single_finger_input", true);
 pref("editor.resizing.preserve_ratio",       true);
 pref("editor.positioning.offset",            0);
 
-pref("dom.use_watchdog", true);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
@@ -3912,7 +3880,6 @@ pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
 pref("signon.autofillForms",                true);
 pref("signon.autologin.proxy",              false);
 pref("signon.debug",                        false);
-pref("signon.useDOMFormHasPassword",        true);
 
 // Satchel (Form Manager) prefs
 pref("browser.formfill.debug",            false);
@@ -4084,44 +4051,18 @@ pref("layers.acceleration.force-enabled", false);
 pref("layers.acceleration.draw-fps", false);
 
 pref("layers.draw-borders", false);
-pref("layers.draw-tile-borders", false);
-pref("layers.draw-bigimage-borders", false);
 pref("layers.frame-counter", false);
-// Max number of layers per container. See Overwrite in mobile prefs.
-pref("layers.max-active", -1);
 
-// Whether to use the deprecated texture architecture rather than the new one.
 #ifdef XP_MACOSX
 pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.use-deprecated-textures", false);
-#else
-#ifdef MOZ_WIDGET_GONK
-pref("layers.use-deprecated-textures", true);
 #else
 pref("layers.offmainthreadcomposition.enabled", false);
-pref("layers.use-deprecated-textures", true);
 #endif
-#endif
-
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for
 // use with tests.
 pref("layers.offmainthreadcomposition.testing.enabled", false);
-
-// whether to allow use of the basic compositor
-pref("layers.offmainthreadcomposition.force-basic", false);
-
 // Whether to animate simple opacity and transforms on the compositor
 pref("layers.offmainthreadcomposition.async-animations", false);
-// Whether to prefer normal memory over shared memory. Ignored with cross-process compositing
-pref("layers.prefer-memory-over-shmem", true);
-
-pref("layers.bufferrotation.enabled", true);
-
-pref("layers.componentalpha.enabled", true);
-
-#ifdef ANDROID
-pref("gfx.apitrace.enabled",false);
-#endif
 
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2
@@ -4334,11 +4275,6 @@ pref("dom.placeholder.show_on_focus", true);
 // UAProfile settings
 pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
-
-// MMS version 1.1 = 0x11 (or decimal 17)
-// MMS version 1.3 = 0x13 (or decimal 19)
-// @see OMA-TS-MMS_ENC-V1_3-20110913-A clause 7.3.34
-pref("dom.mms.version", 19);
 
 // Retrieval mode for MMS
 // manual: Manual retrieval mode.

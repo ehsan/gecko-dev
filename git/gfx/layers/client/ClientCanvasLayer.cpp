@@ -4,21 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ClientCanvasLayer.h"
-#include "GLContext.h"                  // for GLContext
-#include "GLScreenBuffer.h"             // for GLScreenBuffer
-#include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "SharedSurfaceEGL.h"           // for SurfaceFactory_EGLImage
-#include "SharedSurfaceGL.h"            // for SurfaceFactory_GLTexture, etc
-#include "SurfaceStream.h"              // for SurfaceStream, etc
-#include "SurfaceTypes.h"               // for SurfaceStreamType
-#include "ClientLayerManager.h"         // for ClientLayerManager, etc
-#include "mozilla/gfx/Point.h"          // for IntSize
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/LayersTypes.h"
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
-#include "nsRect.h"                     // for nsIntRect
-#include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
+#include "gfxPlatform.h"
+#include "SurfaceStream.h"
+#include "SharedSurfaceGL.h"
+#include "SharedSurfaceEGL.h"
 #ifdef MOZ_WIDGET_GONK
 #include "SharedSurfaceGralloc.h"
 #endif
@@ -92,20 +81,20 @@ ClientCanvasLayer::RenderLayer()
   }
   
   if (!mCanvasClient) {
-    TextureFlags flags = TEXTURE_IMMEDIATE_UPLOAD;
+    TextureFlags flags = 0;
     if (mNeedsYFlip) {
-      flags |= TEXTURE_NEEDS_Y_FLIP;
+      flags |= NeedsYFlip;
     }
 
-    if (!mGLContext) {
-      // GLContext's SurfaceStream handles ownership itself,
-      // and doesn't require layers to do any deallocation.
-      flags |= TEXTURE_DEALLOCATE_HOST;
-
-      // We don't support locking for buffer surfaces currently
-      flags |= TEXTURE_IMMEDIATE_UPLOAD;
+    bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
+    //Append OwnByClient flag for streaming buffer under OOPC case
+    if (isCrossProcess && mGLContext) {
+      GLScreenBuffer* screen = mGLContext->Screen();
+      if (screen && screen->Stream()) {
+        flags |= OwnByClient;
+      }
     }
-    mCanvasClient = CanvasClient::CreateCanvasClient(GetCanvasClientType(),
+    mCanvasClient = CanvasClient::CreateCanvasClient(GetCompositableClientType(),
                                                      ClientManager(), flags);
     if (!mCanvasClient) {
       return;
@@ -123,7 +112,6 @@ ClientCanvasLayer::RenderLayer()
 
   ClientManager()->Hold(this);
   mCanvasClient->Updated();
-  mCanvasClient->OnTransaction();
 }
 
 already_AddRefed<CanvasLayer>

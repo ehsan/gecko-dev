@@ -7,14 +7,14 @@
 #ifndef vm_SPSProfiler_h
 #define vm_SPSProfiler_h
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/GuardObjects.h"
-
 #include <stddef.h>
 
-#include "jsscript.h"
+#include "mozilla/DebugOnly.h"
+#include "mozilla/GuardObjects.h"
+#include "mozilla/HashFunctions.h"
 
-#include "js/ProfilingStack.h"
+#include "js/Utility.h"
+#include "jsscript.h"
 
 /*
  * SPS Profiler integration with the JS Engine
@@ -102,6 +102,8 @@
  * code to pc which can be accessed safely because they will only be accessed
  * from a signal handler when the JIT code is executing.
  */
+
+class JSFunction;
 
 namespace js {
 

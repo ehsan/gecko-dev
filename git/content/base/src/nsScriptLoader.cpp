@@ -19,6 +19,7 @@
 #include "nsNetUtil.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
@@ -45,7 +46,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsSandboxFlags.h"
-#include "nsContentTypeParser.h"
 
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
@@ -75,7 +75,7 @@ public:
   {
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   void FireScriptAvailable(nsresult aResult)
   {
@@ -105,7 +105,7 @@ public:
 // The nsScriptLoadRequest is passed as the context to necko, and thus
 // it needs to be threadsafe. Necko won't do anything with this
 // context, but it will AddRef and Release it on other threads.
-NS_IMPL_ISUPPORTS0(nsScriptLoadRequest)
+NS_IMPL_THREADSAFE_ISUPPORTS0(nsScriptLoadRequest)
 
 //////////////////////////////////////////////////////////////
 //
@@ -737,12 +737,6 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
                                          scriptElem,
                                          NS_LITERAL_STRING("beforescriptexecute"),
                                          true, true, &runScript);
-  }
-
-  // Inner window could have gone away after firing beforescriptexecute
-  pwin = mDocument->GetInnerWindow();
-  if (!pwin) {
-    runScript = false;
   }
 
   nsresult rv = NS_OK;

@@ -6,6 +6,7 @@
 #ifndef nsIMEStateManager_h__
 #define nsIMEStateManager_h__
 
+#include "nscore.h"
 #include "nsEvent.h"
 #include "nsIWidget.h"
 

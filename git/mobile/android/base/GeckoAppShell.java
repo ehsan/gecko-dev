@@ -297,7 +297,7 @@ public class GeckoAppShell
         // Preparation for pumpMessageLoop()
         MessageQueue.IdleHandler idleHandler = new MessageQueue.IdleHandler() {
             @Override public boolean queueIdle() {
-                final Handler geckoHandler = ThreadUtils.sGeckoHandler;
+                Handler geckoHandler = ThreadUtils.getGeckoHandler();
                 Message idleMsg = Message.obtain(geckoHandler);
                 // Use |Message.obj == GeckoHandler| to identify our "queue is empty" message
                 idleMsg.obj = geckoHandler;
@@ -697,8 +697,8 @@ public class GeckoAppShell
         createShortcut(aTitle, aURI, aURI, aIconData, aType);
     }
 
-    // for non-webapps
-    public static void createShortcut(String aTitle, String aURI, Bitmap aBitmap, String aType) {
+    // internal, for non-webapps
+    static void createShortcut(String aTitle, String aURI, Bitmap aBitmap, String aType) {
         createShortcut(aTitle, aURI, aURI, aBitmap, aType);
     }
 
@@ -1069,12 +1069,12 @@ public class GeckoAppShell
      * @param title the title to use in <code>ACTION_SEND</code> intents.
      * @return true if the activity started successfully; false otherwise.
      */
-    public static boolean openUriExternal(String targetURI,
-                                          String mimeType,
-                                          String packageName,
-                                          String className,
-                                          String action,
-                                          String title) {
+    static boolean openUriExternal(String targetURI,
+                                   String mimeType,
+                                   String packageName,
+                                   String className,
+                                   String action,
+                                   String title) {
         final Context context = getContext();
         final Intent intent = getOpenURIIntent(context, targetURI,
                                                mimeType, action, title);
@@ -1256,6 +1256,13 @@ public class GeckoAppShell
 
     public static void showAlertNotification(String aImageUrl, String aAlertTitle, String aAlertText,
                                              String aAlertCookie, String aAlertName) {
+        Log.d(LOGTAG, "GeckoAppShell.showAlertNotification\n" +
+            "- image = '" + aImageUrl + "'\n" +
+            "- title = '" + aAlertTitle + "'\n" +
+            "- text = '" + aAlertText +"'\n" +
+            "- cookie = '" + aAlertCookie +"'\n" +
+            "- name = '" + aAlertName + "'");
+
         // The intent to launch when the user clicks the expanded notification
         String app = getContext().getClass().getName();
         Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CALLBACK);
@@ -1283,6 +1290,11 @@ public class GeckoAppShell
     public static void alertsProgressListener_OnProgress(String aAlertName, long aProgress, long aProgressMax, String aAlertText) {
         int notificationID = aAlertName.hashCode();
         sNotificationClient.update(notificationID, aProgress, aProgressMax, aAlertText);
+
+        if (aProgress == aProgressMax) {
+            // Hide the notification at 100%
+            removeObserver(aAlertName);
+        }
     }
 
     public static void closeNotification(String aAlertName) {
@@ -1304,7 +1316,7 @@ public class GeckoAppShell
         if (GeckoApp.ACTION_ALERT_CALLBACK.equals(aAction)) {
             callObserver(aAlertName, "alertclickcallback", aAlertCookie);
 
-            if (sNotificationClient.isOngoing(notificationID)) {
+            if (sNotificationClient.isProgressStyle(notificationID)) {
                 // When clicked, keep the notification if it displays progress
                 return;
             }
@@ -1359,10 +1371,18 @@ public class GeckoAppShell
     public static synchronized int getScreenDepth() {
         if (sScreenDepth == 0) {
             sScreenDepth = 16;
-            PixelFormat info = new PixelFormat();
-            PixelFormat.getPixelFormatInfo(getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat(), info);
-            if (info.bitsPerPixel >= 24 && isHighMemoryDevice()) {
-                sScreenDepth = 24;
+            if (getGeckoInterface() != null) {
+                switch (getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat()) {
+                    case PixelFormat.RGBA_8888 :
+                    case PixelFormat.RGBX_8888 :
+                    case PixelFormat.RGB_888 :
+                    {
+                        if (isHighMemoryDevice()) {
+                            sScreenDepth = 24;
+                        }
+                        break;
+                    }
+                }
             }
         }
 
@@ -1775,11 +1795,11 @@ public class GeckoAppShell
     }
 
     public static void addPluginView(View view,
-                                     float x, float y,
-                                     float w, float h,
+                                     int x, int y,
+                                     int w, int h,
                                      boolean isFullScreen) {
         if (getGeckoInterface() != null)
-             getGeckoInterface().addPluginView(view, new RectF(x, y, x + w, y + h), isFullScreen);
+             getGeckoInterface().addPluginView(view, new Rect(x, y, x + w, y + h), isFullScreen);
     }
 
     public static void removePluginView(View view, boolean isFullScreen) {
@@ -2028,7 +2048,7 @@ public class GeckoAppShell
         public SensorEventListener getSensorEventListener();
         public void doRestart();
         public void setFullScreen(boolean fullscreen);
-        public void addPluginView(View view, final RectF rect, final boolean isFullScreen);
+        public void addPluginView(View view, final Rect rect, final boolean isFullScreen);
         public void removePluginView(final View view, final boolean isFullScreen);
         public void enableCameraView();
         public void disableCameraView();
@@ -2460,12 +2480,12 @@ public class GeckoAppShell
     }
 
     public static boolean pumpMessageLoop() {
-        Handler geckoHandler = ThreadUtils.sGeckoHandler;
-        Message msg = getNextMessageFromQueue(ThreadUtils.sGeckoQueue);
-
+        Handler geckoHandler = ThreadUtils.getGeckoHandler();
+        MessageQueue mq = Looper.myQueue();
+        Message msg = getNextMessageFromQueue(mq); 
         if (msg == null)
             return false;
-        if (msg.obj == geckoHandler && msg.getTarget() == geckoHandler) {
+        if (msg.getTarget() == geckoHandler && msg.obj == geckoHandler) {
             // Our "queue is empty" message; see runGecko()
             msg.recycle();
             return false;

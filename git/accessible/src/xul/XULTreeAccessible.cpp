@@ -779,7 +779,7 @@ XULTreeItemAccessibleBase::GetBounds(int32_t* aX, int32_t* aY,
 NS_IMETHODIMP
 XULTreeItemAccessibleBase::SetSelected(bool aSelect)
 {
-  if (IsDefunct())
+  if (IsDefunct() || !mTreeView)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsITreeSelection> selection;
@@ -797,7 +797,7 @@ XULTreeItemAccessibleBase::SetSelected(bool aSelect)
 NS_IMETHODIMP
 XULTreeItemAccessibleBase::TakeFocus()
 {
-  if (IsDefunct())
+  if (IsDefunct() || !mTreeView)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsITreeSelection> selection;
@@ -812,6 +812,8 @@ XULTreeItemAccessibleBase::TakeFocus()
 Relation
 XULTreeItemAccessibleBase::RelationByType(uint32_t aType)
 {
+  if (!mTreeView)
+    return Relation();
 
   switch (aType) {
     case nsIAccessibleRelation::RELATION_NODE_CHILD_OF: {
@@ -954,6 +956,8 @@ XULTreeItemAccessibleBase::GroupPosition()
 uint64_t
 XULTreeItemAccessibleBase::NativeState()
 {
+  if (!mTreeView)
+    return states::DEFUNCT;
 
   // focusable and selectable states
   uint64_t state = NativeInteractiveState();
@@ -1058,6 +1062,8 @@ XULTreeItemAccessibleBase::GetSiblingAtOffset(int32_t aOffset,
 bool
 XULTreeItemAccessibleBase::IsExpandable()
 {
+  if (!mTreeView)
+    return false;
 
   bool isContainer = false;
   mTreeView->IsContainer(mRow, &isContainer);
@@ -1083,6 +1089,8 @@ XULTreeItemAccessibleBase::IsExpandable()
 void
 XULTreeItemAccessibleBase::GetCellName(nsITreeColumn* aColumn, nsAString& aName)
 {
+  if (!mTreeView)
+    return;
 
   mTreeView->GetCellText(mRow, aColumn, aName);
 

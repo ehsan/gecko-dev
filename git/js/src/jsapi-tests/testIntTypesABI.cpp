@@ -2,14 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsapi-tests/tests.h"
+
 /*
  * This test exercises the full, deliberately-exposed JSAPI interface to ensure
  * that no internal integer typedefs leak out.  Include every intentionally
  * public header file (and those headers included by them, for completeness),
  * even the ones tests.h itself included, to verify this.
  */
-
+#include "js-config.h"
 #include "jsapi.h"
+#include "jsclass.h"
 #include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jstypes.h"
@@ -17,7 +20,6 @@
 #include "js/Anchor.h"
 #include "js/CallArgs.h"
 #include "js/CharacterEncoding.h"
-#include "js/Class.h"
 #include "js/Date.h"
 #include "js/GCAPI.h"
 #include "js/HashTable.h"
@@ -27,7 +29,6 @@
 #include "js/Utility.h"
 #include "js/Value.h"
 #include "js/Vector.h"
-#include "jsapi-tests/tests.h"
 
 /*
  * Verify that our public (and intended to be public, versus being that way

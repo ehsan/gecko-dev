@@ -13,9 +13,9 @@
 
 #include <vector>
 
-#include "webrtc/common_types.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/typedefs.h"
+#include "common_types.h"  // NOLINT
+#include "system_wrappers/interface/scoped_ptr.h"
+#include "typedefs.h"  // NOLINT
 
 namespace webrtc {
 

@@ -401,21 +401,21 @@ NS_IMETHODIMP nsDeviceContextSpecWin::Init(nsIWidget* aWidget,
         if (!aIsPrintPreview) {
           rv = CheckForPrintToFile(mPrintSettings, deviceName, nullptr);
           if (NS_FAILED(rv)) {
-            free(deviceName);
-            free(driverName);
+            nsCRT::free(deviceName);
+            nsCRT::free(driverName);
             return NS_ERROR_FAILURE;
           }
         }
 
         // clean up
-        free(deviceName);
-        free(driverName);
+        nsCRT::free(deviceName);
+        nsCRT::free(driverName);
 
         return NS_OK;
       } else {
         PR_PL(("***** nsDeviceContextSpecWin::Init - deviceName/driverName/devMode was NULL!\n"));
-        if (deviceName) free(deviceName);
-        if (driverName) free(driverName);
+        if (deviceName) nsCRT::free(deviceName);
+        if (driverName) nsCRT::free(driverName);
         if (devMode) ::HeapFree(::GetProcessHeap(), 0, devMode);
       }
     }

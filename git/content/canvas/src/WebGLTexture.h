@@ -16,7 +16,7 @@
 namespace mozilla {
 
 // Zero is not an integer power of two.
-inline bool is_pot_assuming_nonnegative(GLsizei x)
+inline bool is_pot_assuming_nonnegative(WebGLsizei x)
 {
     return x && (x & (x-1)) == 0;
 }
@@ -24,10 +24,11 @@ inline bool is_pot_assuming_nonnegative(GLsizei x)
 // NOTE: When this class is switched to new DOM bindings, update the (then-slow)
 // WrapObject calls in GetParameter and GetFramebufferAttachmentParameter.
 class WebGLTexture MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLTexture>
     , public LinkedListElement<WebGLTexture>
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 public:
     WebGLTexture(WebGLContext *context);
@@ -40,7 +41,7 @@ public:
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
-    GLuint GLName() { return mGLName; }
+    WebGLuint GLName() { return mGLName; }
     GLenum Target() const { return mTarget; }
 
     WebGLContext *GetParentObject() const {
@@ -50,8 +51,8 @@ public:
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLTexture)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLTexture)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLTexture)
 
 protected:
 
@@ -59,7 +60,7 @@ protected:
     friend class WebGLFramebuffer;
 
     bool mHasEverBeenBound;
-    GLuint mGLName;
+    WebGLuint mGLName;
 
     // we store information about the various images that are part of
     // this texture (cubemap faces, mipmap levels)
@@ -74,8 +75,8 @@ public:
             , mIsDefined(false)
         {}
 
-        ImageInfo(GLsizei width, GLsizei height,
-                  GLenum format, GLenum type)
+        ImageInfo(WebGLsizei width, WebGLsizei height,
+                  WebGLenum format, WebGLenum type)
             : WebGLRectangleObject(width, height)
             , mFormat(format)
             , mType(type)
@@ -103,10 +104,10 @@ public:
                    is_pot_assuming_nonnegative(mHeight); // negative sizes should never happen (caught in texImage2D...)
         }
         int64_t MemoryUsage() const;
-        GLenum Format() const { return mFormat; }
-        GLenum Type() const { return mType; }
+        WebGLenum Format() const { return mFormat; }
+        WebGLenum Type() const { return mType; }
     protected:
-        GLenum mFormat, mType;
+        WebGLenum mFormat, mType;
         bool mIsDefined;
 
         friend class WebGLTexture;
@@ -132,7 +133,7 @@ public:
                ImageInfoAt(level, face).mIsDefined;
     }
 
-    static size_t FaceForTarget(GLenum target) {
+    static size_t FaceForTarget(WebGLenum target) {
         return target == LOCAL_GL_TEXTURE_2D ? 0 : target - LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
     }
 
@@ -140,8 +141,8 @@ public:
 
 protected:
 
-    GLenum mTarget;
-    GLenum mMinFilter, mMagFilter, mWrapS, mWrapT;
+    WebGLenum mTarget;
+    WebGLenum mMinFilter, mMagFilter, mWrapS, mWrapT;
 
     size_t mFacesCount, mMaxLevelWithCustomImages;
     nsTArray<ImageInfo> mImageInfos;
@@ -170,29 +171,29 @@ public:
 
     void SetDontKnowIfNeedFakeBlack();
 
-    void Bind(GLenum aTarget);
+    void Bind(WebGLenum aTarget);
 
-    void SetImageInfo(GLenum aTarget, GLint aLevel,
-                      GLsizei aWidth, GLsizei aHeight,
-                      GLenum aFormat, GLenum aType);
+    void SetImageInfo(WebGLenum aTarget, WebGLint aLevel,
+                      WebGLsizei aWidth, WebGLsizei aHeight,
+                      WebGLenum aFormat, WebGLenum aType);
 
-    void SetMinFilter(GLenum aMinFilter) {
+    void SetMinFilter(WebGLenum aMinFilter) {
         mMinFilter = aMinFilter;
         SetDontKnowIfNeedFakeBlack();
     }
-    void SetMagFilter(GLenum aMagFilter) {
+    void SetMagFilter(WebGLenum aMagFilter) {
         mMagFilter = aMagFilter;
         SetDontKnowIfNeedFakeBlack();
     }
-    void SetWrapS(GLenum aWrapS) {
+    void SetWrapS(WebGLenum aWrapS) {
         mWrapS = aWrapS;
         SetDontKnowIfNeedFakeBlack();
     }
-    void SetWrapT(GLenum aWrapT) {
+    void SetWrapT(WebGLenum aWrapT) {
         mWrapT = aWrapT;
         SetDontKnowIfNeedFakeBlack();
     }
-    GLenum MinFilter() const { return mMinFilter; }
+    WebGLenum MinFilter() const { return mMinFilter; }
 
     bool DoesMinFilterRequireMipmap() const {
         return !(mMinFilter == LOCAL_GL_NEAREST || mMinFilter == LOCAL_GL_LINEAR);

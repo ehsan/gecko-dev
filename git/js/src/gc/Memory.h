@@ -8,8 +8,7 @@
 #define gc_Memory_h
 
 #include <stddef.h>
-
-struct JSRuntime;
+#include "jsgc.h"
 
 namespace js {
 namespace gc {

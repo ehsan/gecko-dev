@@ -102,15 +102,11 @@ extern PRLogModuleInfo *gUrlClassifierDbServiceLog;
 #define LOG_ENABLED() (false)
 #endif
 
-// Either the return was successful or we call the Reset function (unless we
-// hit an OOM).  Used while reading in the store.
+// Either the return was successful or we call the Reset function.
+// Used while reading in the store.
 #define SUCCESS_OR_RESET(res)                                             \
   do {                                                                    \
     nsresult __rv = res; /* Don't evaluate |res| more than once */        \
-    if (__rv == NS_ERROR_OUT_OF_MEMORY) {                                 \
-      NS_WARNING("SafeBrowsing OOM.");                                    \
-      return __rv;                                                        \
-    }                                                                     \
     if (NS_FAILED(__rv)) {                                                \
       NS_WARNING("SafeBrowsing store corrupted or out of date.");         \
       Reset();                                                            \
@@ -674,7 +670,7 @@ ByteSliceWrite(nsIOutputStream* aOut, nsTArray<uint32_t>& aData)
 }
 
 static nsresult
-ByteSliceRead(nsIInputStream* aInStream, FallibleTArray<uint32_t>* aData, uint32_t count)
+ByteSliceRead(nsIInputStream* aInStream, nsTArray<uint32_t>* aData, uint32_t count)
 {
   nsTArray<uint8_t> slice1;
   nsTArray<uint8_t> slice2;
@@ -693,9 +689,7 @@ ByteSliceRead(nsIInputStream* aInStream, FallibleTArray<uint32_t>* aData, uint32
   rv = ReadTArray(aInStream, &slice4, count);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!aData->SetCapacity(count)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  aData->SetCapacity(count);
 
   for (uint32_t i = 0; i < count; i++) {
     aData->AppendElement((slice1[i] << 24) | (slice2[i] << 16)
@@ -708,7 +702,7 @@ ByteSliceRead(nsIInputStream* aInStream, FallibleTArray<uint32_t>* aData, uint32
 nsresult
 HashStore::ReadAddPrefixes()
 {
-  FallibleTArray<uint32_t> chunks;
+  nsTArray<uint32_t> chunks;
   uint32_t count = mHeader.numAddPrefixes;
 
   nsresult rv = ByteSliceRead(mInputStream, &chunks, count);
@@ -727,9 +721,9 @@ HashStore::ReadAddPrefixes()
 nsresult
 HashStore::ReadSubPrefixes()
 {
-  FallibleTArray<uint32_t> addchunks;
-  FallibleTArray<uint32_t> subchunks;
-  FallibleTArray<uint32_t> prefixes;
+  nsTArray<uint32_t> addchunks;
+  nsTArray<uint32_t> subchunks;
+  nsTArray<uint32_t> prefixes;
   uint32_t count = mHeader.numSubPrefixes;
 
   nsresult rv = ByteSliceRead(mInputStream, &addchunks, count);

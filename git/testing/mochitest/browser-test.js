@@ -40,7 +40,7 @@ function testOnLoad() {
                            "chrome,centerscreen,dialog=no,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
   } else {
     // This code allows us to redirect without requiring specialpowers for chrome and a11y tests.
-    let messageHandler = function(m) {
+    function messageHandler(m) {
       messageManager.removeMessageListener("chromeEvent", messageHandler);
       var url = m.json.data;
 
@@ -49,7 +49,7 @@ function testOnLoad() {
       var webNav = content.window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                          .getInterface(Components.interfaces.nsIWebNavigation);
       webNav.loadURI(url, null, null, null, null);
-    };
+    }
 
     var listener = 'data:,function doLoad(e) { var data=e.getData("data");removeEventListener("contentEvent", function (e) { doLoad(e); }, false, true);sendAsyncMessage("chromeEvent", {"data":data}); };addEventListener("contentEvent", function (e) { doLoad(e); }, false, true);';
     messageManager.loadFrameScript(listener, true);
@@ -73,14 +73,10 @@ function Tester(aTests, aDumper, aCallback) {
   this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
   this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", simpleTestScope);
   this.SimpleTest = simpleTestScope.SimpleTest;
-  this.Task = Components.utils.import("resource://gre/modules/Task.jsm", null).Task;
-  this.Promise = Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js", null).Promise;
 }
 Tester.prototype = {
   EventUtils: {},
   SimpleTest: {},
-  Task: null,
-  Promise: null,
 
   repeat: 0,
   runUntilFailure: false,
@@ -307,14 +303,6 @@ Tester.prototype = {
       // behavior of returning the last opened popup.
       document.popupNode = null;
 
-      // Notify a long running test problem if it didn't end up in a timeout.
-      if (this.currentTest.unexpectedTimeouts && !this.currentTest.timedOut) {
-        let msg = "This test exceeded the timeout threshold. It should be " +
-                  "rewritten or split up. If that's not possible, use " +
-                  "requestLongerTimeout(N), but only as a last resort.";
-        this.currentTest.addResult(new testResult(false, msg, "", false));
-      }
-
       // Note the test run time
       let time = Date.now() - this.lastStartTime;
       this.dumper.dump("INFO TEST-END | " + this.currentTest.path + " | finished in " + time + "ms\n");
@@ -402,8 +390,6 @@ Tester.prototype = {
     this.currentTest.scope.EventUtils = this.EventUtils;
     this.currentTest.scope.SimpleTest = this.SimpleTest;
     this.currentTest.scope.gTestPath = this.currentTest.path;
-    this.currentTest.scope.Task = this.Task;
-    this.currentTest.scope.Promise = this.Promise;
 
     // Override SimpleTest methods with ours.
     ["ok", "is", "isnot", "ise", "todo", "todo_is", "todo_isnot", "info"].forEach(function(m) {
@@ -437,34 +423,9 @@ Tester.prototype = {
 
       // Run the test
       this.lastStartTime = Date.now();
-      if (this.currentTest.scope.__tasks) {
-        // This test consists of tasks, added via the `add_task()` API.
-        if ("test" in this.currentTest.scope) {
-          throw "Cannot run both a add_task test and a normal test at the same time.";
-        }
-        let testScope = this.currentTest.scope;
-        let currentTest = this.currentTest;
-        this.Task.spawn(function() {
-          let task;
-          while ((task = this.__tasks.shift())) {
-            this.SimpleTest.info("Entering test " + task.name);
-            try {
-              yield task();
-            } catch (ex) {
-              let isExpected = !!this.SimpleTest.isExpectingUncaughtException();
-              let stack = (typeof ex == "object" && "stack" in ex)?ex.stack:null;
-              let name = "Uncaught exception";
-              let result = new testResult(isExpected, name, ex, false, stack);
-              currentTest.addResult(result);
-            }
-            this.SimpleTest.info("Leaving test " + task.name);
-          }
-          this.finish();
-        }.bind(testScope));
-      } else if ("generatorTest" in this.currentTest.scope) {
-        if ("test" in this.currentTest.scope) {
+      if ("generatorTest" in this.currentTest.scope) {
+        if ("test" in this.currentTest.scope)
           throw "Cannot run both a generator test and a normal test at the same time.";
-        }
 
         // This test is a generator. It will not finish immediately.
         this.currentTest.scope.waitForExplicitFinish();
@@ -475,7 +436,7 @@ Tester.prototype = {
         this.currentTest.scope.test();
       }
     } catch (ex) {
-      let isExpected = !!this.SimpleTest.isExpectingUncaughtException();
+      var isExpected = !!this.SimpleTest.isExpectingUncaughtException();
       if (!this.SimpleTest.isIgnoringAllUncaughtExceptions()) {
         this.currentTest.addResult(new testResult(isExpected, "Exception thrown", ex, false));
         this.SimpleTest.expectUncaughtException(false);
@@ -492,32 +453,16 @@ Tester.prototype = {
     }
     else {
       var self = this;
-      this.currentTest.scope.__waitTimer = setTimeout(function timeoutFn() {
+      this.currentTest.scope.__waitTimer = setTimeout(function() {
         if (--self.currentTest.scope.__timeoutFactor > 0) {
           // We were asked to wait a bit longer.
           self.currentTest.scope.info(
             "Longer timeout required, waiting longer...  Remaining timeouts: " +
             self.currentTest.scope.__timeoutFactor);
           self.currentTest.scope.__waitTimer =
-            setTimeout(timeoutFn, gTimeoutSeconds * 1000);
+            setTimeout(arguments.callee, gTimeoutSeconds * 1000);
           return;
         }
-
-        // If the test is taking longer than expected, but it's not hanging,
-        // mark the fact, but let the test continue.  At the end of the test,
-        // if it didn't timeout, we will notify the problem through an error.
-        // To figure whether it's an actual hang, compare the time of the last
-        // result or message to half of the timeout time.
-        // Though, to protect against infinite loops, limit the number of times
-        // we allow the test to proceed.
-        const MAX_UNEXPECTED_TIMEOUTS = 10;
-        if (Date.now() - self.currentTest.lastOutputTime < (gTimeoutSeconds / 2) * 1000 &&
-            ++self.currentTest.unexpectedTimeouts <= MAX_UNEXPECTED_TIMEOUTS) {
-            self.currentTest.scope.__waitTimer =
-              setTimeout(timeoutFn, gTimeoutSeconds * 1000);
-          return;
-        }
-
         self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
         self.currentTest.timedOut = true;
         self.currentTest.scope.__waitTimer = null;
@@ -699,58 +644,12 @@ function testScope(aTester, aTest) {
 testScope.prototype = {
   __done: true,
   __generator: null,
-  __tasks: null,
   __waitTimer: null,
   __cleanupFunctions: [],
   __timeoutFactor: 1,
 
   EventUtils: {},
   SimpleTest: {},
-  Task: null,
-  Promise: null,
-
-  /**
-   * Add a test function which is a Task function.
-   *
-   * Task functions are functions fed into Task.jsm's Task.spawn(). They are
-   * generators that emit promises.
-   *
-   * If an exception is thrown, an assertion fails, or if a rejected
-   * promise is yielded, the test function aborts immediately and the test is
-   * reported as a failure. Execution continues with the next test function.
-   *
-   * To trigger premature (but successful) termination of the function, simply
-   * return or throw a Task.Result instance.
-   *
-   * Example usage:
-   *
-   * add_task(function test() {
-   *   let result = yield Promise.resolve(true);
-   *
-   *   ok(result);
-   *
-   *   let secondary = yield someFunctionThatReturnsAPromise(result);
-   *   is(secondary, "expected value");
-   * });
-   *
-   * add_task(function test_early_return() {
-   *   let result = yield somethingThatReturnsAPromise();
-   *
-   *   if (!result) {
-   *     // Test is ended immediately, with success.
-   *     return;
-   *   }
-   *
-   *   is(result, "foo");
-   * });
-   */
-  add_task: function(aFunction) {
-    if (!this.__tasks) {
-      this.waitForExplicitFinish();
-      this.__tasks = [];
-    }
-    this.__tasks.push(aFunction.bind(this));
-  },
 
   destroy: function test_destroy() {
     for (let prop in this)

@@ -16,14 +16,24 @@ function createDocument()
     '</div>';
   doc.title = "Style Inspector Search Filter Test";
 
-  openComputedView(runStyleInspectorTests);
+  openInspector(openComputedView);
 }
 
-function runStyleInspectorTests(aInspector, aComputedView)
+function openComputedView(aInspector)
 {
   inspector = aInspector;
-  computedView = aComputedView;
 
+  inspector.sidebar.once("computedview-ready", function() {
+    inspector.sidebar.select("computedview");
+    computedView = getComputedView(inspector);
+
+    runStyleInspectorTests();
+  });
+}
+
+function runStyleInspectorTests()
+{
+  Services.obs.addObserver(SI_toggleDefaultStyles, "StyleInspector-populated", false);
   SI_inspectNode();
 }
 
@@ -33,28 +43,32 @@ function SI_inspectNode()
   ok(span, "captain, we have the matches span");
 
   inspector.selection.setNode(span);
-  inspector.once("inspector-updated", () => {
-    is(span, computedView.viewedElement.rawNode(),
-      "style inspector node matches the selected node");
-    SI_toggleDefaultStyles();
-  });
+
+  is(span, computedView.viewedElement,
+    "style inspector node matches the selected node");
+  is(computedView.viewedElement, computedView.cssLogic.viewedElement,
+     "cssLogic node matches the cssHtmlTree node");
 }
 
 function SI_toggleDefaultStyles()
 {
+  Services.obs.removeObserver(SI_toggleDefaultStyles, "StyleInspector-populated");
+
   info("checking \"Browser styles\" checkbox");
 
   let doc = computedView.styleDocument;
   let checkbox = doc.querySelector(".includebrowserstyles");
-  inspector.once("computed-view-refreshed", SI_AddFilterText);
+  Services.obs.addObserver(SI_AddFilterText, "StyleInspector-populated", false);
   checkbox.click();
 }
 
 function SI_AddFilterText()
 {
+  Services.obs.removeObserver(SI_AddFilterText, "StyleInspector-populated");
+
   let doc = computedView.styleDocument;
   let searchbar = doc.querySelector(".devtools-searchinput");
-  inspector.once("computed-view-refreshed", SI_checkFilter);
+  Services.obs.addObserver(SI_checkFilter, "StyleInspector-populated", false);
   info("setting filter text to \"color\"");
   searchbar.focus();
 
@@ -68,6 +82,7 @@ function SI_AddFilterText()
 
 function SI_checkFilter()
 {
+  Services.obs.removeObserver(SI_checkFilter, "StyleInspector-populated");
   let propertyViews = computedView.propertyViews;
 
   info("check that the correct properties are visible");

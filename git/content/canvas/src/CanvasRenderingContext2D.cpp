@@ -73,7 +73,6 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 
-#include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/ContentParent.h"
@@ -93,11 +92,10 @@
 #include "nsJSUtils.h"
 #include "XPCQuickStubs.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLVideoElement.h"
+#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/TextMetrics.h"
-#include "mozilla/dom/UnionTypes.h"
 
 #ifdef USE_SKIA_GPU
 #undef free // apparently defined by some windows header, clashing with a free()
@@ -106,7 +104,6 @@
 #include "GLContextProvider.h"
 #include "GLContextSkia.h"
 #include "SurfaceTypes.h"
-#include "nsIGfxInfo.h"
 using mozilla::gl::GLContext;
 using mozilla::gl::GLContextProvider;
 #endif
@@ -140,19 +137,20 @@ const Float SIGMA_MAX = 100;
 /* Memory reporter stuff */
 static int64_t gCanvasAzureMemoryUsed = 0;
 
+static int64_t GetCanvasAzureMemoryUsed() {
+  return gCanvasAzureMemoryUsed;
+}
+
 // This is KIND_OTHER because it's not always clear where in memory the pixels
 // of a canvas are stored.  Furthermore, this memory will be tracked by the
 // underlying surface implementations.  See bug 655638 for details.
-class Canvas2dPixelsReporter MOZ_FINAL : public MemoryReporterBase
-{
-  public:
-    Canvas2dPixelsReporter()
-      : MemoryReporterBase("canvas-2d-pixels", KIND_OTHER, UNITS_BYTES,
-"Memory used by 2D canvases. Each canvas requires (width * height * 4) bytes.")
-    {}
-private:
-    int64_t Amount() MOZ_OVERRIDE { return gCanvasAzureMemoryUsed; }
-};
+NS_MEMORY_REPORTER_IMPLEMENT(CanvasAzureMemory,
+  "canvas-2d-pixel-bytes",
+  KIND_OTHER,
+  UNITS_BYTES,
+  GetCanvasAzureMemoryUsed,
+  "Memory used by 2D canvases. Each canvas requires (width * height * 4) "
+  "bytes.")
 
 class CanvasRadialGradient : public CanvasGradient
 {
@@ -401,15 +399,31 @@ CanvasGradient::AddColorStop(float offset, const nsAString& colorstr, ErrorResul
   mRawStops.AppendElement(newStop);
 }
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasGradient, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasGradient, Release)
+NS_DEFINE_STATIC_IID_ACCESSOR(CanvasGradient, NS_CANVASGRADIENTAZURE_PRIVATE_IID)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasGradient)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasGradient)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasGradient, mContext)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPattern, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(CanvasPattern, Release)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CanvasGradient)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasGradient)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
+
+NS_DEFINE_STATIC_IID_ACCESSOR(CanvasPattern, NS_CANVASPATTERNAZURE_PRIVATE_IID)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasPattern)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasPattern)
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(CanvasPattern, mContext)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CanvasPattern)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasPattern)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 class CanvasRenderingContext2DUserData : public LayerUserData {
 public:
@@ -471,8 +485,6 @@ private:
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(CanvasRenderingContext2D)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(CanvasRenderingContext2D)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(CanvasRenderingContext2D)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(CanvasRenderingContext2D)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCanvasElement)
@@ -546,7 +558,7 @@ CanvasRenderingContext2D::CanvasRenderingContext2D()
   sNumLivingContexts++;
   SetIsDOMBinding();
 
-#ifdef USE_SKIA_GPU
+#if USE_SKIA_GPU
   mForceSoftware = false;
 #endif
 }
@@ -563,8 +575,10 @@ CanvasRenderingContext2D::~CanvasRenderingContext2D()
     NS_IF_RELEASE(sErrorTarget);
   }
 
-#ifdef USE_SKIA_GPU
-  RemoveDemotableContext(this);
+#if USE_SKIA_GPU
+  std::vector<CanvasRenderingContext2D*>::iterator iter = std::find(DemotableContexts().begin(), DemotableContexts().end(), this);
+  if (iter != DemotableContexts().end())
+    DemotableContexts().erase(iter);
 #endif
 }
 
@@ -633,6 +647,17 @@ CanvasRenderingContext2D::Reset()
   return NS_OK;
 }
 
+static void
+WarnAboutUnexpectedStyle(HTMLCanvasElement* canvasElement)
+{
+  nsContentUtils::ReportToConsole(
+    nsIScriptError::warningFlag,
+    "Canvas",
+    canvasElement ? canvasElement->OwnerDoc() : nullptr,
+    nsContentUtils::eDOM_PROPERTIES,
+    "UnexpectedCanvasVariantStyle");
+}
+
 void
 CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
                                              Style whichStyle)
@@ -647,18 +672,27 @@ CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
   CurrentState().SetColorStyle(whichStyle, color);
 }
 
-void
-CanvasRenderingContext2D::GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
-                                          Style aWhichStyle)
+nsISupports*
+CanvasRenderingContext2D::GetStyleAsStringOrInterface(nsAString& aStr,
+                                                      CanvasMultiGetterType& aType,
+                                                      Style aWhichStyle)
 {
   const ContextState &state = CurrentState();
+  nsISupports* supports;
   if (state.patternStyles[aWhichStyle]) {
-    aValue.SetAsCanvasPattern() = state.patternStyles[aWhichStyle];
+    aStr.SetIsVoid(true);
+    supports = state.patternStyles[aWhichStyle];
+    aType = CMG_STYLE_PATTERN;
   } else if (state.gradientStyles[aWhichStyle]) {
-    aValue.SetAsCanvasGradient() = state.gradientStyles[aWhichStyle];
+    aStr.SetIsVoid(true);
+    supports = state.gradientStyles[aWhichStyle];
+    aType = CMG_STYLE_GRADIENT;
   } else {
-    StyleColorToString(state.colorStyles[aWhichStyle], aValue.SetAsString());
+    StyleColorToString(state.colorStyles[aWhichStyle], aStr);
+    supports = nullptr;
+    aType = CMG_STYLE_STRING;
   }
+  return supports;
 }
 
 // static
@@ -743,18 +777,16 @@ CanvasRenderingContext2D::RedrawUser(const gfxRect& r)
   Redraw(newr);
 }
 
+#if USE_SKIA_GPU
+
 void CanvasRenderingContext2D::Demote()
 {
-#ifdef  USE_SKIA_GPU
-  if (!IsTargetValid() || mForceSoftware || !mTarget->GetGLContext())
+  if (!IsTargetValid() || mForceSoftware)
     return;
-
-  RemoveDemotableContext(this);
 
   RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
   RefPtr<DrawTarget> oldTarget = mTarget;
   mTarget = nullptr;
-  mResetLayer = true;
   mForceSoftware = true;
 
   // Recreate target, now demoted to software only
@@ -762,20 +794,10 @@ void CanvasRenderingContext2D::Demote()
   if (!IsTargetValid())
     return;
 
-  // Restore the content from the old DrawTarget
+  // Put back the content from the old DrawTarget
   mgfx::Rect r(0, 0, mWidth, mHeight);
   mTarget->DrawSurface(snapshot, r, r);
-
-  // Restore the clips and transform
-  for (uint32_t i = 0; i < CurrentState().clipsPushed.size(); i++) {
-    mTarget->PushClip(CurrentState().clipsPushed[i]);
-  }
-
-  mTarget->SetTransform(oldTarget->GetTransform());
-#endif
 }
-
-#ifdef USE_SKIA_GPU
 
 std::vector<CanvasRenderingContext2D*>&
 CanvasRenderingContext2D::DemotableContexts()
@@ -798,32 +820,15 @@ CanvasRenderingContext2D::DemoteOldestContextIfNecessary()
     return;
 
   CanvasRenderingContext2D* oldest = contexts.front();
+  contexts.erase(contexts.begin());
+
   oldest->Demote();
 }
 
 void
 CanvasRenderingContext2D::AddDemotableContext(CanvasRenderingContext2D* context)
 {
-  std::vector<CanvasRenderingContext2D*>::iterator iter = std::find(DemotableContexts().begin(), DemotableContexts().end(), context);
-  if (iter != DemotableContexts().end())
-    return;
-
   DemotableContexts().push_back(context);
-}
-
-void
-CanvasRenderingContext2D::RemoveDemotableContext(CanvasRenderingContext2D* context)
-{
-  std::vector<CanvasRenderingContext2D*>::iterator iter = std::find(DemotableContexts().begin(), DemotableContexts().end(), context);
-  if (iter != DemotableContexts().end())
-    DemotableContexts().erase(iter);
-}
-
-#define MIN_SKIA_GL_DIMENSION 16
-
-bool
-CheckSizeForSkiaGL(IntSize size) {
-  return size.width > MIN_SKIA_GL_DIMENSION && size.height > MIN_SKIA_GL_DIMENSION;
 }
 
 #endif
@@ -854,41 +859,38 @@ CanvasRenderingContext2D::EnsureTarget()
 
      if (layerManager) {
 #ifdef USE_SKIA_GPU
-      if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
-        SurfaceCaps caps = SurfaceCaps::ForRGBA();
-        caps.preserve = true;
+       if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
+         SurfaceCaps caps = SurfaceCaps::ForRGBA();
+         caps.preserve = true;
 
 #ifdef MOZ_WIDGET_GONK
-        layers::ShadowLayerForwarder *forwarder = layerManager->AsShadowForwarder();
-        if (forwarder) {
-          caps.surfaceAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
-        }
+         layers::ShadowLayerForwarder *forwarder = layerManager->AsShadowForwarder();
+         if (forwarder) {
+           caps.surfaceAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
+         }
 #endif
 
-        DemoteOldestContextIfNecessary();
+         DemoteOldestContextIfNecessary();
 
-        nsRefPtr<GLContext> glContext;
-        nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-        nsString vendor;
+         nsRefPtr<GLContext> glContext;
 
-        if (!mForceSoftware && CheckSizeForSkiaGL(size))
-        {
-          glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
-                                                         caps, gl::ContextFlagsNone);
-        }
+         if (!mForceSoftware) {
+           glContext = GLContextProvider::CreateOffscreen(gfxIntSize(size.width, size.height),
+                                                          caps, GLContext::ContextFlagsNone);
+         }
 
-        if (glContext) {
-          SkAutoTUnref<GrGLInterface> i(CreateGrGLInterfaceFromGLContext(glContext));
-          mTarget = Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(glContext, i, size, format);
-          AddDemotableContext(this);
-        } else {
-          mTarget = layerManager->CreateDrawTarget(size, format);
-        }
-      } else
+         if (glContext) {
+           SkAutoTUnref<GrGLInterface> i(CreateGrGLInterfaceFromGLContext(glContext));
+           mTarget = Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(glContext, i, size, format);
+           AddDemotableContext(this);
+         } else {
+           mTarget = layerManager->CreateDrawTarget(size, format);
+         }
+       } else
 #endif
        mTarget = layerManager->CreateDrawTarget(size, format);
      } else {
-       mTarget = gfxPlatform::GetPlatform()->CreateOffscreenCanvasDrawTarget(size, format);
+       mTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(size, format);
      }
   }
 
@@ -896,7 +898,7 @@ CanvasRenderingContext2D::EnsureTarget()
     static bool registered = false;
     if (!registered) {
       registered = true;
-      NS_RegisterMemoryReporter(new Canvas2dPixelsReporter());
+      NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(CanvasAzureMemory));
     }
 
     gCanvasAzureMemoryUsed += mWidth * mHeight * 4;
@@ -1065,8 +1067,7 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
 
   nsresult rv;
   const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
-  static const fallible_t fallible = fallible_t();
-  nsAutoArrayPtr<char> conid(new (fallible) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
+  nsAutoArrayPtr<char> conid(new (std::nothrow) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
 
   if (!conid) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1080,7 +1081,7 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoArrayPtr<uint8_t> imageBuffer(new (fallible) uint8_t[mWidth * mHeight * 4]);
+  nsAutoArrayPtr<uint8_t> imageBuffer(new (std::nothrow) uint8_t[mWidth * mHeight * 4]);
   if (!imageBuffer) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1257,7 +1258,7 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
   for (uint32_t i = 0; i < 6; ++i) {
     JS::Rooted<JS::Value> elt(cx);
     double d;
-    if (!JS_GetElement(cx, obj, i, &elt)) {
+    if (!JS_GetElement(cx, obj, i, elt.address())) {
       error.Throw(NS_ERROR_FAILURE);
       return false;
     }
@@ -1341,25 +1342,92 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
 //
 
 void
-CanvasRenderingContext2D::SetStyleFromUnion(const StringOrCanvasGradientOrCanvasPattern& value,
-                                            Style whichStyle)
+CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
+                                              JS::Handle<JS::Value> value,
+                                              Style whichStyle)
 {
-  if (value.IsString()) {
-    SetStyleFromString(value.GetAsString(), whichStyle);
+  if (value.isString()) {
+    nsDependentJSString strokeStyle;
+    if (strokeStyle.init(cx, value.toString())) {
+      SetStyleFromString(strokeStyle, whichStyle);
+    }
     return;
   }
 
-  if (value.IsCanvasGradient()) {
-    SetStyleFromGradient(value.GetAsCanvasGradient(), whichStyle);
-    return;
+  if (value.isObject()) {
+    nsCOMPtr<nsISupports> holder;
+
+    CanvasGradient* gradient;
+    JS::Rooted<JS::Value> rootedVal(cx, value);
+    nsresult rv = xpc_qsUnwrapArg<CanvasGradient>(cx, value, &gradient,
+                                                  static_cast<nsISupports**>(getter_AddRefs(holder)),
+                                                  rootedVal.address());
+    if (NS_SUCCEEDED(rv)) {
+      SetStyleFromGradient(gradient, whichStyle);
+      return;
+    }
+
+    CanvasPattern* pattern;
+    rv = xpc_qsUnwrapArg<CanvasPattern>(cx, value, &pattern,
+                                        static_cast<nsISupports**>(getter_AddRefs(holder)),
+                                        rootedVal.address());
+    if (NS_SUCCEEDED(rv)) {
+      SetStyleFromPattern(pattern, whichStyle);
+      return;
+    }
   }
 
-  if (value.IsCanvasPattern()) {
-    SetStyleFromPattern(value.GetAsCanvasPattern(), whichStyle);
-    return;
-  }
+  WarnAboutUnexpectedStyle(mCanvasElement);
+}
 
-  MOZ_ASSUME_UNREACHABLE("Invalid union value");
+static JS::Value
+WrapStyle(JSContext* cx, JSObject* objArg,
+          CanvasRenderingContext2D::CanvasMultiGetterType type,
+          nsAString& str, nsISupports* supports, ErrorResult& error)
+{
+  JS::Rooted<JS::Value> v(cx);
+  bool ok;
+  switch (type) {
+    case CanvasRenderingContext2D::CMG_STYLE_STRING:
+    {
+      ok = xpc::StringToJsval(cx, str, v.address());
+      break;
+    }
+    case CanvasRenderingContext2D::CMG_STYLE_PATTERN:
+    case CanvasRenderingContext2D::CMG_STYLE_GRADIENT:
+    {
+      JS::Rooted<JSObject*> obj(cx, objArg);
+      ok = dom::WrapObject(cx, obj, supports, &v);
+      break;
+    }
+    default:
+      MOZ_CRASH("unexpected CanvasMultiGetterType");
+  }
+  if (!ok) {
+    error.Throw(NS_ERROR_FAILURE);
+  }
+  return v;
+}
+
+
+JS::Value
+CanvasRenderingContext2D::GetStrokeStyle(JSContext* cx,
+                                         ErrorResult& error)
+{
+  nsString str;
+  CanvasMultiGetterType t;
+  nsISupports* supports = GetStyleAsStringOrInterface(str, t, STYLE_STROKE);
+  return WrapStyle(cx, GetWrapper(), t, str, supports, error);
+}
+
+JS::Value
+CanvasRenderingContext2D::GetFillStyle(JSContext* cx,
+                                       ErrorResult& error)
+{
+  nsString str;
+  CanvasMultiGetterType t;
+  nsISupports* supports = GetStyleAsStringOrInterface(str, t, STYLE_FILL);
+  return WrapStyle(cx, GetWrapper(), t, str, supports, error);
 }
 
 void
@@ -3064,24 +3132,6 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
   RedrawUser(gfxRect(dx, dy, dw, dh));
 }
 
-#ifdef USE_SKIA_GPU
-static bool
-IsStandardCompositeOp(CompositionOp op)
-{
-    return (op == OP_SOURCE ||
-            op == OP_ATOP ||
-            op == OP_IN ||
-            op == OP_OUT ||
-            op == OP_OVER ||
-            op == OP_DEST_IN ||
-            op == OP_DEST_OUT ||
-            op == OP_DEST_OVER ||
-            op == OP_DEST_ATOP ||
-            op == OP_ADD ||
-            op == OP_XOR);
-}
-#endif
-
 void
 CanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op,
                                                       ErrorResult& error)
@@ -3120,12 +3170,6 @@ CanvasRenderingContext2D::SetGlobalCompositeOperation(const nsAString& op,
   else CANVAS_OP_TO_GFX_OP("luminosity", LUMINOSITY)
   // XXX ERRMSG we need to report an error to developers here! (bug 329026)
   else return;
-
-#ifdef USE_SKIA_GPU
-  if (!IsStandardCompositeOp(comp_op)) {
-    Demote();
-  }
-#endif
 
 #undef CANVAS_OP_TO_GFX_OP
   CurrentState().op = comp_op;
@@ -3170,12 +3214,6 @@ CanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op,
   else {
     error.Throw(NS_ERROR_FAILURE);
   }
-
-#ifdef USE_SKIA_GPU
-  if (!IsStandardCompositeOp(comp_op)) {
-    Demote();
-  }
-#endif
 
 #undef CANVAS_OP_TO_GFX_OP
 }
@@ -3300,9 +3338,7 @@ CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
                                            FORMAT_B8G8R8A8);
     mgfx::Rect destRect(0, 0, w, h);
     mgfx::Rect sourceRect(0, 0, sw, sh);
-    mTarget->DrawSurface(data, destRect, sourceRect,
-                         DrawSurfaceOptions(mgfx::FILTER_POINT),
-                         DrawOptions(1.0f, OP_SOURCE, AA_NONE));
+    mTarget->DrawSurface(data, destRect, sourceRect);
     mTarget->Flush();
   } else {
     mTarget->SetTransform(matrix);
@@ -3580,7 +3616,7 @@ CanvasRenderingContext2D::EnsureErrorTarget()
     return;
   }
 
-  RefPtr<DrawTarget> errorTarget = gfxPlatform::GetPlatform()->CreateOffscreenCanvasDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
+  RefPtr<DrawTarget> errorTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
   NS_ABORT_IF_FALSE(errorTarget, "Failed to allocate the error target!");
 
   sErrorTarget = errorTarget;

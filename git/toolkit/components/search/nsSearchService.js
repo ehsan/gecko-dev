@@ -2580,7 +2580,7 @@ Engine.prototype = {
 };
 
 // nsISearchSubmission
-function Submission(aURI, aPostData = null) {
+function Submission(aURI, aPostData) {
   this._uri = aURI;
   this._postData = aPostData;
 }

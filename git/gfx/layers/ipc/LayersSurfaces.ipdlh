@@ -5,8 +5,6 @@
 include protocol PGrallocBuffer;
 
 include "gfxipc/ShadowLayerUtils.h";
-include "mozilla/gfx/Types.h";
-include "nsRegion.h";
 
 using gfx3DMatrix;
 using gfxIntSize;
@@ -24,10 +22,8 @@ using mozilla::layers::SurfaceDescriptorX11;
 using mozilla::null_t;
 using mozilla::WindowsHandle;
 using mozilla::gl::SharedTextureHandle;
-using mozilla::gl::SharedTextureShareType;
+using mozilla::gl::GLContext::SharedTextureShareType;
 using mozilla::gfx::SurfaceStreamHandle;
-using mozilla::gfx::SurfaceFormat;
-using mozilla::gfx::IntSize;
 
 namespace mozilla {
 namespace layers {
@@ -35,11 +31,6 @@ namespace layers {
 union MaybeMagicGrallocBufferHandle {
   MagicGrallocBufferHandle;
   null_t;
-};
-
-struct SurfaceDescriptorD3D9 {
-  // IDirect3DTexture9*
-  uintptr_t texture;
 };
 
 struct SurfaceDescriptorD3D10 {
@@ -54,43 +45,6 @@ struct SharedTextureDescriptor {
   bool inverted;
 };
 
-struct BasicShmTileDescriptor {
-  Shmem reusableSurface;
-};
-
-struct BasicTileDescriptor {
-  uintptr_t reusableSurface;
-};
-
-struct PlaceholderTileDescriptor {
-};
-
-union TileDescriptor {
-  BasicTileDescriptor;
-  BasicShmTileDescriptor;
-  PlaceholderTileDescriptor;
-};
-
-struct SurfaceDescriptorTiles {
-  nsIntRegion validRegion;
-  nsIntRegion paintedRegion;
-  TileDescriptor[] tiles;
-  int         retainedWidth;
-  int         retainedHeight;
-  float       resolution;
-};
-
-struct NewSurfaceDescriptorGralloc {
-  PGrallocBuffer buffer;
-  /**
-   * android::GraphicBuffer has a size information. But there are cases
-   * that GraphicBuffer's size and actual video's size are different.
-   * Extra size member is necessary. See Bug 850566.
-   */
-  IntSize size;
-};
-
-// XXX - soon to be removed
 struct SurfaceDescriptorGralloc {
   PGrallocBuffer buffer;
   /**
@@ -126,7 +80,6 @@ struct SurfaceStreamDescriptor {
   bool yflip;
 };
 
-// XXX - can be removed as soon as DeprecatedImageClientSingle is removed
 struct YCbCrImage {
   Shmem data;
   uint64_t owner;
@@ -147,36 +100,16 @@ struct MemoryImage {
   uint32_t format;
 };
 
-/**
- * Used for shmem-backed YCbCr and (flavors of) RGBA textures
- */
-struct SurfaceDescriptorShmem {
-  Shmem data;
-  SurfaceFormat format;
-};
-
-/**
- * Used for "raw memory"-backed YCbCr and (flavors of) RGBA textures
- */
- struct SurfaceDescriptorMemory {
-  uintptr_t data;
-  SurfaceFormat format;
-};
-
 union SurfaceDescriptor {
-  SurfaceDescriptorShmem;
-  SurfaceDescriptorMemory;
-  SurfaceDescriptorD3D9;
+  Shmem;
   SurfaceDescriptorD3D10;
+  SurfaceDescriptorGralloc;
   SurfaceDescriptorX11;
+  YCbCrImage;
+  RGBImage;
   SharedTextureDescriptor;
   SurfaceStreamDescriptor;
-  NewSurfaceDescriptorGralloc;
-  YCbCrImage;                 // XXX - deprecated
-  SurfaceDescriptorGralloc;   // XXX - deprecated
-  Shmem;                      // XXX - deprecated
-  RGBImage;                   // XXX - deprecated
-  MemoryImage;                // XXX - deprecated
+  MemoryImage;
   null_t;
 };
 

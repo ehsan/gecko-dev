@@ -16,20 +16,19 @@
 
 #include <string.h>
 
+#include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
-#include "jsautooplen.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsnum.h"
 #include "jsopcode.h"
 #include "jsscript.h"
-#include "jstypes.h"
-#include "jsutil.h"
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "jit/AsmJSLink.h"
+#include "ion/AsmJS.h"
 #include "vm/Debugger.h"
 
 #include "jsatominlines.h"
@@ -39,7 +38,6 @@
 
 #include "frontend/ParseMaps-inl.h"
 #include "frontend/ParseNode-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -1791,62 +1789,6 @@ BytecodeEmitter::reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...)
 }
 
 static bool
-IteratorResultShape(ExclusiveContext *cx, BytecodeEmitter *bce, unsigned *shape)
-{
-    RootedObject obj(cx);
-    gc::AllocKind kind = GuessObjectGCKind(2);
-    obj = NewBuiltinClassInstance(cx, &JSObject::class_, kind);
-    if (!obj)
-        return false;
-
-    Rooted<jsid> value_id(cx, AtomToId(cx->names().value));
-    Rooted<jsid> done_id(cx, AtomToId(cx->names().done));
-    RootedValue undefined(cx, UndefinedValue());
-    if (!DefineNativeProperty(cx, obj, value_id, undefined, NULL, NULL, JSPROP_ENUMERATE, 0, 0))
-        return false;
-    if (!DefineNativeProperty(cx, obj, done_id, undefined, NULL, NULL, JSPROP_ENUMERATE, 0, 0))
-        return false;
-
-    ObjectBox *objbox = bce->parser->newObjectBox(obj);
-    if (!objbox)
-        return false;
-
-    *shape = bce->objectList.add(objbox);
-
-    return true;
-}
-
-static bool
-EmitPrepareIteratorResult(ExclusiveContext *cx, BytecodeEmitter *bce)
-{
-    unsigned shape;
-    if (!IteratorResultShape(cx, bce, &shape))
-        return false;
-    return EmitIndex32(cx, JSOP_NEWOBJECT, shape, bce);
-}
-
-static bool
-EmitFinishIteratorResult(ExclusiveContext *cx, BytecodeEmitter *bce, bool done)
-{
-    jsatomid value_id;
-    if (!bce->makeAtomIndex(cx->names().value, &value_id))
-        return UINT_MAX;
-    jsatomid done_id;
-    if (!bce->makeAtomIndex(cx->names().done, &done_id))
-        return UINT_MAX;
-
-    if (!EmitIndex32(cx, JSOP_INITPROP, value_id, bce))
-        return false;
-    if (Emit1(cx, bce, done ? JSOP_TRUE : JSOP_FALSE) < 0)
-        return false;
-    if (!EmitIndex32(cx, JSOP_INITPROP, done_id, bce))
-        return false;
-    if (Emit1(cx, bce, JSOP_ENDINIT) < 0)
-        return false;
-    return true;
-}
-
-static bool
 EmitNameOp(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool callContext)
 {
     JSOp op;
@@ -2628,21 +2570,6 @@ frontend::EmitFunctionScript(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNo
 
     if (!EmitTree(cx, bce, body))
         return false;
-
-    // If we fall off the end of an ES6 generator, return a boxed iterator
-    // result object of the form { value: undefined, done: true }.
-    if (bce->sc->isFunctionBox() && bce->sc->asFunctionBox()->isStarGenerator()) {
-        if (!EmitPrepareIteratorResult(cx, bce))
-            return false;
-        if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
-            return false;
-        if (!EmitFinishIteratorResult(cx, bce, true))
-            return false;
-
-        // No need to check for finally blocks, etc as in EmitReturn.
-        if (Emit1(cx, bce, JSOP_RETURN) < 0)
-            return false;
-    }
 
     /*
      * Always end the script with a JSOP_STOP. Some other parts of the codebase
@@ -3614,8 +3541,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, bool strictChecks, MutableHand
         return true;
       }
       case PNK_OBJECT: {
-        JS_ASSERT(isOp(JSOP_NEWINIT));
-        JS_ASSERT(!(pn_xflags & PNX_NONCONST));
+        JS_ASSERT(isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST));
 
         gc::AllocKind kind = GuessObjectGCKind(pn_count);
         RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, kind, MaybeSingletonObject));
@@ -3692,8 +3618,6 @@ EmitSingletonInitialiser(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *
 JS_STATIC_ASSERT(JSOP_NOP_LENGTH == 1);
 JS_STATIC_ASSERT(JSOP_POP_LENGTH == 1);
 
-namespace {
-
 class EmitLevelManager
 {
     BytecodeEmitter *bce;
@@ -3701,8 +3625,6 @@ class EmitLevelManager
     EmitLevelManager(BytecodeEmitter *bce) : bce(bce) { bce->emitLevel++; }
     ~EmitLevelManager() { bce->emitLevel--; }
 };
-
-} /* anonymous namespace */
 
 static bool
 EmitCatch(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
@@ -3792,6 +3714,7 @@ MOZ_NEVER_INLINE static bool
 EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     StmtInfoBCE stmtInfo(cx);
+    ptrdiff_t catchJump = -1;
 
     /*
      * Push stmtInfo to track jumps-over-catches and gosubs-to-finally
@@ -3816,8 +3739,7 @@ EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     int depth = bce->stackDepth;
 
     /* Mark try location for decompilation, then emit try block. */
-    ptrdiff_t noteIndex = NewSrcNote(cx, bce, SRC_TRY);
-    if (noteIndex < 0 || Emit1(cx, bce, JSOP_TRY) < 0)
+    if (Emit1(cx, bce, JSOP_TRY) < 0)
         return false;
     ptrdiff_t tryStart = bce->offset();
     if (!EmitTree(cx, bce, pn->pn_kid1))
@@ -3832,14 +3754,9 @@ EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return false;
     }
 
-    /* Source note points to the jump at the end of the try block. */
-    if (!SetSrcNoteOffset(cx, bce, noteIndex, 0, bce->offset() - tryStart + JSOP_TRY_LENGTH))
-        return false;
-
     /* Emit (hidden) jump over catch and/or finally. */
     if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
         return false;
-    ptrdiff_t catchJump = -1;
     if (EmitBackPatchOp(cx, bce, &catchJump) < 0)
         return false;
 
@@ -4544,8 +4461,6 @@ EmitFor(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top
 static JS_NEVER_INLINE bool
 EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    cx->maybePause();
-
     FunctionBox *funbox = pn->pn_funbox;
     RootedFunction fun(cx, funbox->function());
     JS_ASSERT_IF(fun->isInterpretedLazy(), fun->lazyScript());
@@ -4572,7 +4487,8 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      */
     if (fun->isInterpreted()) {
         bool singleton =
-            cx->typeInferenceEnabled() &&
+            cx->isJSContext() &&
+            cx->asJSContext()->typeInferenceEnabled() &&
             bce->script->compileAndGo &&
             fun->isInterpreted() &&
             (bce->checkSingletonContext() ||
@@ -4587,7 +4503,7 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 JSObject *scope = bce->blockChain;
                 if (!scope && bce->sc->isFunctionBox())
                     scope = bce->sc->asFunctionBox()->function();
-                fun->lazyScript()->setParent(scope, bce->script->sourceObject());
+                fun->lazyScript()->setParent(scope, bce->script->sourceObject(), bce->script->originPrincipals);
             }
         } else {
             SharedContext *outersc = bce->sc;
@@ -4600,12 +4516,15 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             Rooted<JSScript*> parent(cx, bce->script);
             CompileOptions options(bce->parser->options());
             options.setPrincipals(parent->principals())
-                   .setOriginPrincipals(parent->originPrincipals())
+                   .setOriginPrincipals(parent->originPrincipals)
                    .setCompileAndGo(parent->compileAndGo)
                    .setSelfHostingMode(parent->selfHosted)
                    .setNoScriptRval(false)
                    .setForEval(false)
                    .setVersion(parent->getVersion());
+
+            if (!cx->shouldBeJSContext())
+                return false;
 
             Rooted<JSObject*> enclosingScope(cx, EnclosingStaticScope(bce));
             Rooted<ScriptSourceObject *> sourceObject(cx, bce->script->sourceObject());
@@ -4843,11 +4762,6 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
         return false;
 
-    if (bce->sc->isFunctionBox() && bce->sc->asFunctionBox()->isStarGenerator()) {
-        if (!EmitPrepareIteratorResult(cx, bce))
-            return false;
-    }
-
     /* Push a return value */
     if (ParseNode *pn2 = pn->pn_kid) {
         if (!EmitTree(cx, bce, pn2))
@@ -4855,11 +4769,6 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     } else {
         /* No explicit return value provided */
         if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
-            return false;
-    }
-
-    if (bce->sc->isFunctionBox() && bce->sc->asFunctionBox()->isStarGenerator()) {
-        if (!EmitFinishIteratorResult(cx, bce, true))
             return false;
     }
 
@@ -5545,8 +5454,8 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (!objbox)
             return false;
         unsigned index = bce->objectList.add(objbox);
-        static_assert(JSOP_NEWINIT_LENGTH == JSOP_NEWOBJECT_LENGTH,
-                      "newinit and newobject must have equal length to edit in-place");
+        MOZ_STATIC_ASSERT(JSOP_NEWINIT_LENGTH == JSOP_NEWOBJECT_LENGTH,
+                          "newinit and newobject must have equal length to edit in-place");
         EMIT_UINT32_IN_PLACE(offset, JSOP_NEWOBJECT, uint32_t(index));
     }
 
@@ -5752,8 +5661,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 }
             }
         }
-        bool hasDefaults = bce->sc->asFunctionBox()->hasDefaults();
-        if (hasDefaults) {
+        if (fun->hasDefaults()) {
             ParseNode *rest = NULL;
             bool restIsDefn = false;
             if (fun->hasRest()) {
@@ -5802,7 +5710,7 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 continue;
             if (!BindNameToSlot(cx, bce, pn2))
                 return false;
-            if (pn2->pn_next == pnlast && fun->hasRest() && !hasDefaults) {
+            if (pn2->pn_next == pnlast && fun->hasRest() && !fun->hasDefaults()) {
                 // Fill rest parameter. We handled the case with defaults above.
                 JS_ASSERT(!bce->sc->asFunctionBox()->argumentsHasLocalBinding());
                 bce->switchToProlog();
@@ -5874,19 +5782,11 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case PNK_YIELD:
         JS_ASSERT(bce->sc->isFunctionBox());
-        if (bce->sc->asFunctionBox()->isStarGenerator()) {
-            if (!EmitPrepareIteratorResult(cx, bce))
-                return false;
-        }
         if (pn->pn_kid) {
             if (!EmitTree(cx, bce, pn->pn_kid))
                 return false;
         } else {
             if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
-                return false;
-        }
-        if (bce->sc->asFunctionBox()->isStarGenerator()) {
-            if (!EmitFinishIteratorResult(cx, bce, false))
                 return false;
         }
         if (pn->pn_hidden && NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
@@ -6507,12 +6407,11 @@ const JSSrcNoteSpec js_SrcNoteSpec[] = {
 
 /* 16 */ {"catch",          0},
 
-/* 17 */ {"try",            1},
+/* 17 */ {"colspan",        1},
+/* 18 */ {"newline",        0},
+/* 19 */ {"setline",        1},
 
-/* 18 */ {"colspan",        1},
-/* 19 */ {"newline",        0},
-/* 20 */ {"setline",        1},
-
+/* 20 */ {"unused20",       0},
 /* 21 */ {"unused21",       0},
 /* 22 */ {"unused22",       0},
 /* 23 */ {"unused23",       0},

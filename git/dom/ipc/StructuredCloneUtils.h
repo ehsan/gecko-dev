@@ -7,11 +7,10 @@
 #ifndef mozilla_dom_StructuredCloneUtils_h
 #define mozilla_dom_StructuredCloneUtils_h
 
+#include "jsapi.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsIDOMFile.h"
-
-#include "js/StructuredClone.h"
 
 namespace mozilla {
 

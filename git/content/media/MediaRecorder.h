@@ -73,8 +73,8 @@ public:
   void GetMimeType(nsString &aMimeType) { aMimeType = mMimeType; }
 
   static already_AddRefed<MediaRecorder>
-  Constructor(const GlobalObject& aGlobal,
-              DOMMediaStream& aStream, ErrorResult& aRv);
+  Constructor(const GlobalObject& aGlobal, JSContext* aCx, DOMMediaStream& aStream,
+              ErrorResult& aRv);
 
   // EventHandler
   IMPL_EVENT_HANDLER(dataavailable)
@@ -85,7 +85,7 @@ public:
   friend class ExtractEncodedData;
 
 protected:
-  void Init(nsPIDOMWindow* aOwnerWindow);
+  void Init(JSContext* aCx, nsPIDOMWindow* aOwnerWindow);
   // Copy encoded data from encoder to EncodedBufferCache. This function runs in the Media Encoder Thread.
   void ExtractEncodedData();
 
@@ -109,9 +109,7 @@ protected:
   // MediaStream passed from js context
   nsRefPtr<DOMMediaStream> mStream;
   // This media stream is used for notifying raw data to encoder and can be blocked.
-  nsRefPtr<ProcessedMediaStream> mTrackUnionStream;
-  // This is used for destroing the inputport when destroy the mediaRecorder
-  nsRefPtr<MediaInputPort> mStreamPort;
+  nsAutoPtr<ProcessedMediaStream> mTrackUnionStream;
   // This object creates on start() and destroys in ~MediaRecorder.
   nsAutoPtr<EncodedBufferCache> mEncodedBufferCache;
   // It specifies the container format as well as the audio and video capture formats.

@@ -10,25 +10,21 @@
 #include "nsIDOMEvent.h"
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
 #include "nsPoint.h"
 #include "nsGUIEvent.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsAutoPtr.h"
+#include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/EventBinding.h"
 #include "nsIScriptGlobalObject.h"
 #include "Units.h"
-#include "js/TypeDecls.h"
 
 class nsIContent;
-class nsIDOMEventTarget;
 class nsPresContext;
-
-namespace mozilla {
-namespace dom {
-class EventTarget;
-}
-}
+struct JSContext;
+class JSObject;
 
 // Dummy class so we can cast through it to get from nsISupports to
 // nsDOMEvent subclasses with only two non-ambiguous static casts.
@@ -106,15 +102,13 @@ public:
   static const char* GetEventName(uint32_t aEventType);
   static mozilla::CSSIntPoint
   GetClientCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                  mozilla::LayoutDeviceIntPoint aPoint,
-                  mozilla::CSSIntPoint aDefaultPoint);
+                  nsIntPoint aPoint, mozilla::CSSIntPoint aDefaultPoint);
   static mozilla::CSSIntPoint
-  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                mozilla::LayoutDeviceIntPoint aPoint,
+  GetPageCoords(nsPresContext* aPresContext, nsEvent* aEvent, nsIntPoint aPoint,
                 mozilla::CSSIntPoint aDefaultPoint);
-  static nsIntPoint
-  GetScreenCoords(nsPresContext* aPresContext, nsEvent* aEvent,
-                  mozilla::LayoutDeviceIntPoint aPoint);
+  static nsIntPoint GetScreenCoords(nsPresContext* aPresContext,
+                                    nsEvent* aEvent,
+                                    nsIntPoint aPoint);
 
   static already_AddRefed<nsDOMEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
                                                   const nsAString& aType,
@@ -189,9 +183,9 @@ protected:
   nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<mozilla::dom::EventTarget> mExplicitOriginalTarget;
   nsCOMPtr<nsPIDOMWindow>     mOwner; // nsPIDOMWindow for now.
+  nsString                    mCachedType;
   bool                        mEventIsInternal;
   bool                        mPrivateDataDuplicated;
-  bool                        mIsMainThreadEvent;
 };
 
 #define NS_FORWARD_TO_NSDOMEVENT \

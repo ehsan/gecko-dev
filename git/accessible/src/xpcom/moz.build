@@ -6,6 +6,10 @@
 
 MODULE = 'accessibility'
 
+EXPORTS += [
+    'xpcAccEvents.h',
+]
+
 CPP_SOURCES += [
     'nsAccessibleRelation.cpp',
     'xpcAccEvents.cpp',
@@ -14,6 +18,4 @@ CPP_SOURCES += [
 ]
 
 LIBRARY_NAME = 'accessibility_xpcom_s'
-
-LIBXUL_LIBRARY = True
 

@@ -5,7 +5,7 @@
 #ifndef mozilla_PaintTracker_h
 #define mozilla_PaintTracker_h
 
-#include "mozilla/Attributes.h"
+#include "nscore.h"
 #include "nsDebug.h"
 
 namespace mozilla {

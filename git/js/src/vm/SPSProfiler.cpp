@@ -4,15 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/SPSProfiler.h"
-
 #include "mozilla/DebugOnly.h"
 
 #include "jsnum.h"
 #include "jsscript.h"
 
-#include "jit/BaselineJIT.h"
+#include "vm/SPSProfiler.h"
 #include "vm/StringBuffer.h"
+
+#include "ion/BaselineJIT.h"
 
 using namespace js;
 
@@ -65,7 +65,7 @@ SPSProfiler::enable(bool enabled)
      * jitcode for scripts with active frames on the stack.  These scripts need to have
      * their profiler state toggled so they behave properly.
      */
-    jit::ToggleBaselineSPS(rt, enabled);
+    ion::ToggleBaselineSPS(rt, enabled);
 #endif
 }
 
@@ -205,8 +205,6 @@ SPSProfiler::pop()
 const char*
 SPSProfiler::allocProfileString(JSContext *cx, JSScript *script, JSFunction *maybeFun)
 {
-    // Note: this profiler string is regexp-matched by
-    // browser/devtools/profiler/cleopatra/js/parserWorker.js.
     DebugOnly<uint64_t> gcBefore = cx->runtime()->gcNumber;
     StringBuffer buf(cx);
     bool hasAtom = maybeFun != NULL && maybeFun->displayAtom() != NULL;
@@ -265,33 +263,14 @@ SPSEntryMarker::~SPSEntryMarker()
 }
 
 JS_FRIEND_API(jsbytecode*)
-ProfileEntry::pc() volatile
-{
+ProfileEntry::pc() volatile {
     JS_ASSERT_IF(idx != NullPCIndex, idx >= 0 && uint32_t(idx) < script()->length);
     return idx == NullPCIndex ? NULL : script()->code + idx;
 }
 
 JS_FRIEND_API(void)
-ProfileEntry::setPC(jsbytecode *pc) volatile
-{
-    JS_ASSERT_IF(pc != NULL, script()->code <= pc && pc < script()->code + script()->length);
+ProfileEntry::setPC(jsbytecode *pc) volatile {
+    JS_ASSERT_IF(pc != NULL, script()->code <= pc &&
+                             pc < script()->code + script()->length);
     idx = pc == NULL ? NullPCIndex : pc - script()->code;
-}
-
-JS_FRIEND_API(void)
-js::SetRuntimeProfilingStack(JSRuntime *rt, ProfileEntry *stack, uint32_t *size, uint32_t max)
-{
-    rt->spsProfiler.setProfilingStack(stack, size, max);
-}
-
-JS_FRIEND_API(void)
-js::EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled)
-{
-    rt->spsProfiler.enable(enabled);
-}
-
-JS_FRIEND_API(jsbytecode*)
-js::ProfilingGetPC(JSRuntime *rt, JSScript *script, void *ip)
-{
-    return rt->spsProfiler.ipToPC(script, size_t(ip));
 }

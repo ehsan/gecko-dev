@@ -10,7 +10,6 @@
 #include "gfxMatrix.h"
 #include "nsISVGSVGFrame.h"
 #include "nsSVGContainerFrame.h"
-#include "nsRegion.h"
 
 class nsSVGForeignObjectFrame;
 

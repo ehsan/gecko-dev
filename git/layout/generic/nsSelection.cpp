@@ -13,17 +13,23 @@
 #include "mozilla/Attributes.h"
 
 #include "nsCOMPtr.h"
+#include "nsWeakReference.h"
+#include "nsIFactory.h"
 #include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsFrameSelection.h"
 #include "nsISelectionListener.h"
+#include "nsIComponentManager.h"
 #include "nsContentCID.h"
 #include "nsIContent.h"
+#include "nsIDOMElement.h"
 #include "nsIDOMNode.h"
 #include "nsRange.h"
 #include "nsCOMArray.h"
 #include "nsGUIEvent.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsITableCellLayout.h"
+#include "nsIDOMNodeList.h"
 #include "nsTArray.h"
 #include "nsTableOuterFrame.h"
 #include "nsTableCellFrame.h"
@@ -35,6 +41,8 @@
 #include <algorithm>
 
 // for IBMBIDI
+#include "nsFrameTraversal.h"
+#include "nsILineIterator.h"
 #include "nsGkAtoms.h"
 #include "nsIFrameTraversal.h"
 #include "nsLayoutUtils.h"
@@ -57,6 +65,7 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 
 
 #include "nsITimer.h"
+#include "nsIServiceManager.h"
 #include "nsFrameManager.h"
 // notifications
 #include "nsIDOMDocument.h"
@@ -80,6 +89,10 @@ using namespace mozilla;
 
 static NS_DEFINE_IID(kCContentIteratorCID, NS_CONTENTITERATOR_CID);
 
+//PROTOTYPES
+class nsFrameSelection;
+class nsAutoScrollTimer;
+
 static bool IsValidSelectionPoint(nsFrameSelection *aFrameSel, nsINode *aNode);
 
 static nsIAtom *GetTag(nsINode *aNode);
@@ -92,7 +105,7 @@ static void printRange(nsRange *aDomRange);
 #define DEBUG_OUT_RANGE(x)  printRange(x)
 #else
 #define DEBUG_OUT_RANGE(x)  
-#endif // PRINT_RANGE
+#endif //MOZ_DEBUG
 
 
 
@@ -115,6 +128,8 @@ struct CachedOffsetForFrame {
   int32_t      mLastContentOffset;      // store last content offset
   bool mCanCacheFrameOffset;    // cached frame offset is valid?
 };
+
+static RangeData sEmptyData(nullptr);
 
 // Stack-class to turn on/off selection batching for table selection
 class MOZ_STACK_CLASS nsSelectionBatcher MOZ_FINAL
@@ -359,8 +374,6 @@ nsFrameSelection::nsFrameSelection()
   mDelayedMouseEventClickCount = 0;
 }
 
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsFrameSelection)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFrameSelection)
   int32_t i;
@@ -772,12 +785,7 @@ nsFrameSelection::MoveCaret(uint32_t          aKeycode,
   }
 
   int32_t caretStyle = Preferences::GetInt("layout.selection.caret_style", 0);
-  if (caretStyle == 0
-#ifdef XP_WIN
-      && aKeycode != nsIDOMKeyEvent::DOM_VK_UP
-      && aKeycode != nsIDOMKeyEvent::DOM_VK_DOWN
-#endif
-     ) {
+  if (caretStyle == 0) {
     // Put caret at the selection edge in the |aKeycode| direction.
     caretStyle = 2;
   }
@@ -3009,8 +3017,6 @@ Selection::~Selection()
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(Selection)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Selection)
   // Unlink the selection listeners *before* we do RemoveAllRanges since
   // we don't want to notify the listeners during JS GC (they could be
@@ -4382,12 +4388,8 @@ Selection::Collapse(nsINode* aParentNode, int32_t aOffset)
   if (!IsValidSelectionPoint(mFrameSelection, aParentNode))
     return NS_ERROR_FAILURE;
   nsresult result;
-
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
-  if (presContext->Document() != aParentNode->OwnerDoc())
-    return NS_ERROR_FAILURE;
-
   // Delete all of the current ranges
+  nsRefPtr<nsPresContext>  presContext = GetPresContext();
   Clear(presContext);
 
   // Turn off signal for table selection
@@ -4438,10 +4440,6 @@ Selection::CollapseToStart()
   if (!firstRange)
     return NS_ERROR_FAILURE;
 
-  if (mFrameSelection) {
-    int16_t reason = mFrameSelection->PopReason() | nsISelectionListener::COLLAPSETOSTART_REASON;
-    mFrameSelection->PostReason(reason);
-  }
   return Collapse(firstRange->GetStartParent(), firstRange->StartOffset());
 }
 
@@ -4462,10 +4460,6 @@ Selection::CollapseToEnd()
   if (!lastRange)
     return NS_ERROR_FAILURE;
 
-  if (mFrameSelection) {
-    int16_t reason = mFrameSelection->PopReason() | nsISelectionListener::COLLAPSETOEND_REASON;
-    mFrameSelection->PostReason(reason);
-  }
   return Collapse(lastRange->GetEndParent(), lastRange->EndOffset());
 }
 
@@ -4514,8 +4508,7 @@ Selection::GetRangeCount(int32_t* aRangeCount)
 NS_IMETHODIMP
 Selection::GetRangeAt(int32_t aIndex, nsIDOMRange** aReturn)
 {
-  RangeData empty(nullptr);
-  *aReturn = mRanges.SafeElementAt(aIndex, empty).mRange;
+  *aReturn = mRanges.SafeElementAt(aIndex, sEmptyData).mRange;
   if (!*aReturn) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -4528,8 +4521,7 @@ Selection::GetRangeAt(int32_t aIndex, nsIDOMRange** aReturn)
 nsRange*
 Selection::GetRangeAt(int32_t aIndex)
 {
-  RangeData empty(nullptr);
-  return mRanges.SafeElementAt(aIndex, empty).mRange;
+  return mRanges.SafeElementAt(aIndex, sEmptyData).mRange;
 }
 
 /*
@@ -4624,10 +4616,6 @@ Selection::Extend(nsINode* aParentNode, int32_t aOffset)
   if (!IsValidSelectionPoint(mFrameSelection, aParentNode))
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
-  if (presContext->Document() != aParentNode->OwnerDoc())
-    return NS_ERROR_FAILURE;
-
   //mFrameSelection->InvalidateDesiredX();
 
   nsINode* anchorNode = GetAnchorNode();
@@ -4662,6 +4650,7 @@ Selection::Extend(nsINode* aParentNode, int32_t aOffset)
                                                   aParentNode, aOffset,
                                                   &disconnected);
 
+  nsRefPtr<nsPresContext>  presContext = GetPresContext();
   nsRefPtr<nsRange> difRange = new nsRange(aParentNode);
   if ((result1 == 0 && result3 < 0) || (result1 <= 0 && result2 < 0)){//a1,2  a,1,2
     //select from 1 to 2 unless they are collapsed

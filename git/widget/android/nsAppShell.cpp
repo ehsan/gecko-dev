@@ -3,15 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsAppShell.h"
-
+// Make sure the order of included headers
 #include "base/basictypes.h"
 #include "nspr/prtypes.h"
 #include "base/message_loop.h"
 #include "base/task.h"
+
 #include "mozilla/Hal.h"
-#include "nsIScreen.h"
-#include "nsIScreenManager.h"
+#include "nsAppShell.h"
 #include "nsWindow.h"
 #include "nsThreadUtils.h"
 #include "nsICommandLineRunner.h"
@@ -118,7 +117,7 @@ class WakeLockListener MOZ_FINAL : public nsIDOMMozWakeLockListener {
 
 NS_IMPL_ISUPPORTS1(WakeLockListener, nsIDOMMozWakeLockListener)
 nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
-StaticRefPtr<WakeLockListener> sWakeLockListener;
+nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
 
 nsAppShell::nsAppShell()
     : mQueueLock("nsAppShell.mQueueLock"),
@@ -563,11 +562,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         }
         break;
     }
-
-    case AndroidGeckoEvent::TELEMETRY_HISTOGRAM_ADD:
-        Telemetry::Accumulate(NS_ConvertUTF16toUTF8(curEvent->Characters()).get(),
-                              curEvent->Count());
-        break;
 
     case AndroidGeckoEvent::NOOP:
         break;

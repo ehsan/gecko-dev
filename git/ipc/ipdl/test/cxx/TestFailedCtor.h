@@ -80,7 +80,7 @@ class TestFailedCtorSubParent :
     public PTestFailedCtorSubParent
 {
 public:
-    TestFailedCtorSubParent() : mOne(nullptr), mTwo(nullptr), mThree(nullptr) { }
+    TestFailedCtorSubParent() : mOne(NULL), mTwo(NULL), mThree(NULL) { }
     virtual ~TestFailedCtorSubParent();
 
 protected:

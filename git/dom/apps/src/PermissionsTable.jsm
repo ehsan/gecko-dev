@@ -69,12 +69,6 @@ this.PermissionsTable =  { geolocation: {
                              certified: ALLOW_ACTION,
                              access: ["read"]
                            },
-                           "device-storage:crashes": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read"]
-                           },
                            "device-storage:pictures": {
                              app: DENY_ACTION,
                              privileged: PROMPT_ACTION,
@@ -147,11 +141,6 @@ this.PermissionsTable =  { geolocation: {
                              additional: ["indexedDB-chrome-settings"]
                            },
                            permissions: {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           phonenumberservice: {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
@@ -282,11 +271,6 @@ this.PermissionsTable =  { geolocation: {
                              certified: ALLOW_ACTION
                            },
                            "keyboard": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "wappush": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION

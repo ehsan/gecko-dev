@@ -121,7 +121,7 @@ class DataChannelConnection: public nsITimerCallback
 #endif
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
   class DataConnectionListener : public SupportsWeakPtr<DataConnectionListener>
@@ -344,7 +344,7 @@ public:
     , mStream(stream)
     , mPrPolicy(policy)
     , mPrValue(value)
-    , mFlags(flags)
+    , mFlags(0)
     , mIsRecvBinary(false)
     {
       NS_ASSERTION(mConnection,"NULL connection");

@@ -15,6 +15,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDocument.h"
 #include "nsIImageLoadingContent.h"
+#include "nsILink.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLImageElement.h"

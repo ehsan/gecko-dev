@@ -8,11 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_VOICE_ENGINE_DTMF_INBAND_H_
-#define WEBRTC_VOICE_ENGINE_DTMF_INBAND_H_
+#ifndef WEBRTC_VOICE_ENGINE_DTMF_INBAND_H
+#define WEBRTC_VOICE_ENGINE_DTMF_INBAND_H
 
-#include "webrtc/typedefs.h"
-#include "webrtc/voice_engine/voice_engine_defines.h"
+#if _MSC_VER > 1000
+#pragma once
+#endif
+
+#include "typedefs.h"
+#include "voice_engine_defines.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -20,22 +24,22 @@ class CriticalSectionWrapper;
 class DtmfInband
 {
 public:
-    DtmfInband(int32_t id);
+    DtmfInband(const int32_t id);
 
     virtual ~DtmfInband();
 
     void Init();
 
-    int SetSampleRate(uint16_t frequency);
+    int SetSampleRate(const uint16_t frequency);
 
     int GetSampleRate(uint16_t& frequency);
 
-    int AddTone(uint8_t eventCode,
+    int AddTone(const uint8_t eventCode,
                 int32_t lengthMs,
                 int32_t attenuationDb);
 
     int ResetTone();
-    int StartTone(uint8_t eventCode, int32_t attenuationDb);
+    int StartTone(const uint8_t eventCode, int32_t attenuationDb);
 
     int StopTone();
 
@@ -50,21 +54,21 @@ public:
 private:
     void ReInit();
     int16_t DtmfFix_generate(int16_t* decoded,
-                             int16_t value,
-                             int16_t volume,
-                             int16_t frameLen,
-                             int16_t fs);
+                             const int16_t value,
+                             const int16_t volume,
+                             const int16_t frameLen,
+                             const int16_t fs);
 
 private:
     enum {kDtmfFrameSizeMs = 10};
     enum {kDtmfAmpHigh = 32768};
     enum {kDtmfAmpLow  = 23171};	// 3 dB lower than the high frequency
 
-    int16_t DtmfFix_generateSignal(int16_t a1_times2,
-                                   int16_t a2_times2,
-                                   int16_t volume,
+    int16_t DtmfFix_generateSignal(const int16_t a1_times2,
+                                   const int16_t a2_times2,
+                                   const int16_t volume,
                                    int16_t* signal,
-                                   int16_t length);
+                                   const int16_t length);
 
 private:
     CriticalSectionWrapper& _critSect;
@@ -84,4 +88,4 @@ private:
 
 }   // namespace webrtc
 
-#endif // #ifndef WEBRTC_VOICE_ENGINE_DTMF_INBAND_H_
+#endif // #ifndef WEBRTC_VOICE_ENGINE_DTMF_INBAND_H

@@ -21,7 +21,6 @@ class nsISocketTransport;
 
 namespace mozilla { namespace net {
 
-class SpdyPushedStream3;
 class SpdyStream3;
 
 class SpdySession3 MOZ_FINAL : public ASpdySession
@@ -30,7 +29,7 @@ class SpdySession3 MOZ_FINAL : public ASpdySession
                              , public nsAHttpSegmentWriter
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSAHTTPTRANSACTION
   NS_DECL_NSAHTTPCONNECTION(mConnection)
   NS_DECL_NSAHTTPSEGMENTREADER

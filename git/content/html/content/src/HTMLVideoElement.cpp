@@ -42,8 +42,14 @@ namespace dom {
 
 static bool sVideoStatsEnabled;
 
-NS_IMPL_ISUPPORTS_INHERITED2(HTMLVideoElement, HTMLMediaElement,
-                             nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)
+NS_IMPL_ADDREF_INHERITED(HTMLVideoElement, HTMLMediaElement)
+NS_IMPL_RELEASE_INHERITED(HTMLVideoElement, HTMLMediaElement)
+
+NS_INTERFACE_TABLE_HEAD(HTMLVideoElement)
+  NS_HTML_CONTENT_INTERFACES(HTMLMediaElement)
+  NS_INTERFACE_TABLE_INHERITED2(HTMLVideoElement, nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLVideoElement)
 
@@ -258,7 +264,7 @@ HTMLVideoElement::GetVideoPlaybackQuality()
   uint64_t totalFrames = 0;
   uint64_t droppedFrames = 0;
   uint64_t corruptedFrames = 0;
-  double totalFrameDelay = 0.0;
+  double playbackJitter = 0.0;
 
   if (sVideoStatsEnabled) {
     nsPIDOMWindow* window = OwnerDoc()->GetInnerWindow();
@@ -274,13 +280,13 @@ HTMLVideoElement::GetVideoPlaybackQuality()
       totalFrames = stats.GetParsedFrames();
       droppedFrames = totalFrames - stats.GetPresentedFrames();
       corruptedFrames = totalFrames - stats.GetDecodedFrames();
-      totalFrameDelay = stats.GetTotalFrameDelay();
+      playbackJitter = stats.GetPlaybackJitter();
     }
   }
 
   nsRefPtr<VideoPlaybackQuality> playbackQuality =
     new VideoPlaybackQuality(this, creationTime, totalFrames, droppedFrames,
-                             corruptedFrames, totalFrameDelay);
+                             corruptedFrames, playbackJitter);
   return playbackQuality.forget();
 }
 

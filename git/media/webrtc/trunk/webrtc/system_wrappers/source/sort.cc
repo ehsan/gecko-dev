@@ -25,8 +25,7 @@
 #include <algorithm>    // std::sort
 #include <vector>
 
-// TODO(ajm) upgrade to spreadsort v2.
-#include "webrtc/system_wrappers/source/spreadsortlib/spreadsort.hpp"
+#include "spreadsort.hpp"  // TODO(ajm) upgrade to spreadsort v2.
 #endif
 
 #ifdef NO_STL

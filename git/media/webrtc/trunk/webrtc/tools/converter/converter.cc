@@ -14,7 +14,7 @@
 #include <iomanip>
 #include <sstream>
 
-#include "webrtc/tools/converter/converter.h"
+#include "tools/converter/converter.h"
 
 #ifdef WIN32
 #define SEPARATOR '\\'
@@ -170,3 +170,5 @@ std::string Converter::FormFrameName(int width, int number) {
 
 }  // namespace test
 }  // namespace webrtc
+
+

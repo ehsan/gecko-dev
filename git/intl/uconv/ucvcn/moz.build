@@ -23,5 +23,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'ucvcn_s'
 
-LIBXUL_LIBRARY = True
-

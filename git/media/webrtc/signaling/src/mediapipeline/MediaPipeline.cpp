@@ -23,7 +23,7 @@
 #include "ImageContainer.h"
 #include "VideoUtils.h"
 #ifdef MOZ_WIDGET_GONK
-#include "GrallocImages.h"
+#include "GonkIOSurfaceImage.h"
 #endif
 #endif
 
@@ -84,28 +84,25 @@ nsresult MediaPipeline::Init_s() {
     MOZ_MTLOG(ML_ERROR, "RTP transport is already in error state");
     TransportFailed_s(rtp_transport_);
     return NS_ERROR_FAILURE;
-  }
+  } else {
+    if (!muxed_) {
+      rtcp_transport_->SignalStateChange.connect(this,
+                                                 &MediaPipeline::StateChange);
 
-  // If rtcp_transport_ is the same as rtp_transport_ then we are muxing.
-  // Otherwise, set it up separately.
-  if (rtcp_transport_ != rtp_transport_) {
-    rtcp_transport_->SignalStateChange.connect(this,
-                                               &MediaPipeline::StateChange);
-
-    if (rtcp_transport_->state() == TransportLayer::TS_OPEN) {
-      res = TransportReady_s(rtcp_transport_);
-      if (NS_FAILED(res)) {
-        MOZ_MTLOG(ML_ERROR, "Error calling TransportReady(); res="
-                  << static_cast<uint32_t>(res) << " in " << __FUNCTION__);
-        return res;
+      if (rtcp_transport_->state() == TransportLayer::TS_OPEN) {
+        res = TransportReady_s(rtcp_transport_);
+        if (NS_FAILED(res)) {
+          MOZ_MTLOG(ML_ERROR, "Error calling TransportReady(); res="
+                    << static_cast<uint32_t>(res) << " in " << __FUNCTION__);
+          return res;
+        }
+      } else if (rtcp_transport_->state() == TransportLayer::TS_ERROR) {
+        MOZ_MTLOG(ML_ERROR, "RTCP transport is already in error state");
+        TransportFailed_s(rtcp_transport_);
+        return NS_ERROR_FAILURE;
       }
-    } else if (rtcp_transport_->state() == TransportLayer::TS_ERROR) {
-      MOZ_MTLOG(ML_ERROR, "RTCP transport is already in error state");
-      TransportFailed_s(rtcp_transport_);
-      return NS_ERROR_FAILURE;
     }
   }
-
   return NS_OK;
 }
 
@@ -124,12 +121,6 @@ void MediaPipeline::ShutdownTransport_s() {
 }
 
 void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
-  // If rtcp_transport_ is the same as rtp_transport_ then we are muxing.
-  // So the only flow should be the RTP flow.
-  if (rtcp_transport_ == rtp_transport_) {
-    MOZ_ASSERT(flow == rtp_transport_);
-  }
-
   if (state == TransportLayer::TS_OPEN) {
     MOZ_MTLOG(ML_DEBUG, "Flow is ready");
     TransportReady_s(flow);
@@ -225,8 +216,7 @@ nsresult MediaPipeline::TransportReady_s(TransportFlow *flow) {
     }
 
     // Start listening
-    // If rtcp_transport_ is the same as rtp_transport_ then we are muxing
-    if (rtcp_transport_ == rtp_transport_) {
+    if (muxed_) {
       MOZ_ASSERT(!rtcp_send_srtp_ && !rtcp_recv_srtp_);
       rtcp_send_srtp_ = rtp_send_srtp_;
       rtcp_recv_srtp_ = rtp_recv_srtp_;
@@ -237,7 +227,6 @@ nsresult MediaPipeline::TransportReady_s(TransportFlow *flow) {
       dtls->downward()->SignalPacketReceived.connect(this,
                                                      &MediaPipeline::
                                                      PacketReceived);
-      rtcp_state_ = MP_OPEN;
     } else {
       MOZ_MTLOG(ML_DEBUG, "Listening for RTP packets received on " <<
                 static_cast<void *>(dtls->downward()));
@@ -279,13 +268,6 @@ nsresult MediaPipeline::TransportFailed_s(TransportFlow *flow) {
   State *state = rtcp ? &rtcp_state_ : &rtp_state_;
 
   *state = MP_CLOSED;
-
-  // If rtcp_transport_ is the same as rtp_transport_ then we are muxing
-  if(rtcp_transport_ == rtp_transport_) {
-    MOZ_ASSERT(state != &rtcp_state_);
-    rtcp_state_ = MP_CLOSED;
-  }
-
 
   MOZ_MTLOG(ML_DEBUG, "Transport closed for flow " << (rtcp ? "rtcp" : "rtp"));
 
@@ -371,7 +353,7 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
                                       const unsigned char *data,
                                       size_t len) {
   if (!transport_->pipeline()) {
-    MOZ_MTLOG(ML_ERROR, "Discarding incoming packet; transport disconnected");
+    MOZ_MTLOG(ML_DEBUG, "Discarding incoming packet; transport disconnected");
     return;
   }
 
@@ -381,7 +363,7 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
   }
 
   if (rtp_state_ != MP_OPEN) {
-    MOZ_MTLOG(ML_ERROR, "Discarding incoming packet; pipeline not open");
+    MOZ_MTLOG(ML_DEBUG, "Discarding incoming packet; pipeline not open");
     return;
   }
 
@@ -530,13 +512,6 @@ nsresult MediaPipelineTransmit::Init() {
 
   stream_->AddListener(listener_);
 
-  // Is this a gUM mediastream?  If so, also register the Listener directly with
-  // the SourceMediaStream that's attached to the TrackUnion so we can get direct
-  // unqueued (and not resampled) data
-  if (domstream_->AddDirectListener(listener_)) {
-    listener_->direct_connect_ = true;
-  }
-
   return MediaPipeline::Init();
 }
 
@@ -654,18 +629,6 @@ nsresult MediaPipeline::PipelineTransport::SendRtcpPacket_s(
                                out_len);
 }
 
-// Called if we're attached with AddDirectListener()
-void MediaPipelineTransmit::PipelineListener::
-NotifyRealtimeData(MediaStreamGraph* graph, TrackID tid,
-                   TrackRate rate,
-                   TrackTicks offset,
-                   uint32_t events,
-                   const MediaSegment& media) {
-  MOZ_MTLOG(ML_DEBUG, "MediaPipeline::NotifyRealtimeData()");
-
-  NewData(graph, tid, rate, offset, events, media);
-}
-
 void MediaPipelineTransmit::PipelineListener::
 NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                          TrackRate rate,
@@ -674,18 +637,6 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                          const MediaSegment& queued_media) {
   MOZ_MTLOG(ML_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
 
-  // ignore non-direct data if we're also getting direct data
-  if (!direct_connect_) {
-    NewData(graph, tid, rate, offset, events, queued_media);
-  }
-}
-
-void MediaPipelineTransmit::PipelineListener::
-NewData(MediaStreamGraph* graph, TrackID tid,
-        TrackRate rate,
-        TrackTicks offset,
-        uint32_t events,
-        const MediaSegment& media) {
   if (!active_) {
     MOZ_MTLOG(ML_DEBUG, "Discarding packets because transport not ready");
     return;
@@ -694,13 +645,13 @@ NewData(MediaStreamGraph* graph, TrackID tid,
   // TODO(ekr@rtfm.com): For now assume that we have only one
   // track type and it's destined for us
   // See bug 784517
-  if (media.GetType() == MediaSegment::AUDIO) {
+  if (queued_media.GetType() == MediaSegment::AUDIO) {
     if (conduit_->type() != MediaSessionConduit::AUDIO) {
       // Ignore data in case we have a muxed stream
       return;
     }
     AudioSegment* audio = const_cast<AudioSegment *>(
-        static_cast<const AudioSegment *>(&media));
+        static_cast<const AudioSegment *>(&queued_media));
 
     AudioSegment::ChunkIterator iter(*audio);
     while(!iter.IsEnded()) {
@@ -708,14 +659,14 @@ NewData(MediaStreamGraph* graph, TrackID tid,
                         rate, *iter);
       iter.Next();
     }
-  } else if (media.GetType() == MediaSegment::VIDEO) {
+  } else if (queued_media.GetType() == MediaSegment::VIDEO) {
 #ifdef MOZILLA_INTERNAL_API
     if (conduit_->type() != MediaSessionConduit::VIDEO) {
       // Ignore data in case we have a muxed stream
       return;
     }
     VideoSegment* video = const_cast<VideoSegment *>(
-        static_cast<const VideoSegment *>(&media));
+        static_cast<const VideoSegment *>(&queued_media));
 
     VideoSegment::ChunkIterator iter(*video);
     while(!iter.IsEnded()) {
@@ -872,8 +823,8 @@ void MediaPipelineTransmit::PipelineListener::ProcessVideoChunk(
 
   ImageFormat format = img->GetFormat();
 #ifdef MOZ_WIDGET_GONK
-  if (format == GRALLOC_PLANAR_YCBCR) {
-    layers::GrallocImage *nativeImage = static_cast<layers::GrallocImage*>(img);
+  if (format == GONK_IO_SURFACE) {
+    layers::GonkIOSurfaceImage *nativeImage = static_cast<layers::GonkIOSurfaceImage*>(img);
     layers::SurfaceDescriptor handle = nativeImage->GetSurfaceDescriptor();
     layers::SurfaceDescriptorGralloc grallocHandle = handle.get_SurfaceDescriptorGralloc();
 
@@ -913,7 +864,7 @@ void MediaPipelineTransmit::PipelineListener::ProcessVideoChunk(
     // XXX Consider making this a non-debug-only check if we ever implement
     // any subclasses of PlanarYCbCrImage that allow disjoint buffers such
     // that y+3(width*height)/2 might go outside the allocation.
-    // GrallocImage can have wider strides, and so in some cases
+    // GrallocPlanarYCbCrImage can have wider strides, and so in some cases
     // would encode as garbage.  If we need to encode it we'll either want to
     // modify SendVideoFrame or copy/move the data in the buffer.
 

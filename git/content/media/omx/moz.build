@@ -14,12 +14,7 @@ EXPORTS += [
 CPP_SOURCES += [
     'MediaOmxDecoder.cpp',
     'MediaOmxReader.cpp',
-    'MP3FrameParser.cpp',
     'OmxDecoder.cpp',
     'OMXCodecProxy.cpp',
 ]
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkconomx_s'
 

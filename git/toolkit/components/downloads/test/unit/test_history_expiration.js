@@ -26,10 +26,6 @@ function getExpirablePRTime() {
 
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   run_next_test();
 }
 

@@ -67,13 +67,6 @@ pref("extensions.autoDisableScopes", 15);
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
 
-// At startup, should we check to see if the installation
-// date is older than some threshold
-pref("app.update.checkInstallTime", true);
-
-// The number of days a binary is permitted to be old without checking is defined in
-// firefox-branding.js (app.update.checkInstallTime.days)
-
 // The minimum delay in seconds for the timer to fire.
 // default=2 minutes
 pref("app.update.timerMinimumDelay", 120);
@@ -230,6 +223,8 @@ pref("general.autoScroll", false);
 pref("general.autoScroll", true);
 #endif
 
+pref("general.useragent.complexOverride.moodle", false); // bug 797703
+
 // At startup, check if we're the default browser and prompt user if not.
 pref("browser.shell.checkDefaultBrowser", true);
 pref("browser.shell.shortcutFavicons",true);
@@ -335,15 +330,8 @@ pref("browser.download.manager.quitBehavior", 0);
 pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
-// Enables the asynchronous Downloads API in the Downloads Panel.
-pref("browser.download.useJSTransfer", true);
-
 // This allows disabling the Downloads Panel in favor of the old interface.
 pref("browser.download.useToolkitUI", false);
-
-// This allows disabling the animated notifications shown by
-// the Downloads Indicator when a download starts or completes.
-pref("browser.download.animateNotifications", true);
 
 // This records whether or not the panel has been shown at least once.
 pref("browser.download.panel.shown", false);
@@ -483,10 +471,6 @@ pref("dom.disable_window_status_change",          true);
 pref("dom.disable_window_move_resize",            false);
 // prevent JS from monkeying with window focus, etc
 pref("dom.disable_window_flip",                   true);
-
-// Disable touch events on Desktop Firefox by default until they are properly
-// supported (bug 736048)
-pref("dom.w3c_touch_events.enabled",        0);
 
 // popups.policy 1=allow,2=reject
 pref("privacy.popups.policy",               1);
@@ -641,10 +625,6 @@ pref("plugins.update.notifyUser", false);
 
 pref("plugins.click_to_play", true);
 
-// let all plugins except Flash default to click-to-play
-pref("plugin.default.state", 1);
-pref("plugin.state.flash", 2);
-
 // display door hanger if flash not installed
 pref("plugins.notifyMissingFlash", true);
 
@@ -779,12 +759,6 @@ pref("browser.safebrowsing.reportMalwareErrorURL", "http://%LOCALE%.malware-erro
 
 pref("browser.safebrowsing.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/phishing-protection/");
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
-// Since the application reputation query isn't hooked in anywhere yet, this
-// preference does not matter. To be extra safe, don't turn this preference on
-// for official builds without whitelisting (bug 842828).
-#ifndef MOZILLA_OFFICIAL
-pref("browser.safebrowsing.appRepURL", "https://sb-ssl.google.com/safebrowsing/clientreport/download");
-#endif
 
 #ifdef MOZILLA_OFFICIAL
 // Normally the "client ID" sent in updates is appinfo.name, but for
@@ -809,6 +783,7 @@ pref("urlclassifier.max-complete-age", 2700);
 #endif
 
 pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
+pref("browser.mixedcontent.warning.infoURL", "http://support.mozilla.org/1/%APP%/%VERSION%/%OS%/%LOCALE%/mixed-content/");
 
 pref("browser.EULA.version", 3);
 pref("browser.rights.version", 3);
@@ -1079,7 +1054,6 @@ pref("devtools.inspector.enabled", true);
 pref("devtools.inspector.activeSidebar", "ruleview");
 pref("devtools.inspector.markupPreview", false);
 pref("devtools.inspector.remote", false);
-pref("devtools.inspector.show_pseudo_elements", true);
 
 // Enable the Layout View
 pref("devtools.layoutview.enabled", true);
@@ -1087,7 +1061,6 @@ pref("devtools.layoutview.open", false);
 
 // Enable the Responsive UI tool
 pref("devtools.responsiveUI.enabled", true);
-pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
 pref("devtools.debugger.enabled", true);
@@ -1289,13 +1262,14 @@ pref("security.mixed_content.block_active_content", true);
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
 
+#ifndef RELEASE_BUILD
+// Enable Web Audio for Firefox Desktop in Nightly and Aurora
+pref("media.webaudio.enabled", true);
+#endif
+
 // If this turns true, Moz*Gesture events are not called stopPropagation()
 // before content.
 pref("dom.debug.propagate_gesture_events_through_content", false);
 
 // The request URL of the GeoLocation backend.
 pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%GOOGLE_API_KEY%");
-
-// Necko IPC security checks only needed for app isolation for cookies/cache/etc:
-// currently irrelevant for desktop e10s
-pref("network.disable.ipc.security", true);

@@ -14,8 +14,11 @@ function test() {
 }
 
 function consoleOpened(HUD) {
-  let tools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-  let JSPropertyProvider = tools.require("devtools/toolkit/webconsole/utils").JSPropertyProvider;
+  let tmp = {};
+  Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tmp);
+  let WCU = tmp.WebConsoleUtils;
+  let JSPropertyProvider = tmp.JSPropertyProvider;
+  tmp = null;
 
   let jsterm = HUD.jsterm;
   let win = content.wrappedJSObject;

@@ -30,7 +30,6 @@ public:
                                    int aChannel) = 0;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) = 0;
   virtual void GetAddress(nsAString& aDeviceAddress) = 0;
-  virtual bool IsConnected() = 0;
 };
 
 END_BLUETOOTH_NAMESPACE

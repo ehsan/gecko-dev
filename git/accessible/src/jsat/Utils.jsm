@@ -227,14 +227,6 @@ this.Utils = {
       return new Rect(objX.value, objY.value, objW.value, objH.value);
   },
 
-  getTextBounds: function getTextBounds(aAccessible, aStart, aEnd) {
-      let accText = aAccessible.QueryInterface(Ci.nsIAccessibleText);
-      let objX = {}, objY = {}, objW = {}, objH = {};
-      accText.getRangeExtents(aStart, aEnd, objX, objY, objW, objH,
-                              Ci.nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE);
-      return new Rect(objX.value, objY.value, objW.value, objH.value);
-  },
-
   inHiddenSubtree: function inHiddenSubtree(aAccessible) {
     for (let acc=aAccessible; acc; acc=acc.parent) {
       let hidden = Utils.getAttributes(acc).hidden;
@@ -266,15 +258,6 @@ this.Utils = {
     return true;
   },
 
-  matchAttributeValue: function matchAttributeValue(aAttributeValue, values) {
-    let attrSet = new Set(aAttributeValue.split(' '));
-    for (let value of values) {
-      if (attrSet.has(value)) {
-        return value;
-      }
-    }
-  },
-
   getLandmarkName: function getLandmarkName(aAccessible) {
     const landmarks = [
       'banner',
@@ -290,7 +273,11 @@ this.Utils = {
     }
 
     // Looking up a role that would match a landmark.
-    return this.matchAttributeValue(roles, landmarks);
+    for (let landmark of landmarks) {
+      if (roles.indexOf(landmark) > -1) {
+        return landmark;
+      }
+    }
   }
 };
 
@@ -426,16 +413,10 @@ this.Logger = {
  * PivotContext: An object that generates and caches context information
  * for a given accessible and its relationship with another accessible.
  */
-this.PivotContext = function PivotContext(aAccessible, aOldAccessible,
-  aStartOffset, aEndOffset, aIgnoreAncestry = false,
-  aIncludeInvisible = false) {
+this.PivotContext = function PivotContext(aAccessible, aOldAccessible) {
   this._accessible = aAccessible;
   this._oldAccessible =
     this._isDefunct(aOldAccessible) ? null : aOldAccessible;
-  this.startOffset = aStartOffset;
-  this.endOffset = aEndOffset;
-  this._ignoreAncestry = aIgnoreAncestry;
-  this._includeInvisible = aIncludeInvisible;
 }
 
 PivotContext.prototype = {
@@ -445,45 +426,6 @@ PivotContext.prototype = {
 
   get oldAccessible() {
     return this._oldAccessible;
-  },
-
-  get textAndAdjustedOffsets() {
-    if (this.startOffset === -1 && this.endOffset === -1) {
-      return null;
-    }
-
-    if (!this._textAndAdjustedOffsets) {
-      let result = {startOffset: this.startOffset,
-                    endOffset: this.endOffset,
-                    text: this._accessible.QueryInterface(Ci.nsIAccessibleText).
-                          getText(0, Ci.nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT)};
-      let hypertextAcc = this._accessible.QueryInterface(Ci.nsIAccessibleHyperText);
-
-      // Iterate through the links in backwards order so text replacements don't
-      // affect the offsets of links yet to be processed.
-      for (let i = hypertextAcc.linkCount - 1; i >= 0; i--) {
-        let link = hypertextAcc.getLinkAt(i);
-        let linkText = '';
-        if (link instanceof Ci.nsIAccessibleText) {
-          linkText = link.QueryInterface(Ci.nsIAccessibleText).
-                          getText(0, Ci.nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT);
-        }
-
-        let start = link.startIndex;
-        let end = link.endIndex;
-        for (let offset of ['startOffset', 'endOffset']) {
-          if (this[offset] >= end) {
-            result[offset] += linkText.length - (end - start);
-          }
-        }
-        result.text = result.text.substring(0, start) + linkText +
-                      result.text.substring(end);
-      }
-
-      this._textAndAdjustedOffsets = result;
-    }
-
-    return this._textAndAdjustedOffsets;
   },
 
   /**
@@ -505,7 +447,7 @@ PivotContext.prototype = {
    */
   get oldAncestry() {
     if (!this._oldAncestry) {
-      if (!this._oldAccessible || this._ignoreAncestry) {
+      if (!this._oldAccessible) {
         this._oldAncestry = [];
       } else {
         this._oldAncestry = this._getAncestry(this._oldAccessible);
@@ -520,8 +462,7 @@ PivotContext.prototype = {
    */
   get currentAncestry() {
     if (!this._currentAncestry) {
-      this._currentAncestry = this._ignoreAncestry ? [] :
-        this._getAncestry(this._accessible);
+      this._currentAncestry = this._getAncestry(this._accessible);
     }
     return this._currentAncestry;
   },
@@ -533,7 +474,7 @@ PivotContext.prototype = {
    */
   get newAncestry() {
     if (!this._newAncestry) {
-      this._newAncestry = this._ignoreAncestry ? [] : [currentAncestor for (
+      this._newAncestry = [currentAncestor for (
         [index, currentAncestor] of Iterator(this.currentAncestry)) if (
           currentAncestor !== this.oldAncestry[index])];
     }
@@ -552,14 +493,9 @@ PivotContext.prototype = {
     }
     let child = aAccessible.firstChild;
     while (child) {
-      let include;
-      if (this._includeInvisible) {
-        include = true;
-      } else {
-        let [state,] = Utils.getStates(child);
-        include = !(state.value & Ci.nsIAccessibleStates.STATE_INVISIBLE);
-      }
-      if (include) {
+      let state = {};
+      child.getState(state, {});
+      if (!(state.value & Ci.nsIAccessibleStates.STATE_INVISIBLE)) {
         if (aPreorder) {
           yield child;
           [yield node for (node of this._traverse(child, aPreorder, aStop))];
@@ -717,6 +653,7 @@ PrefCache.prototype = {
     if (!this.type) {
       this.type = aBranch.getPrefType(this.name);
     }
+
     switch (this.type) {
       case Ci.nsIPrefBranch.PREF_STRING:
         return aBranch.getCharPref(this.name);

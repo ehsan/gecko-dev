@@ -11,7 +11,7 @@ interface nsIDOMMozMobileNetworkInfo;
 interface nsIDOMMozMobileCellInfo;
 interface nsIDOMMozMobileCFInfo;
 
-[scriptable, builtinclass, uuid(095b3720-058c-11e3-8ffd-0800200c9a66)]
+[scriptable, builtinclass, uuid(61e5729c-100f-436e-bc20-b7706ec40229)]
 interface nsIDOMMozMobileConnection : nsIDOMEventTarget
 {
   const long ICC_SERVICE_CLASS_VOICE = (1 << 0);
@@ -116,65 +116,6 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   nsIDOMDOMRequest selectNetworkAutomatically();
 
   /**
-   * Set roaming preference
-   *
-   * @param mode
-   *        DOMString indicates the desired roaming preference.
-   *        Possible values: 'home', 'affiliated', or 'any'.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
-   *
-   * TODO: param "mode" should be a WebIDL enum when this interface is converted
-   *       to WebIDL
-   */
-  nsIDOMDOMRequest setRoamingPreference(in DOMString mode);
-
-  /**
-   * Query current roaming preference
-   *
-   * If successful, the request's onsuccess will be called. And the request's
-   * result will be a string indicating the current roaming preference.
-   * The value will be either 'home', 'affiliated', or 'any'.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', or 'GenericFailure'
-   */
-  nsIDOMDOMRequest getRoamingPreference();
-
-  /**
-   * Set voice privacy preference.
-   *
-   * @param enabled
-   *        Boolean indicates the preferred voice privacy mode used in voice
-   *        scrambling in CDMA networks. 'True' means the enhanced voice security
-   *        is required.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
-   */
-  nsIDOMDOMRequest setVoicePrivacyMode(in bool enabled);
-
-  /**
-   * Query current voice privacy mode.
-   *
-   * If successful, the request's onsuccess will be called. And the request's
-   * result will be a boolean indicating the current voice privacy mode.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', or 'GenericFailure'
-   */
-  nsIDOMDOMRequest getVoicePrivacyMode();
-
-  /**
    * Send a MMI message.
    *
    * @param mmi
@@ -209,7 +150,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * 'IllegalSIMorME', or 'GenericFailure'
    */
   nsIDOMDOMRequest setCallForwardingOption(in nsIDOMMozMobileCFInfo CFInfo);
 
@@ -226,7 +167,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'InvalidParameter', or 'GenericFailure'.
+   * or 'GenericFailure'.
    */
   nsIDOMDOMRequest getCallForwardingOption(in unsigned short reason);
 
@@ -241,7 +182,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * 'IllegalSIMorME', 'InvalidCallBarringOption' or 'GenericFailure'
    */
   nsIDOMDOMRequest setCallBarringOption(in jsval option);
 
@@ -259,24 +200,9 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'InvalidParameter', or 'GenericFailure'.
+   * 'InvalidCallBarringOption' or 'GenericFailure'.
    */
   nsIDOMDOMRequest getCallBarringOption(in jsval option);
-
-  /**
-   * Change call barring facility password.
-   *
-   * @param info
-   *        An object containing information about pin and newPin, and,
-   *        this object must have both "pin" and "newPin" attributes
-   *        to change the call barring facility password.
-   *
-   * Example:
-   *
-   *   changeCallBarringPassword({pin: "...",
-   *                              newPin: "..."});
-   */
-  nsIDOMDOMRequest changeCallBarringPassword(in jsval info);
 
   /**
    * Configures call waiting options.
@@ -311,7 +237,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * @param clirMode
    *        Is one of the CLIR_* constants.
-   *
+   *        
    * If successful, the request's onsuccess will be called.
    *
    * Otherwise, the request's onerror will be called, and the request's error
@@ -331,16 +257,6 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * or 'GenericFailure'.
    */
   nsIDOMDOMRequest getCallingLineIdRestriction();
-
-  /**
-   * Exit emergency callback mode.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RequestNotSupported'  or 'GenericFailure'.
-   */
-  nsIDOMDOMRequest exitEmergencyCbMode();
 
   /**
    * The 'voicechange' event is notified whenever the voice connection object
@@ -371,18 +287,6 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * state changes.
    */
   [implicit_jscontext] attribute jsval oncfstatechange;
-
-  /**
-   * The 'emergencycbmodechange' event is notified whenever the emergency
-   * callback mode changes.
-   */
-  [implicit_jscontext] attribute jsval onemergencycbmodechange;
-
-  /**
-   * The 'onotastatuschange' event is notified whenever the ota provision status
-   * changes.
-   */
-  [implicit_jscontext] attribute jsval onotastatuschange;
 };
 
 [scriptable, uuid(49706beb-a160-40b7-b745-50f62e389a2c)]
@@ -477,68 +381,18 @@ interface nsIDOMMozMobileNetworkInfo: nsISupports
   readonly attribute DOMString state;
 };
 
-[scriptable, uuid(9750b3a7-d913-436e-95d4-7ef2973ec6a1)]
+[scriptable, uuid(aa546788-4f34-488b-8c3e-2786e02ab992)]
 interface nsIDOMMozMobileCellInfo: nsISupports
 {
   /**
    * Mobile Location Area Code (LAC) for GSM/WCDMA networks.
-   *
-   * Possible ranges from 0x0000 to 0xffff.
-   * -1 if the LAC is unknown.
    */
-  readonly attribute long gsmLocationAreaCode;
+  readonly attribute unsigned short gsmLocationAreaCode;
 
   /**
    * Mobile Cell ID for GSM/WCDMA networks.
-   *
-   * Possible ranges from 0x00000000 to 0xffffffff.
-   * -1 if the cell id is unknown.
    */
-  readonly attribute long long gsmCellId;
-
-  /**
-   * Base Station ID for CDMA networks.
-   *
-   * Possible ranges from 0 to 65535
-   * -1 if the base station id is unknown.
-   */
-  readonly attribute long cdmaBaseStationId;
-
-  /**
-   * Base Station Latitude for CDMA networks.
-   *
-   * Possible ranges from -1296000 to 1296000.
-   * -2147483648 if the latitude is unknown.
-   *
-   * @see 3GPP2 C.S0005-A v6.0.
-   */
-  readonly attribute long cdmaBaseStationLatitude;
-
-  /**
-   * Base Station Longitude for CDMA networks.
-   *
-   * Possible ranges from -2592000 to 2592000.
-   * -2147483648 if the longitude is unknown.
-   *
-   * @see 3GPP2 C.S0005-A v6.0.
-   */
-  readonly attribute long cdmaBaseStationLongitude;
-
-  /**
-   * System ID for CDMA networks.
-   *
-   * Possible ranges from 0 to 32767.
-   * -1 if the system id is unknown.
-   */
-  readonly attribute long cdmaSystemId;
-
-  /**
-   * Network ID for CDMA networks.
-   *
-   * Possible ranges from 0 to 65535.
-   * -1 if the network id is unknown.
-   */
-  readonly attribute long cdmaNetworkId;
+  readonly attribute unsigned long gsmCellId;
 };
 
 [scriptable, uuid(d1b35ad8-99aa-47cc-ab49-2e72b00e39df)]

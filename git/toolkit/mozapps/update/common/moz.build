@@ -32,5 +32,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'updatecommon'
 
-LIBXUL_LIBRARY = True
-

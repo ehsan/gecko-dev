@@ -12,25 +12,21 @@ function test() {
     let { NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
-    waitForNetworkEvents(aMonitor, 1).then(() => {
-      let requestItem = RequestsMenu.getItemAtIndex(0);
-      RequestsMenu.selectedItem = requestItem;
+    RequestsMenu.lazyUpdate = false;
 
-      waitForClipboard(requestItem.attachment.url, function setup() {
-        RequestsMenu.copyUrl();
-      }, function onSuccess() {
-        ok(true, "Clipboard contains the currently selected item's url.");
-        cleanUp();
-      }, function onFailure() {
-        ok(false, "Copying the currently selected item's url was unsuccessful.");
-        cleanUp();
-      });
+    waitForNetworkEvents(aMonitor, 1).then(() => {
+      let imageRequest = RequestsMenu.getItemAtIndex(0);
+      RequestsMenu.selectedItem = imageRequest;
+
+      waitForClipboard(RequestsMenu.selectedItem.attachment.url, function(){ RequestsMenu.copyUrl() } , cleanUp, cleanUp);
     });
 
     aDebuggee.performRequests(1);
 
     function cleanUp(){
-      teardown(aMonitor).then(finish);
+      teardown(aMonitor);
+      finish();
     }
   });
 }
+

@@ -8,8 +8,13 @@
 #define jsgcinlines_h
 
 #include "jsgc.h"
+#include "jscntxt.h"
+#include "jscompartment.h"
+#include "jslock.h"
 
-#include "gc/Zone.h"
+#include "js/RootingAPI.h"
+#include "vm/Shape.h"
+#include "vm/ForkJoin.h"
 
 namespace js {
 
@@ -26,9 +31,8 @@ struct AutoMarkInDeadZone
       : zone(zone),
         scheduled(zone->scheduledForDestruction)
     {
-        JSRuntime *rt = zone->runtimeFromMainThread();
-        if (rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
-            rt->gcObjectsMarkedInDeadZones++;
+        if (zone->rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
+            zone->rt->gcObjectsMarkedInDeadZones++;
             zone->scheduledForDestruction = false;
         }
     }
@@ -85,7 +89,7 @@ GetGCThingTraceKind(const void *thing)
     JS_ASSERT(thing);
     const Cell *cell = static_cast<const Cell *>(thing);
 #ifdef JSGC_GENERATIONAL
-    if (IsInsideNursery(cell->runtimeFromMainThread(), cell))
+    if (IsInsideNursery(cell->runtime(), cell))
         return JSTRACE_OBJECT;
 #endif
     return MapAllocToTraceKind(cell->tenuredGetAllocKind());
@@ -232,12 +236,12 @@ class CellIterUnderGC : public CellIterImpl
 {
   public:
     CellIterUnderGC(JS::Zone *zone, AllocKind kind) {
-        JS_ASSERT(zone->runtimeFromAnyThread()->isHeapBusy());
+        JS_ASSERT(zone->rt->isHeapBusy());
         init(zone, kind);
     }
 
     CellIterUnderGC(ArenaHeader *aheader) {
-        JS_ASSERT(aheader->zone->runtimeFromAnyThread()->isHeapBusy());
+        JS_ASSERT(aheader->zone->rt->isHeapBusy());
         init(aheader);
     }
 };
@@ -263,16 +267,16 @@ class CellIter : public CellIterImpl
         if (IsBackgroundFinalized(kind) &&
             zone->allocator.arenas.needBackgroundFinalizeWait(kind))
         {
-            gc::FinishBackgroundFinalize(zone->runtimeFromMainThread());
+            gc::FinishBackgroundFinalize(zone->rt);
         }
         if (lists->isSynchronizedFreeList(kind)) {
             lists = NULL;
         } else {
-            JS_ASSERT(!zone->runtimeFromMainThread()->isHeapBusy());
+            JS_ASSERT(!zone->rt->isHeapBusy());
             lists->copyFreeListToArena(kind);
         }
 #ifdef DEBUG
-        counter = &zone->runtimeFromAnyThread()->noGCOrAllocationCheck;
+        counter = &zone->rt->noGCOrAllocationCheck;
         ++*counter;
 #endif
         init(zone, kind);
@@ -394,7 +398,7 @@ NewGCThing(ThreadSafeContext *cx, AllocKind kind, size_t thingSize, InitialHeap 
 
     if (cx->isJSContext()) {
         JSContext *ncx = cx->asJSContext();
-        JS_ASSERT_IF(ncx->runtime()->isAtomsCompartment(ncx->compartment()),
+        JS_ASSERT_IF(ncx->compartment() == ncx->runtime()->atomsCompartment,
                      kind == FINALIZE_STRING ||
                      kind == FINALIZE_SHORT_STRING ||
                      kind == FINALIZE_IONCODE);

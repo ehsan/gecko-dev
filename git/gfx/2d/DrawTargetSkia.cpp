@@ -27,6 +27,12 @@
 #include "Tools.h"
 #include <algorithm>
 
+#ifdef ANDROID
+# define USE_SOFT_CLIPPING false
+#else
+# define USE_SOFT_CLIPPING true
+#endif
+
 namespace mozilla {
 namespace gfx {
 
@@ -75,88 +81,25 @@ public:
   ExtendMode mExtendMode;
 };
 
-#ifdef USE_SKIA_GPU
-
-static std::vector<DrawTargetSkia*>&
-GLDrawTargets()
-{
-  static std::vector<DrawTargetSkia*> targets;
-  return targets;
-}
-
-#define SKIA_MAX_CACHE_ITEMS 256
-
-// 64MB was chosen because it seems we can pass all of our tests
-// on the current hardware (Tegra2) without running out of memory
-#define SKIA_TOTAL_CACHE_SIZE 64*1024*1024
-
-static void
-SetCacheLimits()
-{
-  std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
-  uint32_t size = targets.size();
-  if (size == 0)
-    return;
-
-  int individualCacheSize = SKIA_TOTAL_CACHE_SIZE / size;
-  for (int i = 0; i < size; i++) {
-    targets[i]->SetCacheLimits(SKIA_MAX_CACHE_ITEMS, individualCacheSize);
-  }
-
-}
-
-#undef SKIA_MAX_CACHE_ITEMS
-#undef SKIA_TOTAL_CACHE_SIZE
-
-static void
-AddGLDrawTarget(DrawTargetSkia* target)
-{
-  GLDrawTargets().push_back(target);
-  SetCacheLimits();
-}
-
-static void
-RemoveGLDrawTarget(DrawTargetSkia* target)
-{
-  std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
-  std::vector<DrawTargetSkia*>::iterator it = std::find(targets.begin(), targets.end(), target);
-  if (it != targets.end()) {
-    targets.erase(it);
-    SetCacheLimits();
-  }
-}
-
-#endif
-
 DrawTargetSkia::DrawTargetSkia()
-  : mSnapshot(nullptr)
 {
-#ifdef ANDROID
-  mSoftClipping = false;
-#else
-  mSoftClipping = true;
-#endif
 }
 
 DrawTargetSkia::~DrawTargetSkia()
 {
-#ifdef USE_SKIA_GPU
-  RemoveGLDrawTarget(this);
-#endif
+  MOZ_ASSERT(mSnapshots.size() == 0);
 }
 
 TemporaryRef<SourceSurface>
 DrawTargetSkia::Snapshot()
 {
-  RefPtr<SourceSurfaceSkia> snapshot = mSnapshot;
-  if (!snapshot) {
-    snapshot = new SourceSurfaceSkia();
-    mSnapshot = snapshot;
-    if (!snapshot->InitFromCanvas(mCanvas.get(), mFormat, this))
-      return nullptr;
-  }
+  RefPtr<SourceSurfaceSkia> source = new SourceSurfaceSkia();
 
-  return snapshot;
+  if (!source->InitFromCanvas(mCanvas.get(), mFormat, this))
+    return nullptr;
+
+  AppendSnapshot(source);
+  return source;
 }
 
 void SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern, Float aAlpha = 1.0)
@@ -341,7 +284,7 @@ DrawTargetSkia::DrawSurface(SourceSurface *aSurface,
   const SkBitmap& bitmap = static_cast<SourceSurfaceSkia*>(aSurface)->GetBitmap();
  
   AutoPaintSetup paint(mCanvas.get(), aOptions);
-  if (aSurfOptions.mFilter == FILTER_POINT) {
+  if (aSurfOptions.mFilter != FILTER_LINEAR) {
     paint.mPaint.setFilterBitmap(false);
   }
 
@@ -707,15 +650,13 @@ DrawTargetSkia::InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLCont
   mSize = aSize;
   mFormat = aFormat;
 
-  // Always use soft clipping when we're using GL
-  mSoftClipping = true;
-
   mGrGLInterface = aGrGLInterface;
   mGrGLInterface->fCallbackData = reinterpret_cast<GrGLInterfaceCallbackData>(this);
 
   GrBackendContext backendContext = reinterpret_cast<GrBackendContext>(aGrGLInterface);
   SkAutoTUnref<GrContext> gr(GrContext::Create(kOpenGL_GrBackend, backendContext));
   mGrContext = gr.get();
+
 
   GrBackendRenderTargetDesc targetDescriptor;
 
@@ -730,17 +671,7 @@ DrawTargetSkia::InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLCont
   SkAutoTUnref<SkDevice> device(new SkGpuDevice(mGrContext.get(), target.get()));
   SkAutoTUnref<SkCanvas> canvas(new SkCanvas(device.get()));
   mCanvas = canvas.get();
-
-  AddGLDrawTarget(this);
 }
-
-void
-DrawTargetSkia::SetCacheLimits(int aCount, int aSizeInBytes)
-{
-  MOZ_ASSERT(mGrContext, "No GrContext!");
-  mGrContext->setTextureCacheLimits(aCount, aSizeInBytes);
-}
-
 #endif
 
 void
@@ -791,7 +722,7 @@ DrawTargetSkia::ClearRect(const Rect &aRect)
   MarkChanged();
   SkPaint paint;
   mCanvas->save();
-  mCanvas->clipRect(RectToSkRect(aRect), SkRegion::kIntersect_Op, mSoftClipping);
+  mCanvas->clipRect(RectToSkRect(aRect), SkRegion::kIntersect_Op, USE_SOFT_CLIPPING);
   paint.setColor(SkColorSetARGB(0, 0, 0, 0));
   paint.setXfermodeMode(SkXfermode::kSrc_Mode);
   mCanvas->drawPaint(paint);
@@ -807,7 +738,7 @@ DrawTargetSkia::PushClip(const Path *aPath)
 
   const PathSkia *skiaPath = static_cast<const PathSkia*>(aPath);
   mCanvas->save(SkCanvas::kClip_SaveFlag);
-  mCanvas->clipPath(skiaPath->GetPath(), SkRegion::kIntersect_Op, mSoftClipping);
+  mCanvas->clipPath(skiaPath->GetPath(), SkRegion::kIntersect_Op, USE_SOFT_CLIPPING);
 }
 
 void
@@ -816,7 +747,7 @@ DrawTargetSkia::PushClipRect(const Rect& aRect)
   SkRect rect = RectToSkRect(aRect);
 
   mCanvas->save(SkCanvas::kClip_SaveFlag);
-  mCanvas->clipRect(rect, SkRegion::kIntersect_Op, mSoftClipping);
+  mCanvas->clipRect(rect, SkRegion::kIntersect_Op, USE_SOFT_CLIPPING);
 }
 
 void
@@ -839,18 +770,31 @@ DrawTargetSkia::CreateGradientStops(GradientStop *aStops, uint32_t aNumStops, Ex
 }
 
 void
-DrawTargetSkia::MarkChanged()
+DrawTargetSkia::AppendSnapshot(SourceSurfaceSkia* aSnapshot)
 {
-  if (mSnapshot) {
-    mSnapshot->DrawTargetWillChange();
-    mSnapshot = nullptr;
+  mSnapshots.push_back(aSnapshot);
+}
+
+void
+DrawTargetSkia::RemoveSnapshot(SourceSurfaceSkia* aSnapshot)
+{
+  std::vector<SourceSurfaceSkia*>::iterator iter = std::find(mSnapshots.begin(), mSnapshots.end(), aSnapshot);
+  if (iter != mSnapshots.end()) {
+    mSnapshots.erase(iter);
   }
 }
 
 void
-DrawTargetSkia::SnapshotDestroyed()
+DrawTargetSkia::MarkChanged()
 {
-  mSnapshot = nullptr;
+  if (mSnapshots.size()) {
+    for (std::vector<SourceSurfaceSkia*>::iterator iter = mSnapshots.begin();
+         iter != mSnapshots.end(); iter++) {
+      (*iter)->DrawTargetWillChange();
+    }
+    // All snapshots will now have copied data.
+    mSnapshots.clear();
+  }
 }
 
 }

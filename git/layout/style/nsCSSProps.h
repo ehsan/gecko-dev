@@ -89,9 +89,8 @@
 #define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
 #define VARIANT_UO   (VARIANT_URL | VARIANT_NONE)
 #define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
-#define VARIANT_LCALC  (VARIANT_LENGTH | VARIANT_CALC)
-#define VARIANT_LPCALC (VARIANT_LCALC | VARIANT_PERCENT)
-#define VARIANT_LNCALC (VARIANT_LCALC | VARIANT_NUMBER)
+#define VARIANT_LPCALC  (VARIANT_LENGTH | VARIANT_CALC | VARIANT_PERCENT)
+#define VARIANT_LNCALC  (VARIANT_LENGTH | VARIANT_CALC | VARIANT_NUMBER)
 #define VARIANT_LPNCALC (VARIANT_LNCALC | VARIANT_PERCENT)
 #define VARIANT_IMAGE   (VARIANT_URL | VARIANT_NONE | VARIANT_GRADIENT | \
                         VARIANT_IMAGE_RECT | VARIANT_ELEMENT)
@@ -159,9 +158,9 @@
 // See CSSParserImpl::ParseSingleValueProperty and comment above
 // CSS_PROPERTY_PARSE_FUNCTION (which is different).
 #define CSS_PROPERTY_VALUE_PARSER_FUNCTION        (1<<12)
-static_assert((CSS_PROPERTY_PARSE_PROPERTY_MASK &
-               CSS_PROPERTY_VALUE_PARSER_FUNCTION) == 0,
-              "didn't leave enough room for the parse property constants");
+MOZ_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
+                   CSS_PROPERTY_VALUE_PARSER_FUNCTION) == 0,
+                  "didn't leave enough room for the parse property constants");
 
 #define CSS_PROPERTY_VALUE_RESTRICTION_MASK       (3<<13)
 // The parser (in particular, CSSParserImpl::ParseSingleValueProperty)
@@ -418,8 +417,7 @@ public:
 
 #define CSSPROPS_FOR_SHORTHAND_SUBPROPERTIES(iter_, prop_)                    \
   for (const nsCSSProperty* iter_ = nsCSSProps::SubpropertyEntryFor(prop_);   \
-       *iter_ != eCSSProperty_UNKNOWN; ++iter_) \
-    if (nsCSSProps::IsEnabled(*iter_))
+       *iter_ != eCSSProperty_UNKNOWN; ++iter_)
 
   // Keyword/Enum value tables
   static const int32_t kAnimationDirectionKTable[];
@@ -438,7 +436,6 @@ public:
   static const int32_t kBackgroundRepeatKTable[];
   static const int32_t kBackgroundRepeatPartKTable[];
   static const int32_t kBackgroundSizeKTable[];
-  static const int32_t kBlendModeKTable[];
   static const int32_t kBorderCollapseKTable[];
   static const int32_t kBorderColorKTable[];
   static const int32_t kBorderImageRepeatKTable[];
@@ -451,7 +448,6 @@ public:
   static const int32_t kBoxPackKTable[];
   static const int32_t kDominantBaselineKTable[];
   static const int32_t kFillRuleKTable[];
-  static const int32_t kFilterFunctionKTable[];
   static const int32_t kImageRenderingKTable[];
   static const int32_t kShapeRenderingKTable[];
   static const int32_t kStrokeLinecapKTable[];
@@ -471,8 +467,7 @@ public:
   static const int32_t kContentKTable[];
   static const int32_t kCursorKTable[];
   static const int32_t kDirectionKTable[];
-  // Not const because we modify its entries when the pref
-  // "layout.css.flexbox.enabled" changes:
+  // Not const because we modify its entries when CSS prefs change.
   static int32_t kDisplayKTable[];
   static const int32_t kElevationKTable[];
   static const int32_t kEmptyCellsKTable[];
@@ -485,7 +480,6 @@ public:
   static const int32_t kFontKTable[];
   static const int32_t kFontKerningKTable[];
   static const int32_t kFontSizeKTable[];
-  static const int32_t kFontSmoothingKTable[];
   static const int32_t kFontStretchKTable[];
   static const int32_t kFontStyleKTable[];
   static const int32_t kFontSynthesisKTable[];
@@ -498,8 +492,6 @@ public:
   static const int32_t kFontVariantNumericKTable[];
   static const int32_t kFontVariantPositionKTable[];
   static const int32_t kFontWeightKTable[];
-  static const int32_t kImageOrientationKTable[];
-  static const int32_t kImageOrientationFlipKTable[];
   static const int32_t kIMEModeKTable[];
   static const int32_t kLineHeightKTable[];
   static const int32_t kListStylePositionKTable[];
@@ -532,10 +524,9 @@ public:
   static const int32_t kTableLayoutKTable[];
   static const int32_t kTextAlignKTable[];
   static const int32_t kTextAlignLastKTable[];
-  static const int32_t kTextCombineHorizontalKTable[];
+  static const int32_t kTextBlinkKTable[];
   static const int32_t kTextDecorationLineKTable[];
   static const int32_t kTextDecorationStyleKTable[];
-  static const int32_t kTextOrientationKTable[];
   static const int32_t kTextOverflowKTable[];
   static const int32_t kTextTransformKTable[];
   static const int32_t kTransitionTimingFunctionKTable[];

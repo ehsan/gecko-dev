@@ -6,17 +6,13 @@
 #ifndef nsFont_h___
 #define nsFont_h___
 
-#include <stdint.h>                     // for uint8_t, uint16_t
-#include <sys/types.h>                  // for int16_t
-#include "gfxCore.h"                    // for NS_GFX
+#include "gfxCore.h"
+#include "nsCoord.h"
+#include "nsStringGlue.h"
+#include "nsTArray.h"
+#include "gfxFontConstants.h"
 #include "gfxFontFeatures.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCoord.h"                    // for nscoord
-#include "nsStringFwd.h"                // for nsSubstring
-#include "nsStringGlue.h"               // for nsString
-#include "nsTArray.h"                   // for nsTArray
-
-struct gfxFontStyle;
+#include "nsAutoPtr.h"
 
 // XXX we need a method to enumerate all of the possible fonts on the
 // system across family, weight, style, size, etc. But not here!
@@ -37,6 +33,8 @@ const uint8_t kGenericFont_sans_serif   = 0x04;
 const uint8_t kGenericFont_monospace    = 0x08;
 const uint8_t kGenericFont_cursive      = 0x10;
 const uint8_t kGenericFont_fantasy      = 0x20;
+
+struct gfxFontStyle;
 
 // Font structure.
 struct NS_GFX nsFont {
@@ -72,9 +70,6 @@ struct NS_GFX nsFont {
   // The decorations on the font (underline, overline,
   // line-through). The decorations can be binary or'd together.
   uint8_t decorations;
-
-  // Smoothing - controls subpixel-antialiasing (currently OSX only)
-  uint8_t smoothing;
 
   // The weight of the font; see gfxFontConstants.h.
   uint16_t weight;

@@ -9,13 +9,12 @@
  */
 
 #include "xpcprivate.h"
-#include "jsprf.h"
 #include "nsGlobalWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsILoadContext.h"
 #include "nsIDocShell.h"
 
-NS_IMPL_ISUPPORTS2(nsScriptError, nsIConsoleMessage, nsIScriptError)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsScriptError, nsIConsoleMessage, nsIScriptError)
 
 nsScriptError::nsScriptError()
     :  mMessage(),
@@ -104,10 +103,7 @@ nsScriptError::Init(const nsAString& message,
                     const char *category)
 {
     return InitWithWindowID(message, sourceName, sourceLine, lineNumber,
-                            columnNumber, flags,
-                            category ? nsDependentCString(category)
-                                     : EmptyCString(),
-                            0);
+                            columnNumber, flags, category, 0);
 }
 
 NS_IMETHODIMP
@@ -117,7 +113,7 @@ nsScriptError::InitWithWindowID(const nsAString& message,
                                 uint32_t lineNumber,
                                 uint32_t columnNumber,
                                 uint32_t flags,
-                                const nsACString& category,
+                                const char *category,
                                 uint64_t aInnerWindowID)
 {
     mMessage.Assign(message);
@@ -126,7 +122,7 @@ nsScriptError::InitWithWindowID(const nsAString& message,
     mSourceLine.Assign(sourceLine);
     mColumnNumber = columnNumber;
     mFlags = flags;
-    mCategory = category;
+    mCategory.Assign(category);
     mTimeStamp = JS_Now() / 1000;
     mInnerWindowID = aInnerWindowID;
 

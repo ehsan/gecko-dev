@@ -136,6 +136,8 @@ interface TestJSImplInterface {
 
   // A version to test for casting to TestJSImplInterface&
   void passSelf(TestJSImplInterface arg);
+  // A version we can use to test for the exact type passed in
+  void passSelf2(TestJSImplInterface arg);
   void passNullableSelf(TestJSImplInterface? arg);
   attribute TestJSImplInterface nonNullSelf;
   attribute TestJSImplInterface? nullableSelf;
@@ -166,7 +168,10 @@ interface TestJSImplInterface {
   //IndirectlyImplementedInterface receiveWeakOther();
   //IndirectlyImplementedInterface? receiveWeakNullableOther();
 
+  // A verstion to test for casting to IndirectlyImplementedInterface&
   void passOther(IndirectlyImplementedInterface arg);
+  // A version we can use to test for the exact type passed in
+  void passOther2(IndirectlyImplementedInterface arg);
   void passNullableOther(IndirectlyImplementedInterface? arg);
   attribute IndirectlyImplementedInterface nonNullOther;
   attribute IndirectlyImplementedInterface? nullableOther;
@@ -181,7 +186,10 @@ interface TestJSImplInterface {
   // Callback interface ignores 'resultNotAddRefed'. See bug 843272.
   //TestExternalInterface receiveWeakExternal();
   //TestExternalInterface? receiveWeakNullableExternal();
+  // A verstion to test for casting to TestExternalInterface&
   void passExternal(TestExternalInterface arg);
+  // A version we can use to test for the exact type passed in
+  void passExternal2(TestExternalInterface arg);
   void passNullableExternal(TestExternalInterface? arg);
   attribute TestExternalInterface nonNullExternal;
   attribute TestExternalInterface? nullableExternal;
@@ -196,7 +204,10 @@ interface TestJSImplInterface {
   // Callback interface ignores 'resultNotAddRefed'. See bug 843272.
   //TestCallbackInterface receiveWeakCallbackInterface();
   //TestCallbackInterface? receiveWeakNullableCallbackInterface();
+  // A verstion to test for casting to TestCallbackInterface&
   void passCallbackInterface(TestCallbackInterface arg);
+  // A version we can use to test for the exact type passed in
+  void passCallbackInterface2(TestCallbackInterface arg);
   void passNullableCallbackInterface(TestCallbackInterface? arg);
   attribute TestCallbackInterface nonNullCallbackInterface;
   attribute TestCallbackInterface? nullableCallbackInterface;
@@ -275,10 +286,6 @@ interface TestJSImplInterface {
   //void passUint8ClampedArray(Uint8ClampedArray arg);
   //void passFloat32Array(Float32Array arg);
   //void passFloat64Array(Float64Array arg);
-  //void passSequenceOfArrayBuffers(sequence<ArrayBuffer> arg);
-  //void passSequenceOfNullableArrayBuffers(sequence<ArrayBuffer?> arg);
-  //void passVariadicTypedArray(Float32Array... arg);
-  //void passVariadicNullableTypedArray(Float32Array?... arg);
   //Uint8Array receiveUint8Array();
 
   // DOMString types
@@ -350,7 +357,6 @@ interface TestJSImplInterface {
   void passOptionalNullableObjectWithDefaultValue(optional object? arg = null);
   void passSequenceOfObject(sequence<object> arg);
   void passSequenceOfNullableObject(sequence<object?> arg);
-  void passNullableSequenceOfObject(sequence<object>? arg);
   void passOptionalNullableSequenceOfNullableSequenceOfObject(optional sequence<sequence<object>?>? arg);
   void passOptionalNullableSequenceOfNullableSequenceOfNullableObject(optional sequence<sequence<object?>?>? arg);
   object receiveObject();
@@ -358,15 +364,6 @@ interface TestJSImplInterface {
 
   // Union types
   void passUnion((object or long) arg);
-  // Commented out tests 2-9 to avoid creating all those unused union types
-  /* void passUnion2((long or boolean) arg);
-  void passUnion3((object or long or boolean) arg);
-  void passUnion4((Node or long or boolean) arg);
-  void passUnion5((object or boolean) arg);
-  void passUnion6((object or DOMString) arg);
-  void passUnion7((object or DOMString or long) arg);
-  void passUnion8((object or DOMString or boolean) arg);
-  void passUnion9((object or DOMString or long or boolean) arg); */
   void passUnionWithNullable((object? or long) arg);
   // FIXME: Bug 863948 Nullable unions not supported yet
   //   void passNullableUnion((object or long)? arg);
@@ -385,41 +382,6 @@ interface TestJSImplInterface {
   //  void passUnionWithCallback((MyTestCallback or long) arg);
   void passUnionWithObject((object or long) arg);
   //void passUnionWithDict((Dict or long) arg);
-
-  void passUnionWithDefaultValue1(optional (double or DOMString) arg = "");
-  void passUnionWithDefaultValue2(optional (double or DOMString) arg = 1);
-  void passUnionWithDefaultValue3(optional (double or DOMString) arg = 1.5);
-  void passUnionWithDefaultValue4(optional (float or DOMString) arg = "");
-  void passUnionWithDefaultValue5(optional (float or DOMString) arg = 1);
-  void passUnionWithDefaultValue6(optional (float or DOMString) arg = 1.5);
-  void passUnionWithDefaultValue7(optional (unrestricted double or DOMString) arg = "");
-  void passUnionWithDefaultValue8(optional (unrestricted double or DOMString) arg = 1);
-  void passUnionWithDefaultValue9(optional (unrestricted double or DOMString) arg = 1.5);
-  void passUnionWithDefaultValue10(optional (unrestricted double or DOMString) arg = Infinity);
-  void passUnionWithDefaultValue11(optional (unrestricted float or DOMString) arg = "");
-  void passUnionWithDefaultValue12(optional (unrestricted float or DOMString) arg = 1);
-  void passUnionWithDefaultValue13(optional (unrestricted float or DOMString) arg = Infinity);
-
-  void passNullableUnionWithDefaultValue1(optional (double or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue2(optional (double or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue3(optional (double or DOMString)? arg = null);
-  void passNullableUnionWithDefaultValue4(optional (float or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue5(optional (float or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue6(optional (float or DOMString)? arg = null);
-  void passNullableUnionWithDefaultValue7(optional (unrestricted double or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue8(optional (unrestricted double or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue9(optional (unrestricted double or DOMString)? arg = null);
-  void passNullableUnionWithDefaultValue10(optional (unrestricted float or DOMString)? arg = "");
-  void passNullableUnionWithDefaultValue11(optional (unrestricted float or DOMString)? arg = 1);
-  void passNullableUnionWithDefaultValue12(optional (unrestricted float or DOMString)? arg = null);
-
-  //(CanvasPattern or CanvasGradient) receiveUnion();
-  //(CanvasPattern? or CanvasGradient) receiveUnionContainingNull();
-  //(CanvasPattern or CanvasGradient)? receiveNullableUnion();
-
-  //attribute (CanvasPattern or CanvasGradient) writableUnion;
-  //attribute (CanvasPattern? or CanvasGradient) writableUnionContainingNull;
-  //attribute (CanvasPattern or CanvasGradient)? writableNullableUnion;
 
   // Date types
   void passDate(Date arg);
@@ -479,24 +441,14 @@ interface TestJSImplInterface {
   TestJSImplInterface overload1(DOMString strs, TestJSImplInterface arg);
   void overload2(TestJSImplInterface arg);
   void overload2(optional Dict arg);
-  void overload2(boolean arg);
   void overload2(DOMString arg);
   void overload2(Date arg);
   void overload3(TestJSImplInterface arg);
   void overload3(MyTestCallback arg);
-  void overload3(boolean arg);
+  void overload3(DOMString arg);
   void overload4(TestJSImplInterface arg);
   void overload4(TestCallbackInterface arg);
   void overload4(DOMString arg);
-  void overload5(long arg);
-  void overload5(MyTestEnum arg);
-  void overload6(long arg);
-  void overload6(boolean arg);
-  void overload7(long arg);
-  void overload7(boolean arg);
-  void overload7(ByteString arg);
-  void overload8(long arg);
-  void overload8(TestJSImplInterface arg);
 
   // Variadic handling
   void passVariadicThirdArg(DOMString arg1, long arg2, TestJSImplInterface... arg3);
@@ -523,10 +475,6 @@ interface TestJSImplInterface {
                             optional TestInterface? arg2 = null,
                             optional Dict arg3, optional double arg4 = 5.0,
                             optional float arg5);
-  attribute any jsonifierShouldSkipThis;
-  attribute TestParentInterface jsonifierShouldSkipThis2;
-  attribute TestCallbackInterface jsonifierShouldSkipThis3;
-  jsonifier;
 
   // If you add things here, add them to TestCodeGen as well
 };

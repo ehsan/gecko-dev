@@ -92,7 +92,6 @@
 #endif
 
 #include "AudioStream.h"
-#include "WebAudioUtils.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsVolumeService.h"
@@ -119,7 +118,7 @@ using namespace mozilla::system;
 #include "nsDocument.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 
-extern void NS_ShutdownEventTargetChainRecycler();
+extern void NS_ShutdownEventTargetChainItemRecyclePool();
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -151,7 +150,7 @@ nsLayoutStatics::Initialize()
   nsColorNames::AddRefTable();
   nsGkAtoms::AddRefAtoms();
 
-  StartupJSEnvironment();
+  nsJSRuntime::Startup();
   rv = nsRegion::InitStatic();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsRegion");
@@ -336,7 +335,7 @@ nsLayoutStatics::Shutdown()
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
 
-  ShutdownJSEnvironment();
+  nsJSRuntime::Shutdown();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
   nsListControlFrame::Shutdown();
@@ -354,7 +353,6 @@ nsLayoutStatics::Shutdown()
 #endif
 
   AudioStream::ShutdownLibrary();
-  WebAudioUtils::Shutdown();
 
 #ifdef MOZ_WMF
   WMFDecoder::UnloadDLLs();
@@ -378,7 +376,7 @@ nsLayoutStatics::Shutdown()
 
   nsRegion::ShutdownStatic();
 
-  NS_ShutdownEventTargetChainRecycler();
+  NS_ShutdownEventTargetChainItemRecyclePool();
 
   HTMLInputElement::DestroyUploadLastDir();
 

@@ -11,8 +11,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
                                   "resource://gre/modules/BookmarkJSONUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
                                   "resource://gre/modules/PlacesBackups.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
-                                  "resource://gre/modules/DownloadUtils.jsm");
 
 var PlacesOrganizer = {
   _places: null,
@@ -121,6 +119,13 @@ var PlacesOrganizer = {
     for (var i=0; i < elements.length; i++) {
       document.getElementById(elements[i]).setAttribute("disabled", "true");
     }
+    
+    // 3. Disable the keyboard shortcut for the History menu back/forward
+    // in order to support those in the Library
+    var historyMenuBack = document.getElementById("historyMenuBack");
+    historyMenuBack.removeAttribute("key");
+    var historyMenuForward = document.getElementById("historyMenuForward");
+    historyMenuForward.removeAttribute("key");
 #endif
 
     // remove the "Properties" context-menu item, we've our own details pane
@@ -413,21 +418,6 @@ var PlacesOrganizer = {
 
     // Populate menu with backups.
     for (let i = 0; i < backupFiles.length; i++) {
-      let [size, unit] = DownloadUtils.convertByteUnits(backupFiles[i].fileSize);
-      let sizeString = PlacesUtils.getFormattedString("backupFileSizeText",
-                                                      [size, unit]);
-      let sizeInfo;
-      let bookmarkCount = PlacesBackups.getBookmarkCountForFile(backupFiles[i]);
-      if (bookmarkCount != null) {
-        sizeInfo = " (" + sizeString + " - " +
-                   PlacesUIUtils.getPluralString("detailsPane.itemsCountLabel",
-                                                  bookmarkCount,
-                                                  [bookmarkCount]) +
-                   ")";
-      } else {
-        sizeInfo = " (" + sizeString + ")";
-      }
-
       let backupDate = PlacesBackups.getDateForFile(backupFiles[i]);
       let m = restorePopup.insertBefore(document.createElement("menuitem"),
                                         document.getElementById("restoreFromFile"));
@@ -436,8 +426,7 @@ var PlacesOrganizer = {
                                         Ci.nsIScriptableDateFormat.dateFormatLong,
                                         backupDate.getFullYear(),
                                         backupDate.getMonth() + 1,
-                                        backupDate.getDate()) +
-                                        sizeInfo);
+                                        backupDate.getDate()));
       m.setAttribute("value", backupFiles[i].leafName);
       m.setAttribute("oncommand",
                      "PlacesOrganizer.onRestoreMenuItemClick(this);");
@@ -534,7 +523,7 @@ var PlacesOrganizer = {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     let fpCallback = function fpCallback_done(aResult) {
       if (aResult != Ci.nsIFilePicker.returnCancel) {
-        PlacesBackups.saveBookmarksToJSONFile(fp.file);
+        BookmarkJSONUtils.exportToFile(fp.file);
       }
     };
 

@@ -8,19 +8,21 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/source/rtp_sender_video.h"
+#include "rtp_sender_video.h"
 
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
+#include "critical_section_wrapper.h"
+#include "trace.h"
+#include "trace_event.h"
 
-#include "webrtc/modules/rtp_rtcp/source/producer_fec.h"
-#include "webrtc/modules/rtp_rtcp/source/rtp_format_video_generic.h"
-#include "webrtc/modules/rtp_rtcp/source/rtp_format_vp8.h"
-#include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/system_wrappers/interface/trace_event.h"
+#include "rtp_utility.h"
+
+#include <string.h> // memcpy
+#include <cassert>  // assert
+#include <cstdlib>  // srand
+
+#include "producer_fec.h"
+#include "rtp_format_vp8.h"
+#include "rtp_format_video_generic.h"
 
 namespace webrtc {
 enum { REDForFECHeaderLength = 1 };
@@ -132,8 +134,7 @@ RTPSenderVideo::SendVideoPacket(uint8_t* data_buffer,
         red_packet->length() - rtp_header_length,
         rtp_header_length,
         capture_time_ms,
-        storage,
-        PacedSender::kNormalPriority);
+        storage);
 
     ret |= packet_success;
 
@@ -170,8 +171,7 @@ RTPSenderVideo::SendVideoPacket(uint8_t* data_buffer,
           red_packet->length() - rtp_header_length,
           rtp_header_length,
           capture_time_ms,
-          storage,
-          PacedSender::kNormalPriority);
+          storage);
 
       ret |= packet_success;
 
@@ -192,8 +192,7 @@ RTPSenderVideo::SendVideoPacket(uint8_t* data_buffer,
                                      payload_length,
                                      rtp_header_length,
                                      capture_time_ms,
-                                     storage,
-                                     PacedSender::kNormalPriority);
+                                     storage);
   if (ret == 0) {
     _videoBitrate.Update(payload_length + rtp_header_length);
   }
@@ -218,8 +217,7 @@ RTPSenderVideo::SendRTPIntraRequest()
     TRACE_EVENT_INSTANT1("webrtc_rtp",
                          "Video::IntraRequest",
                          "seqnum", _rtpSender.SequenceNumber());
-    return _rtpSender.SendToNetwork(data, 0, length, -1, kDontStore,
-                                    PacedSender::kNormalPriority);
+    return _rtpSender.SendToNetwork(data, 0, length, -1, kDontStore);
 }
 
 int32_t
@@ -361,8 +359,7 @@ int32_t RTPSenderVideo::SendGeneric(const FrameType frame_type,
 
     // MarkerBit is 1 on final packet (bytes_to_send == 0)
     if (_rtpSender.BuildRTPheader(buffer, payload_type, size == 0,
-                                  capture_timestamp,
-                                  capture_time_ms) != rtp_header_length) {
+                                  capture_timestamp) != rtp_header_length) {
       return -1;
     }
 
@@ -466,7 +463,7 @@ RTPSenderVideo::SendVP8(const FrameType frameType,
         // Write RTP header.
         // Set marker bit true if this is the last packet in frame.
         _rtpSender.BuildRTPheader(dataBuffer, payloadType, last,
-            captureTimeStamp, capture_time_ms);
+            captureTimeStamp);
         if (-1 == SendVideoPacket(dataBuffer, payloadBytesInPacket,
                                   rtpHeaderLength, captureTimeStamp,
                                   capture_time_ms, storage, protect))

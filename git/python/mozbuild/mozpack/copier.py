@@ -11,6 +11,7 @@ from mozpack.files import (
 import mozpack.path
 import errno
 from collections import (
+    namedtuple,
     OrderedDict,
 )
 
@@ -133,30 +134,8 @@ class FileRegistry(object):
         return self._files.iteritems()
 
 
-class FileCopyResult(object):
-    """Represents results of a FileCopier.copy operation."""
-
-    def __init__(self):
-        self.updated_files = set()
-        self.existing_files = set()
-        self.removed_files = set()
-        self.removed_directories = set()
-
-    @property
-    def updated_files_count(self):
-        return len(self.updated_files)
-
-    @property
-    def existing_files_count(self):
-        return len(self.existing_files)
-
-    @property
-    def removed_files_count(self):
-        return len(self.removed_files)
-
-    @property
-    def removed_directories_count(self):
-        return len(self.removed_directories)
+FileCopyResult = namedtuple('FileCopyResult', ['removed_files_count',
+    'removed_directories_count'])
 
 
 class FileCopier(FileRegistry):
@@ -164,49 +143,45 @@ class FileCopier(FileRegistry):
     FileRegistry with the ability to copy the registered files to a separate
     directory.
     '''
-    def copy(self, destination, skip_if_older=True, remove_unaccounted=True):
+    def copy(self, destination, skip_if_older=True):
         '''
         Copy all registered files to the given destination path. The given
         destination can be an existing directory, or not exist at all. It
         can't be e.g. a file.
         The copy process acts a bit like rsync: files are not copied when they
-        don't need to (see mozpack.files for details on file.copy).
-
-        By default, files in the destination directory that aren't registered
-        are removed and empty directories are deleted. To disable removing of
-        unregistered files, pass remove_unaccounted=False.
+        don't need to (see mozpack.files for details on file.copy), and files
+        existing in the destination directory that aren't registered are
+        removed.
 
         Returns a FileCopyResult that details what changed.
         '''
         assert isinstance(destination, basestring)
         assert not os.path.exists(destination) or os.path.isdir(destination)
-        result = FileCopyResult()
         destination = os.path.normpath(destination)
         dest_files = set()
         for path, file in self:
             destfile = os.path.normpath(os.path.join(destination, path))
             dest_files.add(destfile)
             ensure_parent_dir(destfile)
-            if file.copy(destfile, skip_if_older):
-                result.updated_files.add(destfile)
-            else:
-                result.existing_files.add(destfile)
+            file.copy(destfile, skip_if_older)
 
         actual_dest_files = set()
         for root, dirs, files in os.walk(destination):
             for f in files:
                 actual_dest_files.add(os.path.normpath(os.path.join(root, f)))
 
-        if remove_unaccounted:
-            for f in actual_dest_files - dest_files:
-                # Windows requires write access to remove files.
-                if os.name == 'nt' and not os.access(f, os.W_OK):
-                    # It doesn't matter what we set the permissions to since we
-                    # will remove this file shortly.
-                    os.chmod(f, 0600)
+        file_remove_count = 0
+        directory_remove_count = 0
 
-                os.remove(f)
-                result.removed_files.add(f)
+        for f in actual_dest_files - dest_files:
+            # Windows requires write access to remove files.
+            if os.name == 'nt' and not os.access(f, os.W_OK):
+                # It doesn't matter what we set the permissions to since we
+                # will remove this file shortly.
+                os.chmod(f, 0600)
+
+            os.remove(f)
+            file_remove_count += 1
 
         for root, dirs, files in os.walk(destination):
             if files or dirs:
@@ -216,9 +191,10 @@ class FileCopier(FileRegistry):
             # access is in place before attempting delete.
             os.chmod(root, 0700)
             os.removedirs(root)
-            result.removed_directories.add(root)
+            directory_remove_count += 1
 
-        return result
+        return FileCopyResult(removed_files_count=file_remove_count,
+            removed_directories_count=directory_remove_count)
 
 
 class FilePurger(FileCopier):

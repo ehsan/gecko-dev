@@ -21,8 +21,8 @@ NS_INTERFACE_MAP_BEGIN(BackstagePass)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCScriptable)
 NS_INTERFACE_MAP_END_THREADSAFE
 
-NS_IMPL_ADDREF(BackstagePass)
-NS_IMPL_RELEASE(BackstagePass)
+NS_IMPL_THREADSAFE_ADDREF(BackstagePass)
+NS_IMPL_THREADSAFE_RELEASE(BackstagePass)
 
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           BackstagePass
@@ -50,7 +50,7 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
     JS::RootedObject obj(cx, objArg);
     JS::RootedId id(cx, idArg);
 
-    bool resolved;
+    JSBool resolved;
 
     *_retval = !!JS_ResolveStandardClass(cx, obj, id, &resolved);
     if (!*_retval) {

@@ -45,45 +45,27 @@ function testConnectionInfo() {
 }
 
 function testCellLocation() {
-  let cell = connection.voice.cell;
+  let voice = connection.voice;
 
   // Emulator always reports valid lac/cid value because its AT command parser
   // insists valid value for every complete response. See source file
   // hardare/ril/reference-ril/at_tok.c, function at_tok_nexthexint().
-  ok(cell, "location available");
+  ok(voice.cell, "location available");
 
-  // Initial LAC/CID. Android emulator initializes both value to 0xffff/0xffffffff.
-  is(cell.gsmLocationAreaCode, 65535);
-  is(cell.gsmCellId, 268435455);
-  is(cell.cdmaBaseStationId, -1);
-  is(cell.cdmaBaseStationLatitude, -2147483648);
-  is(cell.cdmaBaseStationLongitude, -2147483648);
-  is(cell.cdmaSystemId, -1);
-  is(cell.cdmaNetworkId, -1);
+  // Initial LAC/CID. Android emulator initializes both value to -1.
+  is(voice.cell.gsmLocationAreaCode, 65535);
+  is(voice.cell.gsmCellId, 268435455);
 
   connection.addEventListener("voicechange", function onvoicechange() {
     connection.removeEventListener("voicechange", onvoicechange);
 
-    is(cell.gsmLocationAreaCode, 100);
-    is(cell.gsmCellId, 100);
-    is(cell.cdmaBaseStationId, -1);
-    is(cell.cdmaBaseStationLatitude, -2147483648);
-    is(cell.cdmaBaseStationLongitude, -2147483648);
-    is(cell.cdmaSystemId, -1);
-    is(cell.cdmaNetworkId, -1);
+    is(voice.cell.gsmLocationAreaCode, 100);
+    is(voice.cell.gsmCellId, 100);
 
-    testSignalStrength();
+    testUnregistered();
   });
 
   setEmulatorGsmLocation(100, 100);
-}
-
-function testSignalStrength() {
-  // Android emulator initializes the signal strength to -99 dBm
-  is(connection.voice.signalStrength, -99);
-  is(connection.voice.relSignalStrength, 44);
-
-  testUnregistered();
 }
 
 function testUnregistered() {
@@ -96,15 +78,17 @@ function testUnregistered() {
     is(connection.voice.state, "notSearching");
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
-    is(connection.voice.cell, null);
-    is(connection.voice.signalStrength, null);
-    is(connection.voice.relSignalStrength, null);
 
     testSearching();
   });
 }
 
 function testSearching() {
+  // For some reason, requesting the "searching" state puts the fake modem
+  // into "registered"... Skipping this test for now.
+  testDenied();
+  return;
+
   setEmulatorVoiceState("searching");
 
   connection.addEventListener("voicechange", function onvoicechange() {
@@ -114,9 +98,6 @@ function testSearching() {
     is(connection.voice.state, "searching");
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
-    is(connection.voice.cell, null);
-    is(connection.voice.signalStrength, null);
-    is(connection.voice.relSignalStrength, null);
 
     testDenied();
   });
@@ -132,9 +113,6 @@ function testDenied() {
     is(connection.voice.state, "denied");
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
-    is(connection.voice.cell, null);
-    is(connection.voice.signalStrength, null);
-    is(connection.voice.relSignalStrength, null);
 
     testRoaming();
   });
@@ -151,10 +129,6 @@ function testRoaming() {
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, true);
 
-    // Android emulator initializes the signal strength to -99 dBm
-    is(connection.voice.signalStrength, -99);
-    is(connection.voice.relSignalStrength, 44);
-
     testHome();
   });
 }
@@ -169,10 +143,6 @@ function testHome() {
     is(connection.voice.state, "registered");
     is(connection.voice.emergencyCallsOnly, false);
     is(connection.voice.roaming, false);
-
-    // Android emulator initializes the signal strength to -99 dBm
-    is(connection.voice.signalStrength, -99);
-    is(connection.voice.relSignalStrength, 44);
 
     cleanUp();
   });

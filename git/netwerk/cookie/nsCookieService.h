@@ -253,8 +253,7 @@ class nsCookieService : public nsICookieService
     OpenDBResult                  TryInitDB(bool aDeleteExistingDB);
     nsresult                      CreateTable();
     void                          CloseDBStates();
-    void                          CleanupCachedStatements();
-    void                          CleanupDefaultDBConnection();
+    void                          CloseDefaultDBConnection();
     void                          HandleDBClosed(DBState* aDBState);
     void                          HandleCorruptDB(DBState* aDBState);
     void                          RebuildCorruptDB(DBState* aDBState);

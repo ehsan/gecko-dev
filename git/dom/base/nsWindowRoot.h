@@ -58,7 +58,7 @@ public:
 
 protected:
   // Members
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsPIDOMWindow* mWindow; // [Weak]. The window will hold on to us and let go when it dies.
   nsRefPtr<nsEventListenerManager> mListenerManager; // [Strong]. We own the manager, which owns event listeners attached
                                                       // to us.
 

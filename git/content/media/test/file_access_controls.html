@@ -125,7 +125,8 @@ function nextTest() {
     gVideo.parentNode.removeChild(gVideo);
 
   gVideo = null;
-  opener.SpecialPowers.forceGC();  
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  Components.utils.forceGC();  
   
   gVideo = createVideo();
   gVideo.expectedResult = gTests[gTestNum].result;
@@ -148,6 +149,8 @@ function nextTest() {
 }
 
 function done() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  mediaTestCleanup();
   opener.done();
 }
 

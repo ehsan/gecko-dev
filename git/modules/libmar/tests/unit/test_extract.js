@@ -14,8 +14,7 @@ function run_test() {
     let mar = do_get_file("data/" + marFileName);
 
     // Get the path that we will extract to
-    let outDir = tempDir.clone();
-    outDir.append("out");
+    let outDir = do_get_file("out", true);
     do_check_false(outDir.exists());
     outDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0777);
 
@@ -23,8 +22,7 @@ function run_test() {
     let outFiles = [];
     let refFiles = [];
     for (let i = 0; i < files.length; i++) {
-      let outFile = outDir.clone();
-      outFile.append(files[i]);
+      let outFile = do_get_file("out/" + files[i], true);
       do_check_false(outFile.exists());
 
       outFiles.push(outFile);
@@ -80,8 +78,7 @@ function run_test() {
     // Between each test make sure the out directory and its subfiles do 
     // not exist.
     cleanup_per_test: function() {
-      let outDir = tempDir.clone();
-      outDir.append("out");
+      let outDir = do_get_file("out", true);
       if (outDir.exists()) {
         outDir.remove(true);
       }

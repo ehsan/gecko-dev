@@ -25,7 +25,6 @@ class CriticalSectionWrapper;
 class Encryption;
 class RemoteBitrateEstimator;
 class RtpDump;
-class RtpHeaderParser;
 class RtpRtcp;
 class VideoCodingModule;
 
@@ -42,14 +41,8 @@ class ViEReceiver : public RtpData {
 
   void RegisterSimulcastRtpRtcpModules(const std::list<RtpRtcp*>& rtp_modules);
 
-  bool SetReceiveTimestampOffsetStatus(bool enable, int id);
-  bool SetReceiveAbsoluteSendTimeStatus(bool enable, int id);
-
   void StartReceive();
   void StopReceive();
-
-  void StartRTCPReceive();
-  void StopRTCPReceive();
 
   int StartRTPDump(const char file_nameUTF8[1024]);
   int StopRTPDump();
@@ -78,7 +71,6 @@ class ViEReceiver : public RtpData {
 
   scoped_ptr<CriticalSectionWrapper> receive_cs_;
   const int32_t channel_id_;
-  scoped_ptr<RtpHeaderParser> rtp_header_parser_;
   RtpRtcp* rtp_rtcp_;
   std::list<RtpRtcp*> rtp_rtcp_simulcast_;
   VideoCodingModule* vcm_;
@@ -88,7 +80,6 @@ class ViEReceiver : public RtpData {
   uint8_t* decryption_buffer_;
   RtpDump* rtp_dump_;
   bool receiving_;
-  bool receiving_rtcp_;
 };
 
 }  // namespace webrt

@@ -62,7 +62,7 @@ class WebSocketChannel : public BaseWebSocketChannel,
                          public nsIChannelEventSink
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIHTTPUPGRADELISTENER
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
@@ -247,7 +247,6 @@ private:
   nsWSCompression                *mCompressor;
   uint32_t                        mDynamicOutputSize;
   uint8_t                        *mDynamicOutput;
-  bool                            mPrivateBrowsing;
 
   nsCOMPtr<nsIDashboardEventNotifier> mConnectionLogService;
   uint32_t mSerial;

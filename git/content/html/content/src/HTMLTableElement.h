@@ -30,6 +30,18 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLTableElement
+  NS_DECL_NSIDOMHTMLTABLEELEMENT
+
   HTMLTableCaptionElement* GetCaption() const
   {
     return static_cast<HTMLTableCaptionElement*>(GetChild(nsGkAtoms::caption));
@@ -42,12 +54,7 @@ public:
       nsINode::AppendChild(*aCaption, rv);
     }
   }
-
-  void DeleteTFoot();
-
   already_AddRefed<nsGenericHTMLElement> CreateCaption();
-
-  void DeleteCaption();
 
   HTMLTableSectionElement* GetTHead() const
   {
@@ -66,8 +73,6 @@ public:
     }
   }
   already_AddRefed<nsGenericHTMLElement> CreateTHead();
-
-  void DeleteTHead();
 
   HTMLTableSectionElement* GetTFoot() const
   {
@@ -179,6 +184,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers) MOZ_OVERRIDE;

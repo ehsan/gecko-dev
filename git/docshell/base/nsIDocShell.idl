@@ -9,9 +9,9 @@
 #include "nsIAtom.idl"
 
 %{ C++
-#include "js/TypeDecls.h"
 class nsPresContext;
 class nsIPresShell;
+struct JSContext;
 %}
 
 /**
@@ -42,7 +42,7 @@ interface nsIVariant;
 interface nsIPrivacyTransitionObserver;
 interface nsIReflowObserver;
 
-[scriptable, builtinclass, uuid(62f1b40d-1d15-4640-95dc-20caae775bd1)]
+[scriptable, builtinclass, uuid(cdeb1ed0-7794-4e5f-964e-bb9d753d1686)]
 interface nsIDocShell : nsIDocShellTreeItem
 {
   /**
@@ -156,7 +156,7 @@ interface nsIDocShell : nsIDocShellTreeItem
    * depending on the value of aReplace.
    */
   [implicit_jscontext]
-  void addState(in jsval aData, in DOMString aTitle,
+  void addState(in nsIVariant aData, in DOMString aTitle,
                 in DOMString aURL, in boolean aReplace);
 
   /**
@@ -257,13 +257,6 @@ interface nsIDocShell : nsIDocShellTreeItem
    * Attribute that determines whether window control (move/resize) is allowed.
    */
   attribute boolean allowWindowControl;
-
-  /**
-   * True if the docshell allows its content to be handled by a content listener
-   * other than the docshell itself, including the external helper app service,
-   * and false otherwise.  Defaults to true.
-   */
-  [infallible] attribute boolean allowContentRetargeting;
 
   /**
    * Get an enumerator over this docShell and its children.
@@ -410,22 +403,6 @@ interface nsIDocShell : nsIDocShellTreeItem
 
   /* attribute to access whether error pages are enabled */
   attribute boolean useErrorPages;
-
-  /**
-   * Display a load error in a frame while keeping that frame's currentURI
-   * pointing correctly to the page where the error ocurred, rather than to
-   * the error document page. You must provide either the aURI or aURL parameter.
-   *
-   * @param  aError         The error code to be displayed
-   * @param  aURI           nsIURI of the page where the error happened
-   * @param  aURL           wstring of the page where the error happened
-   * @param  aFailedChannel The channel related to this error
-   */
-  void displayLoadError(in nsresult aError,
-                        in nsIURI aURI,
-                        in wstring aURL,
-                        [optional] in nsIChannel aFailedChannel);
-
 
   /**
    * Keeps track of the previous SHTransaction index and the current
@@ -896,12 +873,4 @@ interface nsIDocShell : nsIDocShellTreeItem
    * Returns false for mLSHE, true for mOSHE
    */
   boolean getCurrentSHEntry(out nsISHEntry aEntry);
-
-  /**
-    * Cherry picked parts of nsIController.
-    * They are here, because we want to call these functions
-    * from JS.
-    */
-  boolean isCommandEnabled(in string command);
-  void doCommand(in string command);
 };

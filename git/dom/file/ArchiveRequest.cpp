@@ -9,6 +9,7 @@
 #include "mozilla/dom/ArchiveRequestBinding.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
+#include "nsLayoutStatics.h"
 #include "nsEventDispatcher.h"
 
 USING_FILE_NAMESPACE
@@ -54,6 +55,7 @@ ArchiveRequest::ArchiveRequest(nsIDOMWindow* aWindow,
   MOZ_ASSERT(aReader);
 
   MOZ_COUNT_CTOR(ArchiveRequest);
+  nsLayoutStatics::AddRef();
 
   /* An event to make this request asynchronous: */
   nsRefPtr<ArchiveRequestEvent> event = new ArchiveRequestEvent(this);
@@ -63,6 +65,7 @@ ArchiveRequest::ArchiveRequest(nsIDOMWindow* aWindow,
 ArchiveRequest::~ArchiveRequest()
 {
   MOZ_COUNT_DTOR(ArchiveRequest);
+  nsLayoutStatics::Release();
 }
 
 nsresult
@@ -135,7 +138,7 @@ ArchiveRequest::ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
   AutoPushJSContext cx(sc->GetNativeContext());
   NS_ASSERTION(cx, "Failed to get a context!");
 
-  JS::Rooted<JSObject*> global(cx, sc->GetWindowProxy());
+  JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoCompartment ac(cx, global);
@@ -193,7 +196,7 @@ ArchiveRequest::GetFilenamesResult(JSContext* aCx,
 
     JS::Rooted<JS::Value> item(aCx, STRING_TO_JSVAL(str));
 
-    if (NS_FAILED(rv) || !JS_SetElement(aCx, array, i, &item)) {
+    if (NS_FAILED(rv) || !JS_SetElement(aCx, array, i, item.address())) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -219,7 +222,7 @@ ArchiveRequest::GetFileResult(JSContext* aCx,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (filename == mFilename) {
-      JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+      JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
       return nsContentUtils::WrapNative(aCx, global, file,
                                         &NS_GET_IID(nsIDOMFile), aValue);
     }
@@ -242,11 +245,11 @@ ArchiveRequest::GetFilesResult(JSContext* aCx,
     nsCOMPtr<nsIDOMFile> file = aFileList[i];
 
     JS::Rooted<JS::Value> value(aCx);
-    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
     nsresult rv = nsContentUtils::WrapNative(aCx, global, file,
                                              &NS_GET_IID(nsIDOMFile),
                                              value.address());
-    if (NS_FAILED(rv) || !JS_SetElement(aCx, array, i, &value)) {
+    if (NS_FAILED(rv) || !JS_SetElement(aCx, array, i, value.address())) {
       return NS_ERROR_FAILURE;
     }
   }

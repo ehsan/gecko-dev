@@ -3,64 +3,49 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "LayerManagerComposite.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint16_t, uint32_t
-#include "CanvasLayerComposite.h"       // for CanvasLayerComposite
-#include "ColorLayerComposite.h"        // for ColorLayerComposite
-#include "Composer2D.h"                 // for Composer2D
-#include "CompositableHost.h"           // for CompositableHost
-#include "ContainerLayerComposite.h"    // for ContainerLayerComposite, etc
-#include "FrameMetrics.h"               // for FrameMetrics
-#include "GeckoProfiler.h"              // for profiler_set_frame_number, etc
-#include "ImageLayerComposite.h"        // for ImageLayerComposite
-#include "Layers.h"                     // for Layer, ContainerLayer, etc
-#include "ThebesLayerComposite.h"       // for ThebesLayerComposite
-#include "TiledLayerBuffer.h"           // for TiledLayerComposer
-#include "Units.h"                      // for ScreenIntRect
-#include "gfx2DGlue.h"                  // for ToMatrix4x4
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxMatrix.h"                  // for gfxMatrix
-#include "gfxPlatform.h"                // for gfxPlatform
+#include "mozilla/layers/PLayerTransaction.h"
+
+// This must occur *after* layers/PLayerTransaction.h to avoid
+// typedefs conflicts.
+#include "mozilla/Util.h"
+
+#include "mozilla/layers/LayerManagerComposite.h"
+#include "ThebesLayerComposite.h"
+#include "ContainerLayerComposite.h"
+#include "ImageLayerComposite.h"
+#include "ColorLayerComposite.h"
+#include "CanvasLayerComposite.h"
+#include "CompositableHost.h"
+#include "mozilla/gfx/Matrix.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/layers/ImageHost.h"
+#include "mozilla/layers/ContentHost.h"
+#include "mozilla/layers/Compositor.h"
+
+#include "gfxContext.h"
+#include "gfxUtils.h"
+#include "gfx2DGlue.h"
 #ifdef XP_MACOSX
 #include "gfxPlatformMac.h"
+#else
+#include "gfxPlatform.h"
 #endif
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
-#include "mozilla/gfx/2D.h"             // for DrawTarget
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
-#include "mozilla/gfx/Point.h"          // for IntSize, Point
-#include "mozilla/gfx/Rect.h"           // for Rect
-#include "mozilla/gfx/Types.h"          // for Color, SurfaceFormat
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/Effects.h"     // for Effect, EffectChain, etc
-#include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_HAVE_LOG, etc
-#include "ipc/ShadowLayerUtils.h"
-#include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_WARNING, NS_RUNTIMEABORT, etc
-#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
-#include "nsIWidget.h"                  // for nsIWidget
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion, etc
+
+#include "nsIWidget.h"
+#include "nsIServiceManager.h"
+#include "nsIConsoleService.h"
+
+#include "gfxCrashReporterUtils.h"
+
+#include "GeckoProfiler.h"
+
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>
 #endif
 
-class gfxASurface;
-class gfxContext;
-struct nsIntSize;
-
-
 namespace mozilla {
 namespace layers {
-
-class ImageLayer;
 
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
@@ -101,7 +86,6 @@ LayerManagerComposite::ClearCachedResources(Layer* aSubtree)
 LayerManagerComposite::LayerManagerComposite(Compositor* aCompositor)
 : mCompositor(aCompositor)
 {
-  MOZ_ASSERT(aCompositor);
 }
 
 LayerManagerComposite::~LayerManagerComposite()
@@ -476,6 +460,17 @@ LayerManagerComposite::ComputeRenderIntegrityInternal(Layer* aLayer,
   }
 }
 
+static int
+GetRegionArea(const nsIntRegion& aRegion)
+{
+  int area = 0;
+  nsIntRegionRectIterator it(aRegion);
+  while (const nsIntRect* rect = it.Next()) {
+    area += rect->width * rect->height;
+  }
+  return area;
+}
+
 #ifdef MOZ_ANDROID_OMTC
 static float
 GetDisplayportCoverage(const CSSRect& aDisplayPort,
@@ -495,7 +490,7 @@ GetDisplayportCoverage(const CSSRect& aDisplayPort,
   if (!displayport.Contains(aScreenRect)) {
     nsIntRegion coveredRegion;
     coveredRegion.And(aScreenRect, displayport);
-    return coveredRegion.Area() / (float)(aScreenRect.width * aScreenRect.height);
+    return GetRegionArea(coveredRegion) / (float)(aScreenRect.width * aScreenRect.height);
   }
 
   return 1.0f;
@@ -587,10 +582,10 @@ LayerManagerComposite::ComputeRenderIntegrity()
     // Calculate the area of the region. All rects in an nsRegion are
     // non-overlapping.
     float screenArea = screenRect.width * screenRect.height;
-    float highPrecisionIntegrity = screenRegion.Area() / screenArea;
+    float highPrecisionIntegrity = GetRegionArea(screenRegion) / screenArea;
     float lowPrecisionIntegrity = 1.f;
     if (!lowPrecisionScreenRegion.IsEqual(screenRect)) {
-      lowPrecisionIntegrity = lowPrecisionScreenRegion.Area() / screenArea;
+      lowPrecisionIntegrity = GetRegionArea(lowPrecisionScreenRegion) / screenArea;
     }
 
     return ((highPrecisionIntegrity * highPrecisionMultiplier) +
@@ -660,33 +655,21 @@ LayerManagerComposite::CreateRefLayerComposite()
   return nsRefPtr<RefLayerComposite>(new RefLayerComposite(this)).forget();
 }
 
-LayerManagerComposite::AutoAddMaskEffect::AutoAddMaskEffect(Layer* aMaskLayer,
-                                                            EffectChain& aEffects,
-                                                            bool aIs3D)
-  : mCompositable(nullptr)
+/* static */ bool
+LayerManagerComposite::AddMaskEffect(Layer* aMaskLayer, EffectChain& aEffects, bool aIs3D)
 {
   if (!aMaskLayer) {
-    return;
+    return false;
   }
-
-  mCompositable = static_cast<LayerComposite*>(aMaskLayer->ImplData())->GetCompositableHost();
-  if (!mCompositable) {
+  LayerComposite* maskLayerComposite = static_cast<LayerComposite*>(aMaskLayer->ImplData());
+  if (!maskLayerComposite->GetCompositableHost()) {
     NS_WARNING("Mask layer with no compositable host");
-    return;
+    return false;
   }
 
   gfx::Matrix4x4 transform;
   ToMatrix4x4(aMaskLayer->GetEffectiveTransform(), transform);
-  mCompositable->AddMaskEffect(aEffects, transform, aIs3D);
-}
-
-LayerManagerComposite::AutoAddMaskEffect::~AutoAddMaskEffect()
-{
-  if (!mCompositable) {
-    return;
-  }
-
-  mCompositable->RemoveMaskEffect();
+  return maskLayerComposite->GetCompositableHost()->AddMaskEffect(aEffects, transform, aIs3D);
 }
 
 TemporaryRef<DrawTarget>

@@ -4,29 +4,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/ForkJoin.h"
-
 #include "jscntxt.h"
 
 #ifdef JS_THREADSAFE
-# include "prprf.h"
-# include "prthread.h"
-# include "jit/BaselineJIT.h"
-# include "vm/Monitor.h"
+#  include "prthread.h"
+#  include "prprf.h"
+#endif
+
+#include "vm/ForkJoin.h"
+
+#if defined(JS_THREADSAFE)
+#include "ion/BaselineJIT.h"
+#include "vm/Monitor.h"
 #endif
 
 #if defined(DEBUG) && defined(JS_THREADSAFE) && defined(JS_ION)
-# include "jit/Ion.h"
-# include "jit/IonCompartment.h"
-# include "jit/MIR.h"
-# include "jit/MIRGraph.h"
+#  include "ion/Ion.h"
+#  include "ion/MIR.h"
+#  include "ion/MIRGraph.h"
+#  include "ion/IonCompartment.h"
 #endif // DEBUG && THREADSAFE && ION
 
 #include "vm/Interpreter-inl.h"
 
 using namespace js;
 using namespace js::parallel;
-using namespace js::jit;
+using namespace js::ion;
 
 ///////////////////////////////////////////////////////////////////////////
 // Degenerate configurations
@@ -117,9 +120,9 @@ ParallelBailoutRecord::addTrace(JSScript *script,
 }
 
 bool
-js::InExclusiveParallelSection()
+js::InSequentialOrExclusiveParallelSection()
 {
-    return false;
+    return true;
 }
 
 bool
@@ -559,8 +562,8 @@ js::ParallelDo::apply()
     //       - Re-enqueue main script and any uncompiled scripts that were called
     // - Too many bailouts: Fallback to sequential
 
-    JS_ASSERT_IF(!jit::IsBaselineEnabled(cx_), !jit::IsIonEnabled(cx_));
-    if (!jit::IsBaselineEnabled(cx_) || !jit::IsIonEnabled(cx_))
+    JS_ASSERT_IF(!ion::IsBaselineEnabled(cx_), !ion::IsEnabled(cx_));
+    if (!ion::IsBaselineEnabled(cx_) || !ion::IsEnabled(cx_))
         return sequentialExecution(true);
 
     SpewBeginOp(cx_, "ParallelDo");
@@ -728,7 +731,7 @@ js::ParallelDo::compileForParallelExecution(ExecutionStatus *status)
             if (!script->hasParallelIonScript()) {
                 // Script has not yet been compiled. Attempt to compile it.
                 SpewBeginCompile(script);
-                MethodStatus mstatus = jit::CanEnterInParallel(cx_, script);
+                MethodStatus mstatus = ion::CanEnterInParallel(cx_, script);
                 SpewEndCompile(mstatus);
 
                 switch (mstatus) {
@@ -1247,7 +1250,7 @@ class ParallelIonInvoke
   public:
     Value *args;
 
-    ParallelIonInvoke(JSRuntime *rt,
+    ParallelIonInvoke(JSCompartment *compartment,
                       HandleFunction callee,
                       uint32_t argc)
       : argc_(argc),
@@ -1263,7 +1266,7 @@ class ParallelIonInvoke
         IonScript *ion = callee->nonLazyScript()->parallelIonScript();
         IonCode *code = ion->method();
         jitcode_ = code->raw();
-        enter_ = rt->ionRuntime()->enterIon();
+        enter_ = compartment->ionCompartment()->enterJIT();
         calleeToken_ = CalleeToParallelToken(callee);
     }
 
@@ -1413,10 +1416,6 @@ ForkJoinShared::executeFromWorker(uint32_t workerId, uintptr_t stackLimit)
     JS_ASSERT(workerId < numSlices_ - 1);
 
     PerThreadData thisThread(cx_->runtime());
-    if (!thisThread.init()) {
-        setAbortFlag(true);
-        return;
-    }
     TlsPerThreadData.set(&thisThread);
 
     // Don't use setIonStackLimit() because that acquires the ionStackLimitLock, and the
@@ -1457,7 +1456,7 @@ ForkJoinShared::executePortion(PerThreadData *perThread,
 
     // Make a new IonContext for the slice, which is needed if we need to
     // re-enter the VM.
-    IonContext icx(cx_->runtime(), cx_->compartment(), NULL);
+    IonContext icx(cx_->compartment(), NULL);
 
     JS_ASSERT(slice.bailoutRecord->topScript == NULL);
 
@@ -1474,7 +1473,7 @@ ForkJoinShared::executePortion(PerThreadData *perThread,
                                       NULL, NULL, NULL);
         setAbortFlag(false);
     } else {
-        ParallelIonInvoke<3> fii(cx_->runtime(), callee, 3);
+        ParallelIonInvoke<3> fii(cx_->compartment(), callee, 3);
 
         fii.args[0] = Int32Value(slice.sliceId);
         fii.args[1] = Int32Value(slice.numSlices);
@@ -1613,9 +1612,7 @@ ForkJoinShared::setAbortFlag(bool fatal)
     abort_ = true;
     fatal_ = fatal_ || fatal;
 
-    // Note: DontStopIon here avoids the expensive memory protection needed to
-    // interrupt Ion code compiled for sequential execution.
-    cx_->runtime()->triggerOperationCallback(JSRuntime::TriggerCallbackAnyThreadDontStopIon);
+    cx_->runtime()->triggerOperationCallback();
 }
 
 void
@@ -1718,9 +1715,9 @@ bool
 ForkJoinSlice::InitializeTLS()
 {
     if (!TLSInitialized) {
-        if (PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL) != PR_SUCCESS)
-            return false;
         TLSInitialized = true;
+        PRStatus status = PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL);
+        return status == PR_SUCCESS;
     }
     return true;
 }
@@ -2147,18 +2144,18 @@ parallel::SpewBailoutIR(uint32_t bblockId, uint32_t lirId,
 #endif // DEBUG
 
 bool
-js::InExclusiveParallelSection()
+js::InSequentialOrExclusiveParallelSection()
 {
-    return InParallelSection() && ForkJoinSlice::Current()->hasAcquiredContext();
+    return !InParallelSection() || ForkJoinSlice::Current()->hasAcquiredContext();
 }
 
 bool
 js::ParallelTestsShouldPass(JSContext *cx)
 {
-    return jit::IsIonEnabled(cx) &&
-           jit::IsBaselineEnabled(cx) &&
-           !jit::js_IonOptions.eagerCompilation &&
-           jit::js_IonOptions.baselineUsesBeforeCompile != 0 &&
+    return ion::IsEnabled(cx) &&
+           ion::IsBaselineEnabled(cx) &&
+           !ion::js_IonOptions.eagerCompilation &&
+           ion::js_IonOptions.baselineUsesBeforeCompile != 0 &&
            cx->runtime()->gcZeal() == 0;
 }
 

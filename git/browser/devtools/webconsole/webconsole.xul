@@ -22,12 +22,7 @@
         width="900" height="350"
         persist="screenX screenY width height sizemode">
   <script type="text/javascript" src="chrome://global/content/globalOverlay.js"/>
-  <script type="text/javascript"><![CDATA[
-function goUpdateConsoleCommands() {
-  goUpdateCommand("consoleCmd_openURL");
-  goUpdateCommand("consoleCmd_copyURL");
-}
-  // ]]></script>
+  <script type="text/javascript" src="webconsole.js"/>
 
   <commandset id="editMenuCommands"/>
 
@@ -58,12 +53,12 @@ function goUpdateConsoleCommands() {
     <key key="&findCmd.key;" command="cmd_find" modifiers="accel"/>
     <key key="&clearOutputCmd.key;" command="consoleCmd_clearOutput" modifiers="accel"/>
     <key key="&closeCmd.key;" command="cmd_close" modifiers="accel"/>
-    <key id="key_clearOutput" key="&clearOutputCtrl.key;" command="consoleCmd_clearOutput" modifiers="accel"/>
   </keyset>
   <keyset id="editMenuKeys"/>
 
   <popupset id="mainPopupSet">
-    <menupopup id="output-contextmenu">
+    <menupopup id="output-contextmenu"
+               onpopupshowing="ConsoleContextMenu.build(event);">
       <menuitem id="saveBodiesContextMenu" type="checkbox" label="&saveBodies.label;"
                 accesskey="&saveBodies.accesskey;"/>
       <menuitem id="menu_openURL" label="&openURL.label;"
@@ -83,8 +78,11 @@ function goUpdateConsoleCommands() {
         <toolbarbutton label="&btnPageNet.label;" type="menu-button"
                        category="net" class="devtools-toolbarbutton webconsole-filter-button"
                        tooltiptext="&btnPageNet.tooltip;"
-                       accesskeyMacOSX="&btnPageNet.accesskeyMacOSX;"
+#ifdef XP_MACOSX
+                       accesskey="&btnPageNet.accesskeyMacOSX;"
+#else
                        accesskey="&btnPageNet.accesskey;"
+#endif
                        tabindex="3">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox" autocheck="false"
@@ -139,7 +137,7 @@ function goUpdateConsoleCommands() {
         <toolbarbutton label="&btnPageLogging.label;" type="menu-button"
                        category="logging" class="devtools-toolbarbutton webconsole-filter-button"
                        tooltiptext="&btnPageLogging.tooltip;"
-                       accesskey="&btnPageLogging.accesskey2;"
+                       accesskey="&btnPageLogging.accesskey;"
                        tabindex="7">
           <menupopup>
             <menuitem label="&btnConsoleErrors;" type="checkbox"
@@ -155,6 +153,7 @@ function goUpdateConsoleCommands() {
 
         <toolbarbutton class="webconsole-clear-console-button devtools-toolbarbutton"
                        label="&btnClear.label;" tooltiptext="&btnClear.tooltip;"
+                       accesskey="&btnClear.accesskey;"
                        tabindex="8"/>
 
         <spacer flex="1"/>
@@ -169,10 +168,9 @@ function goUpdateConsoleCommands() {
 
       <hbox class="jsterm-input-container" style="direction:ltr">
         <stack class="jsterm-stack-node" flex="1">
-          <textbox class="jsterm-complete-node devtools-monospace"
-                   multiline="true" rows="1" tabindex="-1"/>
-          <textbox class="jsterm-input-node devtools-monospace"
-                   multiline="true" rows="1" tabindex="0"/>
+          <textbox class="jsterm-complete-node" multiline="true" rows="1"
+                   tabindex="-1"/>
+          <textbox class="jsterm-input-node" multiline="true" rows="1" tabindex="0"/>
         </stack>
       </hbox>
     </vbox>

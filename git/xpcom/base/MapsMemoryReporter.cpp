@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 ci et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -116,7 +116,7 @@ class MapsReporter MOZ_FINAL : public nsIMemoryMultiReporter
 public:
   MapsReporter();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   NS_IMETHOD GetName(nsACString &aName)
   {
@@ -158,7 +158,7 @@ private:
   nsTHashtable<nsCStringHashKey> mMozillaLibraries;
 };
 
-NS_IMPL_ISUPPORTS1(MapsReporter, nsIMemoryMultiReporter)
+NS_IMPL_THREADSAFE_ISUPPORTS1(MapsReporter, nsIMemoryMultiReporter)
 
 MapsReporter::MapsReporter()
   : mSearchedForLibxul(false)
@@ -264,10 +264,10 @@ MapsReporter::ParseMapping(
 {
   // We need to use native types in order to get good warnings from fscanf, so
   // let's make sure that the native types have the sizes we expect.
-  static_assert(sizeof(long long) == sizeof(int64_t),
-                "size of (long long) is expected to match (int64_t)");
-  static_assert(sizeof(int) == sizeof(int32_t),
-                "size of (int) is expected to match (int32_t)");
+  MOZ_STATIC_ASSERT(sizeof(long long) == sizeof(int64_t),
+                    "size of (long long) is expected to match (int64_t)");
+  MOZ_STATIC_ASSERT(sizeof(int) == sizeof(int32_t),
+                    "size of (int) is expected to match (int32_t)");
 
   // Don't bail if FindLibxul fails.  We can still gather meaningful stats
   // here.
@@ -465,8 +465,8 @@ MapsReporter::ParseMapBody(
   nsISupports *aClosure,
   CategoriesSeen *aCategoriesSeen)
 {
-  static_assert(sizeof(long long) == sizeof(int64_t),
-                "size of (long long) is expected to match (int64_t)");
+  MOZ_STATIC_ASSERT(sizeof(long long) == sizeof(int64_t),
+                    "size of (long long) is expected to match (int64_t)");
 
   const int argCount = 2;
 
@@ -520,20 +520,8 @@ MapsReporter::ParseMapBody(
   return NS_OK;
 }
 
-class ResidentUniqueReporter MOZ_FINAL : public MemoryReporterBase
+static nsresult GetUSS(int64_t *n)
 {
-public:
-  ResidentUniqueReporter()
-    : MemoryReporterBase("resident-unique", KIND_OTHER, UNITS_BYTES,
-"Memory mapped by the process that is present in physical memory and not "
-"shared with any other processes.  This is also known as the process's unique "
-"set size (USS).  This is the amount of RAM we'd expect to be freed if we "
-"closed this process.")
-  {}
-
-private:
-  NS_IMETHOD GetAmount(int64_t *aAmount)
-  {
     // You might be tempted to calculate USS by subtracting the "shared" value
     // from the "resident" value in /proc/<pid>/statm.  But at least on Linux,
     // statm's "shared" value actually counts pages backed by files, which has
@@ -545,33 +533,42 @@ private:
     // smaps reporter in normal about:memory operation).  Hopefully this
     // implementation is fast enough not to matter.
 
-    *aAmount = 0;
+    *n = 0;
 
     FILE *f = fopen("/proc/self/smaps", "r");
     NS_ENSURE_STATE(f);
 
     int64_t total = 0;
     char line[256];
-    while (fgets(line, sizeof(line), f)) {
-      long long val = 0;
-      if (sscanf(line, "Private_Dirty: %lld kB", &val) == 1 ||
-          sscanf(line, "Private_Clean: %lld kB", &val) == 1) {
-        total += val * 1024; // convert from kB to bytes
-      }
+    while(fgets(line, sizeof(line), f)) {
+        long long val = 0;
+        if(sscanf(line, "Private_Dirty: %lld kB", &val) == 1 ||
+           sscanf(line, "Private_Clean: %lld kB", &val) == 1) {
+            total += val * 1024; // convert from kB to bytes
+        }
     }
-    *aAmount = total;
+    *n = total;
 
     fclose(f);
     return NS_OK;
-  }
-};
+}
+
+NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(USS,
+    "resident-unique",
+    KIND_OTHER,
+    UNITS_BYTES,
+    GetUSS,
+    "Memory mapped by the process that is present in physical memory and not "
+    "shared with any other processes.  This is also known as the process's "
+    "unique set size (USS).  This is the amount of RAM we'd expect to be freed "
+    "if we closed this process.")
 
 void Init()
 {
   nsCOMPtr<nsIMemoryMultiReporter> reporter = new MapsReporter();
   NS_RegisterMemoryMultiReporter(reporter);
 
-  NS_RegisterMemoryReporter(new ResidentUniqueReporter());
+  NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(USS));
 }
 
 } // namespace MapsMemoryReporter

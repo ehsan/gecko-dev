@@ -87,7 +87,7 @@ function test()
   }
 
   function checkState(event) {
-    inspector.searchSuggestions._lastQuery.then(() => {
+    executeSoon(function() {
       let [key, suggestions] = keyStates[state];
       let actualSuggestions = popup.getItems();
       is(popup._panel.state == "open" || popup._panel.state == "showing"

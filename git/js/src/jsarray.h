@@ -9,15 +9,15 @@
 #ifndef jsarray_h
 #define jsarray_h
 
-#include "jsobj.h"
 #include "jspubtd.h"
+#include "jsobj.h"
 
 namespace js {
 /* 2^32-2, inclusive */
 const uint32_t MAX_ARRAY_INDEX = 4294967294u;
 }
 
-inline bool
+inline JSBool
 js_IdIsIndex(jsid id, uint32_t *indexp)
 {
     if (JSID_IS_INT(id)) {
@@ -87,13 +87,13 @@ WouldDefinePastNonwritableLength(ExclusiveContext *cx,
 extern bool
 CanonicalizeArrayLengthValue(JSContext *cx, HandleValue v, uint32_t *canonicalized);
 
-extern bool
+extern JSBool
 GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp);
 
-extern bool
+extern JSBool
 SetLengthProperty(JSContext *cx, HandleObject obj, double length);
 
-extern bool
+extern JSBool
 ObjectMayHaveExtraIndexedProperties(JSObject *obj);
 
 /*
@@ -107,16 +107,16 @@ GetElements(JSContext *cx, HandleObject aobj, uint32_t length, js::Value *vp);
 
 /* Natives exposed for optimization by the interpreter and JITs. */
 
-extern bool
+extern JSBool
 array_sort(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 array_push(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 array_pop(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 array_concat(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern bool
@@ -126,13 +126,13 @@ array_concat_dense(JSContext *cx, Handle<ArrayObject*> arr1, Handle<ArrayObject*
 extern void
 ArrayShiftMoveElements(JSObject *obj);
 
-extern bool
+extern JSBool
 array_shift(JSContext *cx, unsigned argc, js::Value *vp);
 
 } /* namespace js */
 
 #ifdef DEBUG
-extern bool
+extern JSBool
 js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
 #endif
 
@@ -143,11 +143,11 @@ js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
  * extending the array to accommodate the element will never make the array
  * sparse, which requires that the array be completely filled.)
  */
-extern bool
+extern JSBool
 js_NewbornArrayPush(JSContext *cx, js::HandleObject obj, const js::Value &v);
 
 /* Array constructor native. Exposed only so the JIT can know its address. */
-bool
+JSBool
 js_Array(JSContext *cx, unsigned argc, js::Value *vp);
 
 #endif /* jsarray_h */

@@ -96,7 +96,7 @@ DownloadLastDir.prototype = {
     return PrivateBrowsingUtils.isWindowPrivate(this.window);
   },
   // compat shims
-  get file() this._getLastFile(),
+  get file() { return this.getFile(); },
   set file(val) { this.setFile(null, val); },
   cleanupPrivateFile: function () {
     gDownloadLastDirFile = null;
@@ -104,11 +104,6 @@ DownloadLastDir.prototype = {
   // This function is now deprecated as it uses the sync nsIContentPrefService
   // interface. New consumers should use the getFileAsync function.
   getFile: function (aURI) {
-    Components.utils.import("resource://gre/modules/Deprecated.jsm");
-    Deprecated.warning("DownloadLastDir.getFile is deprecated. Please use getFileAsync instead.",
-                       "https://developer.mozilla.org/en-US/docs/Mozilla/JavaScript_code_modules/DownloadLastDir.jsm",
-                       Components.stack.caller);
-
     if (aURI && isContentPrefEnabled()) {
       let loadContext = this.window
                             .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
@@ -122,10 +117,6 @@ DownloadLastDir.prototype = {
         return lastDirFile;
       }
     }
-    return this._getLastFile();
-  },
-
-  _getLastFile: function () {
     if (gDownloadLastDirFile && !gDownloadLastDirFile.exists())
       gDownloadLastDirFile = null;
 
@@ -134,11 +125,12 @@ DownloadLastDir.prototype = {
         gDownloadLastDirFile = readLastDirPref();
       return gDownloadLastDirFile;
     }
-    return readLastDirPref();
+    else
+      return readLastDirPref();
   },
 
   getFileAsync: function(aURI, aCallback) {
-    let plainPrefFile = this._getLastFile();
+    let plainPrefFile = this.getFile();
     if (!aURI || !isContentPrefEnabled()) {
       Services.tm.mainThread.dispatch(function() aCallback(plainPrefFile),
                                       Components.interfaces.nsIThread.DISPATCH_NORMAL);

@@ -41,8 +41,10 @@ protected:
                                nsSMILValue& aResult) const MOZ_OVERRIDE;
 
 private:
-  // Private constructor: prevent instances beyond my singleton.
-  MOZ_CONSTEXPR SMILEnumType() {}
+  // Private constructor & destructor: prevent instances beyond my singleton,
+  // and prevent others from deleting my singleton.
+  SMILEnumType()  {}
+  ~SMILEnumType() {}
 };
 
 } // namespace mozilla

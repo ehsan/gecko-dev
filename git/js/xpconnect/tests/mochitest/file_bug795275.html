@@ -13,7 +13,7 @@
     Components.interfaces;
   }
   function touchLookupMethod() {
-    return !Components.lookupMethod;
+    Components.lookupMethod(document, 'getElementById');
   }
 
   function touchViaXBL() {

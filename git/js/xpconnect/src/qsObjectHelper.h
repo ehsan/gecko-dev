@@ -9,8 +9,18 @@
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMNode.h"
+#include "nsINode.h"
 #include "nsWrapperCache.h"
 #include "mozilla/TypeTraits.h"
+
+template <typename T>
+struct qsIsNode
+{
+    static const bool value =
+        mozilla::IsBaseOf<nsINode, T>::value ||
+        mozilla::IsBaseOf<nsIDOMNode, T>::value;
+};
 
 class qsObjectHelper : public xpcObjectHelper
 {
@@ -19,14 +29,15 @@ public:
     inline
     qsObjectHelper(T *aObject, nsWrapperCache *aCache)
         : xpcObjectHelper(ToSupports(aObject), ToCanonicalSupports(aObject),
-                          aCache)
+                          aCache, qsIsNode<T>::value)
     {}
 
     template <class T>
     inline
     qsObjectHelper(nsCOMPtr<T>& aObject, nsWrapperCache *aCache)
         : xpcObjectHelper(ToSupports(aObject.get()),
-                          ToCanonicalSupports(aObject.get()), aCache)
+                          ToCanonicalSupports(aObject.get()), aCache,
+                          qsIsNode<T>::value)
     {
         if (mCanonical) {
             // Transfer the strong reference.
@@ -39,7 +50,8 @@ public:
     inline
     qsObjectHelper(nsRefPtr<T>& aObject, nsWrapperCache *aCache)
         : xpcObjectHelper(ToSupports(aObject.get()),
-                          ToCanonicalSupports(aObject.get()), aCache)
+                          ToCanonicalSupports(aObject.get()), aCache,
+                          qsIsNode<T>::value)
     {
         if (mCanonical) {
             // Transfer the strong reference.

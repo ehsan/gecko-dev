@@ -17,9 +17,9 @@ Scott McMurray
 #ifndef BOOST_SPREAD_SORT_H
 #define BOOST_SPREAD_SORT_H
 #include <algorithm>
-#include <cstring>
 #include <vector>
-#include "webrtc/system_wrappers/source/spreadsortlib/constants.hpp"
+#include "constants.hpp"
+#include <cstring>
 
 namespace boost {
   namespace detail {

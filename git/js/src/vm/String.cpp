@@ -13,7 +13,6 @@
 
 #include "gc/Marking.h"
 
-#include "jscntxtinlines.h"
 #include "jscompartmentinlines.h"
 
 using namespace js;
@@ -110,6 +109,8 @@ JSString::dump()
     if (const jschar *chars = getChars(NULL)) {
         fprintf(stderr, "JSString* (%p) = jschar * (%p) = ",
                 (void *) this, (void *) chars);
+
+        extern void DumpChars(const jschar *s, size_t n);
         dumpChars(chars, length());
     } else {
         fprintf(stderr, "(oom in JSString::dump)");
@@ -163,20 +164,20 @@ AllocChars(ThreadSafeContext *maybecx, size_t length, jschar **chars, size_t *ca
 }
 
 bool
-JSRope::copyNonPureChars(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSRope::getCharsNonDestructive(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
-    return copyNonPureCharsInternal(cx, out, false);
+    return getCharsNonDestructiveInternal(cx, out, false);
 }
 
 bool
-JSRope::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSRope::getCharsZNonDestructive(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
-    return copyNonPureCharsInternal(cx, out, true);
+    return getCharsNonDestructiveInternal(cx, out, true);
 }
 
 bool
-JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out,
-                                 bool nullTerminate) const
+JSRope::getCharsNonDestructiveInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out,
+                                       bool nullTerminate) const
 {
     /*
      * Perform non-destructive post-order traversal of the rope, splatting
@@ -184,43 +185,67 @@ JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> 
      */
 
     size_t n = length();
-    if (cx)
-        out.reset(cx->pod_malloc<jschar>(n + 1));
-    else
-        out.reset(js_pod_malloc<jschar>(n + 1));
-
-    if (!out)
+    jschar *s = cx->pod_malloc<jschar>(n + 1);
+    if (!s)
         return false;
+    jschar *pos = s;
 
     Vector<const JSString *, 8, SystemAllocPolicy> nodeStack;
-    const JSString *str = this;
-    jschar *pos = out;
-    while (true) {
-        if (str->isRope()) {
-            if (!nodeStack.append(str->asRope().rightChild()))
-                return false;
-            str = str->asRope().leftChild();
+    if (!nodeStack.append(this))
+        return false;
+
+    const JSString *prev = NULL;
+    while (!nodeStack.empty()) {
+        const JSString *node = nodeStack.back();
+
+        if (node->isRope()) {
+            JSRope *rope = &node->asRope();
+
+            if (!prev ||
+                (prev->isRope() &&
+                 (prev->asRope().leftChild() == node ||
+                  prev->asRope().rightChild() == node)))
+            {
+                /* On our way down, push the left child. */
+                if (!nodeStack.append(rope->leftChild()))
+                    return false;
+            } else if (rope->leftChild() == prev) {
+                /*
+                 * On our way back up from the left child, push the right
+                 * child.
+                 */
+                if (!nodeStack.append(rope->rightChild()))
+                    return false;
+            } else {
+                /*
+                 * On our way back up from the right child, just pop the
+                 * stack. Non-leaf nodes in the rope contain no value to be
+                 * consumed.
+                 */
+                nodeStack.popBack();
+            }
         } else {
-            size_t len = str->length();
-            PodCopy(pos, str->asLinear().chars(), len);
+            /* For leaf nodes, copy the characters into the buffer. */
+            size_t len = node->length();
+            PodCopy(pos, node->asLinear().chars(), len);
             pos += len;
-            if (nodeStack.empty())
-                break;
-            str = nodeStack.popCopy();
+
+            nodeStack.popBack();
         }
+
+        prev = node;
     }
 
-    JS_ASSERT(pos == out + n);
-
     if (nullTerminate)
-        out[n] = 0;
+        s[n] = 0;
 
+    out.reset(s);
     return true;
 }
 
 template<JSRope::UsingBarrier b>
 JSFlatString *
-JSRope::flattenInternal(ExclusiveContext *maybecx)
+JSRope::flattenInternal(JSContext *maybecx)
 {
     /*
      * Perform a depth-first dag traversal, splatting each node's characters
@@ -362,7 +387,7 @@ JSRope::flattenInternal(ExclusiveContext *maybecx)
 }
 
 JSFlatString *
-JSRope::flatten(ExclusiveContext *maybecx)
+JSRope::flatten(JSContext *maybecx)
 {
 #if JSGC_INCREMENTAL
     if (zone()->needsBarrier())
@@ -376,7 +401,7 @@ JSRope::flatten(ExclusiveContext *maybecx)
 
 template <AllowGC allowGC>
 JSString *
-js::ConcatStrings(ThreadSafeContext *cx,
+js::ConcatStrings(JSContext *cx,
                   typename MaybeRooted<JSString*, allowGC>::HandleType left,
                   typename MaybeRooted<JSString*, allowGC>::HandleType right)
 {
@@ -399,16 +424,16 @@ js::ConcatStrings(ThreadSafeContext *cx,
         JSShortString *str = js_NewGCShortString<allowGC>(cx);
         if (!str)
             return NULL;
-
-        ScopedThreadSafeStringInspector leftInspector(left);
-        ScopedThreadSafeStringInspector rightInspector(right);
-        if (!leftInspector.ensureChars(cx) || !rightInspector.ensureChars(cx))
+        const jschar *leftChars = left->getChars(cx);
+        if (!leftChars)
+            return NULL;
+        const jschar *rightChars = right->getChars(cx);
+        if (!rightChars)
             return NULL;
 
         jschar *buf = str->init(wholeLength);
-        PodCopy(buf, leftInspector.chars(), leftLen);
-        PodCopy(buf + leftLen, rightInspector.chars(), rightLen);
-
+        PodCopy(buf, leftChars, leftLen);
+        PodCopy(buf + leftLen, rightChars, rightLen);
         buf[wholeLength] = 0;
         return str;
     }
@@ -417,13 +442,53 @@ js::ConcatStrings(ThreadSafeContext *cx,
 }
 
 template JSString *
-js::ConcatStrings<CanGC>(ThreadSafeContext *cx, HandleString left, HandleString right);
+js::ConcatStrings<CanGC>(JSContext *cx, HandleString left, HandleString right);
 
 template JSString *
-js::ConcatStrings<NoGC>(ThreadSafeContext *cx, JSString *left, JSString *right);
+js::ConcatStrings<NoGC>(JSContext *cx, JSString *left, JSString *right);
+
+JSString *
+js::ConcatStringsPure(ThreadSafeContext *cx, JSString *left, JSString *right)
+{
+    JS_ASSERT_IF(!left->isAtom(), cx->isInsideCurrentZone(left));
+    JS_ASSERT_IF(!right->isAtom(), cx->isInsideCurrentZone(right));
+
+    size_t leftLen = left->length();
+    if (leftLen == 0)
+        return right;
+
+    size_t rightLen = right->length();
+    if (rightLen == 0)
+        return left;
+
+    size_t wholeLength = leftLen + rightLen;
+    if (!JSString::validateLength(NULL, wholeLength))
+        return NULL;
+
+    if (JSShortString::lengthFits(wholeLength)) {
+        JSShortString *str = js_NewGCShortString<NoGC>(cx);
+        if (!str)
+            return NULL;
+
+        jschar *buf = str->init(wholeLength);
+
+        ScopedThreadSafeStringInspector leftInspector(left);
+        ScopedThreadSafeStringInspector rightInspector(right);
+        if (!leftInspector.ensureChars(cx) || !rightInspector.ensureChars(cx))
+            return NULL;
+
+        PodCopy(buf, leftInspector.chars(), leftLen);
+        PodCopy(buf + leftLen, rightInspector.chars(), rightLen);
+
+        buf[wholeLength] = 0;
+        return str;
+    }
+
+    return JSRope::new_<NoGC>(cx, left, right, wholeLength);
+}
 
 bool
-JSDependentString::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSDependentString::getCharsZNonDestructive(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
     JS_ASSERT(JSString::isDependent());
 
@@ -440,7 +505,7 @@ JSDependentString::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jsch
 }
 
 JSFlatString *
-JSDependentString::undepend(ExclusiveContext *cx)
+JSDependentString::undepend(JSContext *cx)
 {
     JS_ASSERT(JSString::isDependent());
 
@@ -471,7 +536,7 @@ JSDependentString::undepend(ExclusiveContext *cx)
 }
 
 JSStableString *
-JSInlineString::uninline(ExclusiveContext *maybecx)
+JSInlineString::uninline(JSContext *maybecx)
 {
     JS_ASSERT(isInline());
     size_t n = length();
@@ -540,16 +605,15 @@ ScopedThreadSafeStringInspector::ensureChars(ThreadSafeContext *cx)
     if (chars_)
         return true;
 
-    if (cx->isExclusiveContext()) {
-        JSLinearString *linear = str_->ensureLinear(cx->asExclusiveContext());
+    if (cx->isJSContext()) {
+        JSLinearString *linear = str_->ensureLinear(cx->asJSContext());
         if (!linear)
             return false;
         chars_ = linear->chars();
     } else {
-        if (str_->hasPureChars()) {
-            chars_ = str_->pureChars();
-        } else {
-            if (!str_->copyNonPureChars(cx, scopedChars_))
+        chars_ = str_->maybeChars();
+        if (!chars_) {
+            if (!str_->getCharsNonDestructive(cx, scopedChars_))
                 return false;
             chars_ = scopedChars_;
         }
@@ -596,8 +660,7 @@ const StaticStrings::SmallChar StaticStrings::toSmallChar[] = { R7(0) };
 bool
 StaticStrings::init(JSContext *cx)
 {
-    AutoLockForExclusiveAccess lock(cx);
-    AutoCompartment ac(cx, cx->runtime()->atomsCompartment());
+    AutoCompartment ac(cx, cx->runtime()->atomsCompartment);
 
     for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++) {
         jschar buffer[] = { jschar(i), '\0' };

@@ -18,11 +18,7 @@
 
 %define toolbar_vertical_spacing 5px
 %define toolbar_horizontal_spacing 20px
-%define toolbar_snapped_horizontal_spacing 10px
-
-% XXX Per UX mockups, this should be 68px, but we need to make this
-% one pixel higher to reduce button clipping until bug 905453 is resolved
-%define toolbar_height 69px
+%define toolbar_height 68px
 %define labelled_toolbar_height 90px
 %define tabs_height 178px
 %define findbar_height 54px
@@ -44,7 +40,6 @@
 
 %define tile_border_color #dbdcde
 %define tile_spacing 12px
-%define tile_side_margin 6px
 
 %define scroller_thickness 4px
 %define scroller_minimum 8px
@@ -101,8 +96,3 @@
 % that the bars slide up after the keyboard is in place.
 %define appbar_keyboard_slideup_duration 750ms
 
-% minimum resolution cutoffs for displaying 1.4x and 1.8x versions of icons
-% XXX currently, there's some weirdness with the dppx unit, as documented in
-% bug 895277. Because of that, we have to use 1.39dppx instead of 1.4dppx.
-%define min_res_140pc 1.39dppx
-%define min_res_180pc 1.8dppx

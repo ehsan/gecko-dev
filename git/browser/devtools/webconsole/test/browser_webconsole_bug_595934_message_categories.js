@@ -46,26 +46,31 @@ const TESTS = [
     matchString: "fooBarSVG",
   },
   { // #6
+    file: "test-bug-595934-canvas.html",
+    category: "Canvas",
+    matchString: "strokeStyle",
+  },
+  { // #7
     file: "test-bug-595934-css-parser.html",
     category: "CSS Parser",
     matchString: "foobarCssParser",
   },
-  { // #7
+  { // #8
     file: "test-bug-595934-malformedxml-external.html",
     category: "malformed-xml",
     matchString: "</html>",
   },
-  { // #8
+  { // #9
     file: "test-bug-595934-empty-getelementbyid.html",
     category: "DOM",
     matchString: "getElementById",
   },
-  { // #9
+  { // #10
     file: "test-bug-595934-canvas-css.html",
     category: "CSS Parser",
     matchString: "foobarCanvasCssParser",
   },
-  { // #10
+  { // #11
     file: "test-bug-595934-image.html",
     category: "Image",
     matchString: "corrupt",

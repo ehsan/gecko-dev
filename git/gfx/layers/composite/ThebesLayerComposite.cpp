@@ -3,43 +3,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ipc/AutoOpenSurface.h"
+#include "mozilla/layers/PLayerTransaction.h"
+#include "TiledLayerBuffer.h"
+
+// This must occur *after* layers/PLayerTransaction.h to avoid
+// typedefs conflicts.
+#include "mozilla/Util.h"
+
+#include "mozilla/layers/ShadowLayers.h"
+
+#include "ThebesLayerBuffer.h"
 #include "ThebesLayerComposite.h"
-#include "mozilla-config.h"             // for MOZ_DUMP_PAINTING
-#include "CompositableHost.h"           // for TiledLayerProperties, etc
-#include "FrameMetrics.h"               // for FrameMetrics
-#include "Units.h"                      // for CSSRect, LayerPixel, etc
-#include "gfx2DGlue.h"                  // for ToMatrix4x4
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxUtils.h"                   // for gfxUtils, etc
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
-#include "mozilla/gfx/Point.h"          // for Point
-#include "mozilla/gfx/Rect.h"           // for RoundedToInt, Rect
-#include "mozilla/gfx/Types.h"          // for Filter::FILTER_LINEAR
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/ContentHost.h"  // for ContentHost
-#include "mozilla/layers/Effects.h"     // for EffectChain
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsMathUtils.h"                // for NS_lround
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsSize.h"                     // for nsIntSize
-#include "nsString.h"                   // for nsAutoCString
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "mozilla/layers/ContentHost.h"
+#include "gfxUtils.h"
+#include "gfx2DGlue.h"
+
+#include "mozilla/layers/CompositorTypes.h" // for TextureInfo
+#include "mozilla/layers/Effects.h"
 
 namespace mozilla {
 namespace layers {
-
-class TiledLayerComposer;
 
 ThebesLayerComposite::ThebesLayerComposite(LayerManagerComposite *aManager)
   : ThebesLayer(aManager, nullptr)
   , LayerComposite(aManager)
   , mBuffer(nullptr)
-  , mRequiresTiledProperties(false)
 {
   MOZ_COUNT_CTOR(ThebesLayerComposite);
   mImplData = static_cast<LayerComposite*>(this);
@@ -48,13 +37,15 @@ ThebesLayerComposite::ThebesLayerComposite(LayerManagerComposite *aManager)
 ThebesLayerComposite::~ThebesLayerComposite()
 {
   MOZ_COUNT_DTOR(ThebesLayerComposite);
-  CleanupResources();
+  if (mBuffer) {
+    mBuffer->Detach();
+  }
 }
 
 void
 ThebesLayerComposite::SetCompositableHost(CompositableHost* aHost)
 {
-  mBuffer = static_cast<ContentHost*>(aHost);
+  mBuffer= static_cast<ContentHost*>(aHost);
 }
 
 void
@@ -67,7 +58,10 @@ void
 ThebesLayerComposite::Destroy()
 {
   if (!mDestroyed) {
-    CleanupResources();
+    if (mBuffer) {
+      mBuffer->Detach();
+    }
+    mBuffer = nullptr;
     mDestroyed = true;
   }
 }
@@ -81,14 +75,13 @@ ThebesLayerComposite::GetLayer()
 TiledLayerComposer*
 ThebesLayerComposite::GetTiledLayerComposer()
 {
-  MOZ_ASSERT(mBuffer && mBuffer->IsAttached());
   return mBuffer->AsTiledLayerComposer();
 }
 
 LayerRenderState
 ThebesLayerComposite::GetRenderState()
 {
-  if (!mBuffer || !mBuffer->IsAttached() || mDestroyed) {
+  if (!mBuffer || mDestroyed) {
     return LayerRenderState();
   }
   return mBuffer->GetRenderState();
@@ -98,13 +91,9 @@ void
 ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
                                   const nsIntRect& aClipRect)
 {
-  if (!mBuffer || !mBuffer->IsAttached()) {
+  if (!mBuffer) {
     return;
   }
-
-  MOZ_ASSERT(mBuffer->GetCompositor() == mCompositeManager->GetCompositor() &&
-             mBuffer->GetLayer() == this,
-             "buffer is corrupted");
 
   gfx::Matrix4x4 transform;
   ToMatrix4x4(GetEffectiveTransform(), transform);
@@ -118,7 +107,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 #endif
 
   EffectChain effectChain;
-  LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
+  LayerManagerComposite::AddMaskEffect(mMaskLayer, effectChain);
 
   nsIntRegion visibleRegion = GetEffectiveVisibleRegion();
 
@@ -155,21 +144,13 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 }
 
 CompositableHost*
-ThebesLayerComposite::GetCompositableHost()
-{
-  if (mBuffer->IsAttached()) {
-    return mBuffer.get();
-  }
-
-  return nullptr;
+ThebesLayerComposite::GetCompositableHost() {
+  return mBuffer.get();
 }
 
 void
 ThebesLayerComposite::CleanupResources()
 {
-  if (mBuffer) {
-    mBuffer->Detach(this);
-  }
   mBuffer = nullptr;
 }
 
@@ -298,7 +279,7 @@ ThebesLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   ThebesLayer::PrintInfo(aTo, aPrefix);
   aTo += "\n";
-  if (mBuffer && mBuffer->IsAttached()) {
+  if (mBuffer) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
     mBuffer->PrintInfo(aTo, pfx.get());

@@ -7,7 +7,6 @@
 #define nsGUIEventIPC_h__
 
 #include "ipc/IPCMessageUtils.h"
-#include "mozilla/GfxMessageUtils.h"
 #include "mozilla/dom/Touch.h"
 #include "nsGUIEvent.h"
 
@@ -228,7 +227,7 @@ struct ParamTraits<nsTouchEvent>
     }
     for (uint32_t i = 0; i < numTouches; ++i) {
         int32_t identifier;
-        mozilla::LayoutDeviceIntPoint refPoint;
+        nsIntPoint refPoint;
         nsIntPoint radius;
         float rotationAngle;
         float force;
@@ -240,9 +239,7 @@ struct ParamTraits<nsTouchEvent>
           return false;
         }
         aResult->touches.AppendElement(
-          new mozilla::dom::Touch(
-            identifier, mozilla::LayoutDeviceIntPoint::ToUntyped(refPoint),
-            radius, rotationAngle, force));
+          new mozilla::dom::Touch(identifier, refPoint, radius, rotationAngle, force));
     }
     return true;
   }
@@ -273,10 +270,9 @@ struct ParamTraits<nsKeyEvent>
         ReadParam(aMsg, aIter, &aResult->keyCode) &&
         ReadParam(aMsg, aIter, &aResult->charCode) &&
         ReadParam(aMsg, aIter, &aResult->isChar) &&
-        ReadParam(aMsg, aIter, &aResult->location))
-    {
-      aResult->mKeyNameIndex = static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
-      aResult->mNativeKeyEvent = NULL;
+        ReadParam(aMsg, aIter, &aResult->location)) {
+      aResult->mKeyNameIndex =
+        static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
       return true;
     }
     return false;
@@ -338,7 +334,7 @@ struct ParamTraits<nsTextEvent>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    WriteParam(aMsg, static_cast<nsGUIEvent>(aParam));
+    WriteParam(aMsg, static_cast<nsInputEvent>(aParam));
     WriteParam(aMsg, aParam.seqno);
     WriteParam(aMsg, aParam.theText);
     WriteParam(aMsg, aParam.isChar);
@@ -349,7 +345,7 @@ struct ParamTraits<nsTextEvent>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    if (!ReadParam(aMsg, aIter, static_cast<nsGUIEvent*>(aResult)) ||
+    if (!ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) ||
         !ReadParam(aMsg, aIter, &aResult->seqno) ||
         !ReadParam(aMsg, aIter, &aResult->theText) ||
         !ReadParam(aMsg, aIter, &aResult->isChar) ||

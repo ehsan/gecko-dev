@@ -7,9 +7,10 @@
 
 #include "nsDOMEvent.h"
 #include "nsIDOMTransitionEvent.h"
+#include "nsString.h"
 #include "mozilla/dom/TransitionEventBinding.h"
 
-class nsAString;
+class nsTransitionEvent;
 
 class nsDOMTransitionEvent : public nsDOMEvent,
                              public nsIDOMTransitionEvent

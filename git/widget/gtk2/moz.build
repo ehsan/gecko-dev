@@ -6,11 +6,6 @@
 
 MODULE = 'widget'
 
-if CONFIG['MOZ_ENABLE_GTK2']:
-    LIBRARY_NAME = 'widget_gtk2'
-else:
-    LIBRARY_NAME = 'widget_gtk3'
-
 EXPORTS += [
     'mozcontainer.h',
     'nsGTKToolkit.h',
@@ -21,7 +16,6 @@ CPP_SOURCES += [
     'WidgetTraceEvent.cpp',
     'nsAppShell.cpp',
     'nsBidiKeyboard.cpp',
-    'nsColorPicker.cpp',
     'nsFilePicker.cpp',
     'nsGtkIMModule.cpp',
     'nsGtkKeyUtils.cpp',
@@ -59,11 +53,5 @@ if CONFIG['MOZ_X11']:
         'nsDragService.cpp',
     ]
 
-FAIL_ON_WARNINGS = True
-
-CSRCS += [
-    'mozcontainer.c',
+CPP_SOURCES += [
 ]
-
-LIBXUL_LIBRARY = True
-

@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Macros to emulate C++11 typed enums and enum classes. */
 
-#ifndef mozilla_TypedEnum_h
-#define mozilla_TypedEnum_h
+#ifndef mozilla_TypedEnum_h_
+#define mozilla_TypedEnum_h_
 
 #include "mozilla/Attributes.h"
 
@@ -92,33 +91,16 @@
  * mandatory.  As with MOZ_ENUM_TYPE(), it will do nothing on compilers that do
  * not support it.
  *
- * MOZ_{BEGIN,END}_ENUM_CLASS doesn't work for defining enum classes nested
- * inside classes.  To define an enum class nested inside another class, use
- * MOZ_{BEGIN,END}_NESTED_ENUM_CLASS, and place a MOZ_FINISH_NESTED_ENUM_CLASS
- * in namespace scope to handle bits that can only be implemented with
- * namespace-scoped code.  For example:
- *
- *   class FooBar {
- *
- *     MOZ_BEGIN_NESTED_ENUM_CLASS(Enum, int32_t)
- *       A,
- *       B = 6
- *     MOZ_END_NESTED_ENUM_CLASS(Enum)
- *
- *   };
- *
- *   MOZ_FINISH_NESTED_ENUM_CLASS(FooBar::Enum)
+ * Note that the workaround implemented here is not compatible with enums
+ * nested inside a class.
  */
 #if defined(MOZ_HAVE_CXX11_STRONG_ENUMS)
   /*
    * All compilers that support strong enums also support an explicit
    * underlying type, so no extra check is needed.
    */
-#  define MOZ_BEGIN_NESTED_ENUM_CLASS(Name, type) \
-     enum class Name : type {
-#  define MOZ_END_NESTED_ENUM_CLASS(Name) \
-     };
-#  define MOZ_FINISH_NESTED_ENUM_CLASS(Name) /* nothing */
+#  define MOZ_BEGIN_ENUM_CLASS(Name, type) enum class Name : type {
+#  define MOZ_END_ENUM_CLASS(Name)         };
 #else
    /**
     * We need Name to both name a type, and scope the provided enumerator
@@ -154,14 +136,14 @@
     *   {
     *     return Enum::A;
     *   }
-    */\
-#  define MOZ_BEGIN_NESTED_ENUM_CLASS(Name, type) \
+    */
+#  define MOZ_BEGIN_ENUM_CLASS(Name, type) \
      class Name \
      { \
        public: \
          enum Enum MOZ_ENUM_TYPE(type) \
          {
-#  define MOZ_END_NESTED_ENUM_CLASS(Name) \
+#  define MOZ_END_ENUM_CLASS(Name) \
          }; \
          Name() {} \
          Name(Enum aEnum) : mEnum(aEnum) {} \
@@ -169,8 +151,7 @@
          operator Enum() const { return mEnum; } \
        private: \
          Enum mEnum; \
-     };
-#  define MOZ_FINISH_NESTED_ENUM_CLASS(Name) \
+     }; \
      inline int operator+(const int&, const Name::Enum&) MOZ_DELETE; \
      inline int operator+(const Name::Enum&, const int&) MOZ_DELETE; \
      inline int operator-(const int&, const Name::Enum&) MOZ_DELETE; \
@@ -226,11 +207,7 @@
      inline int& operator<<=(int&, const Name::Enum&) MOZ_DELETE; \
      inline int& operator>>=(int&, const Name::Enum&) MOZ_DELETE;
 #endif
-#  define MOZ_BEGIN_ENUM_CLASS(Name, type) MOZ_BEGIN_NESTED_ENUM_CLASS(Name, type)
-#  define MOZ_END_ENUM_CLASS(Name) \
-     MOZ_END_NESTED_ENUM_CLASS(Name) \
-     MOZ_FINISH_NESTED_ENUM_CLASS(Name)
 
 #endif /* __cplusplus */
 
-#endif /* mozilla_TypedEnum_h */
+#endif  /* mozilla_TypedEnum_h_ */

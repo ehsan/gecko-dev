@@ -7,7 +7,6 @@
 #define nsBaseHashtable_h__
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
 #include "nsTHashtable.h"
 #include "prlock.h"
 #include "nsDebug.h"
@@ -32,7 +31,7 @@ private:
   typedef typename KeyClass::KeyTypePointer KeyTypePointer;
   
   nsBaseHashtableET(KeyTypePointer aKey);
-  nsBaseHashtableET(nsBaseHashtableET<KeyClass,DataType>&& toMove);
+  nsBaseHashtableET(nsBaseHashtableET<KeyClass,DataType>& toCopy);
   ~nsBaseHashtableET();
 };
 
@@ -412,9 +411,9 @@ nsBaseHashtableET<KeyClass,DataType>::nsBaseHashtableET(KeyTypePointer aKey) :
 
 template<class KeyClass,class DataType>
 nsBaseHashtableET<KeyClass,DataType>::nsBaseHashtableET
-  (nsBaseHashtableET<KeyClass,DataType>&& toMove) :
-  KeyClass(mozilla::Move(toMove)),
-  mData(mozilla::Move(toMove.mData))
+  (nsBaseHashtableET<KeyClass,DataType>& toCopy) :
+  KeyClass(toCopy),
+  mData(toCopy.mData)
 { }
 
 template<class KeyClass,class DataType>

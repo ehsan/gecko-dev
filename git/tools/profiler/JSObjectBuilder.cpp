@@ -7,7 +7,7 @@
 #include "nsStringGlue.h"
 #include "JSObjectBuilder.h"
 
-JSObjectBuilder::JSObjectBuilder(JSContext *aCx) : mCx(aCx), mOk(true)
+JSObjectBuilder::JSObjectBuilder(JSContext *aCx) : mCx(aCx), mOk(JS_TRUE)
 {}
 
 void
@@ -52,7 +52,7 @@ JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, nsASt
   const nsString &flat = PromiseFlatString(value);
   JSString *string = JS_NewUCStringCopyN(mCx, static_cast<const jschar*>(flat.get()), flat.Length());
   if (!string)
-    mOk = false;
+    mOk = JS_FALSE;
 
   if (!mOk)
     return;
@@ -68,7 +68,7 @@ JSObjectBuilder::DefineProperty(JSCustomObject *aObject, const char *name, const
 
   JSString *string = JS_InternStringN(mCx, value, valueLength);
   if (!string) {
-    mOk = false;
+    mOk = JS_FALSE;
     return;
   }
 
@@ -93,7 +93,7 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, int value)
     return;
 
   JS::Rooted<JS::Value> objval(mCx, INT_TO_JSVAL(value));
-  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, objval.address());
 }
 
 void
@@ -104,7 +104,7 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, const char *value)
 
   JS::RootedString string(mCx, JS_NewStringCopyN(mCx, value, strlen(value)));
   if (!string) {
-    mOk = false;
+    mOk = JS_FALSE;
     return;
   }
 
@@ -115,7 +115,7 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, const char *value)
     return;
 
   JS::Rooted<JS::Value> objval(mCx, STRING_TO_JSVAL(string));
-  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, objval.address());
 }
 
 void
@@ -131,14 +131,14 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, JSCustomObject *aObject)
     return;
 
   JS::Rooted<JS::Value> objval(mCx, OBJECT_TO_JSVAL((JSObject*)aObject));
-  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, objval.address());
 }
 
 JSCustomArray*
 JSObjectBuilder::CreateArray() {
   JSCustomArray *array = (JSCustomArray*)JS_NewArrayObject(mCx, 0, nullptr);
   if (!array)
-    mOk = false;
+    mOk = JS_FALSE;
 
   return array;
 }
@@ -147,7 +147,7 @@ JSCustomObject*
 JSObjectBuilder::CreateObject() {
   JSCustomObject *obj = (JSCustomObject*)JS_NewObject(mCx, nullptr, nullptr, nullptr);
   if (!obj)
-    mOk = false;
+    mOk = JS_FALSE;
 
   return obj;
 }

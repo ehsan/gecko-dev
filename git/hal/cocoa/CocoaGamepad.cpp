@@ -49,11 +49,11 @@ class Gamepad {
   vector<Axis> axes;
 
  public:
-  Gamepad() : mDevice(nullptr), mSuperIndex(-1) {}
+  Gamepad() : mDevice(NULL), mSuperIndex(-1) {}
   bool operator==(IOHIDDeviceRef device) const { return mDevice == device; }
-  bool empty() const { return mDevice == nullptr; }
+  bool empty() const { return mDevice == NULL; }
   void clear() {
-    mDevice = nullptr;
+    mDevice = NULL;
     buttons.clear();
     axes.clear();
     mSuperIndex = -1;
@@ -70,7 +70,7 @@ class Gamepad {
       if (buttons[i].element == element)
         return &buttons[i];
     }
-    return nullptr;
+    return NULL;
   }
 
   const Axis* lookupAxis(IOHIDElementRef element) const {
@@ -78,7 +78,7 @@ class Gamepad {
       if (axes[i].element == element)
         return &axes[i];
     }
-    return nullptr;
+    return NULL;
   }
 };
 
@@ -87,7 +87,7 @@ void Gamepad::init(IOHIDDeviceRef device) {
   mDevice = device;
 
   CFArrayRef elements = IOHIDDeviceCopyMatchingElements(device,
-                                                        nullptr,
+                                                        NULL,
                                                         kIOHIDOptionsTypeNone);
   CFIndex n = CFArrayGetCount(elements);
   for (CFIndex i = 0; i < n; i++) {
@@ -247,13 +247,13 @@ MatchingDictionary(UInt32 inUsagePage, UInt32 inUsage)
                               &kCFTypeDictionaryKeyCallBacks,
                               &kCFTypeDictionaryValueCallBacks);
   if (!dict)
-    return nullptr;
+    return NULL;
   CFNumberRef number = CFNumberCreate(kCFAllocatorDefault,
                                       kCFNumberIntType,
                                       &inUsagePage);
   if (!number) {
     CFRelease(dict);
-    return nullptr;
+    return NULL;
   }
   CFDictionarySetValue(dict, CFSTR(kIOHIDDeviceUsagePageKey), number);
   CFRelease(number);
@@ -261,7 +261,7 @@ MatchingDictionary(UInt32 inUsagePage, UInt32 inUsage)
   number = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &inUsage);
   if (!number) {
     CFRelease(dict);
-    return nullptr;
+    return NULL;
   }
   CFDictionarySetValue(dict, CFSTR(kIOHIDDeviceUsageKey), number);
   CFRelease(number);
@@ -269,17 +269,17 @@ MatchingDictionary(UInt32 inUsagePage, UInt32 inUsage)
   return dict;
 }
 
-DarwinGamepadService::DarwinGamepadService() : mManager(nullptr) {}
+DarwinGamepadService::DarwinGamepadService() : mManager(NULL) {}
 
 DarwinGamepadService::~DarwinGamepadService()
 {
-  if (mManager != nullptr)
+  if (mManager != NULL)
     CFRelease(mManager);
 }
 
 void DarwinGamepadService::Startup()
 {
-  if (mManager != nullptr)
+  if (mManager != NULL)
     return;
 
   IOHIDManagerRef manager = IOHIDManagerCreate(kCFAllocatorDefault,
@@ -302,7 +302,7 @@ void DarwinGamepadService::Startup()
   }
 
   CFArrayRef criteria =
-    CFArrayCreate(kCFAllocatorDefault, (const void**)criteria_arr, 2, nullptr);
+    CFArrayCreate(kCFAllocatorDefault, (const void**)criteria_arr, 2, NULL);
   if (!criteria) {
     CFRelease(criteria_arr[1]);
     CFRelease(criteria_arr[0]);
@@ -342,7 +342,7 @@ void DarwinGamepadService::Shutdown()
   if (manager) {
     IOHIDManagerClose(manager, 0);
     CFRelease(manager);
-    mManager = nullptr;
+    mManager = NULL;
   }
 }
 
@@ -351,7 +351,7 @@ void DarwinGamepadService::Shutdown()
 namespace mozilla {
 namespace hal_impl {
 
-DarwinGamepadService* gService = nullptr;
+DarwinGamepadService* gService = NULL;
 
 void StartMonitoringGamepadStatus()
 {
@@ -369,7 +369,7 @@ void StopMonitoringGamepadStatus()
 
   gService->Shutdown();
   delete gService;
-  gService = nullptr;
+  gService = NULL;
 }
 
 } // namespace hal_impl

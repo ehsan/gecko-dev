@@ -21,6 +21,3 @@ LIBRARY_NAME = 'jsdebugger'
 EXTRA_JS_MODULES += [
     'jsdebugger.jsm',
 ]
-
-LIBXUL_LIBRARY = True
-

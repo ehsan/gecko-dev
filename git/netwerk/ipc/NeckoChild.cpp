@@ -15,10 +15,8 @@
 #include "mozilla/net/WebSocketChannelChild.h"
 #include "mozilla/net/RemoteOpenFileChild.h"
 #include "mozilla/dom/network/TCPSocketChild.h"
-#include "mozilla/dom/network/TCPServerSocketChild.h"
 
 using mozilla::dom::TCPSocketChild;
-using mozilla::dom::TCPServerSocketChild;
 
 namespace mozilla {
 namespace net {
@@ -156,11 +154,14 @@ NeckoChild::DeallocPWebSocketChild(PWebSocketChild* child)
 }
 
 PTCPSocketChild*
-NeckoChild::AllocPTCPSocketChild()
+NeckoChild::AllocPTCPSocketChild(const nsString& aHost,
+                                 const uint16_t& aPort,
+                                 const bool& useSSL,
+                                 const nsString& aBinaryType,
+                                 PBrowserChild* aBrowser)
 {
-  TCPSocketChild* p = new TCPSocketChild();
-  p->AddIPDLReference();
-  return p;
+  NS_NOTREACHED("AllocPTCPSocketChild should not be called");
+  return nullptr;
 }
 
 bool
@@ -171,25 +172,8 @@ NeckoChild::DeallocPTCPSocketChild(PTCPSocketChild* child)
   return true;
 }
 
-PTCPServerSocketChild*
-NeckoChild::AllocPTCPServerSocketChild(const uint16_t& aLocalPort,
-                                  const uint16_t& aBacklog,
-                                  const nsString& aBinaryType)
-{
-  NS_NOTREACHED("AllocPTCPServerSocket should not be called");
-  return nullptr;
-}
-
-bool
-NeckoChild::DeallocPTCPServerSocketChild(PTCPServerSocketChild* child)
-{
-  TCPServerSocketChild* p = static_cast<TCPServerSocketChild*>(child);
-  p->ReleaseIPDLReference();
-  return true;
-}
-
 PRemoteOpenFileChild*
-NeckoChild::AllocPRemoteOpenFileChild(const URIParams&)
+NeckoChild::AllocPRemoteOpenFileChild(const URIParams&, PBrowserChild*)
 {
   // We don't allocate here: instead we always use IPDL constructor that takes
   // an existing RemoteOpenFileChild

@@ -28,12 +28,10 @@
       },
       'sources': [
         # Common
-        '../interface/rtp_header_parser.h',
         '../interface/rtp_rtcp.h',
         '../interface/rtp_rtcp_defines.h',
         'bitrate.cc',
         'bitrate.h',
-        'rtp_header_parser.cc',
         'rtp_rtcp_config.h',
         'rtp_rtcp_impl.cc',
         'rtp_rtcp_impl.h',

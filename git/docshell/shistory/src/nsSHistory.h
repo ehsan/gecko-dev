@@ -13,10 +13,13 @@
 //Interfaces Needed
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
+#include "nsISHTransaction.h"
 #include "nsIWebNavigation.h"
+#include "nsIWeakReference.h"
 #include "nsISimpleEnumerator.h"
+#include "nsISHistoryListener.h"
+#include "nsIHistoryEntry.h"
 #include "nsTObserverArray.h"
-#include "nsWeakPtr.h"
 
 // Needed to maintain global list of all SHistory objects
 #include "prclist.h"
@@ -24,9 +27,6 @@
 class nsIDocShell;
 class nsSHEnumerator;
 class nsSHistoryObserver;
-class nsISHEntry;
-class nsISHTransaction;
-
 class nsSHistory: public PRCList,
                   public nsISHistory,
                   public nsISHistoryInternal,
@@ -57,6 +57,7 @@ protected:
   friend class nsSHistoryObserver;
 
    // Could become part of nsIWebNavigation
+   NS_IMETHOD GetEntryAtIndex(int32_t aIndex, bool aModifyIndex, nsISHEntry** aResult);
    NS_IMETHOD GetTransactionAtIndex(int32_t aIndex, nsISHTransaction ** aResult);
    nsresult CompareFrames(nsISHEntry * prevEntry, nsISHEntry * nextEntry, nsIDocShell * rootDocShell, long aLoadType, bool * aIsFrameFound);
    nsresult InitiateLoad(nsISHEntry * aFrameEntry, nsIDocShell * aFrameDS, long aLoadType);

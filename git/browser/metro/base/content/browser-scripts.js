@@ -10,9 +10,6 @@ Cu.import("resource://gre/modules/Services.jsm");
  * JS modules
  */
 
-XPCOMUtils.defineLazyModuleGetter(this , "FormHistory",
-                                  "resource://gre/modules/FormHistory.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 
@@ -37,13 +34,38 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
+XPCOMUtils.defineLazyModuleGetter(this, "CrossSlide",
+                                  "resource:///modules/CrossSlide.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
 
 /*
  * Services
  */
 
+#ifdef XP_WIN
+XPCOMUtils.defineLazyServiceGetter(this, "MetroUtils",
+                                   "@mozilla.org/windows-metroutils;1",
+                                   "nsIWinMetroUtils");
+#else
+// Stub nsIWinMetroUtils implementation for testing on non-Windows platforms:
+var MetroUtils = {
+  snappedState: Ci.nsIWinMetroUtils.fullScreenLandscape,
+  immersive: false,
+  handPreference: Ci.nsIWinMetroUtils.handPreferenceLeft,
+  unsnap: function() {},
+  launchInDesktop: function() {},
+  pinTileAsync: function() {},
+  unpinTileAsync: function() {},
+  isTilePinned: function() { return false; },
+  keyboardVisible: false,
+  keyboardX: 0,
+  keyboardY: 0,
+  keyboardWidth: 0,
+  keyboardHeight: 0
+};
+#endif
 XPCOMUtils.defineLazyServiceGetter(this, "StyleSheetSvc",
                                    "@mozilla.org/content/style-sheet-service;1",
                                    "nsIStyleSheetService");
@@ -98,16 +120,29 @@ let ScriptContexts = {};
   ["ContextCommands", "chrome://browser/content/ContextCommands.js"],
   ["Bookmarks", "chrome://browser/content/bookmarks.js"],
   ["Downloads", "chrome://browser/content/downloads.js"],
+  ["BookmarksPanelView", "chrome://browser/content/bookmarks.js"],
   ["ConsolePanelView", "chrome://browser/content/console.js"],
+  ["BookmarksStartView", "chrome://browser/content/bookmarks.js"],
+  ["HistoryView", "chrome://browser/content/history.js"],
+  ["HistoryStartView", "chrome://browser/content/history.js"],
+  ["HistoryPanelView", "chrome://browser/content/history.js"],
   ["Site", "chrome://browser/content/Site.js"],
   ["TopSites", "chrome://browser/content/TopSites.js"],
+  ["TopSitesView", "chrome://browser/content/TopSites.js"],
+  ["TopSitesSnappedView", "chrome://browser/content/TopSites.js"],
+  ["TopSitesStartView", "chrome://browser/content/TopSites.js"],
   ["Sanitizer", "chrome://browser/content/sanitize.js"],
   ["SanitizeUI", "chrome://browser/content/sanitizeUI.js"],
   ["SSLExceptions", "chrome://browser/content/exceptions.js"],
   ["ItemPinHelper", "chrome://browser/content/helperui/ItemPinHelper.js"],
   ["NavButtonSlider", "chrome://browser/content/NavButtonSlider.js"],
   ["ContextUI", "chrome://browser/content/ContextUI.js"],
-  ["FlyoutPanelsUI", "chrome://browser/content/flyoutpanels/FlyoutPanelsUI.js"],
+  ["FlyoutPanelsUI", "chrome://browser/content/flyouts/flyoutUI.js"],
+#ifdef MOZ_SERVICES_SYNC
+  ["RemoteTabsView", "chrome://browser/content/RemoteTabs.js"],
+  ["RemoteTabsPanelView", "chrome://browser/content/RemoteTabs.js"],
+  ["RemoteTabsStartView", "chrome://browser/content/RemoteTabs.js"],
+#endif
 ].forEach(function (aScript) {
   let [name, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {

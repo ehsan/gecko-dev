@@ -781,7 +781,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
   // call), so there is no need to retain and release this data.
   aKeyEvent.mNativeKeyEvent = aNativeKeyEvent;
 
-  aKeyEvent.refPoint = LayoutDeviceIntPoint(0, 0);
+  aKeyEvent.refPoint = nsIntPoint(0, 0);
 
   // If a keyboard layout override is set, we also need to force the keyboard
   // type to something ANSI to avoid test failures on machines with JIS
@@ -914,7 +914,6 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
     case kVK_ANSI_KeypadDivide:
     case kVK_ANSI_KeypadEquals:
     case kVK_ANSI_KeypadEnter:
-    case kVK_JIS_KeypadComma:
     case kVK_Powerbook_KeypadEnter:
       aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_NUMPAD;
       break;
@@ -1224,8 +1223,6 @@ TISInputSourceWrapper::ComputeGeckoKeyCode(UInt32 aNativeKeyCode,
     case kVK_ANSI_KeypadDecimal:  return NS_VK_DECIMAL;
     case kVK_ANSI_KeypadDivide:   return NS_VK_DIVIDE;
 
-    case kVK_JIS_KeypadComma:   return NS_VK_SEPARATOR;
-
     // IME keys
     case kVK_JIS_Eisu:          return NS_VK_EISU;
     case kVK_JIS_Kana:          return NS_VK_KANA;
@@ -1445,7 +1442,7 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
       PR_LOG(gLog, PR_LOG_ALWAYS,
         ("%p TextInputHandler::HandleKeyDownEvent, "
          "widget was destroyed by keydown event", this));
-      return currentKeyEvent->IsDefaultPrevented();
+      return currentKeyEvent->KeyDownOrPressHandled();
     }
 
     // The key down event may have shifted the focus, in which
@@ -1455,7 +1452,7 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
       PR_LOG(gLog, PR_LOG_ALWAYS,
         ("%p TextInputHandler::HandleKeyDownEvent, "
          "view lost focus by keydown event", this));
-      return currentKeyEvent->IsDefaultPrevented();
+      return currentKeyEvent->KeyDownOrPressHandled();
     }
 
     // If this is the context menu key command, send a context menu key event.
@@ -1476,14 +1473,7 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
          Destroyed() ? " and widget was destroyed" : ""));
       [mView maybeInitContextMenuTracking];
       // Bail, there is nothing else to do here.
-      return (cmEventHandled || currentKeyEvent->IsDefaultPrevented());
-    }
-
-    if (currentKeyEvent->IsDefaultPrevented()) {
-      PR_LOG(gLog, PR_LOG_ALWAYS,
-        ("%p TextInputHandler::HandleKeyDownEvent, "
-         "keydown event's default is prevented", this));
-      return true;
+      return (cmEventHandled || currentKeyEvent->KeyDownOrPressHandled());
     }
   }
 
@@ -1505,7 +1495,7 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
     PR_LOG(gLog, PR_LOG_ALWAYS,
       ("%p TextInputHandler::HandleKeyDownEvent, widget was destroyed",
        this));
-    return currentKeyEvent->IsDefaultPrevented();
+    return currentKeyEvent->KeyDownOrPressHandled();
   }
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
@@ -1513,7 +1503,7 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
      "IsIMEComposing()=%s",
      this, TrueOrFalse(wasComposing), TrueOrFalse(IsIMEComposing())));
 
-  if (currentKeyEvent->CanDispatchKeyPressEvent() &&
+  if (!currentKeyEvent->mKeyPressDispatched &&
       !wasComposing && !IsIMEComposing()) {
     nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
     InitKeyEvent(aNativeEvent, keypressEvent);
@@ -1531,8 +1521,11 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
     //    our default action for this key.
     if (!(interpretKeyEventsCalled &&
           IsNormalCharInputtingEvent(keypressEvent))) {
+      if (currentKeyEvent->mKeyDownHandled ||
+          currentKeyEvent->mCausedOtherKeyEvents) {
+        keypressEvent.mFlags.mDefaultPrevented = true;
+      }
       currentKeyEvent->mKeyPressHandled = DispatchEvent(keypressEvent);
-      currentKeyEvent->mKeyPressDispatched = true;
       PR_LOG(gLog, PR_LOG_ALWAYS,
         ("%p TextInputHandler::HandleKeyDownEvent, keypress event dispatched",
          this));
@@ -1543,11 +1536,10 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p TextInputHandler::HandleKeyDownEvent, "
-     "keydown handled=%s, keypress handled=%s, causedOtherKeyEvents=%s",
+     "keydown handled=%s, keypress handled=%s",
      this, TrueOrFalse(currentKeyEvent->mKeyDownHandled),
-     TrueOrFalse(currentKeyEvent->mKeyPressHandled),
-     TrueOrFalse(currentKeyEvent->mCausedOtherKeyEvents)));
-  return currentKeyEvent->IsDefaultPrevented();
+     TrueOrFalse(currentKeyEvent->mKeyPressHandled)));
+  return currentKeyEvent->KeyDownOrPressHandled();
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
 }
@@ -1665,20 +1657,10 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
       //     dependent flags.
       if (isKeyDown && ((diff & ~NSDeviceIndependentModifierFlagsMask) != 0)) {
         unsigned short keyCode = [aNativeEvent keyCode];
-        const ModifierKey* modifierKey =
-          GetModifierKeyForDeviceDependentFlags(diff);
-        if (modifierKey && modifierKey->keyCode != keyCode) {
-          // Although, we're not sure the actual cause of this case, the stored
-          // modifier information and the latest key event information may be
-          // mismatched. Then, let's reset the stored information.
-          // NOTE: If this happens, it may fail to handle NSFlagsChanged event
-          // in the default case (below). However, it's the rare case handler
-          // and this case occurs rarely. So, we can ignore the edge case bug.
-          NS_WARNING("Resetting stored modifier key information");
-          mModifierKeys.Clear();
-          modifierKey = nullptr;
-        }
-        if (!modifierKey) {
+        ModifierKey* modifierKey = GetModifierKeyForDeviceDependentFlags(diff);
+        if (modifierKey) {
+          MOZ_ASSERT(modifierKey->keyCode == keyCode);
+        } else {
           mModifierKeys.AppendElement(ModifierKey(diff, keyCode));
         }
       }
@@ -1759,7 +1741,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
               continue;
           }
         } else {
-          const ModifierKey* modifierKey =
+          ModifierKey* modifierKey =
             GetModifierKeyForDeviceDependentFlags(flag);
           if (!modifierKey) {
             // See the note above (in the other branch of the if statement)
@@ -1774,7 +1756,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
         modifiers &= ~flag;
         switch (keyCode) {
           case kVK_Shift: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_RightShift);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1783,7 +1765,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_RightShift: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_Shift);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1792,7 +1774,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_Command: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_RightCommand);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1801,7 +1783,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_RightCommand: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_Command);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1810,7 +1792,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_Control: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_RightControl);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1819,7 +1801,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_RightControl: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_Control);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1828,7 +1810,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_Option: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_RightOption);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1837,7 +1819,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
             break;
           }
           case kVK_RightOption: {
-            const ModifierKey* modifierKey =
+            ModifierKey* modifierKey =
               GetModifierKeyForNativeKeyCode(kVK_Option);
             if (!modifierKey ||
                 !(modifiers & modifierKey->GetDeviceDependentFlags())) {
@@ -1885,7 +1867,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-const TextInputHandler::ModifierKey*
+TextInputHandler::ModifierKey*
 TextInputHandler::GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const
 {
   for (ModifierKeyArray::index_type i = 0; i < mModifierKeys.Length(); ++i) {
@@ -1896,7 +1878,7 @@ TextInputHandler::GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const
   return nullptr;
 }
 
-const TextInputHandler::ModifierKey*
+TextInputHandler::ModifierKey*
 TextInputHandler::GetModifierKeyForDeviceDependentFlags(NSUInteger aFlags) const
 {
   for (ModifierKeyArray::index_type i = 0; i < mModifierKeys.Length(); ++i) {
@@ -1966,19 +1948,14 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
     ("%p TextInputHandler::InsertText, aAttrString=\"%s\", "
      "aReplacementRange=%p { location=%llu, length=%llu }, "
      "IsIMEComposing()=%s, IgnoreIMEComposition()=%s, "
-     "keyevent=%p, keydownHandled=%s, keypressDispatched=%s, "
-     "causedOtherKeyEvents=%s",
+     "keyevent=%p, keypressDispatched=%s",
      this, GetCharacters([aAttrString string]), aReplacementRange,
      aReplacementRange ? aReplacementRange->location : 0,
      aReplacementRange ? aReplacementRange->length : 0,
      TrueOrFalse(IsIMEComposing()), TrueOrFalse(IgnoreIMEComposition()),
      currentKeyEvent ? currentKeyEvent->mKeyEvent : nullptr,
      currentKeyEvent ?
-       TrueOrFalse(currentKeyEvent->mKeyDownHandled) : "N/A",
-     currentKeyEvent ?
-       TrueOrFalse(currentKeyEvent->mKeyPressDispatched) : "N/A",
-     currentKeyEvent ?
-       TrueOrFalse(currentKeyEvent->mCausedOtherKeyEvents) : "N/A"));
+       TrueOrFalse(currentKeyEvent->mKeyPressDispatched) : "N/A"));
 
   if (IgnoreIMEComposition()) {
     return;
@@ -2037,7 +2014,7 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
 
   // Don't let the same event be fired twice when hitting
   // enter/return! (Bug 420502)
-  if (currentKeyEvent && !currentKeyEvent->CanDispatchKeyPressEvent()) {
+  if (currentKeyEvent && currentKeyEvent->mKeyPressDispatched) {
     return;
   }
 
@@ -2062,6 +2039,9 @@ TextInputHandler::InsertText(NSAttributedString* aAttrString,
   if (currentKeyEvent) {
     NSEvent* keyEvent = currentKeyEvent->mKeyEvent;
     InitKeyEvent(keyEvent, keypressEvent, &str);
+    if (currentKeyEvent->mKeyDownHandled) {
+      keypressEvent.mFlags.mDefaultPrevented = true;
+    }
   } else {
     nsCocoaUtils::InitInputEvent(keypressEvent, static_cast<NSEvent*>(nullptr));
     if (keypressEvent.isChar) {
@@ -2104,19 +2084,20 @@ TextInputHandler::DoCommandBySelector(const char* aSelector)
 
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p TextInputHandler::DoCommandBySelector, aSelector=\"%s\", "
-     "Destroyed()=%s, keydownHandled=%s, keypressHandled=%s, "
-     "causedOtherKeyEvents=%s",
+     "Destroyed()=%s, keypressHandled=%s, causedOtherKeyEvents=%s",
      this, aSelector ? aSelector : "", TrueOrFalse(Destroyed()),
-     currentKeyEvent ?
-       TrueOrFalse(currentKeyEvent->mKeyDownHandled) : "N/A",
      currentKeyEvent ?
        TrueOrFalse(currentKeyEvent->mKeyPressHandled) : "N/A",
      currentKeyEvent ?
        TrueOrFalse(currentKeyEvent->mCausedOtherKeyEvents) : "N/A"));
 
-  if (currentKeyEvent && currentKeyEvent->CanDispatchKeyPressEvent()) {
+  if (currentKeyEvent && !currentKeyEvent->mKeyPressDispatched) {
     nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
     InitKeyEvent(currentKeyEvent->mKeyEvent, keypressEvent);
+    if (currentKeyEvent->mKeyDownHandled ||
+        currentKeyEvent->mCausedOtherKeyEvents) {
+      keypressEvent.mFlags.mDefaultPrevented = true;
+    }
     currentKeyEvent->mKeyPressHandled = DispatchEvent(keypressEvent);
     currentKeyEvent->mKeyPressDispatched = true;
     PR_LOG(gLog, PR_LOG_ALWAYS,
@@ -2126,8 +2107,9 @@ TextInputHandler::DoCommandBySelector(const char* aSelector)
        TrueOrFalse(currentKeyEvent->mKeyPressHandled)));
   }
 
-  return (!Destroyed() && currentKeyEvent &&
-          currentKeyEvent->IsDefaultPrevented());
+  return !Destroyed() && currentKeyEvent &&
+         (currentKeyEvent->mKeyPressHandled ||
+          currentKeyEvent->mCausedOtherKeyEvents);
 }
 
 
@@ -3086,7 +3068,7 @@ IMEInputHandler::FirstRectForCharacterRange(NSRange& aRange,
   if (!rootWindow || !rootView) {
     return rect;
   }
-  rect = nsCocoaUtils::DevPixelsToCocoaPoints(r, mWidget->BackingScaleFactor());
+  rect = nsCocoaUtils::DevPixelsToCocoaPoints(r, mWidget->GetDefaultScale());
   rect = [rootView convertRect:rect toView:nil];
   rect.origin = [rootWindow convertBaseToScreen:rect.origin];
 
@@ -3424,7 +3406,7 @@ IMEInputHandler::IsFocused()
   NSWindow* window = [mView window];
   NS_ENSURE_TRUE(window, false);
   return [window firstResponder] == mView &&
-         [window isKeyWindow] &&
+         ([window isMainWindow] || [window isSheet]) &&
          [[NSApplication sharedApplication] isActive];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);

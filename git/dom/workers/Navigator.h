@@ -7,65 +7,21 @@
 #define mozilla_dom_workers_navigator_h__
 
 #include "Workers.h"
-#include "mozilla/dom/workers/bindings/DOMBindingBase.h"
-#include "nsStringGlue.h"
+
+#include "jspubtd.h"
 
 BEGIN_WORKERS_NAMESPACE
 
-class WorkerNavigator MOZ_FINAL : public DOMBindingBase
-{
-  nsString mAppName;
-  nsString mAppVersion;
-  nsString mPlatform;
-  nsString mUserAgent;
+namespace navigator {
 
-  WorkerNavigator(JSContext* aCx,
-                  const nsAString& aAppName,
-                  const nsAString& aAppVersion,
-                  const nsAString& aPlatform,
-                  const nsAString& aUserAgent)
-    : DOMBindingBase(aCx)
-    , mAppName(aAppName)
-    , mAppVersion(aAppVersion)
-    , mPlatform(aPlatform)
-    , mUserAgent(aUserAgent)
-  {
-    MOZ_COUNT_CTOR(mozilla::dom::workers::WorkerNavigator);
-  }
+bool
+InitClass(JSContext* aCx, JSObject* aGlobal);
 
-public:
-  static already_AddRefed<WorkerNavigator>
-  Create(JSContext* aCx, JS::Handle<JSObject*> aGlobal);
+JSObject*
+Create(JSContext* aCx);
 
-  virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
+} // namespace navigator
 
-  virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
-
-  ~WorkerNavigator()
-  {
-    MOZ_COUNT_DTOR(mozilla::dom::workers::WorkerNavigator);
-  }
-
-  void GetAppName(nsString& aAppName) const
-  {
-    aAppName = mAppName;
-  }
-  void GetAppVersion(nsString& aAppVersion) const
-  {
-    aAppVersion = mAppVersion;
-  }
-  void GetPlatform(nsString& aPlatform) const
-  {
-    aPlatform = mPlatform;
-  }
-  void GetUserAgent(nsString& aUserAgent) const
-  {
-    aUserAgent = mUserAgent;
-  }
-
-};
 END_WORKERS_NAMESPACE
 
 #endif // mozilla_dom_workers_navigator_h__

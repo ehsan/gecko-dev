@@ -31,7 +31,6 @@ using gfxMatrix;
 using gfxSize;
 using CSSRect;
 using mozilla::layers::FrameMetrics;
-using FrameMetrics::ViewID;
 using mozilla::layout::ScrollingBehavior;
 using mozilla::void_t;
 using mozilla::WindowsHandle;
@@ -54,7 +53,6 @@ using RemoteDOMEvent;
 using mozilla::dom::ScreenOrientation;
 using mozilla::layers::TextureFactoryIdentifier;
 using mozilla::CSSIntPoint;
-using mozilla::CSSToScreenScale;
 namespace mozilla {
 namespace dom {
 
@@ -193,12 +191,6 @@ parent:
     SetBackgroundColor(nscolor color);
 
     /**
-     * Used to set the current text of the status tooltip.
-     * Nowadays this is mainly used for link locations on hover.
-     */
-    SetStatus(uint32_t type, nsString status);
-
-    /**
      * Initiates an asynchronous request for permission for the
      * provided principal.
      *
@@ -288,14 +280,7 @@ parent:
      * Updates any zoom constraints on the parent and anything tied to it. This
      * is useful for control logic that resides outside of the remote browser.
      */
-    UpdateZoomConstraints(bool aAllowZoom, CSSToScreenScale aMinZoom, CSSToScreenScale aMaxZoom);
-
-    /**
-     * Notifies the parent about a scroll event. The pres shell ID and
-     * view ID identify which scrollable (sub-)frame was scrolled, and
-     * the new scroll offset for that frame is sent.
-     */
-    UpdateScrollOffset(uint32_t aPresShellId, ViewID aViewId, CSSIntPoint aScrollOffset);
+    UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom);
 
     __delete__();
 
@@ -413,13 +398,6 @@ child:
      * parent.
      */
     Destroy();
-
-
-    /**
-     * Tell the child side if it has to update it's touchable region
-     * to the parent.
-     */
-    SetUpdateHitRegion(bool aEnabled);
 
 /*
  * FIXME: write protocol!

@@ -4,14 +4,8 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
-
-import org.json.JSONObject;
-
 import android.content.Context;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
@@ -20,8 +14,8 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 
-public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnClickListener, GeckoEventListener  {
-    private static final String REQUEST_ID = "FindInPageBar";
+public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnClickListener {
+    private static final String LOGTAG = "GeckoFindInPagePopup";
 
     private final Context mContext;
     private CustomEditText mFindText;
@@ -59,7 +53,6 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         });
 
         mInflated = true;
-        GeckoAppShell.getEventDispatcher().registerEventListener("TextSelection:Data", this);
     }
 
     public void show() {
@@ -69,8 +62,21 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         setVisibility(VISIBLE);
         mFindText.requestFocus();
 
-        // handleMessage() receives response message and determines initial state of softInput
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:Get", REQUEST_ID));
+        // Show the virtual keyboard.
+        if (mFindText.hasWindowFocus()) {
+            getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
+        } else {
+            // showSoftInput won't work until after the window is focused.
+            mFindText.setOnWindowFocusChangeListener(new CustomEditText.OnWindowFocusChangeListener() {
+                @Override
+                public void onWindowFocusChanged(boolean hasFocus) {
+                   if (!hasFocus)
+                       return;
+                   mFindText.setOnWindowFocusChangeListener(null);
+                   getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
+               }
+            });
+        }
     }
 
     public void hide() {
@@ -83,10 +89,6 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
         Context context = view.getContext();
         return (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
      }
-
-    public void onDestroy() {
-        GeckoAppShell.getEventDispatcher().unregisterEventListener("TextSelection:Data", this);
-    }
 
     // TextWatcher implementation
 
@@ -109,62 +111,18 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
 
     @Override
     public void onClick(View v) {
-        final int viewId = v.getId();
-
-        if (viewId == R.id.find_prev) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Prev", mFindText.getText().toString()));
-            getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-            return;
-        }
-
-        if (viewId == R.id.find_next) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Next", mFindText.getText().toString()));
-            getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-            return;
-        }
-
-        if (viewId == R.id.find_close) {
-            hide();
-        }
-    }
-
-    // GeckoEventListener implementation
-
-    @Override
-    public void handleMessage(String event, JSONObject message) {
-        if (!event.equals("TextSelection:Data") || !REQUEST_ID.equals(message.optString("requestId"))) {
-            return;
-        }
-
-        final String text = message.optString("text");
-
-        // Populate an initial find string, virtual keyboard not required.
-        if (!TextUtils.isEmpty(text)) {
-            // Populate initial selection
-            ThreadUtils.postToUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    mFindText.setText(text);
-                }
-            });
-            return;
-        }
-
-        // Show the virtual keyboard.
-        if (mFindText.hasWindowFocus()) {
-            getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
-        } else {
-            // showSoftInput won't work until after the window is focused.
-            mFindText.setOnWindowFocusChangeListener(new CustomEditText.OnWindowFocusChangeListener() {
-                @Override
-                public void onWindowFocusChanged(boolean hasFocus) {
-                    if (!hasFocus)
-                        return;
-
-                    mFindText.setOnWindowFocusChangeListener(null);
-                    getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
-               }
-            });
+        switch (v.getId()) {
+            case R.id.find_prev:
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Prev", mFindText.getText().toString()));
+                getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
+                break;
+            case R.id.find_next:
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Next", mFindText.getText().toString()));
+                getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
+                break;
+            case R.id.find_close:
+                hide();
+                break;
         }
     }
 }

@@ -6,9 +6,7 @@
 #ifndef MOZILLA_GFX_BASICCOMPOSITOR_H
 #define MOZILLA_GFX_BASICCOMPOSITOR_H
 
-#include "mozilla/layers/Compositor.h"
-#include "mozilla/layers/TextureHost.h"
-#include "mozilla/gfx/2D.h"
+#include "Compositor.h"
 
 namespace mozilla {
 namespace layers {
@@ -23,12 +21,6 @@ public:
 
   virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
-  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE
-  {
-    return mDrawTarget ? mDrawTarget->GetFormat()
-                       : gfx::FORMAT_UNKNOWN;
-  }
-
   RefPtr<gfx::DrawTarget> mDrawTarget;
   gfx::IntSize mSize;
 };
@@ -40,16 +32,13 @@ public:
 
   virtual ~BasicCompositor();
 
-
   virtual bool Initialize() MOZ_OVERRIDE { return true; };
 
   virtual void Destroy() MOZ_OVERRIDE;
 
   virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
   {
-    return TextureFactoryIdentifier(LAYERS_BASIC,
-                                    XRE_GetProcessType(),
-                                    GetMaxTextureSize());
+    return TextureFactoryIdentifier(LAYERS_BASIC, GetMaxTextureSize());
   }
 
   virtual TemporaryRef<CompositingRenderTarget>
@@ -58,11 +47,6 @@ public:
   virtual TemporaryRef<CompositingRenderTarget>
   CreateRenderTargetFromSource(const gfx::IntRect &aRect,
                                const CompositingRenderTarget *aSource) MOZ_OVERRIDE;
-
-  virtual TemporaryRef<DataTextureSource>
-  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE;
-
-  virtual bool SupportsEffect(EffectTypes aEffect) MOZ_OVERRIDE;
 
   virtual void SetRenderTarget(CompositingRenderTarget *aSource) MOZ_OVERRIDE
   {

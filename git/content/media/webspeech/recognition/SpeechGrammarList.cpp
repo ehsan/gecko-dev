@@ -6,6 +6,8 @@
 
 #include "SpeechGrammarList.h"
 
+#include "nsContentUtils.h"
+
 #include "mozilla/dom/SpeechGrammarListBinding.h"
 
 namespace mozilla {
@@ -30,10 +32,9 @@ SpeechGrammarList::~SpeechGrammarList()
 }
 
 SpeechGrammarList*
-SpeechGrammarList::Constructor(const GlobalObject& aGlobal,
-                               ErrorResult& aRv)
+SpeechGrammarList::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  return new SpeechGrammarList(aGlobal.GetAsSupports());
+  return new SpeechGrammarList(aGlobal.Get());
 }
 
 JSObject*

@@ -7,17 +7,19 @@
 #ifndef AudioContext_h_
 #define AudioContext_h_
 
-#include "EnableWebAudioCheck.h"
-#include "MediaBufferDecoder.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/TypedArray.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
-#include "nsHashKeys.h"
+#include "nsCycleCollectionParticipant.h"
+#include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
+#include "EnableWebAudioCheck.h"
+#include "nsAutoPtr.h"
+#include "mozilla/dom/TypedArray.h"
+#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/AudioContextBinding.h"
+#include "MediaBufferDecoder.h"
+#include "StreamBuffer.h"
+#include "MediaStreamGraph.h"
 #include "nsTHashtable.h"
-#include "js/TypeDecls.h"
 
 // X11 has a #define for CurrentTime. Unbelievable :-(.
 // See content/media/DOMMediaStream.h for more fun!
@@ -25,14 +27,14 @@
 #undef CurrentTime
 #endif
 
+struct JSContext;
+class JSObject;
 class nsPIDOMWindow;
 
 namespace mozilla {
 
-class DOMMediaStream;
 class ErrorResult;
-class MediaStream;
-class MediaStreamGraph;
+struct WebAudioDecodeJob;
 
 namespace dom {
 
@@ -48,12 +50,9 @@ class ConvolverNode;
 class DelayNode;
 class DynamicsCompressorNode;
 class GainNode;
-class HTMLMediaElement;
-class MediaElementAudioSourceNode;
 class GlobalObject;
 class MediaStreamAudioDestinationNode;
-class MediaStreamAudioSourceNode;
-class OscillatorNode;
+class OfflineRenderSuccessCallback;
 class PannerNode;
 class ScriptProcessorNode;
 class WaveShaperNode;
@@ -124,7 +123,7 @@ public:
                ErrorResult& aRv);
 
   already_AddRefed<AudioBuffer>
-  CreateBuffer(JSContext* aJSContext, const ArrayBuffer& aBuffer,
+  CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
                bool aMixToMono, ErrorResult& aRv);
 
   already_AddRefed<MediaStreamAudioDestinationNode>
@@ -161,11 +160,6 @@ public:
     return CreateGain();
   }
 
-  already_AddRefed<MediaElementAudioSourceNode>
-  CreateMediaElementSource(HTMLMediaElement& aMediaElement, ErrorResult& aRv);
-  already_AddRefed<MediaStreamAudioSourceNode>
-  CreateMediaStreamSource(DOMMediaStream& aMediaStream, ErrorResult& aRv);
-
   already_AddRefed<DelayNode>
   CreateDelay(double aMaxDelayTime, ErrorResult& aRv);
 
@@ -193,9 +187,6 @@ public:
   already_AddRefed<BiquadFilterNode>
   CreateBiquadFilter();
 
-  already_AddRefed<OscillatorNode>
-  CreateOscillator();
-
   already_AddRefed<PeriodicWave>
   CreatePeriodicWave(const Float32Array& aRealData, const Float32Array& aImagData,
                      ErrorResult& aRv);
@@ -214,7 +205,6 @@ public:
   MediaStream* DestinationStream() const;
   void UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode);
   void UnregisterPannerNode(PannerNode* aNode);
-  void UnregisterOscillatorNode(OscillatorNode* aNode);
   void UnregisterScriptProcessorNode(ScriptProcessorNode* aNode);
   void UpdatePannerSource();
 
@@ -227,7 +217,6 @@ public:
 
 private:
   void RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob);
-  void ShutdownDecoder();
 
   friend struct ::mozilla::WebAudioDecodeJob;
 
@@ -244,7 +233,6 @@ private:
   // These are all weak pointers.
   nsTHashtable<nsPtrHashKey<PannerNode> > mPannerNodes;
   nsTHashtable<nsPtrHashKey<AudioBufferSourceNode> > mAudioBufferSourceNodes;
-  nsTHashtable<nsPtrHashKey<OscillatorNode> > mOscillatorNodes;
   // Hashset containing all ScriptProcessorNodes in order to stop them.
   // These are all weak pointers.
   nsTHashtable<nsPtrHashKey<ScriptProcessorNode> > mScriptProcessorNodes;

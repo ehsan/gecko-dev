@@ -8,7 +8,6 @@
 #define gc_GCInternals_h
 
 #include "jsapi.h"
-#include "jsworkers.h"
 
 #include "vm/Runtime.h"
 
@@ -51,7 +50,6 @@ class AutoTraceSession {
     void operator=(const AutoTraceSession&) MOZ_DELETE;
 
     js::HeapState prevState;
-    AutoPauseWorkersForGC pause;
 };
 
 struct AutoPrepareForTracing
@@ -123,7 +121,7 @@ class AutoStopVerifyingBarriers
       : runtime(rt)
     {
         restartPreVerifier = !isShutdown && rt->gcVerifyPreData;
-        restartPostVerifier = !isShutdown && rt->gcVerifyPostData && rt->gcGenerationalEnabled;
+        restartPostVerifier = !isShutdown && rt->gcVerifyPostData;
         if (rt->gcVerifyPreData)
             EndVerifyPreBarriers(rt);
         if (rt->gcVerifyPostData)

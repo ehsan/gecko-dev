@@ -48,20 +48,26 @@ function test() {
 
     instance.setSize(500, 500);
 
-    openRuleView(onInspectorUIOpen);
+    openInspector(onInspectorUIOpen);
   }
 
-  function onInspectorUIOpen(aInspector, aRuleView) {
+  function onInspectorUIOpen(aInspector) {
     inspector = aInspector;
-    ruleView = aRuleView;
     ok(inspector, "Got inspector instance");
+    inspector.sidebar.select("ruleview");
 
     let div = content.document.getElementsByTagName("div")[0];
-    inspector.selection.setNode(div);
-    inspector.once("inspector-updated", testShrink);
+
+    inspector.sidebar.once("ruleview-ready", function() {
+      Services.obs.addObserver(testShrink, "StyleInspector-populated", false);
+      inspector.selection.setNode(div);
+    });
   }
 
   function testShrink() {
+    Services.obs.removeObserver(testShrink, "StyleInspector-populated");
+
+    ruleView = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
 
     is(numberOfRules(), 2, "Should have two rules initially.");
 

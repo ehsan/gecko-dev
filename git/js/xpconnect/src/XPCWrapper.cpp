@@ -17,7 +17,7 @@ using namespace mozilla;
 namespace XPCNativeWrapper {
 
 static inline
-bool
+JSBool
 ThrowException(nsresult ex, JSContext *cx)
 {
   XPCThrower::Throw(ex, cx);
@@ -25,7 +25,7 @@ ThrowException(nsresult ex, JSContext *cx)
   return false;
 }
 
-static bool
+static JSBool
 UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (argc != 1) {
@@ -47,7 +47,7 @@ UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
   return true;
 }
 
-static bool
+static JSBool
 XrayWrapperConstructor(JSContext *cx, unsigned argc, jsval *vp)
 {
   if (argc == 0) {
@@ -65,7 +65,7 @@ XrayWrapperConstructor(JSContext *cx, unsigned argc, jsval *vp)
 }
 // static
 bool
-AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject)
+AttachNewConstructorObject(JSContext *aCx, JSObject *aGlobalObject)
 {
   // Pushing a JSContext calls ActivateDebugger which calls this function, so
   // we can't use an AutoJSContext here until JSD is gone.

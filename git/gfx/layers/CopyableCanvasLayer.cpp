@@ -3,24 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BasicLayersImpl.h"            // for FillWithMask, etc
+#include "mozilla/layers/PLayerTransactionParent.h"
 #include "CopyableCanvasLayer.h"
-#include "GLContext.h"                  // for GLContext
-#include "GLScreenBuffer.h"             // for GLScreenBuffer
-#include "SharedSurface.h"              // for SharedSurface
-#include "SharedSurfaceGL.h"            // for SharedSurface_GL, etc
-#include "SurfaceTypes.h"               // for APITypeT, APITypeT::OpenGL, etc
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxMatrix.h"                  // for gfxMatrix
-#include "gfxPattern.h"                 // for gfxPattern, etc
-#include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
-#include "gfxRect.h"                    // for gfxRect
-#include "gfxUtils.h"                   // for gfxUtils
-#include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "nsDebug.h"                    // for NS_ASSERTION, NS_WARNING, etc
-#include "nsISupportsImpl.h"            // for gfxContext::AddRef, etc
-#include "nsRect.h"                     // for nsIntRect
-#include "nsSize.h"                     // for nsIntSize
+#include "BasicLayersImpl.h"
+#include "gfxImageSurface.h"
+#include "GLContext.h"
+#include "gfxUtils.h"
+#include "gfxPlatform.h"
+#include "mozilla/Preferences.h"
+#include "SurfaceStream.h"
+#include "SharedSurfaceGL.h"
+#include "SharedSurfaceEGL.h"
+#include "GeckoProfiler.h"
+
+#include "nsXULAppAPI.h"
 
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
@@ -78,8 +74,13 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
   }
 
   if (mGLContext) {
+    if (aDestSurface && aDestSurface->GetType() != gfxASurface::SurfaceTypeImage) {
+      MOZ_ASSERT(false, "Destination surface must be ImageSurface type.");
+      return;
+    }
+
     nsRefPtr<gfxImageSurface> readSurf;
-    nsRefPtr<gfxASurface> resultSurf;
+    nsRefPtr<gfxImageSurface> resultSurf;
 
     SharedSurface* sharedSurf = mGLContext->RequestFrame();
     if (!sharedSurf) {
@@ -93,7 +94,7 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
                             : gfxASurface::ImageFormatARGB32;
 
     if (aDestSurface) {
-      resultSurf = aDestSurface;
+      resultSurf = static_cast<gfxImageSurface*>(aDestSurface);
     } else {
       resultSurf = GetTempSurface(readSize, format);
     }
@@ -110,10 +111,11 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
       SharedSurface_Basic* sharedSurf_Basic = SharedSurface_Basic::Cast(surfGL);
       readSurf = sharedSurf_Basic->GetData();
     } else {
-      if (resultSurf->GetSize() != readSize ||
-          !(readSurf = resultSurf->GetAsImageSurface()) ||
-          readSurf->Format() != format)
+      if (resultSurf->Format() == format &&
+          resultSurf->GetSize() == readSize)
       {
+        readSurf = resultSurf;
+      } else {
         readSurf = GetTempSurface(readSize, format);
       }
 
@@ -124,12 +126,28 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
 
     bool needsPremult = surfGL->HasAlpha() && !mIsGLAlphaPremult;
     if (needsPremult) {
+      gfxImageSurface* sizedReadSurf = nullptr;
+      if (readSurf->Format()  == resultSurf->Format() &&
+          readSurf->GetSize() == resultSurf->GetSize())
+      {
+        sizedReadSurf = readSurf;
+      } else {
+        readSurf->Flush();
+        nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(readSurf);
+        ctx->Paint();
+
+        sizedReadSurf = resultSurf;
+      }
+      MOZ_ASSERT(sizedReadSurf);
+
       readSurf->Flush();
-      gfxUtils::PremultiplyImageSurface(readSurf);
-      readSurf->MarkDirty();
-    }
-    
-    if (readSurf != resultSurf) {
+      resultSurf->Flush();
+      gfxUtils::PremultiplyImageSurface(readSurf, resultSurf);
+      resultSurf->MarkDirty();
+    } else if (resultSurf != readSurf) {
+      // Didn't need premult, but we do need to blit to resultSurf
       readSurf->Flush();
       nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -137,8 +155,7 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
       ctx->Paint();
     }
 
-    // If !aDestSurface then we will end up painting using mSurface, so
-    // stick our surface into mSurface, so that the Paint() path is the same.
+    // stick our surface into mSurface, so that the Paint() path is the same
     if (!aDestSurface) {
       mSurface = resultSurf;
     }

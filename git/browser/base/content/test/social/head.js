@@ -165,8 +165,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
     } catch (err if err instanceof StopIteration) {
       // out of items:
       (cbFinish || defaultFinishChecks)();
-      is(providersAtStart, Social.providers.length,
-         "runSocialTests: finish test run with " + Social.providers.length + " providers");
+      info("runSocialTests: finish test run with " + Social.providers.length + " providers");
       return;
     }
     // We run on a timeout as the frameworker also makes use of timeouts, so
@@ -177,7 +176,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
         cbPostTest(runNextTest);
       }
       cbPreTest(function() {
-        info("pre-test: starting with " + Social.providers.length + " providers");
+        is(providersAtStart, Social.providers.length, "pre-test: no new providers left enabled");
         info("sub-test " + name + " starting");
         try {
           func.call(tests, cleanupAndRunNextTest);
@@ -194,21 +193,12 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
 // A fairly large hammer which checks all aspects of the SocialUI for
 // internal consistency.
 function checkSocialUI(win) {
-  let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
   win = win || window;
   let doc = win.document;
   let provider = Social.provider;
   let enabled = win.SocialUI.enabled;
   let active = Social.providers.length > 0 && !win.SocialUI._chromeless &&
                !PrivateBrowsingUtils.isWindowPrivate(win);
-
-  // if we have enabled providers, we should also have instances of those
-  // providers
-  if (SocialService.hasEnabledProviders) {
-    ok(Social.providers.length > 0, "providers are enabled");
-  } else {
-    is(Social.providers.length, 0, "providers are not enabled");
-  }
 
   // some local helpers to avoid log-spew for the many checks made here.
   let numGoodTests = 0, numTests = 0;
@@ -232,8 +222,8 @@ function checkSocialUI(win) {
   isbool(win.SocialSidebar.canShow, enabled, "social sidebar active?");
   if (enabled)
     isbool(win.SocialSidebar.opened, enabled, "social sidebar open?");
-  isbool(win.SocialChatBar.isAvailable, enabled, "chatbar available?");
-  isbool(!win.SocialChatBar.chatbar.hidden, enabled, "chatbar visible?");
+  isbool(win.SocialChatBar.isAvailable, enabled && Social.haveLoggedInUser(), "chatbar available?");
+  isbool(!win.SocialChatBar.chatbar.hidden, enabled && Social.haveLoggedInUser(), "chatbar visible?");
 
   let markVisible = enabled && provider.pageMarkInfo;
   let canMark = markVisible && win.SocialMark.canMarkPage(win.gBrowser.currentURI);
@@ -255,9 +245,8 @@ function checkSocialUI(win) {
 
   // and for good measure, check all the social commands.
   isbool(!doc.getElementById("Social:Toggle").hidden, active, "Social:Toggle visible?");
-  isbool(!doc.getElementById("Social:ToggleSidebar").hidden, enabled, "Social:ToggleSidebar visible?");
   isbool(!doc.getElementById("Social:ToggleNotifications").hidden, enabled, "Social:ToggleNotifications visible?");
-  isbool(!doc.getElementById("Social:FocusChat").hidden, enabled, "Social:FocusChat visible?");
+  isbool(!doc.getElementById("Social:FocusChat").hidden, enabled && Social.haveLoggedInUser(), "Social:FocusChat visible?");
   isbool(doc.getElementById("Social:FocusChat").getAttribute("disabled"), enabled ? "false" : "true", "Social:FocusChat disabled?");
   _is(doc.getElementById("Social:TogglePageMark").getAttribute("disabled"), canMark ? "false" : "true", "Social:TogglePageMark enabled?");
 
@@ -323,6 +312,26 @@ function resetBuiltinManifestPref(name) {
   Services.prefs.getDefaultBranch(null).deleteBranch(name);
   is(Services.prefs.getDefaultBranch(null).getPrefType(name),
      Services.prefs.PREF_INVALID, "default manifest removed");
+}
+
+function addWindowListener(aURL, aCallback) {
+  Services.wm.addListener({
+    onOpenWindow: function(aXULWindow) {
+      info("window opened, waiting for focus");
+      Services.wm.removeListener(this);
+
+      var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindow);
+      waitForFocus(function() {
+        is(domwindow.document.location.href, aURL, "window opened and focused");
+        executeSoon(function() {
+          aCallback(domwindow);
+        });
+      }, domwindow);
+    },
+    onCloseWindow: function(aXULWindow) { },
+    onWindowTitleChange: function(aXULWindow, aNewTitle) { }
+  });
 }
 
 function addTab(url, callback) {
@@ -408,8 +417,8 @@ function get3ChatsForCollapsing(mode, cb) {
 
 function makeChat(mode, uniqueid, cb) {
   info("making a chat window '" + uniqueid +"'");
+  const chatUrl = "https://example.com/browser/browser/base/content/test/social/social_chat.html";
   let provider = Social.provider;
-  const chatUrl = provider.origin + "/browser/browser/base/content/test/social/social_chat.html";
   let isOpened = window.SocialChatBar.openChat(provider, chatUrl + "?id=" + uniqueid, function(chat) {
     info("chat window has opened");
     // we can't callback immediately or we might close the chat during

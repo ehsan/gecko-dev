@@ -11,9 +11,6 @@
 
 /* include windows.h for the HWND and HDC definitions that we need. */
 #include <windows.h>
-
-struct IDirect3DSurface9;
-
 /* undefine LoadImage because our code uses that name */
 #undef LoadImage
 
@@ -30,14 +27,11 @@ public:
     gfxWindowsSurface(HWND wnd, uint32_t flags = 0);
     gfxWindowsSurface(HDC dc, uint32_t flags = 0);
 
-    // Create from a shared d3d9surface
-    gfxWindowsSurface(IDirect3DSurface9 *surface, uint32_t flags = 0);
-
     // Create a DIB surface
     gfxWindowsSurface(const gfxIntSize& size,
                       gfxImageFormat imageFormat = ImageFormatRGB24);
 
-    // Create a DDB surface; dc may be nullptr to use the screen DC
+    // Create a DDB surface; dc may be NULL to use the screen DC
     gfxWindowsSurface(HDC dc,
                       const gfxIntSize& size,
                       gfxImageFormat imageFormat = ImageFormatRGB24);
@@ -51,7 +45,7 @@ public:
 
     virtual ~gfxWindowsSurface();
 
-    HDC GetDC();
+    HDC GetDC() { return mDC; }
 
     HDC GetDCWithClip(gfxContext *);
 

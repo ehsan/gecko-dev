@@ -77,7 +77,7 @@ public:
                      uint32_t aFlags,
                      nsURILoader* aURILoader);
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   /**
    * Prepares this object for receiving data. The stream
@@ -157,8 +157,8 @@ protected:
   nsRefPtr<nsURILoader> mURILoader;
 };
 
-NS_IMPL_ADDREF(nsDocumentOpenInfo)
-NS_IMPL_RELEASE(nsDocumentOpenInfo)
+NS_IMPL_THREADSAFE_ADDREF(nsDocumentOpenInfo)
+NS_IMPL_THREADSAFE_RELEASE(nsDocumentOpenInfo)
 
 NS_INTERFACE_MAP_BEGIN(nsDocumentOpenInfo)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIRequestObserver)
@@ -753,7 +753,7 @@ NS_IMETHODIMP nsURILoader::UnRegisterContentListener(nsIURIContentListener * aCo
 }
 
 NS_IMETHODIMP nsURILoader::OpenURI(nsIChannel *channel, 
-                                   uint32_t aFlags,
+                                   bool aIsContentPreferred,
                                    nsIInterfaceRequestor *aWindowContext)
 {
   NS_ENSURE_ARG_POINTER(channel);
@@ -770,7 +770,7 @@ NS_IMETHODIMP nsURILoader::OpenURI(nsIChannel *channel,
 
   nsCOMPtr<nsIStreamListener> loader;
   nsresult rv = OpenChannel(channel,
-                            aFlags,
+                            aIsContentPreferred ? IS_CONTENT_PREFERRED : 0,
                             aWindowContext,
                             false,
                             getter_AddRefs(loader));

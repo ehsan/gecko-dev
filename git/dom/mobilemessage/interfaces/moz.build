@@ -12,6 +12,7 @@ XPIDL_SOURCES += [
     'nsIDOMMozSmsEvent.idl',
     'nsIDOMMozSmsMessage.idl',
     'nsIDOMSmsFilter.idl',
+    'nsIDOMSmsManager.idl',
     'nsIDOMSmsSegmentInfo.idl',
     'nsIMmsService.idl',
     'nsIMobileMessageCallback.idl',
@@ -28,4 +29,10 @@ if CONFIG['MOZ_B2G_RIL']:
     ]
 
 XPIDL_MODULE = 'dom_mobilemessage'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/base',
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
 

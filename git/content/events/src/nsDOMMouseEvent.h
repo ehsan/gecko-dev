@@ -10,6 +10,8 @@
 #include "nsDOMUIEvent.h"
 #include "mozilla/dom/MouseEventBinding.h"
 
+class nsEvent;
+
 class nsDOMMouseEvent : public nsDOMUIEvent,
                         public nsIDOMMouseEvent
 {

@@ -22,6 +22,7 @@
 // Need this for BinaryType.
 #include "mozilla/dom/WebSocketBinding.h"
 
+#include "jsfriendapi.h"
 #include "nsISupportsUtils.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -92,15 +93,18 @@ public: // WebIDL interface:
 
   // Constructor:
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  ErrorResult& rv);
 
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  const nsAString& aProtocol,
                                                  ErrorResult& rv);
 
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  const Sequence<nsString>& aProtocols,
                                                  ErrorResult& rv);
@@ -146,9 +150,9 @@ public: // WebIDL interface:
             ErrorResult& aRv);
   void Send(nsIDOMBlob* aData,
             ErrorResult& aRv);
-  void Send(const ArrayBuffer& aData,
+  void Send(ArrayBuffer& aData,
             ErrorResult& aRv);
-  void Send(const ArrayBufferView& aData,
+  void Send(ArrayBufferView& aData,
             ErrorResult& aRv);
 
 private: // constructor && distructor

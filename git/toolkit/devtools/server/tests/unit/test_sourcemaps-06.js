@@ -51,9 +51,9 @@ function test_source_content()
     new SourceNode(1, 0, "c.js", "function c() { return 'c'; }\n"),
   ]);
 
-  node.setSourceContent("a.js", "content for http://example.com/www/js/a.js");
-  node.setSourceContent("b.js", "content for http://example.com/www/js/b.js");
-  node.setSourceContent("c.js", "content for http://example.com/www/js/c.js");
+  node.setSourceContent("a.js", "content for a.js");
+  node.setSourceContent("b.js", "content for b.js");
+  node.setSourceContent("c.js", "content for c.js");
 
   let { code, map } = node.toStringWithSourceMap({
     file: "abc.js"
@@ -67,8 +67,7 @@ function test_source_content()
 
 function testContents(aSources, aCallback) {
   if (aSources.length === 0) {
-    aCallback();
-    return;
+    return aCallback();
   }
 
   let source = aSources[0];

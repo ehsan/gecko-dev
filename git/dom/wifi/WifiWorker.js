@@ -10,7 +10,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/systemlibs.js");
 
 var DEBUG = false; // set to true to show debug messages.
 
@@ -68,15 +67,6 @@ const WIFI_SECURITY_TYPE_WPA2_PSK = "wpa2-psk";
 const NETWORK_INTERFACE_UP   = "up";
 const NETWORK_INTERFACE_DOWN = "down";
 
-const DEFAULT_WLAN_INTERFACE = "wlan0";
-
-const DRIVER_READY_WAIT = 2000;
-
-const SUPP_PROP = "init.svc.wpa_supplicant";
-const WPA_SUPPLICANT = "wpa_supplicant";
-const DHCP_PROP = "init.svc.dhcpcd";
-const DHCP = "dhcpcd";
-
 XPCOMUtils.defineLazyServiceGetter(this, "gNetworkManager",
                                    "@mozilla.org/network/manager;1",
                                    "nsINetworkManager");
@@ -94,48 +84,23 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
 // expected results).
 var WifiManager = (function() {
   function getStartupPrefs() {
+    Cu.import("resource://gre/modules/systemlibs.js");
     return {
       sdkVersion: parseInt(libcutils.property_get("ro.build.version.sdk"), 10),
       unloadDriverEnabled: libcutils.property_get("ro.moz.wifi.unloaddriver") === "1",
-      schedScanRecovery: libcutils.property_get("ro.moz.wifi.sched_scan_recover") === "false" ? false : true,
-      driverDelay: libcutils.property_get("ro.moz.wifi.driverDelay"),
-      ifname: libcutils.property_get("wifi.interface")
+      schedScanRecovery: libcutils.property_get("ro.moz.wifi.sched_scan_recover") === "false" ? false : true
     };
   }
 
-  let {sdkVersion, unloadDriverEnabled, schedScanRecovery, driverDelay, ifname} = getStartupPrefs();
+  let {sdkVersion, unloadDriverEnabled, schedScanRecovery} = getStartupPrefs();
 
-  let wifiListener = {
-    onWaitEvent: function(event) {
-      if (handleEvent(event)) {
-        waitForEvent();
-      }
-    },
-
-    onCommand: function(event) {
-      onmessageresult(event);
-    }
-  }
-
-  let wifiService = Cc["@mozilla.org/wifi/service;1"];
-  if (wifiService) {
-    wifiService = wifiService.getService(Ci.nsIWifiProxyService);
-    wifiService.start(wifiListener);
-  } else {
-    debug("No wifi service component available!");
-  }
+  var controlWorker = new ChromeWorker(WIFIWORKER_WORKER);
+  var eventWorker = new ChromeWorker(WIFIWORKER_WORKER);
 
   var manager = {};
-  manager.ifname = ifname;
-  // Emulator build runs to here.
-  // The debug() should only be used after WifiManager.
-  if (!ifname) {
-    manager.ifname = DEFAULT_WLAN_INTERFACE;
-  }
   manager.schedScanRecovery = schedScanRecovery;
-  manager.driverDelay = driverDelay ? parseInt(driverDelay, 10) : DRIVER_READY_WAIT;
 
-  // Callbacks to invoke when a reply arrives from the wifi service.
+  // Callbacks to invoke when a reply arrives from the controlWorker.
   var controlCallbacks = Object.create(null);
   var idgen = 0;
 
@@ -144,23 +109,49 @@ var WifiManager = (function() {
     obj.id = id;
     if (callback)
       controlCallbacks[id] = callback;
-    wifiService.sendCommand(obj);
+    controlWorker.postMessage(obj);
   }
 
-  let onmessageresult = function(data) {
+  function onerror(e) {
+    // It is very important to call preventDefault on the event here.
+    // If an exception is thrown on the worker, it bubbles out to the
+    // component that created it. If that component doesn't have an
+    // onerror handler, the worker will try to call the error reporter
+    // on the context it was created on. However, That doesn't work
+    // for component contexts and can result in crashes. This onerror
+    // handler has to make sure that it calls preventDefault on the
+    // incoming event.
+    e.preventDefault();
+
+    var worker = (this === controlWorker) ? "control" : "event";
+
+    debug("Got an error from the " + worker + " worker: " + e.filename +
+          ":" + e.lineno + ": " + e.message + "\n");
+  }
+
+  controlWorker.onerror = onerror;
+  eventWorker.onerror = onerror;
+
+  controlWorker.onmessage = function(e) {
+    var data = e.data;
     var id = data.id;
     var callback = controlCallbacks[id];
     if (callback) {
       callback(data);
       delete controlCallbacks[id];
     }
-  }
+  };
 
   // Polling the status worker
   var recvErrors = 0;
+  eventWorker.onmessage = function(e) {
+    // Process the event and tell the event worker to listen for more events.
+    if (handleEvent(e.data.event))
+      waitForEvent();
+  };
 
   function waitForEvent() {
-    wifiService.waitForEvent();
+    eventWorker.postMessage({ cmd: "wait_for_event" });
   }
 
   // Commands to the control worker.
@@ -172,13 +163,6 @@ var WifiManager = (function() {
   }
 
   var driverLoaded = false;
-
-  manager.checkDriverState = function(expectState) {
-    if (!unloadDriverEnabled)
-      return true;
-    return (expectState === driverLoaded);
-  }
-
   function loadDriver(callback) {
     if (driverLoaded) {
       callback(0);
@@ -586,17 +570,16 @@ var WifiManager = (function() {
     doBooleanCommand("DRIVER SETSUSPENDOPT " + (enabled ? 0 : 1), "OK", callback);
   }
 
-  // Wrapper around libcutils.property_set that returns true if setting the
-  // value was successful.
-  // Note that the callback is not called asynchronously.
+  function getProperty(key, defaultValue, callback) {
+    controlMessage({ cmd: "property_get", key: key, defaultValue: defaultValue }, function(data) {
+      callback(data.status < 0 ? null : data.value);
+    });
+  }
+
   function setProperty(key, value, callback) {
-    let ok = true;
-    try {
-      libcutils.property_set(key, value);
-    } catch(e) {
-      ok = false;
-    }
-    callback(ok);
+    controlMessage({ cmd: "property_set", key: key, value: value }, function(data) {
+      callback(!data.status);
+    });
   }
 
   function enableInterface(ifname, callback) {
@@ -721,38 +704,12 @@ var WifiManager = (function() {
     });
   }
 
-  function stopProcess(service, process, callback) {
-    var count = 0;
-    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    function tick() {
-      let result = libcutils.property_get(service);
-      if (result === null) {
-        callback();
-        return;
-      }
-      if (result === "stopped" || ++count >= 5) {
-        // Either we succeeded or ran out of time.
-        timer = null;
-        callback();
-        return;
-      }
-
-      // Else it's still running, continue waiting.
-      timer.initWithCallback(tick, 1000, Ci.nsITimer.TYPE_ONE_SHOT);
-    }
-
-    setProperty("ctl.stop", process, tick);
-  }
-
   function stopDhcp(ifname, callback) {
-    // This function does exactly what dhcp_stop does. Unforunately, if we call
-    // this function twice before the previous callback is returned. We may block
-    // our self waiting for the callback. It slows down the wifi startup procedure.
-    // Therefore, we have to roll our own version here.
-    let dhcpService = DHCP_PROP + "_" + ifname;
-    let suffix = (ifname.substr(0, 3) === "p2p") ? "p2p" : ifname;
-    let processName = DHCP + "_" + suffix;
-    stopProcess(dhcpService, processName, callback);
+    controlMessage({ cmd: "dhcp_stop", ifname: ifname }, function(data) {
+      dhcpInfo = null;
+      notify("dhcplost");
+      callback(!data.status);
+    });
   }
 
   function releaseDhcpLease(ifname, callback) {
@@ -770,10 +727,9 @@ var WifiManager = (function() {
   }
 
   function configureInterface(ifname, ipaddr, mask, gateway, dns1, dns2, callback) {
-    let message = { cmd: "ifc_configure", ifname: ifname,
+    controlMessage({ cmd: "ifc_configure", ifname: ifname,
                      ipaddr: ipaddr, mask: mask, gateway: gateway,
-                     dns1: dns1, dns2: dns2};
-    controlMessage(message, function(data) {
+                     dns1: dns1, dns2: dns2}, function(data) {
       callback(!data.status);
     });
   }
@@ -887,7 +843,6 @@ var WifiManager = (function() {
     if (ok === 0) {
       // Tell the event worker to start waiting for events.
       retryTimer = null;
-      connectTries = 0;
       didConnectSupplicant(function(){});
       return;
     }
@@ -903,7 +858,6 @@ var WifiManager = (function() {
     }
 
     retryTimer = null;
-    connectTries = 0;
     notify("supplicantlost", { success: false });
   }
 
@@ -1151,13 +1105,34 @@ var WifiManager = (function() {
     return true;
   }
 
+  const SUPP_PROP = "init.svc.wpa_supplicant";
   function killSupplicant(callback) {
     // It is interesting to note that this function does exactly what
     // wifi_stop_supplicant does. Unforunately, on the Galaxy S2, Samsung
     // changed that function in a way that means that it doesn't recognize
     // wpa_supplicant as already running. Therefore, we have to roll our own
     // version here.
-    stopProcess(SUPP_PROP, WPA_SUPPLICANT, callback);
+    var count = 0;
+    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    function tick() {
+      getProperty(SUPP_PROP, "stopped", function (result) {
+        if (result === null) {
+          callback();
+          return;
+        }
+        if (result === "stopped" || ++count >= 5) {
+          // Either we succeeded or ran out of time.
+          timer = null;
+          callback();
+          return;
+        }
+
+        // Else it's still running, continue waiting.
+        timer.initWithCallback(tick, 1000, Ci.nsITimer.TYPE_ONE_SHOT);
+      });
+    }
+
+    setProperty("ctl.stop", "wpa_supplicant", tick);
   }
 
   function didConnectSupplicant(callback) {
@@ -1175,24 +1150,10 @@ var WifiManager = (function() {
   }
 
   function prepareForStartup(callback) {
-    let status = libcutils.property_get(DHCP_PROP + "_" + manager.ifname);
-    if (status !== "running") {
-      tryStopSupplicant();
-      return;
-    }
     manager.connectionDropped(function() {
-      tryStopSupplicant();
-    });
-
-    // Ignore any errors and kill any currently-running supplicants. On some
-    // phones, stopSupplicant won't work for a supplicant that we didn't
-    // start, so we hand-roll it here.
-    function tryStopSupplicant () {
-      let status = libcutils.property_get(SUPP_PROP);
-      if (status !== "running") {
-        callback();
-        return;
-      }
+      // Ignore any errors and kill any currently-running supplicants. On some
+      // phones, stopSupplicant won't work for a supplicant that we didn't
+      // start, so we hand-roll it here.
       suppressEvents = true;
       killSupplicant(function() {
         disableInterface(manager.ifname, function (ok) {
@@ -1200,7 +1161,7 @@ var WifiManager = (function() {
           callback();
         });
       });
-    }
+    });
   }
 
   // Initial state.
@@ -1212,6 +1173,7 @@ var WifiManager = (function() {
   manager.authenticationFailuresCount = 0;
   manager.loopDetectionCount = 0;
 
+  const DRIVER_READY_WAIT = 2000;
   var waitForDriverReadyTimer = null;
   function cancelWaitForDriverReadyTimer() {
     if (waitForDriverReadyTimer) {
@@ -1222,7 +1184,7 @@ var WifiManager = (function() {
   function createWaitForDriverReadyTimer(onTimeout) {
     waitForDriverReadyTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     waitForDriverReadyTimer.initWithCallback(onTimeout,
-                                             manager.driverDelay,
+                                             DRIVER_READY_WAIT,
                                              Ci.nsITimer.TYPE_ONE_SHOT);
   };
 
@@ -1235,33 +1197,35 @@ var WifiManager = (function() {
 
     if (enable) {
       manager.state = "INITIALIZING";
-      // Register as network interface.
-      WifiNetworkInterface.name = manager.ifname;
-      if (!WifiNetworkInterface.registered) {
-        gNetworkManager.registerNetworkInterface(WifiNetworkInterface);
-        WifiNetworkInterface.registered = true;
-      }
-      WifiNetworkInterface.state = Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED;
-      WifiNetworkInterface.ip = null;
-      WifiNetworkInterface.netmask = null;
-      WifiNetworkInterface.broadcast = null;
-      WifiNetworkInterface.gateway = null;
-      WifiNetworkInterface.dns1 = null;
-      WifiNetworkInterface.dns2 = null;
-      Services.obs.notifyObservers(WifiNetworkInterface,
-                                   kNetworkInterfaceStateChangedTopic,
-                                   null);
-      prepareForStartup(function() {
-        loadDriver(function (status) {
-          if (status < 0) {
-            callback(status);
-            manager.state = "UNINITIALIZED";
-            return;
-          }
-          gNetworkManager.setWifiOperationMode(manager.ifname,
-                                               WIFI_FIRMWARE_STATION,
-                                               function (status) {
-            if (status) {
+      // Kill any existing connections if necessary.
+      getProperty("wifi.interface", "tiwlan0", function (ifname) {
+        if (!ifname) {
+          callback(-1);
+          manager.state = "UNINITIALIZED";
+          return;
+        }
+        manager.ifname = ifname;
+
+        // Register as network interface.
+        WifiNetworkInterface.name = ifname;
+        if (!WifiNetworkInterface.registered) {
+          gNetworkManager.registerNetworkInterface(WifiNetworkInterface);
+          WifiNetworkInterface.registered = true;
+        }
+        WifiNetworkInterface.state = Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED;
+        WifiNetworkInterface.ip = null;
+        WifiNetworkInterface.netmask = null;
+        WifiNetworkInterface.broadcast = null;
+        WifiNetworkInterface.gateway = null;
+        WifiNetworkInterface.dns1 = null;
+        WifiNetworkInterface.dns2 = null;
+        Services.obs.notifyObservers(WifiNetworkInterface,
+                                     kNetworkInterfaceStateChangedTopic,
+                                     null);
+
+        prepareForStartup(function() {
+          loadDriver(function (status) {
+            if (status < 0) {
               callback(status);
               manager.state = "UNINITIALIZED";
               return;
@@ -1273,27 +1237,23 @@ var WifiManager = (function() {
                 if (status < 0) {
                   unloadDriver(function() {
                     callback(status);
-
                   });
                   manager.state = "UNINITIALIZED";
                   return;
                 }
 
                 manager.supplicantStarted = true;
-                enableInterface(manager.ifname, function (ok) {
+                enableInterface(ifname, function (ok) {
                   callback(ok ? 0 : -1);
                 });
               });
             }
+
             // Driver startup on certain platforms takes longer than it takes for us
             // to return from loadDriver, so wait 2 seconds before starting
             // the supplicant to give it a chance to start.
-            if (manager.driverDelay > 0) {
-              createWaitForDriverReadyTimer(doStartSupplicant);
-            } else {
-              doStartSupplicant();
-            }
-          });
+            createWaitForDriverReadyTimer(doStartSupplicant);
+         });
         });
       });
     } else {
@@ -1319,34 +1279,42 @@ var WifiManager = (function() {
   manager.setWifiApEnabled = function(enabled, configuration, callback) {
     if (enabled) {
       manager.tetheringState = "INITIALIZING";
-      loadDriver(function (status) {
-        if (status < 0) {
+      getProperty("wifi.interface", "tiwlan0", function (ifname) {
+        if (!ifname) {
           callback();
           manager.tetheringState = "UNINITIALIZED";
           return;
         }
-
-        function doStartWifiTethering() {
-          cancelWaitForDriverReadyTimer();
-          WifiNetworkInterface.name = manager.ifname;
-          gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
-                                           configuration, function(result) {
-            if (result) {
-              manager.tetheringState = "UNINITIALIZED";
-            } else {
-              manager.tetheringState = "COMPLETED";
-            }
-            // Pop out current request.
+        manager.ifname = ifname;
+        loadDriver(function (status) {
+          if (status < 0) {
             callback();
-            // Should we fire a dom event if we fail to set wifi tethering  ?
-            debug("Enable Wifi tethering result: " + (result ? result : "successfully"));
-          });
-        }
+            manager.tetheringState = "UNINITIALIZED";
+            return;
+          }
 
-        // Driver startup on certain platforms takes longer than it takes
-        // for us to return from loadDriver, so wait 2 seconds before
-        // turning on Wifi tethering.
-        createWaitForDriverReadyTimer(doStartWifiTethering);
+          function doStartWifiTethering() {
+            cancelWaitForDriverReadyTimer();
+            WifiNetworkInterface.name = manager.ifname;
+            gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
+                                             configuration, function(result) {
+              if (result) {
+                manager.tetheringState = "UNINITIALIZED";
+              } else {
+                manager.tetheringState = "COMPLETED";
+              }
+              // Pop out current request.
+              callback();
+              // Should we fire a dom event if we fail to set wifi tethering  ?
+              debug("Enable Wifi tethering result: " + (result ? result : "successfully"));
+            });
+          }
+
+          // Driver startup on certain platforms takes longer than it takes
+          // for us to return from loadDriver, so wait 2 seconds before
+          // turning on Wifi tethering.
+          createWaitForDriverReadyTimer(doStartWifiTethering);
+        });
       });
     } else {
       gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
@@ -1372,8 +1340,7 @@ var WifiManager = (function() {
   var networkConfigurationFields = [
     "ssid", "bssid", "psk", "wep_key0", "wep_key1", "wep_key2", "wep_key3",
     "wep_tx_keyidx", "priority", "key_mgmt", "scan_ssid", "disabled",
-    "identity", "password", "auth_alg", "phase1", "phase2", "eap", "pin",
-    "pcsc"
+    "identity", "password", "auth_alg", "phase1", "phase2", "eap"
   ];
 
   manager.getNetworkConfiguration = function(config, callback) {
@@ -1747,7 +1714,6 @@ Network.api = {
   wep: "rw",
   hidden: "rw",
   eap: "rw",
-  pin: "rw",
   phase1: "rw",
   phase2: "rw"
 };
@@ -1819,6 +1785,10 @@ let WifiNetworkInterface = {
 
   name: null,
 
+  // For now we do our own DHCP. In the future this should be handed off
+  // to the Network Manager.
+  dhcp: false,
+
   ip: null,
 
   netmask: null,
@@ -1880,7 +1850,6 @@ function WifiWorker() {
 
   this.currentNetwork = null;
   this.ipAddress = "";
-  this.macAddress = null;
 
   this._lastConnectionInfo = null;
   this._connectionInfoTimer = null;
@@ -2006,11 +1975,6 @@ function WifiWorker() {
     if (wep && net.wep && net.wep != '*') {
       configured.wep_key0 = net.wep_key0 = isWepHexKey(net.wep) ? net.wep : quote(net.wep);
       configured.auth_alg = net.auth_alg = "OPEN SHARED";
-    }
-
-    if ("pin" in net) {
-      net.pin = quote(net.pin);
-      net.pcsc = quote("");
     }
 
     if ("phase1" in net)
@@ -2171,16 +2135,6 @@ function WifiWorker() {
         self.currentNetwork.bssid = WifiManager.connectionInfo.bssid;
         break;
       case "DISCONNECTED":
-        // wpa_supplicant may give us a "DISCONNECTED" event even if
-        // we are already in "DISCONNECTED" state.
-        if (this.prevState === "INITIALIZING" ||
-          this.prevState === "DISCONNECTED" ||
-          this.prevState === "INTERFACE_DISABLED" ||
-          this.prevState === "INACTIVE" ||
-          this.prevState === "UNINITIALIZED") {
-          return;
-        }
-
         self._fireEvent("ondisconnect", {});
         self.currentNetwork = null;
         self.ipAddress = "";
@@ -2868,7 +2822,6 @@ WifiWorker.prototype = {
 
     // First, notify all of the requests that were trying to make this change.
     let state = this._stateRequests[0].enabled;
-    let driverReady = WifiManager.checkDriverState(newState);
 
     // It is callback function's responsibility to handle the pending request.
     // So we just return here.
@@ -2877,12 +2830,9 @@ WifiWorker.prototype = {
       return;
     }
 
-    // If the new state is not the same as state or new state is not the same as
-    // driver loaded state, then we weren't processing the first request (we
-    // were racing somehow) so don't notify.
-    // For newState is false(disable), we expect driverLoaded is false(driver unloaded)
-    // to proceed, and vice versa.
-    if (!success || (driverReady && state === newState)) {
+    // If the new state is not the same as state, then we weren't processing
+    // the first request (we were racing somehow) so don't notify.
+    if (!success || state === newState) {
       do {
         if (!("callback" in this._stateRequests[0])) {
           this._stateRequests.shift();
@@ -2896,27 +2846,16 @@ WifiWorker.prototype = {
     // If there were requests queued after this one, run them.
     if (this._stateRequests.length > 0) {
       let self = this;
-      let callback = null;
       this._callbackTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-      if (driverReady) {
-        // Driver is ready for next request.
-        callback = function(timer) {
-          if ("callback" in self._stateRequests[0]) {
-            self._stateRequests[0].callback.call(self, self._stateRequests[0].enabled);
-          } else {
-            WifiManager.setWifiEnabled(self._stateRequests[0].enabled,
-                                       self._setWifiEnabledCallback.bind(self));
-          }
-          timer = null;
-        };
-      } else {
-        // Wait driver until it's ready.
-        callback = function(timer) {
-          self._notifyAfterStateChange(success, newState);
-          timer = null;
-        };
-      }
-      this._callbackTimer.initWithCallback(callback, 1000, Ci.nsITimer.TYPE_ONE_SHOT);
+      this._callbackTimer.initWithCallback(function(timer) {
+        if ("callback" in self._stateRequests[0]) {
+          self._stateRequests[0].callback.call(self, self._stateRequests[0].enabled);
+        } else {
+          WifiManager.setWifiEnabled(self._stateRequests[0].enabled,
+                                     self._setWifiEnabledCallback.bind(this));
+        }
+        timer = null;
+      }, 1000, Ci.nsITimer.TYPE_ONE_SHOT);
     }
   },
 
@@ -3266,7 +3205,6 @@ WifiWorker.prototype = {
     // hotspot status. Toggle settings to let gaia know that wifi hotspot
     // is enabled.
     this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED] = true;
-    this._oldWifiTetheringEnabledState = true;
     gSettingsService.createLock().set(
       SETTINGS_WIFI_TETHERING_ENABLED, true, null, "fromInternalSetting");
     // Check for the next request.
@@ -3278,7 +3216,6 @@ WifiWorker.prototype = {
     // hotspot status. Toggle settings to let gaia know that wifi hotspot
     // is disabled.
     this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED] = false;
-    this._oldWifiTetheringEnabledState = false;
     gSettingsService.createLock().set(
       SETTINGS_WIFI_TETHERING_ENABLED, false, null, "fromInternalSetting");
     // Check for the next request.
@@ -3396,7 +3333,6 @@ WifiWorker.prototype = {
           break;
         }
 
-        this._oldWifiTetheringEnabledState = this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED];
         this.handleWifiTetheringEnabled(aResult)
         break;
     };

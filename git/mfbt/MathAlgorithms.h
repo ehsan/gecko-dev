@@ -1,20 +1,19 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* mfbt maths algorithms. */
 
-#ifndef mozilla_MathAlgorithms_h
-#define mozilla_MathAlgorithms_h
+#ifndef mozilla_MathAlgorithms_h_
+#define mozilla_MathAlgorithms_h_
 
 #include "mozilla/Assertions.h"
+#include "mozilla/StandardInteger.h"
 #include "mozilla/TypeTraits.h"
 
 #include <cmath>
 #include <limits.h>
-#include <stdint.h>
 
 namespace mozilla {
 
@@ -187,16 +186,6 @@ namespace detail {
   }
 
   inline uint_fast8_t
-  CountPopulation32(uint32_t u)
-  {
-     uint32_t sum2  = (u     & 0x55555555) + ((u     & 0xaaaaaaaa) >> 1);
-     uint32_t sum4  = (sum2  & 0x33333333) + ((sum2  & 0xcccccccc) >> 2);
-     uint32_t sum8  = (sum4  & 0x0f0f0f0f) + ((sum4  & 0xf0f0f0f0) >> 4);
-     uint32_t sum16 = (sum8  & 0x00ff00ff) + ((sum8  & 0xff00ff00) >> 8);
-     return sum16;
-  }
-
-  inline uint_fast8_t
   CountLeadingZeroes64(uint64_t u)
   {
 #  if defined(MOZ_BITSCAN_WINDOWS64)
@@ -216,7 +205,7 @@ namespace detail {
   {
 #  if defined(MOZ_BITSCAN_WINDOWS64)
     unsigned long index;
-    _BitScanForward64(&index, static_cast<unsigned __int64>(u));
+    _BitScanForward64(&idx, static_cast<unsigned __int64>(u));
     return uint_fast8_t(index);
 #  else
     uint32_t lo = uint32_t(u);
@@ -253,12 +242,6 @@ namespace detail {
   }
 
   inline uint_fast8_t
-  CountPopulation32(uint32_t u)
-  {
-    return __builtin_popcount(u);
-  }
-
-  inline uint_fast8_t
   CountLeadingZeroes64(uint64_t u)
   {
     return __builtin_clzll(u);
@@ -274,7 +257,6 @@ namespace detail {
 #  error "Implement these!"
   inline uint_fast8_t CountLeadingZeroes32(uint32_t u) MOZ_DELETE;
   inline uint_fast8_t CountTrailingZeroes32(uint32_t u) MOZ_DELETE;
-  inline uint_fast8_t CountPopulation32(uint32_t u) MOZ_DELETE;
   inline uint_fast8_t CountLeadingZeroes64(uint64_t u) MOZ_DELETE;
   inline uint_fast8_t CountTrailingZeroes64(uint64_t u) MOZ_DELETE;
 #endif
@@ -315,15 +297,6 @@ CountTrailingZeroes32(uint32_t u)
 {
   MOZ_ASSERT(u != 0);
   return detail::CountTrailingZeroes32(u);
-}
-
-/**
- * Compute the number of one bits in the number |u|,
- */
-inline uint_fast8_t
-CountPopulation32(uint32_t u)
-{
-  return detail::CountPopulation32(u);
 }
 
 /** Analogous to CountLeadingZeroes32, but for 64-bit numbers. */
@@ -440,17 +413,16 @@ FloorLog2Size(size_t n)
 }
 
 /*
- * Compute the smallest power of 2 greater than or equal to |x|.  |x| must not
- * be so great that the computed value would overflow |size_t|.
+ * Round x up to the nearest power of 2.  This function assumes that the most
+ * significant bit of x is not set, which would lead to overflow.
  */
 inline size_t
 RoundUpPow2(size_t x)
 {
-  MOZ_ASSERT(x <= (size_t(1) << (sizeof(size_t) * CHAR_BIT - 1)),
-             "can't round up -- will overflow!");
+  MOZ_ASSERT(~x > x, "can't round up -- will overflow!");
   return size_t(1) << CeilingLog2(x);
 }
 
 } /* namespace mozilla */
 
-#endif /* mozilla_MathAlgorithms_h */
+#endif  /* mozilla_MathAlgorithms_h_ */

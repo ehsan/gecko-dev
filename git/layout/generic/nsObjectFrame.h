@@ -9,22 +9,19 @@
 #define nsObjectFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsPluginInstanceOwner.h"
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
 #include "nsRegion.h"
 #include "nsDisplayList.h"
 #include "nsIReflowCallback.h"
 
-#ifdef XP_WIN
-#include <windows.h> // For HWND :(
-#endif
-
+class nsPluginHost;
 class nsPresContext;
 class nsRootPresContext;
 class nsDisplayPlugin;
 class nsIOSurface;
 class PluginBackgroundSink;
-class nsPluginInstanceOwner;
 
 namespace mozilla {
 namespace layers {

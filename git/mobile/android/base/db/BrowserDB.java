@@ -20,7 +20,6 @@ import java.util.List;
 
 public class BrowserDB {
     public static String ABOUT_PAGES_URL_FILTER = "about:%";
-    private static boolean sAreContentProvidersEnabled = true;
 
     public static interface URLColumns {
         public static String URL = "url";
@@ -39,9 +38,9 @@ public class BrowserDB {
 
         public Cursor filter(ContentResolver cr, CharSequence constraint, int limit);
 
-        // This should only return frecent bookmarks, BrowserDB.getTopBookmarks will do the
+        // This should onlyl return frecent sites, BrowserDB.getTopSites will do the
         // work to combine that list with the pinned sites list
-        public Cursor getTopBookmarks(ContentResolver cr, int limit);
+        public Cursor getTopSites(ContentResolver cr, int limit);
 
         public void updateVisitedHistory(ContentResolver cr, String uri);
 
@@ -87,8 +86,6 @@ public class BrowserDB {
         public void removeReadingListItemWithURL(ContentResolver cr, String uri);
 
         public Bitmap getFaviconForUrl(ContentResolver cr, String uri);
-
-        public byte[] getFaviconBytesForUrl(ContentResolver cr, String uri);
 
         public Cursor getFaviconsForUrls(ContentResolver cr, List<String> urls);
 
@@ -138,35 +135,29 @@ public class BrowserDB {
         return sDb.filter(cr, constraint, limit);
     }
 
-    public static Cursor getTopBookmarks(ContentResolver cr, int limit) {
-        // Note this is not a single query anymore, but actually returns a mixture of two queries,
-        // one for top bookmarks, and one for pinned sites (which are actually bookmarks as well).
-        Cursor topBookmarks = sDb.getTopBookmarks(cr, limit);
+    public static Cursor getTopSites(ContentResolver cr, int limit) {
+        // Note this is not a single query anymore, but actually returns a mixture of two queries, one for topSites
+        // and one for pinned sites
+        Cursor topSites = sDb.getTopSites(cr, limit);
         Cursor pinnedSites = sDb.getPinnedSites(cr, limit);
-        return new TopSitesCursorWrapper(pinnedSites, topBookmarks, limit);
+        return new TopSitesCursorWrapper(pinnedSites, topSites, limit);
     }
 
     public static void updateVisitedHistory(ContentResolver cr, String uri) {
-        if (sAreContentProvidersEnabled) {
-            sDb.updateVisitedHistory(cr, uri);
-        }
+        sDb.updateVisitedHistory(cr, uri);
     }
 
     public static void updateHistoryTitle(ContentResolver cr, String uri, String title) {
-        if (sAreContentProvidersEnabled) {
-            sDb.updateHistoryTitle(cr, uri, title);
-        }
+        sDb.updateHistoryTitle(cr, uri, title);
     }
 
     public static void updateHistoryEntry(ContentResolver cr, String uri, String title,
                                           long date, int visits) {
-        if (sAreContentProvidersEnabled) {
-            sDb.updateHistoryEntry(cr, uri, title, date, visits);
-        }
+        sDb.updateHistoryEntry(cr, uri, title, date, visits);
     }
 
     public static Cursor getAllVisitedHistory(ContentResolver cr) {
-        return (sAreContentProvidersEnabled ? sDb.getAllVisitedHistory(cr) : null);
+        return sDb.getAllVisitedHistory(cr);
     }
 
     public static Cursor getRecentHistory(ContentResolver cr, int limit) {
@@ -211,11 +202,11 @@ public class BrowserDB {
     }
 
     public static boolean isBookmark(ContentResolver cr, String uri) {
-        return (sAreContentProvidersEnabled && sDb.isBookmark(cr, uri));
+        return sDb.isBookmark(cr, uri);
     }
 
     public static boolean isReadingListItem(ContentResolver cr, String uri) {
-        return (sAreContentProvidersEnabled && sDb.isReadingListItem(cr, uri));
+        return sDb.isReadingListItem(cr, uri);
     }
 
     public static void addBookmark(ContentResolver cr, String title, String uri) {
@@ -244,10 +235,6 @@ public class BrowserDB {
 
     public static Bitmap getFaviconForUrl(ContentResolver cr, String uri) {
         return sDb.getFaviconForUrl(cr, uri);
-    }
-
-    public static byte[] getFaviconBytesForUrl(ContentResolver cr, String uri) {
-        return sDb.getFaviconBytesForUrl(cr, uri);
     }
 
     public static Cursor getFaviconsForUrls(ContentResolver cr, List<String> urls) {
@@ -312,14 +299,6 @@ public class BrowserDB {
 
     public static Cursor getBookmarkForUrl(ContentResolver cr, String url) {
         return sDb.getBookmarkForUrl(cr, url);
-    }
-
-    public static boolean areContentProvidersDisabled() {
-        return sAreContentProvidersEnabled;
-    }
-
-    public static void setEnableContentProviders(boolean enableContentProviders) {
-        sAreContentProvidersEnabled = enableContentProviders;
     }
 
     public static class PinnedSite {
@@ -422,16 +401,11 @@ public class BrowserDB {
         public boolean moveToPosition(int position) {
             mIndex = position;
 
-            // Move the real cursor as if we were stepping through it to this position.
-            // Account for pinned sites, and be careful to update its position to the
-            // minimum or maximum position, even if we're moving beyond its bounds.
+            // move the real cursor as  if we were stepping through it to this position
+            // be careful not to move it to far, and to account for any pinned sites
             int before = getPinnedBefore(position);
             int p2 = position - before;
-            if (p2 <= -1) {
-                super.moveToPosition(-1);
-            } else if (p2 >= mCursor.getCount()) {
-                super.moveToPosition(mCursor.getCount());
-            } else {
+            if (p2 >= -1 && p2 <= mCursor.getCount()) {
                 super.moveToPosition(p2);
             }
 

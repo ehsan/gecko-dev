@@ -8,18 +8,10 @@ const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort;
-});
-
 var httpServer = null;
 const testFileName = "test_customConditionalRequest_304";
 const basePath = "/" + testFileName + "/";
-
-XPCOMUtils.defineLazyGetter(this, "baseURI", function() {
-  return URL + basePath;
-});
-
+const baseURI = "http://localhost:4444" + basePath;
 const unexpected304 = "unexpected304";
 const existingCached304 = "existingCached304";
 
@@ -54,7 +46,7 @@ function run_test() {
                                  alwaysReturn304Handler);
   httpServer.registerPathHandler(basePath + existingCached304,
                                  alwaysReturn304Handler);
-  httpServer.start(-1);
+  httpServer.start(4444);
   run_next_test();
 }
 

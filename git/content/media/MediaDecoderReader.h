@@ -11,6 +11,7 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "MediaStreamGraph.h"
 #include "SharedBuffer.h"
+#include "ImageLayers.h"
 #include "AudioSampleFormat.h"
 #include "MediaResource.h"
 #include "mozilla/dom/HTMLMediaElement.h"
@@ -455,25 +456,17 @@ public:
                         int64_t aStartTime,
                         int64_t aEndTime,
                         int64_t aCurrentTime) = 0;
-
+  
   // Called when the decode thread is started, before calling any other
   // decode, read metadata, or seek functions. Do any thread local setup
   // in this function.
   virtual void OnDecodeThreadStart() {}
-
+  
   // Called when the decode thread is about to finish, after all calls to
   // any other decode, read metadata, or seek functions. Any backend specific
   // thread local tear down must be done in this function. Note that another
   // decode thread could start up and run in future.
   virtual void OnDecodeThreadFinish() {}
-
-  // Tell the reader that the data decoded are not for direct playback, so it
-  // can accept more files, in particular those which have more channels than
-  // available in the audio output.
-  void SetIgnoreAudioOutputFormat()
-  {
-    mIgnoreAudioOutputFormat = true;
-  }
 
 protected:
   // Queue of audio frames. This queue is threadsafe, and is accessed from
@@ -526,8 +519,8 @@ public:
     return functor.mResult;
   }
 
-  // Only used by WebMReader and MediaOmxReader for now, so stub here rather
-  // than in every reader than inherits from MediaDecoderReader.
+  // Only used by WebMReader for now, so stub here rather than in every
+  // reader than inherits from MediaDecoderReader.
   virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset) {}
 
   virtual MediaQueue<AudioData>& AudioQueue() { return mAudioQueue; }
@@ -551,11 +544,6 @@ protected:
 
   // Stores presentation info required for playback.
   VideoInfo mInfo;
-
-  // Whether we should accept media that we know we can't play
-  // directly, because they have a number of channel higher than
-  // what we support.
-  bool mIgnoreAudioOutputFormat;
 };
 
 } // namespace mozilla

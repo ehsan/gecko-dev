@@ -41,7 +41,7 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_frame_textarea.html");
 
     yield waitForCondition(function () {
-      return !BrowserUI.isStartTabVisible;
+      return !StartUI.isStartPageVisible;
       }, 10000, 100);
 
     yield hideContextUI();
@@ -251,7 +251,10 @@ function test() {
     todo(false, "browser_selection_tests need landscape mode to run.");
     return;
   }
+
   // XXX need this until bugs 886624 and 859742 are fully resolved
   setDevPixelEqualToPx();
+
+  requestLongerTimeout(3);
   runTests();
 }

@@ -7,6 +7,7 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "nsHTMLParts.h"
 #include "nsCOMPtr.h"
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
@@ -17,6 +18,7 @@
 #include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
+#include "nsINodeInfo.h"
 #include "nsContentUtils.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsStyleContext.h"
@@ -24,13 +26,23 @@
 #include "nsStyleCoord.h"
 #include "nsTransform2D.h"
 #include "nsImageMap.h"
+#include "nsILinkHandler.h"
+#include "nsIURL.h"
 #include "nsIIOService.h"
 #include "nsILoadGroup.h"
 #include "nsISupportsPriority.h"
+#include "nsIServiceManager.h"
 #include "nsNetUtil.h"
+#include "nsContainerFrame.h"
+#include "prprf.h"
 #include "nsCSSRendering.h"
+#include "nsILink.h"
 #include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMHTMLImageElement.h"
 #include "nsINameSpaceManager.h"
+#include "nsTextFragment.h"
+#include "nsIDOMHTMLMapElement.h"
+#include "nsIScriptSecurityManager.h"
 #include <algorithm>
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -47,6 +59,8 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIDOMRange.h"
 
+#include "nsIContentPolicy.h"
+#include "nsContentPolicyUtils.h"
 #include "nsEventStates.h"
 #include "nsError.h"
 #include "nsBidiUtils.h"
@@ -55,12 +69,8 @@
 #include "gfxRect.h"
 #include "ImageLayers.h"
 #include "ImageContainer.h"
-#include "nsStyleSet.h"
-#include "nsBlockFrame.h"
 
 #include "mozilla/Preferences.h"
-
-#include "mozilla/dom/Link.h"
 
 using namespace mozilla;
 
@@ -244,10 +254,13 @@ nsImageFrame::Init(nsIContent*      aContent,
     p->AdjustPriority(-1);
 
   // If we already have an image container, OnStartContainer won't be called
+  // Set the animation mode here
   if (currentRequest) {
     nsCOMPtr<imgIContainer> image;
     currentRequest->GetImage(getter_AddRefs(image));
-    OnStartContainer(currentRequest, image);
+    if (image) {
+      image->SetAnimationMode(aPresContext->ImageAnimationMode());
+    }
   }
 }
 
@@ -512,18 +525,6 @@ nsImageFrame::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDat
   return NS_OK;
 }
 
-static bool
-SizeIsAvailable(imgIRequest* aRequest)
-{
-  if (!aRequest)
-    return false;
-
-  uint32_t imageStatus = 0;
-  nsresult rv = aRequest->GetImageStatus(&imageStatus);
-
-  return NS_SUCCEEDED(rv) && (imageStatus & imgIRequest::STATUS_SIZE_AVAILABLE); 
-}
-
 nsresult
 nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 {
@@ -541,25 +542,9 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
     // We don't care
     return NS_OK;
   }
-
-  bool intrinsicSizeChanged = false;
-  if (SizeIsAvailable(aRequest)) {
-    // This is valid and for the current request, so update our stored image
-    // container, orienting according to our style.
-    mImage = nsLayoutUtils::OrientImage(aImage, StyleVisibility()->mImageOrientation);
-    
-    intrinsicSizeChanged = UpdateIntrinsicSize(mImage);
-    intrinsicSizeChanged = UpdateIntrinsicRatio(mImage) || intrinsicSizeChanged;
-  } else {
-    // We no longer have a valid image, so release our stored image container.
-    mImage = nullptr;
-
-    // Have to size to 0,0 so that GetDesiredSize recalculates the size.
-    mIntrinsicSize.width.SetCoordValue(0);
-    mIntrinsicSize.height.SetCoordValue(0);
-    mIntrinsicRatio.SizeTo(0, 0);
-    intrinsicSizeChanged = true;
-  }
+  
+  bool intrinsicSizeChanged = UpdateIntrinsicSize(aImage);
+  intrinsicSizeChanged = UpdateIntrinsicRatio(aImage) || intrinsicSizeChanged;
 
   if (intrinsicSizeChanged && (mState & IMAGE_GOTINITIALREFLOW)) {
     // Now we need to reflow if we have an unconstrained size and have
@@ -634,7 +619,13 @@ nsImageFrame::OnStopRequest(imgIRequest *aRequest,
     return NS_ERROR_FAILURE;
   }
 
-  NotifyNewCurrentRequest(aRequest, aStatus);
+  bool multipart = false;
+  aRequest->GetMultipart(&multipart);
+
+  if (loadType == nsIImageLoadingContent::PENDING_REQUEST || multipart) {
+    NotifyNewCurrentRequest(aRequest, aStatus);
+  }
+
   return NS_OK;
 }
 
@@ -642,22 +633,17 @@ void
 nsImageFrame::NotifyNewCurrentRequest(imgIRequest *aRequest,
                                       nsresult aStatus)
 {
-  nsCOMPtr<imgIContainer> image;
-  aRequest->GetImage(getter_AddRefs(image));
-  NS_ASSERTION(image || NS_FAILED(aStatus), "Successful load with no container?");
-
   // May have to switch sizes here!
   bool intrinsicSizeChanged = true;
-  if (NS_SUCCEEDED(aStatus) && image && SizeIsAvailable(aRequest)) {
-    // Update our stored image container, orienting according to our style.
-    mImage = nsLayoutUtils::OrientImage(image, StyleVisibility()->mImageOrientation);
-
-    intrinsicSizeChanged = UpdateIntrinsicSize(mImage);
-    intrinsicSizeChanged = UpdateIntrinsicRatio(mImage) || intrinsicSizeChanged;
-  } else {
-    // We no longer have a valid image, so release our stored image container.
-    mImage = nullptr;
-
+  if (NS_SUCCEEDED(aStatus)) {
+    nsCOMPtr<imgIContainer> imageContainer;
+    aRequest->GetImage(getter_AddRefs(imageContainer));
+    NS_ASSERTION(imageContainer, "Successful load with no container?");
+    intrinsicSizeChanged = UpdateIntrinsicSize(imageContainer);
+    intrinsicSizeChanged = UpdateIntrinsicRatio(imageContainer) ||
+      intrinsicSizeChanged;
+  }
+  else {
     // Have to size to 0,0 so that GetDesiredSize recalculates the size
     mIntrinsicSize.width.SetCoordValue(0);
     mIntrinsicSize.height.SetCoordValue(0);
@@ -697,16 +683,30 @@ nsImageFrame::FrameChanged(imgIRequest *aRequest,
 void
 nsImageFrame::EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext)
 {
-  // If mIntrinsicSize.width and height are 0, then we need to update from the
-  // image container.
+  // if mIntrinsicSize.width and height are 0, then we should
+  // check to see if the size is already known by the image container.
   if (mIntrinsicSize.width.GetUnit() == eStyleUnit_Coord &&
       mIntrinsicSize.width.GetCoordValue() == 0 &&
       mIntrinsicSize.height.GetUnit() == eStyleUnit_Coord &&
       mIntrinsicSize.height.GetCoordValue() == 0) {
 
-    if (mImage) {
-      UpdateIntrinsicSize(mImage);
-      UpdateIntrinsicRatio(mImage);
+    // Jump through all the hoops to get the status of the request
+    nsCOMPtr<imgIRequest> currentRequest;
+    nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
+    if (imageLoader)
+      imageLoader->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
+                              getter_AddRefs(currentRequest));
+    uint32_t status = 0;
+    if (currentRequest)
+      currentRequest->GetImageStatus(&status);
+
+    // If we know the size, we can grab it and use it for an update
+    if (status & imgIRequest::STATUS_SIZE_AVAILABLE) {
+      nsCOMPtr<imgIContainer> imgCon;
+      currentRequest->GetImage(getter_AddRefs(imgCon));
+      NS_ABORT_IF_FALSE(imgCon, "SIZE_AVAILABLE, but no imgContainer?");
+      UpdateIntrinsicSize(imgCon);
+      UpdateIntrinsicRatio(imgCon);
     } else {
       // image request is null or image size not known, probably an
       // invalid image specified
@@ -885,7 +885,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
     // We include the altFeedbackSize in our visual overflow, but not in our
     // scrollable overflow, since it doesn't really need to be scrolled to
     // outside the image.
-    static_assert(eOverflowType_LENGTH == 2, "Unknown overflow types?");
+    MOZ_STATIC_ASSERT(eOverflowType_LENGTH == 2, "Unknown overflow types?");
     nsRect& visualOverflow = aMetrics.VisualOverflow();
     visualOverflow.UnionRect(visualOverflow, altFeedbackSize);
   }
@@ -1403,17 +1403,31 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsEventStates contentState = mContent->AsElement()->State();
     bool imageOK = IMAGE_OK(contentState, true);
 
-    // XXX(seth): The SizeIsAvailable check here should not be necessary - the
-    // intention is that a non-null mImage means we have a size, but there is
-    // currently some code that violates this invariant.
-    if (!imageOK || !mImage || !SizeIsAvailable(currentRequest)) {
+    nsCOMPtr<imgIContainer> imgCon;
+    if (currentRequest) {
+      currentRequest->GetImage(getter_AddRefs(imgCon));
+    }
+
+    // Determine if the size is available
+    bool haveSize = false;
+    uint32_t imageStatus = 0;
+    if (currentRequest)
+      currentRequest->GetImageStatus(&imageStatus);
+    if (imageStatus & imgIRequest::STATUS_SIZE_AVAILABLE)
+      haveSize = true;
+
+    // We should never have the size and not have an image container
+    NS_ABORT_IF_FALSE(!haveSize || imgCon, "Have size but not container?");
+
+    if (!imageOK || !haveSize) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
       aLists.Content()->AppendNewToTop(new (aBuilder)
         nsDisplayAltFeedback(aBuilder, this));
-    } else {
+    }
+    else {
       aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayImage(aBuilder, this, mImage));
+        nsDisplayImage(aBuilder, this, imgCon));
 
       // If we were previously displaying an icon, we're not anymore
       if (mDisplayingIcon) {
@@ -1548,7 +1562,7 @@ nsImageFrame::GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
   // Walk up the content tree, looking for an nsIDOMAnchorElement
   for (nsIContent* content = mContent->GetParent();
        content; content = content->GetParent()) {
-    nsCOMPtr<dom::Link> link(do_QueryInterface(content));
+    nsCOMPtr<nsILink> link(do_QueryInterface(content));
     if (link) {
       nsCOMPtr<nsIURI> href = content->GetHrefURI();
       if (href) {
@@ -1687,12 +1701,14 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
       nsRefPtr<nsStyleContext> areaStyle = 
         PresContext()->PresShell()->StyleSet()->
           ResolveStyleFor(area->AsElement(), StyleContext());
-      FillCursorInformationFromStyle(areaStyle->StyleUserInterface(),
-                                     aCursor);
-      if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
-        aCursor.mCursor = NS_STYLE_CURSOR_DEFAULT;
+      if (areaStyle) {
+        FillCursorInformationFromStyle(areaStyle->StyleUserInterface(),
+                                       aCursor);
+        if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
+          aCursor.mCursor = NS_STYLE_CURSOR_DEFAULT;
+        }
+        return NS_OK;
       }
-      return NS_OK;
     }
   }
   return nsFrame::GetCursor(aPoint, aCursor);
@@ -1755,7 +1771,7 @@ nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 #endif
 
 int
-nsImageFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsImageFrame::GetSkipSides() const
 {
   int skip = 0;
   if (nullptr != GetPrevInFlow()) {

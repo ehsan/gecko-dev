@@ -11,6 +11,8 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "js/HashTable.h"
+#include "jsfriendapi.h"
 
 // Maps...
 
@@ -52,7 +54,7 @@ public:
             return p->value;
         if (!mTable.add(p, obj, wrapper))
             return nullptr;
-        JS_StoreObjectPostBarrierCallback(cx, KeyMarkCallback, obj, this);
+        JS_StorePostBarrierCallback(cx, KeyMarkCallback, obj);
         return wrapper;
     }
 
@@ -85,11 +87,12 @@ private:
      * This function is called during minor GCs for each key in the HashMap that
      * has been moved.
      */
-    static void KeyMarkCallback(JSTracer *trc, void *k, void *d) {
+    static void KeyMarkCallback(JSTracer *trc, void *k) {
         JSObject *key = static_cast<JSObject*>(k);
-        JSObject2WrappedJSMap* self = static_cast<JSObject2WrappedJSMap*>(d);
         JSObject *prior = key;
         JS_CallObjectTracer(trc, &key, "XPCJSRuntime::mWrappedJSMap key");
+        XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
+        JSObject2WrappedJSMap* self = rt->GetWrappedJSMap();
         self->mTable.rekey(prior, key);
     }
 
@@ -140,10 +143,10 @@ public:
         NS_PRECONDITION(wrapper,"bad param");
 #ifdef DEBUG
         XPCWrappedNative* wrapperInMap = Find(wrapper->GetIdentityObject());
-        MOZ_ASSERT(!wrapperInMap || wrapperInMap == wrapper,
-                   "About to remove a different wrapper with the same "
-                   "nsISupports identity! This will most likely cause serious "
-                   "problems!");
+        NS_ASSERTION(!wrapperInMap || wrapperInMap == wrapper,
+                     "About to remove a different wrapper with the same "
+                     "nsISupports identity! This will most likely cause serious "
+                     "problems!");
 #endif
         PL_DHashTableOperate(mTable, wrapper->GetIdentityObject(), PL_DHASH_REMOVE);
     }
@@ -562,8 +565,8 @@ public:
 
     static XPCNativeScriptableSharedMap* newMap(int size);
 
-    bool GetNewOrUsed(uint32_t flags, char* name, uint32_t interfacesBitmap,
-                      XPCNativeScriptableInfo* si);
+    JSBool GetNewOrUsed(uint32_t flags, char* name, uint32_t interfacesBitmap,
+                        XPCNativeScriptableInfo* si);
 
     inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
@@ -647,7 +650,7 @@ public:
         if (!mTable.add(p, key, value))
             return nullptr;
         MOZ_ASSERT(xpc::GetObjectScope(key)->mWaiverWrapperMap == this);
-        JS_StoreObjectPostBarrierCallback(cx, KeyMarkCallback, key, this);
+        JS_StorePostBarrierCallback(cx, KeyMarkCallback, key);
         return value;
     }
 
@@ -694,11 +697,11 @@ private:
      * This function is called during minor GCs for each key in the HashMap that
      * has been moved.
      */
-    static void KeyMarkCallback(JSTracer *trc, void *k, void *d) {
+    static void KeyMarkCallback(JSTracer *trc, void *k) {
         JSObject *key = static_cast<JSObject*>(k);
-        JSObject2JSObjectMap *self = static_cast<JSObject2JSObjectMap *>(d);
         JSObject *prior = key;
         JS_CallObjectTracer(trc, &key, "XPCWrappedNativeScope::mWaiverWrapperMap key");
+        JSObject2JSObjectMap *self = xpc::GetObjectScope(key)->mWaiverWrapperMap;
         self->mTable.rekey(prior, key);
     }
 

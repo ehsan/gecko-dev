@@ -5,6 +5,8 @@
 
 #include "SourceBuffer.h"
 
+#include "nsContentUtils.h"
+
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
 #define LOG(type, msg) PR_LOG(gMediaSourceLog, type, msg)
@@ -87,13 +89,13 @@ SourceBuffer::SetAppendWindowEnd(double aAppendWindowEnd, ErrorResult& aRv)
 }
 
 void
-SourceBuffer::AppendBuffer(const ArrayBuffer& aData, ErrorResult& aRv)
+SourceBuffer::AppendBuffer(ArrayBuffer& aData, ErrorResult& aRv)
 {
   AppendData(aData.Data(), aData.Length(), aRv);
 }
 
 void
-SourceBuffer::AppendBuffer(const ArrayBufferView& aData, ErrorResult& aRv)
+SourceBuffer::AppendBuffer(ArrayBufferView& aData, ErrorResult& aRv)
 {
   AppendData(aData.Data(), aData.Length(), aRv);
 }

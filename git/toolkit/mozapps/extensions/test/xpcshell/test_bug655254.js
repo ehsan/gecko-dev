@@ -14,10 +14,7 @@ Services.prefs.setIntPref("extensions.enabledScopes",
 createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2", "1.9.2");
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-mapFile("/data/test_bug655254.rdf", testserver);
+var testserver;
 
 var userDir = gProfD.clone();
 userDir.append("extensions2");
@@ -40,7 +37,7 @@ var addon1 = {
   id: "addon1@tests.mozilla.org",
   version: "1.0",
   name: "Test 1",
-  updateURL: "http://localhost:" + gPort + "/data/test_bug655254.rdf",
+  updateURL: "http://localhost:4444/data/test_bug655254.rdf",
   targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
@@ -51,6 +48,12 @@ var addon1 = {
 // Set up the profile
 function run_test() {
   do_test_pending();
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.start(4444);
+
   run_test_1();
 }
 
@@ -84,7 +87,7 @@ function run_test_1() {
       onUpdateFinished: function() {
         restartManager();
 
-        AddonManager.getAddonByID("addon1@tests.mozilla.org", callback_soon(function(a1) {
+        AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
           do_check_neq(a1, null);
           do_check_false(a1.appDisabled);
           do_check_true(a1.isActive);
@@ -115,9 +118,9 @@ function run_test_1() {
             do_check_false(isExtensionInAddonsList(userDir, a2.id));
             do_check_eq(Services.prefs.getIntPref("bootstraptest.active_version"), 1);
 
-            do_execute_soon(run_test_2);
+            run_test_2();
           });
-        }));
+        });
       }
     }, AddonManager.UPDATE_WHEN_USER_REQUESTED);
   });
@@ -125,7 +128,7 @@ function run_test_1() {
 
 //Set up the profile
 function run_test_2() {
-  AddonManager.getAddonByID("addon2@tests.mozilla.org", callback_soon(function(a2) {
+  AddonManager.getAddonByID("addon2@tests.mozilla.org", function(a2) {
    do_check_neq(a2, null);
    do_check_false(a2.appDisabled);
    do_check_true(a2.isActive);
@@ -160,5 +163,5 @@ function run_test_2() {
 
      end_test();
    });
-  }));
+  });
 }

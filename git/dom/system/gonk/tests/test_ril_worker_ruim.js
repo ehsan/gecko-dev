@@ -48,8 +48,6 @@ add_test(function test_is_ruim_service_available() {
 
   test_table([0x0, 0x0, 0x0, 0x0, 0x03], "SPN", true);
   test_table([0x0, 0x0, 0x0, 0x03, 0x0], "SPN", false);
-  test_table([0x0, 0x0C, 0x0, 0x0, 0x0], "ENHANCED_PHONEBOOK", true);
-  test_table([0x0, 0x0,  0x0, 0x0, 0x0], "ENHANCED_PHONEBOOK", false);
 
   run_next_test();
 });
@@ -206,9 +204,9 @@ add_test(function test_cdma_spn_display_condition() {
       systemId: homeSystemIds,
       networkId: homeNetworkIds
     };
-    RIL.voiceRegistrationState.cell = {
-      cdmaSystemId: currentSystemId,
-      cdmaNetworkId: currentNetworkId
+    RIL.cdmaSubscription = {
+      systemId: currentSystemId,
+      networkId: currentNetworkId
     };
 
     do_check_eq(ICCUtilsHelper.updateDisplayCondition(), expectUpdateDisplayCondition);

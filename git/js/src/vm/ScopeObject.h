@@ -16,8 +16,6 @@
 
 namespace js {
 
-namespace frontend { struct Definition; }
-
 /*****************************************************************************/
 
 /*
@@ -256,7 +254,7 @@ class DeclEnvObject : public ScopeObject
 
   public:
     static const uint32_t RESERVED_SLOTS = 2;
-    static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT2_BACKGROUND;
+    static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT2;
 
     static Class class_;
 
@@ -483,9 +481,10 @@ class ScopeIter
     /* ScopeIter does not have value semantics. */
     ScopeIter(const ScopeIter &si) MOZ_DELETE;
 
-    ScopeIter(JSContext *cx) MOZ_DELETE;
-
   public:
+    /* The default constructor leaves ScopeIter totally invalid */
+    explicit ScopeIter(JSContext *cx
+                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 
     /* Constructing from a copy of an existing ScopeIter. */
     explicit ScopeIter(const ScopeIter &si, JSContext *cx

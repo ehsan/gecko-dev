@@ -3,7 +3,7 @@
 
 function test() {
   waitForExplicitFinish();
-  newWindowWithTabView(onTabViewShown, null, 850);
+  newWindowWithTabView(onTabViewShown);
 }
 
 function onTabViewShown(win) {

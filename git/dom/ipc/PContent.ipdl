@@ -11,7 +11,6 @@ include protocol PCompositor;
 include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
-include protocol PFMRadio;
 include protocol PHal;
 include protocol PImageBridge;
 include protocol PIndexedDB;
@@ -35,7 +34,6 @@ include "mozilla/HalTypes.h";
 include "mozilla/layout/RenderFrameUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
 include "nsGeoPositionIPCSerialiser.h";
-include "gfxPoint.h";
 
 using GeoPosition;
 using PrefTuple;
@@ -127,40 +125,6 @@ union DeviceStorageParams
   DeviceStorageAvailableParams;
 };
 
-struct FMRadioRequestEnableParams
-{
-  double frequency;
-};
-
-struct FMRadioRequestDisableParams
-{
-
-};
-
-struct FMRadioRequestSetFrequencyParams
-{
-  double frequency;
-};
-
-struct FMRadioRequestSeekParams
-{
-  bool upward;
-};
-
-struct FMRadioRequestCancelSeekParams
-{
-
-};
-
-union FMRadioRequestParams
-{
-  FMRadioRequestEnableParams;
-  FMRadioRequestDisableParams;
-  FMRadioRequestSetFrequencyParams;
-  FMRadioRequestSeekParams;
-  FMRadioRequestCancelSeekParams;
-};
-
 union PrefValue {
   nsCString;
   int32_t;
@@ -189,7 +153,6 @@ rpc protocol PContent
     manages PCrashReporter;
     manages PDeviceStorageRequest;
     manages PExternalHelperApp;
-    manages PFMRadio;
     manages PHal;
     manages PIndexedDB;
     manages PMemoryReportRequest;
@@ -304,18 +267,11 @@ child:
                    nsCString reasons);
 
     FileSystemUpdate(nsString fsName, nsString mountPoint, int32_t fsState,
-                     int32_t mountGeneration, bool isMediaPresent,
-                     bool isSharing);
+                     int32_t mountGeneration);
 
     NotifyProcessPriorityChanged(ProcessPriority priority);
     MinimizeMemoryUsage();
     CancelMinimizeMemoryUsage();
-
-    /**
-     * Used to manage nsIStyleSheetService across processes.
-     */
-    async LoadAndRegisterSheet(URIParams uri, uint32_t type);
-    async UnregisterSheet(URIParams uri, uint32_t type);
 
 parent:
     /**
@@ -355,8 +311,6 @@ parent:
 
     PBluetooth();
 
-    PFMRadio();
-
     // Services remoting
 
     async StartVisitedQuery(URIParams uri);
@@ -389,6 +343,22 @@ parent:
                           nsString lang);
 
     CloseAlert(nsString name);
+
+    /**
+     * Tests permission for a provided principal using the permission
+     * manager.
+     *
+     * @param principal
+     *   The principal to test for the permissions.
+     * @param type
+     *   The type of permission to for the principal.
+     *
+     * NOTE: The principal is untrusted in the parent process. Only
+     *       principals that can live in the content process should
+     *       be provided.
+     */
+    sync TestPermissionFromPrincipal(Principal principal, nsCString type)
+        returns (uint32_t permission);
 
     PExternalHelperApp(OptionalURIParams uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
@@ -456,9 +426,6 @@ parent:
     // called by the child (test code only) to propagate volume changes to the parent
     async CreateFakeVolume(nsString fsName, nsString mountPoint);
     async SetFakeVolumeState(nsString fsName, int32_t fsState);
-
-    sync KeywordToURI(nsCString keyword)
-        returns (OptionalInputStreamParams postData, OptionalURIParams uri);
 
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData, CpowEntry[] aCpows);

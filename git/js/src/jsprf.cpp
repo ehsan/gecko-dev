@@ -9,17 +9,15 @@
 **
 ** Author: Kipp E.B. Hickman
 */
-
 #include "jsprf.h"
 
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-
+#include <stdlib.h>
+#include "jsutil.h"
 #include "jspubtd.h"
 #include "jsstr.h"
-#include "jsutil.h"
 
 using namespace js;
 
@@ -1053,7 +1051,11 @@ static int GrowStuff(SprintfState *ss, const char *sp, uint32_t len)
     if (off + len >= ss->maxlen) {
         /* Grow the buffer */
         newlen = ss->maxlen + ((len > 32) ? len : 32);
-        newbase = (char*) js_realloc(ss->base, newlen);
+        if (ss->base) {
+            newbase = (char*) js_realloc(ss->base, newlen);
+        } else {
+            newbase = (char*) js_malloc(newlen);
+        }
         if (!newbase) {
             /* Ran out of memory */
             return -1;
@@ -1105,7 +1107,9 @@ JS_PUBLIC_API(char *) JS_vsmprintf(const char *fmt, va_list ap)
     ss.maxlen = 0;
     rv = dosprintf(&ss, fmt, ap);
     if (rv < 0) {
-        js_free(ss.base);
+        if (ss.base) {
+            js_free(ss.base);
+        }
         return 0;
     }
     return ss.base;
@@ -1202,7 +1206,9 @@ JS_PUBLIC_API(char *) JS_vsprintf_append(char *last, const char *fmt, va_list ap
     }
     rv = dosprintf(&ss, fmt, ap);
     if (rv < 0) {
-        js_free(ss.base);
+        if (ss.base) {
+            js_free(ss.base);
+        }
         return 0;
     }
     return ss.base;

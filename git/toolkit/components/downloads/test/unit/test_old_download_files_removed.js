@@ -7,10 +7,6 @@
 
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   // Create the downloads.rdf file
   importDownloadsFile("empty_downloads.rdf");
 

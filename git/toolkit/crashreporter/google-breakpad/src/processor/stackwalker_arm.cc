@@ -252,8 +252,7 @@ StackFrameARM* StackwalkerARM::GetCallerByFramePointer(
   return frame;
 }
 
-StackFrame* StackwalkerARM::GetCallerFrame(const CallStack* stack,
-                                           bool stack_scan_allowed) {
+StackFrame* StackwalkerARM::GetCallerFrame(const CallStack* stack) {
   if (!memory_ || !stack) {
     BPLOG(ERROR) << "Can't get caller frame without memory or stack";
     return NULL;
@@ -275,7 +274,7 @@ StackFrame* StackwalkerARM::GetCallerFrame(const CallStack* stack,
     frame.reset(GetCallerByFramePointer(frames));
 
   // If everuthing failed, fall back to stack scanning.
-  if (stack_scan_allowed && !frame.get())
+  if (!frame.get())
     frame.reset(GetCallerByStackScan(frames));
 
   // If nothing worked, tell the caller.

@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/voice_engine/test/auto_test/fixtures/after_streaming_fixture.h"
+#include "after_streaming_fixture.h"
+#include "testsupport/fileutils.h"
 
 class CallReportTest : public AfterStreamingFixture {
 };
@@ -42,8 +42,7 @@ TEST_F(CallReportTest, GetRoundTripTimeSummaryReturnsAllMinusOnesIfRtcpIsOff) {
   EXPECT_EQ(-1, delays.max);
 }
 
-// Flaky: https://code.google.com/p/webrtc/issues/detail?id=1719
-TEST_F(CallReportTest, DISABLED_GetRoundTripTimesReturnsValuesIfRtcpIsOn) {
+TEST_F(CallReportTest, GetRoundTripTimesReturnsValuesIfRtcpIsOn) {
   voe_rtp_rtcp_->SetRTCPStatus(channel_, true);
   Sleep(1000);
 

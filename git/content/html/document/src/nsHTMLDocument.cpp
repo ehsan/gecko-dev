@@ -145,15 +145,6 @@ static bool ConvertToMidasInternalCommand(const nsAString & inCommandID,
 // ==================================================================
 // =
 // ==================================================================
-static void
-ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
-{
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("DOM Events"), aDoc,
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning);
-}
-
 static nsresult
 RemoveFromAgentSheets(nsCOMArray<nsIStyleSheet> &aAgentSheets, const nsAString& url)
 {
@@ -178,19 +169,20 @@ RemoveFromAgentSheets(nsCOMArray<nsIStyleSheet> &aAgentSheets, const nsAString& 
 nsresult
 NS_NewHTMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData)
 {
-  nsRefPtr<nsHTMLDocument> doc = new nsHTMLDocument();
+  nsHTMLDocument* doc = new nsHTMLDocument();
+  NS_ENSURE_TRUE(doc, NS_ERROR_OUT_OF_MEMORY);
 
+  NS_ADDREF(doc);
   nsresult rv = doc->Init();
 
   if (NS_FAILED(rv)) {
-    *aInstancePtrResult = nullptr;
-    return rv;
+    NS_RELEASE(doc);
   }
 
+  *aInstancePtrResult = doc;
   doc->SetLoadedAsData(aLoadedAsData);
-  doc.forget(aInstancePtrResult);
 
-  return NS_OK;
+  return rv;
 }
 
   // NOTE! nsDocument::operator new() zeroes out all members, so don't
@@ -211,8 +203,6 @@ nsHTMLDocument::~nsHTMLDocument()
 {
   mAll = nullptr;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
   NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
@@ -1006,12 +996,6 @@ nsHTMLDocument::SetDomain(const nsAString& aDomain)
 void
 nsHTMLDocument::SetDomain(const nsAString& aDomain, ErrorResult& rv)
 {
-  if (mSandboxFlags & SANDBOXED_DOMAIN) {
-    // We're sandboxed; disallow setting domain
-    rv.Throw(NS_ERROR_DOM_SECURITY_ERR);
-    return;
-  }
-
   if (aDomain.IsEmpty()) {
     rv.Throw(NS_ERROR_DOM_BAD_DOCUMENT_DOMAIN);
     return;
@@ -1687,8 +1671,6 @@ nsHTMLDocument::Open(JSContext* cx,
     }
   }
 
-  mDidDocumentOpen = true;
-
   // Call Reset(), this will now do the full reset
   Reset(channel, group);
   if (baseURI) {
@@ -1872,7 +1854,7 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
     if (mExternalScriptsBeingEvaluated) {
       // Instead of implying a call to document.open(), ignore the call.
       nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      NS_LITERAL_CSTRING("DOM Events"), this,
+                                      "DOM Events", this,
                                       nsContentUtils::eDOM_PROPERTIES,
                                       "DocumentWriteIgnored",
                                       nullptr, 0,
@@ -1887,7 +1869,7 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
     if (mExternalScriptsBeingEvaluated) {
       // Instead of implying a call to document.open(), ignore the call.
       nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      NS_LITERAL_CSTRING("DOM Events"), this,
+                                      "DOM Events", this,
                                       nsContentUtils::eDOM_PROPERTIES,
                                       "DocumentWriteIgnored",
                                       nullptr, 0,
@@ -2255,20 +2237,6 @@ nsHTMLDocument::GetSelection(ErrorResult& rv)
   nsCOMPtr<nsISelection> sel;
   rv = window->GetSelection(getter_AddRefs(sel));
   return sel.forget();
-}
-
-NS_IMETHODIMP
-nsHTMLDocument::CaptureEvents(int32_t aEventFlags)
-{
-  ReportUseOfDeprecatedMethod(this, "UseOfCaptureEventsWarning");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLDocument::ReleaseEvents(int32_t aEventFlags)
-{
-  ReportUseOfDeprecatedMethod(this, "UseOfReleaseEventsWarning");
-  return NS_OK;
 }
 
 // Mapped to document.embeds for NS4 compatibility
@@ -3759,6 +3727,7 @@ nsHTMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
                "Can't import this document into another document!");
 
   nsRefPtr<nsHTMLDocument> clone = new nsHTMLDocument();
+  NS_ENSURE_TRUE(clone, NS_ERROR_OUT_OF_MEMORY);
   nsresult rv = CloneDocHelper(clone.get());
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -14,11 +14,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "ContentUtil", function() {
-  Cu.import("resource:///modules/ContentUtil.jsm");
-  return ContentUtil;
-});
-
 // -----------------------------------------------------------------------
 // HelperApp Launcher Dialog
 // -----------------------------------------------------------------------
@@ -46,10 +41,8 @@ HelperAppLauncherDialog.prototype = {
     let displaySize = DownloadUtils.convertByteUnits(aSize);
     if (displaySize[0] > 0) // [0] is size, [1] is units
       return displaySize.join("");
-    else {
-      let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-      return browserBundle.GetStringFromName("downloadsUnknownSize");
-    }
+    else
+      return Strings.browser.GetStringFromName("downloadsUnknownSize");
   },
 
   _getChromeWindow: function (aWindow) {
@@ -64,7 +57,6 @@ HelperAppLauncherDialog.prototype = {
   },
 
   _showDownloadInfobar: function do_showDownloadInfobar(aLauncher) {
-    Services.obs.notifyObservers(null, "dl-request", "");
     let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
 
     let runButtonText =
@@ -102,35 +94,18 @@ HelperAppLauncherDialog.prototype = {
     let window = Services.wm.getMostRecentWindow("navigator:browser");
     let chromeWin = this._getChromeWindow(window).wrappedJSObject;
     let notificationBox = chromeWin.Browser.getNotificationBox();
-    let document = notificationBox.ownerDocument;
     downloadSize = this._getDownloadSize(aLauncher.contentLength);
 
-    let msg = browserBundle.GetStringFromName("alertDownloadSave");
+    let msg = browserBundle.GetStringFromName("alertDownloadSave")
+      .replace("#1", aLauncher.suggestedFileName)
+      .replace("#2", downloadSize)
+      .replace("#3", aLauncher.source.host);
 
-    let fragment =  ContentUtil.populateFragmentFromString(
-                      document.createDocumentFragment(),
-                      msg,
-                      {
-                        text: aLauncher.suggestedFileName,
-                        className: "download-filename-text"
-                      },
-                      {
-                        text: aLauncher.suggestedFileName,
-                        className: "download-size-text"
-                      },
-                      {
-                        text: aLauncher.source.host,
-                        className: "download-host-text"
-                      }
-                    );
-    notificationBox.notificationsHidden = false;
-    let newBar = notificationBox.appendNotification("",
+    let newBar = notificationBox.appendNotification(msg,
                                                     "save-download",
                                                     URI_GENERIC_ICON_DOWNLOAD,
                                                     notificationBox.PRIORITY_WARNING_HIGH,
                                                     buttons);
-    let messageContainer = document.getAnonymousElementByAttribute(newBar, "anonid", "messageText");
-    messageContainer.appendChild(fragment);
   },
 
   promptForSaveToFile: function hald_promptForSaveToFile(aLauncher, aContext, aDefaultFile, aSuggestedFileExt, aForcePrompt) {

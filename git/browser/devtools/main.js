@@ -19,16 +19,14 @@ Object.defineProperty(exports, "TargetFactory", {
 
 loader.lazyGetter(this, "osString", () => Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS);
 
-let events = require("sdk/system/events");
-
 // Panels
-loader.lazyGetter(this, "OptionsPanel", () => require("devtools/framework/toolbox-options").OptionsPanel);
-loader.lazyGetter(this, "InspectorPanel", () => require("devtools/inspector/inspector-panel").InspectorPanel);
-loader.lazyGetter(this, "WebConsolePanel", () => require("devtools/webconsole/panel").WebConsolePanel);
-loader.lazyGetter(this, "DebuggerPanel", () => require("devtools/debugger/debugger-panel").DebuggerPanel);
+loader.lazyGetter(this, "OptionsPanel", function() require("devtools/framework/toolbox-options").OptionsPanel);
+loader.lazyGetter(this, "InspectorPanel", function() require("devtools/inspector/inspector-panel").InspectorPanel);
+loader.lazyImporter(this, "WebConsolePanel", "resource:///modules/WebConsolePanel.jsm");
+loader.lazyImporter(this, "DebuggerPanel", "resource:///modules/devtools/DebuggerPanel.jsm");
 loader.lazyImporter(this, "StyleEditorPanel", "resource:///modules/devtools/StyleEditorPanel.jsm");
-loader.lazyGetter(this, "ProfilerPanel", () => require("devtools/profiler/panel"));
-loader.lazyGetter(this, "NetMonitorPanel", () => require("devtools/netmonitor/netmonitor-panel").NetMonitorPanel);
+loader.lazyGetter(this, "ProfilerPanel", function() require("devtools/profiler/panel"));
+loader.lazyImporter(this, "NetMonitorPanel", "resource:///modules/devtools/NetMonitorPanel.jsm");
 
 // Strings
 const toolboxProps = "chrome://browser/locale/devtools/toolbox.properties";
@@ -97,15 +95,8 @@ Tools.inspector = {
   label: l10n("inspector.label", inspectorStrings),
   tooltip: l10n("inspector.tooltip", inspectorStrings),
 
-  preventClosingOnKey: true,
-  onkey: function(panel) {
-    if (panel.highlighter) {
-      panel.highlighter.toggleLockState();
-    }
-  },
-
   isTargetSupported: function(target) {
-    return true;
+    return !target.isRemote;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -229,8 +220,6 @@ var unloadObserver = {
   }
 };
 Services.obs.addObserver(unloadObserver, "sdk:loader:destroy", false);
-
-events.emit("devtools-loaded", {});
 
 /**
  * Lookup l10n string from a string bundle.

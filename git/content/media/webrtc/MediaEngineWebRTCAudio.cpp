@@ -24,7 +24,7 @@ extern PRLogModuleInfo* GetMediaManagerLog();
 /**
  * Webrtc audio source.
  */
-NS_IMPL_ISUPPORTS0(MediaEngineWebRTCAudioSource)
+NS_IMPL_THREADSAFE_ISUPPORTS0(MediaEngineWebRTCAudioSource)
 
 void
 MediaEngineWebRTCAudioSource::GetName(nsAString& aName)
@@ -343,12 +343,12 @@ MediaEngineWebRTCAudioSource::Shutdown()
   mInitDone = false;
 }
 
-typedef int16_t sample;
+typedef WebRtc_Word16 sample;
 
 void
-MediaEngineWebRTCAudioSource::Process(int channel,
-  webrtc::ProcessingTypes type, sample* audio10ms,
-  int length, int samplingFreq, bool isStereo)
+MediaEngineWebRTCAudioSource::Process(const int channel,
+  const webrtc::ProcessingTypes type, sample* audio10ms,
+  const int length, const int samplingFreq, const bool isStereo)
 {
   MonitorAutoLock lock(mMonitor);
   if (mState != kStarted)

@@ -10,7 +10,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SocialService", "resource://gre/modules/SocialService.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils", "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["MozSocialAPI", "openChatWindow", "findChromeWindowForChats", "closeAllChatWindows"];
+this.EXPORTED_SYMBOLS = ["MozSocialAPI", "openChatWindow", "findChromeWindowForChats"];
 
 this.MozSocialAPI = {
   _enabled: false,
@@ -49,7 +49,7 @@ function injectController(doc, topic, data) {
       return;
     }
 
-    let containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
+    var containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;
@@ -67,7 +67,7 @@ function injectController(doc, topic, data) {
     }
 
     SocialService.getProvider(doc.nodePrincipal.origin, function(provider) {
-      if (provider && provider.enabled) {
+      if (provider && provider.workerURL && provider.enabled) {
         attachToWindow(provider, window);
       }
     });
@@ -88,7 +88,7 @@ function attachToWindow(provider, targetWindow) {
     return;
   }
 
-  let port = provider.workerURL ? provider.getWorkerPort(targetWindow) : null;
+  var port = provider.getWorkerPort(targetWindow);
 
   let mozSocialObj = {
     // Use a method for backwards compat with existing providers, but we
@@ -206,14 +206,12 @@ function attachToWindow(provider, targetWindow) {
     return targetWindow.navigator.wrappedJSObject.mozSocial = contentObj;
   });
 
-  if (port) {
-    targetWindow.addEventListener("unload", function () {
-      // We want to close the port, but also want the target window to be
-      // able to use the port during an unload event they setup - so we
-      // set a timer which will fire after the unload events have all fired.
-      schedule(function () { port.close(); });
-    });
-  }
+  targetWindow.addEventListener("unload", function () {
+    // We want to close the port, but also want the target window to be
+    // able to use the port during an unload event they setup - so we
+    // set a timer which will fire after the unload events have all fired.
+    schedule(function () { port.close(); });
+  });
 
   // We allow window.close() to close the panel, so add an event handler for
   // this, then cancel the event (so the window itself doesn't die) and
@@ -275,23 +273,12 @@ function findChromeWindowForChats(preferredWindow) {
   // no good - we just use the "most recent" browser window which can host
   // chats (we used to try and "group" all chats in the same browser window,
   // but that didn't work out so well - see bug 835111
-
-  // Try first the most recent window as getMostRecentWindow works
-  // even on platforms where getZOrderDOMWindowEnumerator is broken
-  // (ie. Linux).  This will handle most cases, but won't work if the
-  // foreground window is a popup.
-
-  let mostRecent = Services.wm.getMostRecentWindow("navigator:browser");
-  if (isWindowGoodForChats(mostRecent))
-    return mostRecent;
-
   let topMost, enumerator;
-  // *sigh* - getZOrderDOMWindowEnumerator is broken except on Mac and
-  // Windows.  We use BROKEN_WM_Z_ORDER as that is what some other code uses
+  // *sigh* - getZOrderDOMWindowEnumerator is broken everywhere other than
+  // Windows.  We use BROKEN_WM_Z_ORDER as that is what the c++ code uses
   // and a few bugs recommend searching mxr for this symbol to identify the
   // workarounds - we want this code to be hit in such searches.
-  let os = Services.appinfo.OS;
-  const BROKEN_WM_Z_ORDER = os != "WINNT" && os != "Darwin";
+  const BROKEN_WM_Z_ORDER = Services.appinfo.OS != "WINNT";
   if (BROKEN_WM_Z_ORDER) {
     // this is oldest to newest and no way to change the order.
     enumerator = Services.wm.getEnumerator("navigator:browser");
@@ -327,28 +314,4 @@ this.openChatWindow =
   // getAttention is ignored if the target window is already foreground, so
   // we can call it unconditionally.
   chromeWindow.getAttention();
-}
-
-this.closeAllChatWindows =
- function closeAllChatWindows(provider) {
-  // close all attached chat windows
-  let winEnum = Services.wm.getEnumerator("navigator:browser");
-  while (winEnum.hasMoreElements()) {
-    let win = winEnum.getNext();
-    if (!win.SocialChatBar)
-      continue;
-    let chats = [c for (c of win.SocialChatBar.chatbar.children) if (c.content.getAttribute("origin") == provider.origin)];
-    [c.close() for (c of chats)];
-  }
-
-  // close all standalone chat windows
-  winEnum = Services.wm.getEnumerator("Social:Chat");
-  while (winEnum.hasMoreElements()) {
-    let win = winEnum.getNext();
-    if (win.closed)
-      continue;
-    let origin = win.document.getElementById("chatter").content.getAttribute("origin");
-    if (provider.origin == origin)
-      win.close();
-  }
 }

@@ -12,7 +12,6 @@
 #define jsexn_h
 
 #include "jsapi.h"
-#include "NamespaceImports.h"
 
 /*
  * Initialize the exception constructor/prototype hierarchy.
@@ -25,10 +24,10 @@ js_InitExceptionClasses(JSContext *cx, js::HandleObject obj);
  * the error number.  If there is, then create an appropriate exception object,
  * set it as the pending exception, and set the JSREPORT_EXCEPTION flag on the
  * error report.  Exception-aware host error reporters should probably ignore
- * error reports so flagged.  Returns true if an associated exception is
- * found and set, false otherwise.
+ * error reports so flagged.  Returns JS_TRUE if an associated exception is
+ * found and set, JS_FALSE otherwise.
  */
-extern bool
+extern JSBool
 js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
                     JSErrorCallback callback, void *userRef);
 
@@ -48,14 +47,14 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
  * other contexts may want to use an error reporter that ignores errors with
  * this flag.
  */
-extern bool
+extern JSBool
 js_ReportUncaughtException(JSContext *cx);
 
 extern JSErrorReport *
 js_ErrorFromException(jsval exn);
 
 extern const JSErrorFormatString *
-js_GetLocalizedErrorMessage(js::ExclusiveContext *cx, void *userRef, const char *locale,
+js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
                             const unsigned errorNumber);
 
 /*

@@ -41,5 +41,6 @@ function test_pause_frame()
       debugger;
     };
     stopMe();
+    ")"
   } + ")()");
 }

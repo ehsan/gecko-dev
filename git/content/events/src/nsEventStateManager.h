@@ -12,14 +12,20 @@
 #include "nsGUIEvent.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
+#include "nsITimer.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
+#include "nsIFrameLoader.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIMarkupDocumentViewer.h"
+#include "nsIScrollableFrame.h"
 #include "nsFocusManager.h"
+#include "nsEventStates.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIFrame.h"
 #include "Units.h"
 
+class nsIPresShell;
 class nsIContent;
 class nsIDocument;
 class nsIDocShell;
@@ -28,10 +34,7 @@ class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
 class MouseEnterLeaveDispatcher;
-class nsEventStates;
-class nsIMarkupDocumentViewer;
-class nsIScrollableFrame;
-class nsITimer;
+class nsIFrame;
 
 namespace mozilla {
 namespace dom {
@@ -194,6 +197,12 @@ public:
   static LayoutDeviceIntPoint GetChildProcessOffset(nsFrameLoader* aFrameLoader,
                                                     const nsEvent& aEvent);
 
+  static void MapEventCoordinatesForChildProcess(nsFrameLoader* aFrameLoader,
+                                                 nsEvent* aEvent);
+
+  static void MapEventCoordinatesForChildProcess(const LayoutDeviceIntPoint& aOffset,
+                                                 nsEvent* aEvent);
+
   // Holds the point in screen coords that a mouse event was dispatched to,
   // before we went into pointer lock mode. This is constantly updated while
   // the pointer is not locked, but we don't update it while the pointer is
@@ -213,37 +222,6 @@ public:
 
 protected:
   friend class MouseEnterLeaveDispatcher;
-
-  /**
-   * Prefs class capsules preference management.
-   */
-  class Prefs
-  {
-  public:
-    static bool KeyCausesActivation() { return sKeyCausesActivation; }
-    static bool ClickHoldContextMenu() { return sClickHoldContextMenu; }
-    static int32_t ChromeAccessModifierMask();
-    static int32_t ContentAccessModifierMask();
-
-    static void Init();
-    static int OnChange(const char* aPrefName, void*);
-    static void Shutdown();
-
-  private:
-    static bool sKeyCausesActivation;
-    static bool sClickHoldContextMenu;
-    static int32_t sGenericAccessModifierKey;
-    static int32_t sChromeAccessModifierMask;
-    static int32_t sContentAccessModifierMask;
-
-    static int32_t GetAccessModifierMask(int32_t aItemType);
-  };
-
-  /**
-   * Get appropriate access modifier mask for the aDocShell.  Returns -1 if
-   * access key isn't available.
-   */
-  static int32_t GetAccessModifierMaskFor(nsISupports* aDocShell);
 
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
@@ -735,14 +713,14 @@ private:
   // Last mouse event refPoint (the offset from the widget's origin in
   // device pixels) when mouse was locked, used to restore mouse position
   // after unlocking.
-  mozilla::LayoutDeviceIntPoint mPreLockPoint;
+  nsIntPoint  mPreLockPoint;
 
   // Stores the refPoint of the last synthetic mouse move we dispatched
   // to re-center the mouse when we were pointer locked. If this is (-1,-1) it
   // means we've not recently dispatched a centering event. We use this to
   // detect when we receive the synth event, so we can cancel and not send it
   // to content.
-  static mozilla::LayoutDeviceIntPoint sSynthCenteringPoint;
+  static nsIntPoint sSynthCenteringPoint;
 
   nsWeakFrame mCurrentTarget;
   nsCOMPtr<nsIContent> mCurrentTargetContent;
@@ -752,10 +730,10 @@ private:
 
   // Stores the refPoint (the offset from the widget's origin in device
   // pixels) of the last mouse event.
-  static mozilla::LayoutDeviceIntPoint sLastRefPoint;
+  static nsIntPoint sLastRefPoint;
 
   // member variables for the d&d gesture state machine
-  mozilla::LayoutDeviceIntPoint mGestureDownPoint; // screen coordinates
+  nsIntPoint mGestureDownPoint; // screen coordinates
   // The content to use as target if we start a d&d (what we drag).
   nsCOMPtr<nsIContent> mGestureDownContent;
   // The content of the frame where the mouse-down event occurred. It's the same
@@ -812,6 +790,7 @@ public:
   static void ClearGlobalActiveContent(nsEventStateManager* aClearer);
 
   // Functions used for click hold context menus
+  bool mClickHoldContextMenu;
   nsCOMPtr<nsITimer> mClickHoldTimer;
   void CreateClickHoldTimer ( nsPresContext* aPresContext, nsIFrame* inDownFrame,
                               nsGUIEvent* inMouseDownEvent ) ;

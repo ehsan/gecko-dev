@@ -28,7 +28,8 @@ function startTest()
   testScriptPresence("namespace1/sub2/script2.js", "scriptNo2Function();", true);
   testScriptPresence("namespace2/script3.js", "scriptNo3Function();", true);
 
-  opener.OfflineTest.teardownAndFinish();
+  opener.OfflineTest.teardown();
+  opener.OfflineTest.finish();
   window.close(window);
 }
 

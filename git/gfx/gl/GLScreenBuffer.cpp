@@ -29,7 +29,7 @@ GLScreenBuffer::Create(GLContext* gl,
                      const SurfaceCaps& caps)
 {
     if (caps.antialias &&
-        !gl->IsSupported(GLFeature::framebuffer_multisample))
+        !gl->SupportsFramebufferMultisample())
     {
         return nullptr;
     }
@@ -58,7 +58,6 @@ GLScreenBuffer::Create(GLContext* gl,
     SurfaceStream* stream = SurfaceStream::CreateForType(
         SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
                                           caps.preserve),
-        gl,
         nullptr);
 
     return new GLScreenBuffer(gl, caps, factory, stream);
@@ -79,7 +78,7 @@ GLScreenBuffer::BindAsFramebuffer(GLContext* const gl, GLenum target) const
     GLuint drawFB = DrawFB();
     GLuint readFB = ReadFB();
 
-    if (!gl->IsSupported(GLFeature::framebuffer_blit)) {
+    if (!gl->HasExt_FramebufferBlit()) {
         MOZ_ASSERT(drawFB == readFB);
         gl->raw_fBindFramebuffer(target, readFB);
         return;
@@ -92,14 +91,14 @@ GLScreenBuffer::BindAsFramebuffer(GLContext* const gl, GLenum target) const
         break;
 
     case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
-        if (!gl->IsSupported(GLFeature::framebuffer_blit))
+        if (!gl->HasExt_FramebufferBlit())
             NS_WARNING("DRAW_FRAMEBUFFER requested but unavailable.");
 
         gl->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, drawFB);
         break;
 
     case LOCAL_GL_READ_FRAMEBUFFER_EXT:
-        if (!gl->IsSupported(GLFeature::framebuffer_blit))
+        if (!gl->HasExt_FramebufferBlit())
             NS_WARNING("READ_FRAMEBUFFER requested but unavailable.");
 
         gl->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, readFB);
@@ -124,7 +123,7 @@ GLScreenBuffer::BindFB(GLuint fb)
     if (mInternalDrawFB == mInternalReadFB) {
         mGL->raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mInternalDrawFB);
     } else {
-        MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+        MOZ_ASSERT(mGL->SupportsSplitFramebuffer());
         mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
         mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
     }
@@ -138,7 +137,7 @@ GLScreenBuffer::BindFB(GLuint fb)
 void
 GLScreenBuffer::BindDrawFB(GLuint fb)
 {
-    if (!mGL->IsSupported(GLFeature::framebuffer_blit)) {
+    if (!mGL->SupportsSplitFramebuffer()) {
         NS_WARNING("DRAW_FRAMEBUFFER requested, but unsupported.");
 
         mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, fb);
@@ -158,7 +157,7 @@ GLScreenBuffer::BindDrawFB(GLuint fb)
 void
 GLScreenBuffer::BindReadFB(GLuint fb)
 {
-    if (!mGL->IsSupported(GLFeature::framebuffer_blit)) {
+    if (!mGL->SupportsSplitFramebuffer()) {
         NS_WARNING("READ_FRAMEBUFFER requested, but unsupported.");
 
         mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, fb);
@@ -233,7 +232,7 @@ GLScreenBuffer::GetReadFB() const
     // We use raw_ here because this is debug code and we need to see what
     // the driver thinks.
     GLuint actual = 0;
-    if (mGL->IsSupported(GLFeature::framebuffer_blit))
+    if (mGL->SupportsSplitFramebuffer())
         mGL->raw_fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, (GLint*)&actual);
     else
         mGL->raw_fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&actual);
@@ -365,7 +364,7 @@ GLScreenBuffer::Morph(SurfaceFactory_GL* newFactory, SurfaceStreamType streamTyp
     if (mStream->mType == streamType)
         return;
 
-    SurfaceStream* newStream = SurfaceStream::CreateForType(streamType, mGL, mStream);
+    SurfaceStream* newStream = SurfaceStream::CreateForType(streamType, mStream);
     MOZ_ASSERT(newStream);
 
     delete mStream;

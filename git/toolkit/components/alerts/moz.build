@@ -17,7 +17,3 @@ CPP_SOURCES += [
     'nsXULAlerts.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'alerts_s'
-

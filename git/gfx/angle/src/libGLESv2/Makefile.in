@@ -3,11 +3,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 # On Windows, we don't automatically get "lib" prepended, but we need it.
 FORCE_SHARED_LIB = 1
 
 # ANGLE uses the STL, so we can't use our derpy STL wrappers.
 STL_FLAGS =
+
+# ANGLE uses exceptions internally, so we need to have exception handling
+# support
+ENABLE_CXX_EXCEPTIONS = 1
 
 ifndef GNU_CC
 # Enable unwind semantics for exception handlers in response to warning C4530.

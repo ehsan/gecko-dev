@@ -6,12 +6,7 @@
 
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-
-// register static files with server and interpolate port numbers in them
-mapFile("/data/test_corrupt.rdf", testserver);
+var testserver;
 
 // The test extension uses an insecure update url.
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
@@ -45,7 +40,7 @@ var addon3 = {
   id: "addon3@tests.mozilla.org",
   version: "1.0",
   name: "Test 3",
-  updateURL: "http://localhost:" + gPort + "/data/test_corrupt.rdf",
+  updateURL: "http://localhost:4444/data/test_corrupt.rdf",
   targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
@@ -58,7 +53,7 @@ var addon4 = {
   id: "addon4@tests.mozilla.org",
   version: "1.0",
   name: "Test 4",
-  updateURL: "http://localhost:" + gPort + "/data/test_corrupt.rdf",
+  updateURL: "http://localhost:4444/data/test_corrupt.rdf",
   targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
@@ -148,7 +143,10 @@ function run_test() {
   writeInstallRDFForExtension(theme2, profileDir);
 
   // Create and configure the HTTP server.
+  testserver = new HttpServer();
   testserver.registerDirectory("/addons/", do_get_file("addons"));
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.start(4444);
 
   // Startup the profile and setup the initial state
   startupManager();
@@ -168,7 +166,9 @@ function run_test() {
       onUpdateFinished: function() {
         a4.findUpdates({
           onUpdateFinished: function() {
-            do_execute_soon(run_test_1);
+            restartManager();
+
+            run_test_1();
           }
         }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
       }
@@ -181,8 +181,6 @@ function end_test() {
 }
 
 function run_test_1() {
-  restartManager();
-
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
@@ -248,17 +246,14 @@ function run_test_1() {
     do_check_false(t2.appDisabled);
     do_check_eq(t2.pendingOperations, AddonManager.PENDING_NONE);
 
-    do_execute_soon(run_test_1_modified_db);
-  });
-}
-
-
-function run_test_1_modified_db() {
-    // After restarting the database won't be open so we can alter
-    // the schema
-    shutdownManager();
-    changeXPIDBVersion(100);
-    startupManager();
+    // After restarting the database won't be open and so can be replaced with
+    // a bad file
+    restartManager();
+    var dbfile = gProfD.clone();
+    dbfile.append("extensions.sqlite");
+    var db = Services.storage.openDatabase(dbfile);
+    db.schemaVersion = 100;
+    db.close();
 
     // Accessing the add-ons should open and recover the database. Since
     // migration occurs everything should be recovered correctly
@@ -327,11 +322,6 @@ function run_test_1_modified_db() {
       do_check_false(t2.appDisabled);
       do_check_eq(t2.pendingOperations, AddonManager.PENDING_NONE);
 
-      do_execute_soon(run_test_1_after_rebuild);
-    });
-}
-
-function run_test_1_after_rebuild() {
       restartManager();
 
       AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -401,4 +391,6 @@ function run_test_1_after_rebuild() {
 
         end_test();
       });
+    });
+  });
 }

@@ -27,5 +27,3 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
 
 LIBRARY_NAME = 'remoteservice'
 
-LIBXUL_LIBRARY = True
-

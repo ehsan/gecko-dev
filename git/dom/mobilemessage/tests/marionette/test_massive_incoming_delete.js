@@ -9,7 +9,7 @@ SpecialPowers.addPermission("sms", true, document);
 const SENDER = "5555552368"; // the remote number
 const RECEIVER = "15555215554"; // the emulator's number
 
-let manager = window.navigator.mozMobileMessage;
+let sms = window.navigator.mozMobileMessage;
 let MSG_TEXT = "Mozilla Firefox OS!";
 let SMS_NUMBER = 100;
 
@@ -68,7 +68,7 @@ function taskNextWrapper() {
 
 function verifySmsExists(incomingSms) {
   log("Getting SMS (id: " + incomingSms.id + ").");
-  let requestRet = manager.getMessage(incomingSms.id);
+  let requestRet = sms.getMessage(incomingSms.id);
   ok(requestRet, "smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
@@ -102,7 +102,7 @@ function verifySmsExists(incomingSms) {
 let verifDeletedCount = 0;
 function verifySmsDeleted(smsId) {
   log("Getting SMS (id: " + smsId + ").");
-  let requestRet = manager.getMessage(smsId);
+  let requestRet = sms.getMessage(smsId);
   ok(requestRet, "smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
@@ -127,12 +127,11 @@ function verifySmsDeleted(smsId) {
 
 tasks.push(function init() {
   log("Initialize test object.");
-  ok(manager instanceof MozMobileMessageManager,
-     "manager is instance of " + manager.constructor);
+  ok(sms, "mozSms");
 
   // Callback for incoming sms
-  manager.onreceived = function onreceived(event) {
-    log("Received 'onreceived' event.");
+  sms.onreceived = function onreceived(event) {
+    log("Received 'onreceived' smsmanager event.");
     let incomingSms = event.message;
     ok(incomingSms, "incoming sms");
     ok(incomingSms.id, "sms id");
@@ -169,7 +168,7 @@ tasks.push(function deleteAllSms() {
   let deleteStart = Date.now();
   log("deleteStart: " + deleteStart);
   log("SmsList: " + JSON.stringify(SmsList));
-  let requestRet = manager.delete(SmsList);
+  let requestRet = sms.delete(SmsList);
   ok(requestRet,"smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
@@ -181,7 +180,7 @@ tasks.push(function deleteAllSms() {
         verifySmsDeleted(SmsList[i].id);
       }
     } else {
-      log("smsrequest returned false for manager.delete");
+      log("smsrequest returned false for sms.delete");
       ok(false, "SMS delete failed");
     }
   };
@@ -189,7 +188,7 @@ tasks.push(function deleteAllSms() {
   requestRet.onerror = function(event) {
     log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
-    ok(false, "manager.delete request returned unexpected error: "
+    ok(false, "sms.delete request returned unexpected error: "
         + event.target.error.name);
     tasks.finish();
   };
@@ -206,7 +205,7 @@ tasks.push(function cleanUp() {
     return;
   }
 
-  manager.onreceived = null;
+  sms.onreceived = null;
   SpecialPowers.removePermission("sms", document);
   SpecialPowers.setBoolPref("dom.sms.enabled", false);
   log("Finish!!!");

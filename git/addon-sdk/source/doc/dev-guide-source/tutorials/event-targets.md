@@ -46,7 +46,7 @@ Then open "lib/main.js" and add the following code:
       onItemVisited: function(aItemId, aVisitID, time) {
         console.log("visited ", bookmarkService.getBookmarkURI(aItemId).spec);
       },
-      QueryInterface: XPCOMUtils.generateQI([Ci.nsINavBookmarkObserver])
+      QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsINavBookmarkObserver])
     };
 
     exports.main = function() {

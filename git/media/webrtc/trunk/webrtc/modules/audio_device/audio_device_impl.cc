@@ -16,9 +16,7 @@
 #include <assert.h>
 #include <string.h>
 
-#if defined(WEBRTC_DUMMY_AUDIO_BUILD)
-// do not include platform specific headers
-#elif defined(_WIN32)
+#if defined(_WIN32)
     #include "audio_device_utility_win.h"
     #include "audio_device_wave_win.h"
  #if defined(WEBRTC_WINDOWS_CORE_AUDIO_BUILD)
@@ -28,31 +26,26 @@
     #include <stdlib.h>
     #include <dlfcn.h>
     #include "audio_device_utility_android.h"
-    #include "audio_device_opensles.h"
+    #include "audio_device_opensles_android.h"
     #include "audio_device_jni_android.h"
-#elif defined(WEBRTC_GONK)
-    #include <stdlib.h>
-    #include <dlfcn.h>
-    #include "audio_device_utility_linux.h"
-    #include "audio_device_opensles.h"
 #elif defined(WEBRTC_ANDROID)
     #include <stdlib.h>
     #include "audio_device_utility_android.h"
     #include "audio_device_jni_android.h"
-#elif defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#elif defined(WEBRTC_LINUX)
     #include "audio_device_utility_linux.h"
+ #if defined(LINUX_ALSA)
+    #include "audio_device_alsa_linux.h"
+ #endif
+ #if defined(LINUX_PULSE)
+    #include "audio_device_pulse_linux.h"
+ #endif
 #elif defined(WEBRTC_IOS)
     #include "audio_device_utility_ios.h"
     #include "audio_device_ios.h"
 #elif defined(WEBRTC_MAC)
     #include "audio_device_utility_mac.h"
     #include "audio_device_mac.h"
-#endif
-#if defined(LINUX_ALSA)
-    #include "audio_device_alsa_linux.h"
-#endif
-#if defined(LINUX_PULSE)
-    #include "audio_device_pulse_linux.h"
 #endif
 #include "audio_device_dummy.h"
 #include "audio_device_utility_dummy.h"
@@ -168,7 +161,7 @@ int32_t AudioDeviceModuleImpl::CheckPlatform()
 #elif defined(WEBRTC_ANDROID)
     platform = kPlatformAndroid;
     WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "current platform is ANDROID");
-#elif defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#elif defined(WEBRTC_LINUX)
     platform = kPlatformLinux;
     WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id, "current platform is LINUX");
 #elif defined(WEBRTC_IOS)
@@ -267,7 +260,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects()
 
     // Create the *Android OpenSLES* implementation of the Audio Device
     //
-#if defined(WEBRTC_ANDROID_OPENSLES) || defined(WEBRTC_GONK)
+#if defined(WEBRTC_ANDROID_OPENSLES)
     // Check if the OpenSLES library is available before going further.
     void* opensles_lib = dlopen("libOpenSLES.so", RTLD_LAZY);
     if (opensles_lib) {
@@ -282,14 +275,11 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects()
         }
     }
 
-#if !defined(WEBRTC_GONK)
     if (ptrAudioDevice != NULL)
     {
         // Create the Android implementation of the Device Utility.
         ptrAudioDeviceUtility = new AudioDeviceUtilityAndroid(Id());
     }
-#endif
-
 #endif
 #if defined(WEBRTC_ANDROID_OPENSLES) or defined(WEBRTC_ANDROID)
     // Fall back to this case if on Android 2.2/OpenSLES not available.
@@ -311,7 +301,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects()
 
     // Create the *Linux* implementation of the Audio Device
     //
-#elif defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#elif defined(WEBRTC_LINUX)
     if ((audioLayer == kLinuxPulseAudio) || (audioLayer == kPlatformDefaultAudio))
     {
 #if defined(LINUX_PULSE)
@@ -357,7 +347,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects()
         //
         ptrAudioDeviceUtility = new AudioDeviceUtilityLinux(Id());
     }
-#endif  // #if defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#endif  // #if defined(WEBRTC_LINUX)
 
     // Create the *iPhone* implementation of the Audio Device
     //

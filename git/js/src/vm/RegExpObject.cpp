@@ -4,18 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/RegExpObject-inl.h"
+#include "vm/RegExpObject.h"
 
 #include "mozilla/MemoryReporting.h"
 
 #include "frontend/TokenStream.h"
+
 #include "vm/MatchPairs.h"
 #include "vm/RegExpStatics.h"
 #include "vm/StringBuffer.h"
-#include "vm/Xdr.h"
-#include "yarr/YarrSyntaxChecker.h"
 
 #include "jsobjinlines.h"
+
+#include "vm/RegExpObject-inl.h"
+#include "vm/Xdr.h"
 
 using namespace js;
 using js::frontend::TokenStream;
@@ -224,8 +226,8 @@ Class RegExpObject::class_ = {
     NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     NULL,                    /* call */
-    NULL,                    /* hasInstance */
     NULL,                    /* construct */
+    NULL,                    /* hasInstance */
     regexp_trace
 };
 
@@ -265,7 +267,7 @@ RegExpObject::createShared(ExclusiveContext *cx, RegExpGuard *g)
     Rooted<RegExpObject*> self(cx, this);
 
     JS_ASSERT(!maybeShared());
-    if (!cx->compartment()->regExps.get(cx, getSource(), getFlags(), g))
+    if (!cx->regExps().get(cx, getSource(), getFlags(), g))
         return false;
 
     self->setShared(cx, **g);
@@ -393,7 +395,8 @@ RegExpShared::~RegExpShared()
 #if ENABLE_YARR_JIT
     codeBlock.release();
 #endif
-    js_delete<BytecodePattern>(bytecode);
+    if (bytecode)
+        js_delete<BytecodePattern>(bytecode);
 }
 
 void
@@ -678,13 +681,6 @@ RegExpCompartment::sweep(JSRuntime *rt)
             e.removeFront();
         }
     }
-}
-
-void
-RegExpCompartment::clearTables()
-{
-    JS_ASSERT(inUse_.empty());
-    map_.clear();
 }
 
 bool

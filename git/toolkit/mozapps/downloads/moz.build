@@ -22,7 +22,3 @@ EXTRA_JS_MODULES += [
     'DownloadUtils.jsm',
 ]
 
-EXTRA_PP_JS_MODULES += [
-    'DownloadTaskbarProgress.jsm',
-]
-

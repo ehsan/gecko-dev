@@ -16,7 +16,7 @@
 #include <cstdio>
 
 #include "gflags/gflags.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/test/testsupport/metrics/video_metrics.h"
 #include "webrtc/test/testsupport/metrics/video_metrics.h"
 #include "webrtc/video_engine/test/auto_test/automated/legacy_fixture.h"
@@ -34,8 +34,7 @@ TEST_F(ViEStandardIntegrationTest, RunsBaseTestWithoutErrors)  {
   tests_->ViEBaseStandardTest();
 }
 
-// Flaky: https://code.google.com/p/webrtc/issues/detail?id=1734
-TEST_F(ViEStandardIntegrationTest, DISABLED_RunsCodecTestWithoutErrors)  {
+TEST_F(ViEStandardIntegrationTest, RunsCodecTestWithoutErrors)  {
   tests_->ViECodecStandardTest();
 }
 
@@ -59,13 +58,7 @@ TEST_F(ViEStandardIntegrationTest, RunsRenderTestWithoutErrors)  {
   tests_->ViERenderStandardTest();
 }
 
-// Fails on Mac, see https://code.google.com/p/webrtc/issues/detail?id=1790
-#if defined(WEBRTC_MAC)
-#define MAYBE_RunsRtpRtcpTestWithoutErrors DISABLED_RunsRtpRtcpTestWithoutErrors
-#else
-#define MAYBE_RunsRtpRtcpTestWithoutErrors RunsRtpRtcpTestWithoutErrors
-#endif
-TEST_F(ViEStandardIntegrationTest, MAYBE_RunsRtpRtcpTestWithoutErrors)  {
+TEST_F(ViEStandardIntegrationTest, RunsRtpRtcpTestWithoutErrors)  {
   tests_->ViERtpRtcpStandardTest();
 }
 

@@ -42,8 +42,10 @@ protected:
                                nsSMILValue& aResult) const MOZ_OVERRIDE;
 
 private:
-  // Private constructor: prevent instances beyond my singleton.
-  MOZ_CONSTEXPR nsSMILNullType() {}
+  // Private constructor & destructor: prevent instances beyond my singleton,
+  // and prevent others from deleting my singleton.
+  nsSMILNullType()  {}
+  ~nsSMILNullType() {}
 };
 
 #endif // NS_SMILNULLTYPE_H_

@@ -1761,18 +1761,6 @@ CSS_PROP_FONT(
     offsetof(nsStyleFont, mFont.sizeAdjust),
     eStyleAnimType_float)
 CSS_PROP_FONT(
-    -moz-osx-font-smoothing,
-    osx_font_smoothing,
-    CSS_PROP_DOMPROP_PREFIXED(OSXFontSmoothing),
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
-    "layout.css.osx-font-smoothing.enabled",
-    VARIANT_HK,
-    kFontSmoothingKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_FONT(
     font-stretch,
     font_stretch,
     FontStretch,
@@ -1935,17 +1923,6 @@ CSS_PROP_POSITION(
     nullptr,
     offsetof(nsStylePosition, mHeight),
     eStyleAnimType_Coord)
-CSS_PROP_VISIBILITY(
-    image-orientation,
-    image_orientation,
-    ImageOrientation,
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
-    "layout.css.image-orientation.enabled",
-    0,
-    kImageOrientationKTable,
-    offsetof(nsStyleVisibility, mImageOrientation),
-    eStyleAnimType_None)
 CSS_PROP_LIST(
     -moz-image-region,
     image_region,
@@ -2288,16 +2265,6 @@ CSS_PROP_POSITION(
     kWidthKTable,
     offsetof(nsStylePosition, mMinWidth),
     eStyleAnimType_Coord)
-CSS_PROP_DISPLAY(
-    mix-blend-mode,
-    mix_blend_mode,
-    MixBlendMode,
-    CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.mix-blend-mode.enabled",
-    VARIANT_HK,
-    kBlendModeKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     opacity,
     opacity,
@@ -2654,6 +2621,16 @@ CSS_PROP_VISIBILITY(
     kPointerEventsKTable,
     offsetof(nsStyleVisibility, mPointerEvents),
     eStyleAnimType_EnumU8)
+CSS_PROP_VISIBILITY(
+    writing-mode,
+    writing_mode,
+    WritingMode,
+    CSS_PROPERTY_PARSE_VALUE,
+    "layout.css.vertical-text.enabled",
+    VARIANT_HK,
+    kWritingModeKTable,
+    offsetof(nsStyleVisibility, mWritingMode),
+    eStyleAnimType_EnumU8)
 CSS_PROP_DISPLAY(
     position,
     position,
@@ -2746,16 +2723,17 @@ CSS_PROP_SHORTHAND(
     TextDecoration,
     CSS_PROPERTY_PARSE_FUNCTION,
     "")
-CSS_PROP_TEXT(
-    text-combine-horizontal,
-    text_combine_horizontal,
-    TextCombineHorizontal,
+CSS_PROP_TEXTRESET(
+    -moz-text-blink,
+    text_blink,
+    CSS_PROP_DOMPROP_PREFIXED(TextBlink),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
-    "layout.css.vertical-text.enabled",
-    0,
-    kTextCombineHorizontalKTable,
-    offsetof(nsStyleText, mTextCombineHorizontal),
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
+        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    "",
+    VARIANT_HK,
+    kTextBlinkKTable,
+    offsetof(nsStyleTextReset, mTextBlink),
     eStyleAnimType_EnumU8)
 CSS_PROP_TEXTRESET(
     -moz-text-decoration-color,
@@ -2806,16 +2784,6 @@ CSS_PROP_TEXT(
     nullptr,
     offsetof(nsStyleText, mTextIndent),
     eStyleAnimType_Coord)
-CSS_PROP_TEXT(
-    text-orientation,
-    text_orientation,
-    TextOrientation,
-    CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.vertical-text.enabled",
-    VARIANT_HK,
-    kTextOrientationKTable,
-    offsetof(nsStyleText, mTextOrientation),
-    eStyleAnimType_EnumU8)
 CSS_PROP_TEXTRESET(
     text-overflow,
     text_overflow,
@@ -2872,7 +2840,7 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_PARSE_FUNCTION,
     "",
     0,
-    nullptr,
+    kDisplayKTable,
     offsetof(nsStyleDisplay, mSpecifiedTransform),
     eStyleAnimType_Custom)
 CSS_PROP_DISPLAY(
@@ -3152,16 +3120,6 @@ CSS_PROP_TEXT(
     kHyphensKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_VISIBILITY(
-    writing-mode,
-    writing_mode,
-    WritingMode,
-    CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.vertical-text.enabled",
-    VARIANT_HK,
-    kWritingModeKTable,
-    offsetof(nsStyleVisibility, mWritingMode),
-    eStyleAnimType_EnumU8)
 CSS_PROP_POSITION(
     z-index,
     z_index,
@@ -3369,9 +3327,9 @@ CSS_PROP_SVGRESET(
     filter,
     filter,
     Filter,
-    CSS_PROPERTY_PARSE_FUNCTION,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
-    0,
+    VARIANT_HUO,
     nullptr,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)

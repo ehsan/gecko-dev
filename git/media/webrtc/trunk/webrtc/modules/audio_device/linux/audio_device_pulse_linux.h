@@ -16,7 +16,9 @@
 #include "critical_section_wrapper.h"
 
 #include <pulse/pulseaudio.h>
-#include <X11/Xlib.h>
+
+// Set this define to make the code behave like in GTalk/libjingle
+//#define WEBRTC_PA_GTALK
 
 // We define this flag if it's missing from our headers, because we want to be
 // able to compile against old headers but still use PA_STREAM_ADJUST_LATENCY
@@ -239,9 +241,6 @@ private:
     void WaitForSuccess(pa_operation* paOperation) const;
 
 private:
-    bool KeyPressed() const;
-
-private:
     static void PaContextStateCallback(pa_context *c, void *pThis);
     static void PaSinkInfoCallback(pa_context *c, const pa_sink_info *i,
                                    int eol, void *pThis);
@@ -312,7 +311,7 @@ private:
     bool _inputDeviceIsSpecified;
     bool _outputDeviceIsSpecified;
 
-    int sample_rate_hz_;
+    uint32_t _samplingFreq;
     uint8_t _recChannels;
     uint8_t _playChannels;
 
@@ -378,9 +377,6 @@ private:
     uint32_t _playStreamFlags;
     pa_buffer_attr _playBufferAttr;
     pa_buffer_attr _recBufferAttr;
-
-    char _oldKeyState[32];
-    Display* _XDisplay;
 };
 
 }

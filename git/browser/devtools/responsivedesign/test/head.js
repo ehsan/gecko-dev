@@ -18,23 +18,3 @@ function openInspector(callback)
   });
 }
 
-function openComputedView(callback)
-{
-  openInspector(inspector => {
-    inspector.sidebar.once("computedview-ready", () => {
-      inspector.sidebar.select("computedview");
-      let ruleView = inspector.sidebar.getWindowForTab("computedview").computedview.view;
-      callback(inspector, ruleView);
-    })
-  });
-}
-function openRuleView(callback)
-{
-  openInspector(inspector => {
-    inspector.sidebar.once("ruleview-ready", () => {
-      inspector.sidebar.select("ruleview");
-      let ruleView = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
-      callback(inspector, ruleView);
-    })
-  });
-}

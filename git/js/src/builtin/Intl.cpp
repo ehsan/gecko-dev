@@ -18,6 +18,12 @@
 #include "jscntxt.h"
 #include "jsobj.h"
 
+#include "vm/DateTime.h"
+#include "vm/GlobalObject.h"
+#include "vm/Interpreter.h"
+#include "vm/Stack.h"
+#include "vm/StringBuffer.h"
+
 #if ENABLE_INTL_API
 #include "unicode/locid.h"
 #include "unicode/numsys.h"
@@ -30,11 +36,6 @@
 #include "unicode/ustring.h"
 #endif
 #include "unicode/utypes.h"
-#include "vm/DateTime.h"
-#include "vm/GlobalObject.h"
-#include "vm/Interpreter.h"
-#include "vm/Stack.h"
-#include "vm/StringBuffer.h"
 
 #include "jsobjinlines.h"
 
@@ -407,9 +408,9 @@ IntlInitialize(JSContext *cx, HandleObject obj, Handle<PropertyName*> initialize
 
     args.setCallee(initializerValue);
     args.setThis(NullValue());
-    args[0].setObject(*obj);
-    args[1].set(locales);
-    args[2].set(options);
+    args[0] = ObjectValue(*obj);
+    args[1] = locales;
+    args[2] = options;
 
     return Invoke(cx, args);
 }
@@ -473,7 +474,7 @@ GetInternals(JSContext *cx, HandleObject obj, MutableHandleObject internals)
 
     args.setCallee(getInternalsValue);
     args.setThis(NullValue());
-    args[0].setObject(*obj);
+    args[0] = ObjectValue(*obj);
 
     if (!Invoke(cx, args))
         return false;
@@ -559,7 +560,7 @@ static Class CollatorClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 collator_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().Collator);
@@ -637,14 +638,14 @@ Collator(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static bool
+static JSBool
 Collator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return Collator(cx, args, args.isConstructing());
 }
 
-bool
+JSBool
 js::intl_Collator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -727,7 +728,7 @@ GlobalObject::initCollatorProto(JSContext *cx, Handle<GlobalObject*> global)
     return true;
 }
 
-bool
+JSBool
 js::intl_Collator_availableLocales(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -740,7 +741,7 @@ js::intl_Collator_availableLocales(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intl_availableCollations(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -973,7 +974,7 @@ intl_CompareStrings(JSContext *cx, UCollator *coll, HandleString str1, HandleStr
     return true;
 }
 
-bool
+JSBool
 js::intl_CompareStrings(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1042,7 +1043,7 @@ static Class NumberFormatClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 numberFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().NumberFormat);
@@ -1120,14 +1121,14 @@ NumberFormat(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static bool
+static JSBool
 NumberFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return NumberFormat(cx, args, args.isConstructing());
 }
 
-bool
+JSBool
 js::intl_NumberFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1212,7 +1213,7 @@ GlobalObject::initNumberFormatProto(JSContext *cx, Handle<GlobalObject*> global)
     return true;
 }
 
-bool
+JSBool
 js::intl_NumberFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1225,7 +1226,7 @@ js::intl_NumberFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intl_numberingSystem(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1433,7 +1434,7 @@ intl_FormatNumber(JSContext *cx, UNumberFormat *nf, double x, MutableHandleValue
     return true;
 }
 
-bool
+JSBool
 js::intl_FormatNumber(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1498,7 +1499,7 @@ static Class DateTimeFormatClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 dateTimeFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().DateTimeFormat);
@@ -1576,14 +1577,14 @@ DateTimeFormat(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static bool
+static JSBool
 DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return DateTimeFormat(cx, args, args.isConstructing());
 }
 
-bool
+JSBool
 js::intl_DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1667,7 +1668,7 @@ GlobalObject::initDateTimeFormatProto(JSContext *cx, Handle<GlobalObject*> globa
     return true;
 }
 
-bool
+JSBool
 js::intl_DateTimeFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1694,7 +1695,7 @@ bcp47CalendarName(const char *icuName)
     return icuName;
 }
 
-bool
+JSBool
 js::intl_availableCalendars(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1759,7 +1760,7 @@ js::intl_availableCalendars(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
+JSBool
 js::intl_patternForSkeleton(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1920,7 +1921,7 @@ intl_FormatDateTime(JSContext *cx, UDateFormat *df, double x, MutableHandleValue
     return true;
 }
 
-bool
+JSBool
 js::intl_FormatDateTime(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1979,7 +1980,7 @@ Class js::IntlClass = {
 };
 
 #if JS_HAS_TOSOURCE
-static bool
+static JSBool
 intl_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().Intl);

@@ -24,7 +24,7 @@
 
 #include "mozilla/GuardObjects.h"
 #include "mozilla/LinkedList.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/dom/DOMError.h"
@@ -149,7 +149,6 @@ protected:
 
   nsString mContentType;
   nsString mName;
-  nsString mPath; // The path relative to a directory chosen by the user
 
   uint64_t mStart;
   uint64_t mLength;
@@ -181,7 +180,7 @@ public:
   : nsDOMFileBase(aContentType, aStart, aLength)
   { }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 };
 
 class nsDOMFileCC : public nsDOMFileBase
@@ -300,8 +299,6 @@ public:
   NS_IMETHOD GetMozLastModifiedDate(uint64_t* aLastModifiedDate) MOZ_OVERRIDE;
   NS_IMETHOD GetMozFullPathInternal(nsAString& aFullPath) MOZ_OVERRIDE;
   NS_IMETHOD GetInternalStream(nsIInputStream**) MOZ_OVERRIDE;
-
-  void SetPath(const nsAString& aFullPath);
 
 protected:
   // Create slice

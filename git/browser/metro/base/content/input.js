@@ -42,7 +42,6 @@ const kDebugSelectionDisplayPref = "metro.debug.selection.displayRanges";
 const kDebugSelectionDumpPref = "metro.debug.selection.dumpRanges";
 // Dump message manager event traffic for selection.
 const kDebugSelectionDumpEvents = "metro.debug.selection.dumpEvents";
-const kAsyncPanZoomEnabled = "layers.async-pan-zoom.enabled"
 
 /**
  * TouchModule
@@ -94,7 +93,6 @@ var TouchModule = {
     // capture phase events
     window.addEventListener("CancelTouchSequence", this, true);
     window.addEventListener("dblclick", this, true);
-    window.addEventListener("keydown", this, true);
 
     // bubble phase
     window.addEventListener("contextmenu", this, false);
@@ -157,38 +155,8 @@ var TouchModule = {
               }, 50);
             }
             break;
-          case "keydown":
-            this._handleKeyDown(aEvent);
-            break;
         }
       }
-    }
-  },
-
-  _handleKeyDown: function _handleKeyDown(aEvent) {
-    const TABKEY = 9;
-    if (aEvent.keyCode == TABKEY && !InputSourceHelper.isPrecise) {
-      if (Util.isEditable(aEvent.target) &&
-          aEvent.target.selectionStart != aEvent.target.selectionEnd) {
-        SelectionHelperUI.closeEditSession(false);
-      }
-      setTimeout(function() {
-        let element = Browser.selectedBrowser.contentDocument.activeElement;
-        // We only want to attach monocles if we have an input, text area,
-        // there is selection, and the target element changed.
-        // Sometimes the target element won't change even though selection is
-        // cleared because of focus outside the browser.
-        if (Util.isEditable(element) &&
-            !SelectionHelperUI.isActive &&
-            element.selectionStart != element.selectionEnd &&
-            // not e10s friendly
-            aEvent.target != element) {
-              let rect = element.getBoundingClientRect();
-              SelectionHelperUI.attachEditSession(Browser.selectedBrowser,
-                                                  rect.left + rect.width / 2,
-                                                  rect.top + rect.height / 2);
-        }
-      }, 50);
     }
   },
 
@@ -264,13 +232,6 @@ var TouchModule = {
     this._targetScrollInterface = targetScrollInterface;
 
     if (!this._targetScrollbox) {
-      return;
-    }
-
-    // Don't allow kinetic panning if APZC is enabled and the pan element is the deck
-    let deck = document.getElementById("browsers");
-    if (Services.prefs.getBoolPref(kAsyncPanZoomEnabled) &&
-        this._targetScrollbox == deck) {
       return;
     }
 
@@ -393,14 +354,8 @@ var TouchModule = {
     if (dragData.isPan()) {
       if (Date.now() - this._dragStartTime > kStopKineticPanOnDragTimeout)
         this._kinetic._velocity.set(0, 0);
-
-      // Start kinetic pan if we aren't using async pan zoom or the scroll
-      // element is not browsers.
-      let deck = document.getElementById("browsers");
-      if (!Services.prefs.getBoolPref(kAsyncPanZoomEnabled) ||
-          this._targetScrollbox != deck) {
-        this._kinetic.start();
-      }
+      // Start kinetic pan.
+      this._kinetic.start();
     } else {
       this._kinetic.end();
       if (this._dragger)
@@ -478,8 +433,7 @@ var ScrollUtils = {
   getScrollboxFromElement: function getScrollboxFromElement(elem) {
     let scrollbox = null;
     let qinterface = null;
-
-    // if element is content or the startui page, get the browser scroll interface
+    // if element is content, get the browser scroll interface
     if (elem.ownerDocument == Browser.selectedBrowser.contentDocument) {
       elem = Browser.selectedBrowser;
     }
@@ -1019,6 +973,11 @@ var GestureModule = {
 
   init: function init() {
     window.addEventListener("MozSwipeGesture", this, true);
+    /*
+    window.addEventListener("MozMagnifyGestureStart", this, true);
+    window.addEventListener("MozMagnifyGestureUpdate", this, true);
+    window.addEventListener("MozMagnifyGesture", this, true);
+    */
     window.addEventListener("CancelTouchSequence", this, true);
   },
 
@@ -1052,6 +1011,21 @@ var GestureModule = {
             aEvent.target.dispatchEvent(event);
           }
           break;
+
+        // Magnify currently doesn't work for Win8 (bug 593168)
+        /*
+        case "MozMagnifyGestureStart":
+          this._pinchStart(aEvent);
+          break;
+
+        case "MozMagnifyGestureUpdate":
+          this._pinchUpdate(aEvent);
+          break;
+
+        case "MozMagnifyGesture":
+          this._pinchEnd(aEvent);
+          break;
+        */
 
         case "CancelTouchSequence":
           this.cancelPending();
@@ -1183,13 +1157,12 @@ var GestureModule = {
  */
 var InputSourceHelper = {
   isPrecise: false,
-  touchIsActive: false,
 
   init: function ish_init() {
+    // debug feature, make all input imprecise
     window.addEventListener("mousemove", this, true);
     window.addEventListener("mousedown", this, true);
     window.addEventListener("touchstart", this, true);
-    window.addEventListener("touchend", this, true);
   },
 
   _precise: function () {
@@ -1207,31 +1180,20 @@ var InputSourceHelper = {
   },
 
   handleEvent: function ish_handleEvent(aEvent) {
-    switch(aEvent.type) {
-      case "touchstart":
-        this._imprecise();
-        this.touchIsActive = true;
+    if (aEvent.type == "touchstart") {
+      this._imprecise();
+      return;
+    }
+    switch (aEvent.mozInputSource) {
+      case Ci.nsIDOMMouseEvent.MOZ_SOURCE_MOUSE:
+      case Ci.nsIDOMMouseEvent.MOZ_SOURCE_PEN:
+      case Ci.nsIDOMMouseEvent.MOZ_SOURCE_ERASER:
+      case Ci.nsIDOMMouseEvent.MOZ_SOURCE_CURSOR:
+        this._precise();
         break;
-      case "touchend":
-        this.touchIsActive = false;
-        break;
-      default:
-        // Ignore mouse movement when touch is active. Prevents both mouse scrollbars
-        // and touch scrollbars from displaying at the same time. Also works around
-        // odd win8 bug involving an erant mousemove event after a touch sequence
-        // starts (bug 896017).
-        if (this.touchIsActive) {
-          return;
-        }
 
-        switch (aEvent.mozInputSource) {
-          case Ci.nsIDOMMouseEvent.MOZ_SOURCE_MOUSE:
-          case Ci.nsIDOMMouseEvent.MOZ_SOURCE_PEN:
-          case Ci.nsIDOMMouseEvent.MOZ_SOURCE_ERASER:
-          case Ci.nsIDOMMouseEvent.MOZ_SOURCE_CURSOR:
-            this._precise();
-            break;
-        }
+      case Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH:
+        this._imprecise();
         break;
     }
   },

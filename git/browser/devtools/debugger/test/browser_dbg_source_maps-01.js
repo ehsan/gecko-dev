@@ -20,23 +20,23 @@ function test()
   let resumed = false;
   let testStarted = false;
 
-  SpecialPowers.pushPrefEnv({"set": [["devtools.debugger.source-maps-enabled", true]]}, () => {
-    debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
-      resumed = true;
-      gTab = aTab;
-      gDebuggee = aDebuggee;
-      gPane = aPane;
-      gDebugger = gPane.panelWin;
+  Services.prefs.setBoolPref("devtools.debugger.source-maps-enabled", true);
 
-      gDebugger.addEventListener("Debugger:SourceShown", function _onSourceShown(aEvent) {
-        gDebugger.removeEventListener("Debugger:SourceShown", _onSourceShown);
-        ok(aEvent.detail.url.indexOf(".coffee") != -1,
-           "The debugger should show the source mapped coffee script file.");
-        ok(gDebugger.editor.getText().search(/isnt/) != -1,
-           "The debugger's editor should have the coffee script source displayed.");
+  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
+    resumed = true;
+    gTab = aTab;
+    gDebuggee = aDebuggee;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-        testSetBreakpoint();
-      });
+    gDebugger.addEventListener("Debugger:SourceShown", function _onSourceShown(aEvent) {
+      gDebugger.removeEventListener("Debugger:SourceShown", _onSourceShown);
+      ok(aEvent.detail.url.indexOf(".coffee") != -1,
+         "The debugger should show the source mapped coffee script file.");
+      ok(gDebugger.editor.getText().search(/isnt/) != -1,
+         "The debugger's editor should have the coffee script source displayed.");
+
+      testSetBreakpoint();
     });
   });
 }
@@ -50,8 +50,6 @@ function testSetBreakpoint() {
     }, function (aResponse, bpClient) {
       ok(!aResponse.error,
          "Should be able to set a breakpoint in a coffee script file.");
-      ok(!aResponse.actualLocation,
-         "Should be able to set a breakpoint on line 5.");
       testSetBreakpointBlankLine();
     });
   });
@@ -149,6 +147,7 @@ function waitForCaretPos(number, callback)
 }
 
 registerCleanupFunction(function() {
+  Services.prefs.setBoolPref("devtools.debugger.source-maps-enabled", false);
   removeTab(gTab);
   gPane = null;
   gTab = null;

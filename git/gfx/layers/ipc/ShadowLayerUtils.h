@@ -9,8 +9,7 @@
 #define IPC_ShadowLayerUtils_h
 
 #include "ipc/IPCMessageUtils.h"
-#include "GLContextTypes.h"
-#include "SurfaceTypes.h"
+#include "GLContext.h"
 #include "mozilla/WidgetUtils.h"
 
 #if defined(MOZ_ENABLE_D3D10_LAYER)
@@ -53,14 +52,14 @@ struct ParamTraits<mozilla::layers::SurfaceDescriptorX11> {
 #endif  // !defined(MOZ_HAVE_XSURFACEDESCRIPTORX11)
 
 template<>
-struct ParamTraits<mozilla::gl::SharedTextureShareType>
+struct ParamTraits<mozilla::gl::GLContext::SharedTextureShareType>
 {
-  typedef mozilla::gl::SharedTextureShareType paramType;
+  typedef mozilla::gl::GLContext::SharedTextureShareType paramType;
 
   static void Write(Message* msg, const paramType& param)
   {
-    static_assert(sizeof(paramType) <= sizeof(int32_t),
-                  "TextureShareType assumes to be int32_t");
+    MOZ_STATIC_ASSERT(sizeof(paramType) <= sizeof(int32_t),
+                      "TextureShareType assumes to be int32_t");
     WriteParam(msg, int32_t(param));
   }
 

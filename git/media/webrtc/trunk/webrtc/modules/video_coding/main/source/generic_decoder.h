@@ -48,12 +48,12 @@ public:
     int32_t Pop(uint32_t timestamp);
 
 private:
-    // Protect |_receiveCallback| and |_timestampMap|.
     CriticalSectionWrapper* _critSect;
     Clock* _clock;
-    VCMReceiveCallback* _receiveCallback;  // Guarded by |_critSect|.
+    I420VideoFrame _frame;
+    VCMReceiveCallback* _receiveCallback;
     VCMTiming& _timing;
-    VCMTimestampMap _timestampMap;  // Guarded by |_critSect|.
+    VCMTimestampMap _timestampMap;
     uint64_t _lastReceivedPictureID;
 };
 
@@ -98,9 +98,6 @@ public:
     int32_t SetCodecConfigParameters(const uint8_t* /*buffer*/,
                                            int32_t /*size*/);
 
-    /**
-    * Set decode callback. Deregistering while decoding is illegal.
-    */
     int32_t RegisterDecodeCompleteCallback(VCMDecodedFrameCallback* callback);
 
     bool External() const;

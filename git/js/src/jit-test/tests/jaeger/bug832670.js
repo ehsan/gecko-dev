@@ -1,4 +1,3 @@
-enableOsiPointRegisterChecks();
 
 gczeal(4);
 eval("(function() { " + "\

@@ -284,9 +284,7 @@ nsStandardURL::~nsStandardURL()
 {
     LOG(("Destroying nsStandardURL @%p\n", this));
 
-    if (mHostA) {
-        free(mHostA);
-    }
+    CRTFREEIF(mHostA);
 #ifdef DEBUG_DUMP_URLS_AT_SHUTDOWN
     PR_REMOVE_LINK(&mDebugCList);
 #endif
@@ -377,10 +375,7 @@ nsStandardURL::InvalidateCache(bool invalidateCachedFile)
 {
     if (invalidateCachedFile)
         mFile = 0;
-    if (mHostA) {
-        free(mHostA);
-        mHostA = nullptr;
-    }
+    CRTFREEIF(mHostA);
     mSpecEncoding = eEncoding_Unknown;
 }
 
@@ -1409,39 +1404,13 @@ nsStandardURL::SetPassword(const nsACString &input)
 }
 
 NS_IMETHODIMP
-nsStandardURL::SetHostPort(const nsACString &aValue)
+nsStandardURL::SetHostPort(const nsACString &value)
 {
     ENSURE_MUTABLE();
 
-  // We cannot simply call nsIURI::SetHost because that would treat the name as
-  // an IPv6 address (like http:://[server:443]/).  We also cannot call
-  // nsIURI::SetHostPort because that isn't implemented.  Sadfaces.
-
-  // First set the hostname.
-  nsACString::const_iterator start, end;
-  aValue.BeginReading(start);
-  aValue.EndReading(end);
-  nsACString::const_iterator iter(start);
-  FindCharInReadable(':', iter, end);
-
-  nsresult rv = SetHost(Substring(start, iter));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Also set the port if needed.
-  if (iter != end) {
-    iter++;
-    if (iter != end) {
-      nsCString portStr(Substring(iter, end));
-      nsresult rv;
-      int32_t port = portStr.ToInteger(&rv);
-      if (NS_SUCCEEDED(rv)) {
-        rv = SetPort(port);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-  }
-
-  return NS_OK;
+    // XXX needs implementation!!
+    NS_NOTREACHED("not implemented");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -1774,7 +1743,7 @@ nsStandardURL::CloneInternal(nsStandardURL::RefHandlingEnum refHandlingMode,
     clone->mURLType = mURLType;
     clone->mParser = mParser;
     clone->mFile = mFile;
-    clone->mHostA = mHostA ? strdup(mHostA) : nullptr;
+    clone->mHostA = mHostA ? nsCRT::strdup(mHostA) : nullptr;
     clone->mMutable = true;
     clone->mSupportsFileURL = mSupportsFileURL;
     clone->mHostEncoding = mHostEncoding;

@@ -7,10 +7,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsapi-tests/tests.h"
 #include "jsobj.h"
 #include "jswrapper.h"
-
-#include "jsapi-tests/tests.h"
 
 #include "jsobjinlines.h"
 
@@ -67,9 +66,9 @@ BEGIN_TEST(testBug604087)
 {
     JS::RootedObject outerObj(cx, js::Wrapper::New(cx, global, global->getProto(), global,
                                                &OuterWrapper::singleton));
-    JS::RootedObject compartment2(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL, JS::FireOnNewGlobalHook));
-    JS::RootedObject compartment3(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL, JS::FireOnNewGlobalHook));
-    JS::RootedObject compartment4(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL, JS::FireOnNewGlobalHook));
+    JS::RootedObject compartment2(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
+    JS::RootedObject compartment3(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
+    JS::RootedObject compartment4(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
 
     JS::RootedObject c2wrapper(cx, wrap(cx, outerObj, compartment2));
     CHECK(c2wrapper);

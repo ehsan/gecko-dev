@@ -45,7 +45,7 @@ function consoleOpened(hud)
 function onWebConsoleClose()
 {
   info("web console closed");
-  HUDService.toggleBrowserConsole().then(onBrowserConsoleOpen);
+  HUDConsoleUI.toggleBrowserConsole().then(onBrowserConsoleOpen);
 }
 
 function onBrowserConsoleOpen(hud)

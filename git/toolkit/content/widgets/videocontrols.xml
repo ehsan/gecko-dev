@@ -173,11 +173,9 @@
                 this.isDragging = isDragging;
                 if (isDragging) {
                     this.wasPausedBeforeDrag = this.Utils.video.paused;
-                    this.previousPlaybackRate = this.Utils.video.playbackRate;
                     this.Utils.video.pause();
                 } else if (!this.wasPausedBeforeDrag) {
                     // After the drag ends, resume playing.
-                    this.Utils.video.playbackRate = this.previousPlaybackRate;
                     this.Utils.video.play();
                 }
             }
@@ -479,9 +477,9 @@
                     // go ahead and reveal the controls now, so they're an obvious user cue.
                     //
                     // (Note: the |controls| attribute is already handled via layout/style/html.css)
-                    var shouldShow = !this.dynamicControls ||
-                      (this.video.paused &&
-                       !(this.video.autoplay && this.video.mozAutoplayEnabled));
+                    var shouldShow = this.video.paused &&
+                       (!(this.video.autoplay && this.video.mozAutoplayEnabled) ||
+                        !this.dynamicControls);
                     // Hide the overlay if the video time is non-zero or if an error occurred to workaround bug 718107.
                     this.startFade(this.clickToPlay, shouldShow && !this.isAudioOnly &&
                                    this.video.currentTime == 0 && !this.hasError(), true);
@@ -1006,7 +1004,6 @@
                     if (this.video.paused || this.video.ended) {
                         this._triggeredByControls = true;
                         this.hideClickToPlay();
-                        this.video.playbackRate = this.video.defaultPlaybackRate;
                         this.video.play();
                     } else {
                         this.video.pause();

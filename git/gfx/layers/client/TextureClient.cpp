@@ -4,282 +4,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/layers/TextureClient.h"
-#include <stdint.h>                     // for uint8_t, uint32_t, etc
-#include "Layers.h"                     // for Layer, etc
-#include "gfxContext.h"                 // for gfxContext, etc
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPoint.h"                   // for gfxIntSize, gfxSize
-#include "gfxReusableSurfaceWrapper.h"  // for gfxReusableSurfaceWrapper
-#include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
-#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
-#include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/ISurfaceAllocator.h"
-#include "mozilla/layers/ImageDataSerializer.h"
-#include "mozilla/layers/ShadowLayers.h"  // for ShadowLayerForwarder
-#include "mozilla/layers/SharedPlanarYCbCrImage.h"
-#include "mozilla/layers/YCbCrImageDataSerializer.h"
-#include "nsDebug.h"                    // for NS_ASSERTION, NS_WARNING, etc
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "mozilla/layers/TextureClientOGL.h"
 
-#ifdef MOZ_ANDROID_OMTC
-#  include "gfxReusableImageSurfaceWrapper.h"
-#  include "gfxImageSurface.h"
-#else
-#  include "gfxReusableSharedImageSurfaceWrapper.h"
-#  include "gfxSharedImageSurface.h"
-#endif
+#include "mozilla/layers/ImageClient.h"
+#include "mozilla/layers/CanvasClient.h"
+#include "mozilla/layers/ContentClient.h"
+#include "mozilla/layers/ShadowLayers.h"
+#include "mozilla/layers/SharedPlanarYCbCrImage.h"
+#include "GLContext.h"
+#include "BasicLayers.h" // for PaintContext
+#include "mozilla/layers/YCbCrImageDataSerializer.h"
+#include "gfxReusableSurfaceWrapper.h"
+#include "gfxPlatform.h"
+#include "mozilla/StandardInteger.h"
 
 using namespace mozilla::gl;
 
 namespace mozilla {
 namespace layers {
-
-TextureClient::TextureClient(TextureFlags aFlags)
-  : mID(0)
-  , mFlags(aFlags)
-  , mShared(false)
-{}
-
-TextureClient::~TextureClient()
-{}
-
-bool
-TextureClient::ShouldDeallocateInDestructor() const
-{
-  if (!IsAllocated()) {
-    return false;
-  }
-  if (GetFlags() & TEXTURE_DEALLOCATE_CLIENT) {
-    return true;
-  }
-
-  // If we're meant to be deallocated by the host,
-  // but we haven't been shared yet, then we should
-  // deallocate on the client instead.
-  return (GetFlags() & TEXTURE_DEALLOCATE_HOST) &&
-         !IsSharedWithCompositor();
-}
-
-bool
-ShmemTextureClient::ToSurfaceDescriptor(SurfaceDescriptor& aDescriptor)
-{
-  if (!IsAllocated() || GetFormat() == gfx::FORMAT_UNKNOWN) {
-    return false;
-  }
-
-  aDescriptor = SurfaceDescriptorShmem(mShmem, GetFormat());
-
-  return true;
-}
-
-ISurfaceAllocator*
-ShmemTextureClient::GetAllocator() const
-{
-  return mCompositable->GetForwarder();
-}
-
-bool
-ShmemTextureClient::Allocate(uint32_t aSize)
-{
-  ipc::SharedMemory::SharedMemoryType memType = OptimalShmemType();
-  mAllocated = GetAllocator()->AllocUnsafeShmem(aSize, memType, &mShmem);
-  return mAllocated;
-}
-
-uint8_t*
-ShmemTextureClient::GetBuffer() const
-{
-  if (mAllocated) {
-    return mShmem.get<uint8_t>();
-  }
-  return nullptr;
-}
-
-size_t
-ShmemTextureClient::GetBufferSize() const
-{
-  return mShmem.Size<uint8_t>();
-}
-
-ShmemTextureClient::ShmemTextureClient(CompositableClient* aCompositable,
-                                       gfx::SurfaceFormat aFormat,
-                                       TextureFlags aFlags)
-  : BufferTextureClient(aCompositable, aFormat, aFlags)
-  , mAllocated(false)
-{
-  MOZ_COUNT_CTOR(ShmemTextureClient);
-}
-
-ShmemTextureClient::~ShmemTextureClient()
-{
-  MOZ_COUNT_DTOR(ShmemTextureClient);
-  if (ShouldDeallocateInDestructor()) {
-    // if the buffer has never been shared we must deallocate it or ir would
-    // leak.
-    mCompositable->GetForwarder()->DeallocShmem(mShmem);
-  }
-}
-
-bool
-MemoryTextureClient::ToSurfaceDescriptor(SurfaceDescriptor& aDescriptor)
-{
-  if (!IsAllocated() || GetFormat() == gfx::FORMAT_UNKNOWN) {
-    return false;
-  }
-  aDescriptor = SurfaceDescriptorMemory(reinterpret_cast<uintptr_t>(mBuffer),
-                                        GetFormat());
-  return true;
-}
-
-bool
-MemoryTextureClient::Allocate(uint32_t aSize)
-{
-  MOZ_ASSERT(!mBuffer);
-  mBuffer = new uint8_t[aSize];
-  mBufSize = aSize;
-  return true;
-}
-
-MemoryTextureClient::MemoryTextureClient(CompositableClient* aCompositable,
-                                         gfx::SurfaceFormat aFormat,
-                                         TextureFlags aFlags)
-  : BufferTextureClient(aCompositable, aFormat, aFlags)
-  , mBuffer(nullptr)
-  , mBufSize(0)
-{
-  MOZ_COUNT_CTOR(MemoryTextureClient);
-}
-
-MemoryTextureClient::~MemoryTextureClient()
-{
-  MOZ_COUNT_DTOR(MemoryTextureClient);
-  if (ShouldDeallocateInDestructor()) {
-    // if the buffer has never been shared we must deallocate it or ir would
-    // leak.
-    delete mBuffer;
-  }
-}
-
-BufferTextureClient::BufferTextureClient(CompositableClient* aCompositable,
-                                         gfx::SurfaceFormat aFormat,
-                                         TextureFlags aFlags)
-  : TextureClient(aFlags)
-  , mCompositable(aCompositable)
-  , mFormat(aFormat)
-{}
-
-BufferTextureClient::~BufferTextureClient()
-{}
-
-bool
-BufferTextureClient::UpdateSurface(gfxASurface* aSurface)
-{
-  MOZ_ASSERT(aSurface);
-  MOZ_ASSERT(!IsImmutable());
-
-  ImageDataSerializer serializer(GetBuffer());
-  if (!serializer.IsValid()) {
-    return false;
-  }
-
-  RefPtr<gfxImageSurface> surf = serializer.GetAsThebesSurface();
-  if (!surf) {
-    return false;
-  }
-
-  nsRefPtr<gfxContext> tmpCtx = new gfxContext(surf.get());
-  tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-  tmpCtx->DrawSurface(aSurface, gfxSize(serializer.GetSize().width,
-                                        serializer.GetSize().height));
-
-  if (TextureRequiresLocking(mFlags) && !ImplementsLocking()) {
-    // We don't have support for proper locking yet, so we'll
-    // have to be immutable instead.
-    MarkImmutable();
-  }
-  return true;
-}
-
-already_AddRefed<gfxASurface>
-BufferTextureClient::GetAsSurface()
-{
-  ImageDataSerializer serializer(GetBuffer());
-  if (!serializer.IsValid()) {
-    return nullptr;
-  }
-
-  RefPtr<gfxImageSurface> surf = serializer.GetAsThebesSurface();
-  nsRefPtr<gfxASurface> result = surf.get();
-  return result.forget();
-}
-
-bool
-BufferTextureClient::AllocateForSurface(gfx::IntSize aSize)
-{
-  MOZ_ASSERT(mFormat != gfx::FORMAT_YUV, "This textureClient cannot use YCbCr data");
-
-  int bufSize
-    = ImageDataSerializer::ComputeMinBufferSize(aSize, mFormat);
-  if (!Allocate(bufSize)) {
-    return false;
-  }
-  ImageDataSerializer serializer(GetBuffer());
-  serializer.InitializeBufferInfo(aSize, mFormat);
-  mSize = aSize;
-  return true;
-}
-
-bool
-BufferTextureClient::UpdateYCbCr(const PlanarYCbCrImage::Data& aData)
-{
-  MOZ_ASSERT(mFormat == gfx::FORMAT_YUV, "This textureClient can only use YCbCr data");
-  MOZ_ASSERT(!IsImmutable());
-  MOZ_ASSERT(aData.mCbSkip == aData.mCrSkip);
-
-  YCbCrImageDataSerializer serializer(GetBuffer());
-  MOZ_ASSERT(serializer.IsValid());
-  if (!serializer.CopyData(aData.mYChannel, aData.mCbChannel, aData.mCrChannel,
-                           aData.mYSize, aData.mYStride,
-                           aData.mCbCrSize, aData.mCbCrStride,
-                           aData.mYSkip, aData.mCbSkip)) {
-    NS_WARNING("Failed to copy image data!");
-    return false;
-  }
-
-  if (TextureRequiresLocking(mFlags)) {
-    // We don't have support for proper locking yet, so we'll
-    // have to be immutable instead.
-    MarkImmutable();
-  }
-  return true;
-}
-
-bool
-BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize,
-                                      gfx::IntSize aCbCrSize,
-                                      StereoMode aStereoMode)
-{
-  size_t bufSize = YCbCrImageDataSerializer::ComputeMinBufferSize(aYSize,
-                                                                  aCbCrSize);
-  if (!Allocate(bufSize)) {
-    return false;
-  }
-  YCbCrImageDataSerializer serializer(GetBuffer());
-  serializer.InitializeBufferInfo(aYSize,
-                                  aCbCrSize,
-                                  aStereoMode);
-  mSize = aYSize;
-  return true;
-}
-
-
-
-
-
-
-
-
 
 DeprecatedTextureClient::DeprecatedTextureClient(CompositableForwarder* aForwarder,
                              const TextureInfo& aTextureInfo)
@@ -299,6 +41,8 @@ DeprecatedTextureClient::~DeprecatedTextureClient()
 DeprecatedTextureClientShmem::DeprecatedTextureClientShmem(CompositableForwarder* aForwarder,
                                        const TextureInfo& aTextureInfo)
   : DeprecatedTextureClient(aForwarder, aTextureInfo)
+  , mSurface(nullptr)
+  , mSurfaceAsImage(nullptr)
 {
 }
 
@@ -307,12 +51,10 @@ DeprecatedTextureClientShmem::ReleaseResources()
 {
   if (mSurface) {
     mSurface = nullptr;
-    mSurfaceAsImage = nullptr;
-
     ShadowLayerForwarder::CloseDescriptor(mDescriptor);
   }
 
-  if (mTextureInfo.mTextureFlags & TEXTURE_DEALLOCATE_HOST) {
+  if (mTextureInfo.mTextureFlags & HostRelease) {
     mDescriptor = SurfaceDescriptor();
     return;
   }
@@ -323,7 +65,7 @@ DeprecatedTextureClientShmem::ReleaseResources()
   }
 }
 
-bool
+void
 DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
                                     gfxASurface::gfxContentType aContentType)
 {
@@ -339,34 +81,22 @@ DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
                                             mContentType, &mDescriptor)) {
       NS_WARNING("creating SurfaceDescriptor failed!");
     }
-    if (mContentType == gfxASurface::CONTENT_COLOR_ALPHA) {
-      gfxASurface* surface = GetSurface();
-      if (!surface) {
-        return false;
-      }
-      nsRefPtr<gfxContext> context = new gfxContext(surface);
-      context->SetColor(gfxRGBA(0, 0, 0, 0));
-      context->SetOperator(gfxContext::OPERATOR_SOURCE);
-      context->Paint();
-    }
   }
-  return true;
 }
 
 void
 DeprecatedTextureClientShmem::SetDescriptor(const SurfaceDescriptor& aDescriptor)
 {
-  if (aDescriptor.type() == SurfaceDescriptor::Tnull_t) {
+  if (IsSurfaceDescriptorValid(aDescriptor)) {
+    ReleaseResources();
+    mDescriptor = aDescriptor;
+  } else {
     EnsureAllocated(mSize, mContentType);
-    return;
   }
 
-  ReleaseResources();
-  mDescriptor = aDescriptor;
+  mSurface = nullptr;
 
-  MOZ_ASSERT(!mSurface);
-  NS_ASSERTION(mDescriptor.type() == SurfaceDescriptor::T__None ||
-               mDescriptor.type() == SurfaceDescriptor::TSurfaceDescriptorGralloc ||
+  NS_ASSERTION(mDescriptor.type() == SurfaceDescriptor::TSurfaceDescriptorGralloc ||
                mDescriptor.type() == SurfaceDescriptor::TShmem ||
                mDescriptor.type() == SurfaceDescriptor::TMemoryImage ||
                mDescriptor.type() == SurfaceDescriptor::TRGBImage,
@@ -385,28 +115,9 @@ DeprecatedTextureClientShmem::GetSurface()
                     ? OPEN_READ_WRITE
                     : OPEN_READ_ONLY;
     mSurface = ShadowLayerForwarder::OpenDescriptor(mode, mDescriptor);
-    MOZ_ASSERT(!mSurface || mSurface->GetContentType() == mContentType);
   }
 
   return mSurface.get();
-}
-
-
-gfx::DrawTarget*
-DeprecatedTextureClientShmem::LockDrawTarget()
-{
-  if (mDrawTarget) {
-    return mDrawTarget;
-  }
-
-  gfxASurface* surface = GetSurface();
-  if (!surface) {
-    return nullptr;
-  }
-
-  mDrawTarget = gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(surface, mSize);
-
-  return mDrawTarget;
 }
 
 void
@@ -414,7 +125,6 @@ DeprecatedTextureClientShmem::Unlock()
 {
   mSurface = nullptr;
   mSurfaceAsImage = nullptr;
-  mDrawTarget = nullptr;
 
   ShadowLayerForwarder::CloseDescriptor(mDescriptor);
 }
@@ -423,23 +133,11 @@ gfxImageSurface*
 DeprecatedTextureClientShmem::LockImageSurface()
 {
   if (!mSurfaceAsImage) {
-    gfxASurface* surface = GetSurface();
-    if (!surface) {
-      return nullptr;
-    }
-    mSurfaceAsImage = surface->GetAsImageSurface();
+    mSurfaceAsImage = GetSurface()->GetAsImageSurface();
   }
 
   return mSurfaceAsImage.get();
 }
-
-DeprecatedTextureClientTile::DeprecatedTextureClientTile(const DeprecatedTextureClientTile& aOther)
-  : DeprecatedTextureClient(aOther.mForwarder, aOther.mTextureInfo)
-  , mSurface(aOther.mSurface)
-{}
-
-DeprecatedTextureClientTile::~DeprecatedTextureClientTile()
-{}
 
 void
 DeprecatedTextureClientShmemYCbCr::ReleaseResources()
@@ -450,20 +148,20 @@ DeprecatedTextureClientShmemYCbCr::ReleaseResources()
 void
 DeprecatedTextureClientShmemYCbCr::SetDescriptor(const SurfaceDescriptor& aDescriptor)
 {
-  MOZ_ASSERT(aDescriptor.type() == SurfaceDescriptor::TYCbCrImage ||
-             aDescriptor.type() == SurfaceDescriptor::T__None);
+  MOZ_ASSERT(aDescriptor.type() == SurfaceDescriptor::TYCbCrImage);
 
   if (IsSurfaceDescriptorValid(mDescriptor)) {
     GetForwarder()->DestroySharedSurface(&mDescriptor);
   }
   mDescriptor = aDescriptor;
+  MOZ_ASSERT(IsSurfaceDescriptorValid(mDescriptor));
 }
 
 void
 DeprecatedTextureClientShmemYCbCr::SetDescriptorFromReply(const SurfaceDescriptor& aDescriptor)
 {
   MOZ_ASSERT(aDescriptor.type() == SurfaceDescriptor::TYCbCrImage);
-  DeprecatedSharedPlanarYCbCrImage* shYCbCr = DeprecatedSharedPlanarYCbCrImage::FromSurfaceDescriptor(aDescriptor);
+  SharedPlanarYCbCrImage* shYCbCr = SharedPlanarYCbCrImage::FromSurfaceDescriptor(aDescriptor);
   if (shYCbCr) {
     shYCbCr->Release();
     mDescriptor = SurfaceDescriptor();
@@ -472,47 +170,41 @@ DeprecatedTextureClientShmemYCbCr::SetDescriptorFromReply(const SurfaceDescripto
   }
 }
 
-bool
+void
 DeprecatedTextureClientShmemYCbCr::EnsureAllocated(gfx::IntSize aSize,
                                          gfxASurface::gfxContentType aType)
 {
   NS_RUNTIMEABORT("not enough arguments to do this (need both Y and CbCr sizes)");
-  return false;
 }
 
 
+DeprecatedTextureClientTile::DeprecatedTextureClientTile(const DeprecatedTextureClientTile& aOther)
+  : DeprecatedTextureClient(aOther.mForwarder, aOther.mTextureInfo)
+  , mSurface(aOther.mSurface)
+{}
+
+DeprecatedTextureClientTile::~DeprecatedTextureClientTile()
+{}
+
 DeprecatedTextureClientTile::DeprecatedTextureClientTile(CompositableForwarder* aForwarder,
-                                                         const TextureInfo& aTextureInfo,
-                                                         gfxReusableSurfaceWrapper* aSurface)
+                                     const TextureInfo& aTextureInfo)
   : DeprecatedTextureClient(aForwarder, aTextureInfo)
-  , mSurface(aSurface)
+  , mSurface(nullptr)
 {
   mTextureInfo.mDeprecatedTextureHostFlags = TEXTURE_HOST_TILED;
 }
 
-bool
+void
 DeprecatedTextureClientTile::EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType)
 {
   if (!mSurface ||
       mSurface->Format() != gfxPlatform::GetPlatform()->OptimalFormatForContent(aType)) {
-#ifdef MOZ_ANDROID_OMTC
-    // If we're using OMTC, we can save some cycles by not using shared
-    // memory. Using shared memory here is a small, but significant
-    // performance regression.
     gfxImageSurface* tmpTile = new gfxImageSurface(gfxIntSize(aSize.width, aSize.height),
                                                    gfxPlatform::GetPlatform()->OptimalFormatForContent(aType),
                                                    aType != gfxASurface::CONTENT_COLOR);
-    mSurface = new gfxReusableImageSurfaceWrapper(tmpTile);
-#else
-    nsRefPtr<gfxSharedImageSurface> sharedImage =
-      gfxSharedImageSurface::CreateUnsafe(mForwarder,
-                                          gfxIntSize(aSize.width, aSize.height),
-                                          gfxPlatform::GetPlatform()->OptimalFormatForContent(aType));
-    mSurface = new gfxReusableSharedImageSurfaceWrapper(mForwarder, sharedImage);
-#endif
+    mSurface = new gfxReusableSurfaceWrapper(tmpTile);
     mContentType = aType;
   }
-  return true;
 }
 
 gfxImageSurface*
@@ -525,10 +217,6 @@ DeprecatedTextureClientTile::LockImageSurface()
   mSurface = mSurface->GetWritable(&writableSurface);
   return writableSurface;
 }
-
-// XXX - All the code below can be removed as soon as we remove
-// DeprecatedImageClientSingle (which has already been ported to the new
-// textures).
 
 bool AutoLockShmemClient::Update(Image* aImage,
                                  uint32_t aContentFlags,
@@ -634,14 +322,12 @@ bool AutoLockYCbCrClient::EnsureDeprecatedTextureClient(PlanarYCbCrImage* aImage
 
   YCbCrImageDataSerializer serializer(shmem.get<uint8_t>());
   serializer.InitializeBufferInfo(data->mYSize,
-                                  data->mCbCrSize,
-                                  data->mStereoMode);
+                                  data->mCbCrSize);
 
   *mDescriptor = YCbCrImage(shmem, 0);
 
   return true;
 }
-
 
 }
 }

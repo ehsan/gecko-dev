@@ -27,5 +27,6 @@ interface HTMLOptionElement : HTMLElement {
 
            [SetterThrows]
            attribute DOMString text;
+           [GetterThrows]
   readonly attribute long index;
 };

@@ -18,7 +18,6 @@ Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
-Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 function testExceptionHook(ex) {
   try {
@@ -42,13 +41,6 @@ function scriptErrorFlagsToKind(aFlags) {
     kind = "strict " + kind;
 
   return kind;
-}
-
-// Redeclare dbg_assert with a fatal behavior.
-function dbg_assert(cond, e) {
-  if (!cond) {
-    throw e;
-  }
 }
 
 // Register a console listener, so console messages don't just disappear
@@ -103,7 +95,7 @@ function testGlobal(aName) {
     .createInstance(Ci.nsIPrincipal);
 
   let sandbox = Cu.Sandbox(systemPrincipal);
-  sandbox.__name = aName;
+  Cu.evalInSandbox("this.__name = '" + aName + "'", sandbox);
   return sandbox;
 }
 
@@ -165,19 +157,8 @@ function attachTestTabAndResume(aClient, aTitle, aCallback) {
  */
 function initTestDebuggerServer()
 {
-  DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/root.js");
   DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/script.js");
   DebuggerServer.addActors("resource://test/testactors.js");
-  // Allow incoming connections.
-  DebuggerServer.init(function () { return true; });
-}
-
-function initTestTracerServer()
-{
-  DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/root.js");
-  DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/script.js");
-  DebuggerServer.addActors("resource://test/testactors.js");
-  DebuggerServer.registerModule("devtools/server/actors/tracer");
   // Allow incoming connections.
   DebuggerServer.init(function () { return true; });
 }
@@ -342,14 +323,3 @@ TracingTransport.prototype = {
     }
   }
 };
-
-function StubTransport() { }
-StubTransport.prototype.ready = function () {};
-StubTransport.prototype.send  = function () {};
-StubTransport.prototype.close = function () {};
-
-function executeSoon(aFunc) {
-  Services.tm.mainThread.dispatch({
-    run: DevToolsUtils.makeInfallible(aFunc)
-  }, Ci.nsIThread.DISPATCH_NORMAL);
-}

@@ -386,7 +386,6 @@ def write_cpp(eventname, iface, fd, conf):
 
     fd.write("%s::~%s() {}\n\n" % (classname, classname))
 
-    fd.write("NS_IMPL_CYCLE_COLLECTION_CLASS(%s)\n" % (classname))
     fd.write("NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(%s, %s)\n" % (classname, basename))
     for c in ccattributes:
         fd.write("  NS_IMPL_CYCLE_COLLECTION_UNLINK(m%s)\n" % firstCap(c.name))
@@ -417,7 +416,7 @@ def write_cpp(eventname, iface, fd, conf):
     fd.write("const %sInit& aParam, " % eventname)
     fd.write("ErrorResult& aRv)\n")
     fd.write("{\n")
-    fd.write("  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());\n")
+    fd.write("  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());\n")
     fd.write("  nsRefPtr<%s> e = new %s(t, nullptr, nullptr);\n" % (eventname, eventname))
     fd.write("  bool trusted = e->Init(t);\n")
     fd.write("  e->Init%s(" % eventname)

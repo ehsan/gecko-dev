@@ -10,14 +10,12 @@
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
 #include "AudioDestinationNode.h"
-#include "AudioParamTimeline.h"
+#include "PannerNode.h"
 #include "speex/speex_resampler.h"
 #include <limits>
 
 namespace mozilla {
 namespace dom {
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(AudioBufferSourceNode)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(AudioBufferSourceNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mBuffer)

@@ -23,10 +23,9 @@
 #include "GeckoProfiler.h"
 #include "nsRefreshDriver.h"
 #include "mozilla/Preferences.h"
-#include "nsContentUtils.h" // for nsAutoScriptBlocker
+#include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
-#include "Layers.h"
-#include "gfxPlatform.h"
+#include "mozilla/layers/Compositor.h"
 
 /**
    XXX TODO XXX
@@ -161,7 +160,7 @@ nsViewManager::SetRootView(nsView *aView)
       InvalidateHierarchy();
     }
 
-    mRootView->SetZIndex(false, 0);
+    mRootView->SetZIndex(false, 0, false);
   }
   // Else don't touch mRootViewManager
 }
@@ -436,14 +435,6 @@ void nsViewManager::FlushDirtyRegionToWidget(nsView* aView)
   }
   nsRegion r =
     ConvertRegionBetweenViews(*dirtyRegion, aView, nearestViewWithWidget);
-
-  // If we draw the frame counter we need to make sure we invalidate the area
-  // for it to make it on screen
-  if (gfxPlatform::DrawFrameCounter()) {
-    nsRect counterBounds = gfxPlatform::FrameCounterBounds().ToAppUnits(AppUnitsPerDevPixel());
-    r = r.Or(r, counterBounds);
-  }
-
   nsViewManager* widgetVM = nearestViewWithWidget->GetViewManager();
   widgetVM->InvalidateWidgetArea(nearestViewWithWidget, r);
   dirtyRegion->SetEmpty();
@@ -871,7 +862,7 @@ nsViewManager::InsertChild(nsView *aParent, nsView *aChild, int32_t aZIndex)
 {
   // no-one really calls this with anything other than aZIndex == 0 on a fresh view
   // XXX this method should simply be eliminated and its callers redirected to the real method
-  SetViewZIndex(aChild, false, aZIndex);
+  SetViewZIndex(aChild, false, aZIndex, false);
   InsertChild(aParent, aChild, nullptr, true);
 }
 
@@ -950,7 +941,7 @@ bool nsViewManager::IsViewInserted(nsView *aView)
 }
 
 void
-nsViewManager::SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZIndex)
+nsViewManager::SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZIndex, bool aTopMost)
 {
   NS_ASSERTION((aView != nullptr), "no view");
 
@@ -964,7 +955,7 @@ nsViewManager::SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZIndex)
     aZIndex = 0;
   }
 
-  aView->SetZIndex(aAutoZIndex, aZIndex);
+  aView->SetZIndex(aAutoZIndex, aZIndex, aTopMost);
 }
 
 nsViewManager*

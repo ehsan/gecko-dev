@@ -73,32 +73,32 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
     return ths;
   }
 
-  static bool
+  static JSBool
   LocaleToUpperCase(JSContext *cx, HandleString src, MutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToUpperCase);
   }
 
-  static bool
+  static JSBool
   LocaleToLowerCase(JSContext *cx, HandleString src, MutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToLowerCase);
   }
 
-  static bool
+  static JSBool
   LocaleToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->ToUnicode(cx, src, rval);
   }
 
-  static bool
+  static JSBool
   LocaleCompare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->Compare(cx, src1, src2, rval);
   }
 
 private:
-  static bool
+  static JSBool
   ChangeCase(JSContext* cx, HandleString src, MutableHandleValue rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
   {
@@ -120,7 +120,7 @@ private:
     return true;
   }
 
-  bool
+  JSBool
   Compare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
   {
     nsresult rv;
@@ -167,7 +167,7 @@ private:
     return true;
   }
 
-  bool
+  JSBool
   ToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
   {
     nsresult rv;
@@ -183,7 +183,7 @@ private:
           nsAutoString localeStr;
           rv = appLocale->
                GetCategory(NS_LITERAL_STRING(NSILOCALE_TIME), localeStr);
-          MOZ_ASSERT(NS_SUCCEEDED(rv), "failed to get app locale info");
+          NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get app locale info");
 
           nsCOMPtr<nsIPlatformCharset> platformCharset =
             do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
@@ -268,7 +268,7 @@ xpc_LocalizeRuntime(JSRuntime *rt)
 
   nsAutoString localeStr;
   rv = appLocale->GetCategory(NS_LITERAL_STRING(NSILOCALE_TIME), localeStr);
-  MOZ_ASSERT(NS_SUCCEEDED(rv), "failed to get app locale info");
+  NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get app locale info");
   NS_LossyConvertUTF16toASCII locale(localeStr);
 
   return !!JS_SetDefaultLocale(rt, locale.get());

@@ -33,7 +33,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/osfile/_PromiseWorker.jsm", this);
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
   "resource://gre/modules/TelemetryStopwatch.jsm");
@@ -75,7 +75,13 @@ this._SessionFile = {
    * state. This must only be called once, it will throw an error otherwise.
    */
   writeLoadStateOnceAfterStartup: function (aLoadState) {
-    SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
+    return SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
+  },
+  /**
+   * Create a backup copy, asynchronously.
+   */
+  moveToBackupPath: function () {
+    return SessionFileInternal.moveToBackupPath();
   },
   /**
    * Create a backup copy, asynchronously.
@@ -95,7 +101,7 @@ this._SessionFile = {
    * Wipe the contents of the session file, asynchronously.
    */
   wipe: function () {
-    SessionFileInternal.wipe();
+    return SessionFileInternal.wipe();
   }
 };
 
@@ -203,15 +209,13 @@ let SessionFileInternal = {
   },
 
   read: function () {
-    return SessionWorker.post("read").then(msg => {
-      this._recordTelemetry(msg.telemetry);
-      return msg.ok;
-    });
+    return SessionWorker.post("read").then(msg => msg.ok);
   },
 
   write: function (aData) {
     let refObj = {};
     return TaskUtils.spawn(function task() {
+      TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
       TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
       try {
@@ -219,11 +223,12 @@ let SessionFileInternal = {
         // At this point, we measure how long we stop the main thread
         TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
-        // Now wait for the result and record how long the write took
-        let msg = yield promise;
-        this._recordTelemetry(msg.telemetry);
+        // Now wait for the result and measure how long we had to wait for the result
+        yield promise;
+        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
       } catch (ex) {
         TelemetryStopwatch.cancel("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
+        TelemetryStopwatch.cancel("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
         Cu.reportError("Could not write session state file " + this.path
                        + ": " + ex);
       }
@@ -231,10 +236,11 @@ let SessionFileInternal = {
   },
 
   writeLoadStateOnceAfterStartup: function (aLoadState) {
-    SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]).then(msg => {
-      this._recordTelemetry(msg.telemetry);
-      return msg;
-    });
+    return SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]);
+  },
+
+  moveToBackupPath: function () {
+    return SessionWorker.post("moveToBackupPath");
   },
 
   createBackupCopy: function (ext) {
@@ -246,13 +252,7 @@ let SessionFileInternal = {
   },
 
   wipe: function () {
-    SessionWorker.post("wipe");
-  },
-
-  _recordTelemetry: function(telemetry) {
-    for (let histogramId in telemetry){
-      Telemetry.getHistogramById(histogramId).add(telemetry[histogramId]);
-    }
+    return SessionWorker.post("wipe");
   }
 };
 

@@ -54,7 +54,7 @@
 #include "nsICachingChannel.h"
 #include "nsLayoutUtils.h"
 #include "nsVideoFrame.h"
-#include "Layers.h"
+#include "BasicLayers.h"
 #include <limits>
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAppShell.h"
@@ -76,7 +76,6 @@
 
 #include "ImageContainer.h"
 #include "nsIPowerManagerService.h"
-#include "nsRange.h"
 #include <algorithm>
 
 #ifdef PR_LOGGING
@@ -96,7 +95,6 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 #include "mozilla/Preferences.h"
 
 #include "nsIPermissionManager.h"
-#include "nsContentTypeParser.h"
 
 using namespace mozilla::layers;
 using mozilla::net::nsMediaFragmentURIParser;
@@ -279,7 +277,7 @@ void HTMLMediaElement::ReportLoadError(const char* aMsg,
                                        uint32_t aParamCount)
 {
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("Media"),
+                                  "Media",
                                   OwnerDoc(),
                                   nsContentUtils::eDOM_PROPERTIES,
                                   aMsg,
@@ -403,8 +401,6 @@ NS_IMETHODIMP HTMLMediaElement::MediaLoadListener::GetInterface(const nsIID & aI
 
 NS_IMPL_ADDREF_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
 NS_IMPL_RELEASE_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLMediaElement)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaSource)
@@ -2101,6 +2097,8 @@ HTMLMediaElement::Play(ErrorResult& aRv)
     }
   }
 
+  SetPlaybackRate(mDefaultPlaybackRate);
+
   mPaused = false;
   mAutoplaying = false;
   // We changed mPaused and mAutoplaying which can affect AddRemoveSelfReference
@@ -2516,21 +2514,12 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
   mPausedForInactiveDocumentOrChannel = false;
   mEventDeliveryPaused = false;
   mPendingEvents.Clear();
-  // Set mDecoder now so if methods like GetCurrentSrc get called between
-  // here and Load(), they work.
-  mDecoder = aDecoder;
 
-  // Tell aDecoder about its MediaResource now so things like principals are
-  // available immediately.
-  aDecoder->SetResource(aStream);
   aDecoder->SetAudioChannelType(mAudioChannelType);
   aDecoder->SetAudioCaptured(mAudioCaptured);
   aDecoder->SetVolume(mMuted ? 0.0 : mVolume);
   aDecoder->SetPreservesPitch(mPreservesPitch);
   aDecoder->SetPlaybackRate(mPlaybackRate);
-  // Update decoder principal before we start decoding, since it
-  // can affect how we feed data to MediaStreams
-  NotifyDecoderPrincipalChanged();
 
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
@@ -2538,9 +2527,8 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
         ms->mFinishWhenEnded);
   }
 
-  nsresult rv = aDecoder->Load(aListener, aCloneDonor);
+  nsresult rv = aDecoder->Load(aStream, aListener, aCloneDonor);
   if (NS_FAILED(rv)) {
-    mDecoder = nullptr;
     LOG(PR_LOG_DEBUG, ("%p Failed to load for decoder %p", this, aDecoder));
     return rv;
   }
@@ -2549,7 +2537,9 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
   // which owns the channel.
   mChannel = nullptr;
 
+  mDecoder = aDecoder;
   AddMediaElementToURITable();
+  NotifyDecoderPrincipalChanged();
 
   // We may want to suspend the new stream now.
   // This will also do an AddRemoveSelfReference.
@@ -2592,14 +2582,12 @@ public:
   void DoNotifyFinished()
   {
     if (mElement) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->PlaybackEnded();
     }
   }
   void UpdateReadyStateForData()
   {
     if (mElement && mHaveCurrentData) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->UpdateReadyStateForData(
         mBlocked ? MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_BUFFERING :
                    MediaDecoderOwner::NEXT_FRAME_AVAILABLE);
@@ -2622,7 +2610,6 @@ public:
       mPendingNotifyOutput = false;
     }
     if (mElement && mHaveCurrentData) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->FireTimeUpdate(true);
     }
   }
@@ -2630,7 +2617,6 @@ public:
   {
     mHaveCurrentData = true;
     if (mElement) {
-      nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->FirstFrameLoaded(false);
     }
     UpdateReadyStateForData();
@@ -3267,14 +3253,9 @@ already_AddRefed<nsIPrincipal> HTMLMediaElement::GetCurrentPrincipal()
 
 void HTMLMediaElement::NotifyDecoderPrincipalChanged()
 {
-  nsRefPtr<nsIPrincipal> principal = GetCurrentPrincipal();
-
-  bool subsumes;
-  mDecoder->UpdateSameOriginStatus(
-    NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes);
-
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
+    nsRefPtr<nsIPrincipal> principal = GetCurrentPrincipal();
     ms->mStream->CombineWithPrincipal(principal);
   }
 }

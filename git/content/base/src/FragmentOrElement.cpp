@@ -106,6 +106,7 @@
 #include "nsIXULDocument.h"
 #endif /* MOZ_XUL */
 
+#include "nsCycleCollectionParticipant.h"
 #include "nsCCUncollectableMarker.h"
 
 #include "mozAutoDocUpdate.h"
@@ -116,6 +117,7 @@
 #include "nsCycleCollector.h"
 #include "xpcpublic.h"
 #include "nsIScriptError.h"
+#include "nsLayoutStatics.h"
 #include "mozilla/Telemetry.h"
 
 #include "mozilla/CORSMode.h"
@@ -337,10 +339,10 @@ GetJSObjectChild(nsWrapperCache* aCache)
 }
 
 static bool
-NeedsScriptTraverse(nsINode* aNode)
+NeedsScriptTraverse(nsWrapperCache* aCache)
 {
-  return aNode->PreservingWrapper() && aNode->GetWrapperPreserveColor() &&
-         !aNode->IsBlackAndDoesNotNeedTracing(aNode);
+  JSObject* o = GetJSObjectChild(aCache);
+  return o && xpc_IsGrayGCThing(o);
 }
 
 //----------------------------------------------------------------------
@@ -356,11 +358,11 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsChildContentList)
 // nsChildContentList only ever has a single child, its wrapper, so if
 // the wrapper is black, the list can't be part of a garbage cycle.
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsChildContentList)
-  return tmp->IsBlack();
+  return !NeedsScriptTraverse(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsChildContentList)
-  return tmp->IsBlackAndDoesNotNeedTracing(tmp);
+  return !NeedsScriptTraverse(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 // CanSkipThis returns false to avoid problems with incomplete unlinking.
@@ -499,6 +501,28 @@ nsNodeSupportsWeakRefTearoff::GetWeakReference(nsIWeakReference** aInstancePtr)
 
   return NS_OK;
 }
+
+//----------------------------------------------------------------------
+
+NS_IMPL_CYCLE_COLLECTION_1(nsTouchEventReceiverTearoff, mElement)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTouchEventReceiverTearoff)
+  NS_INTERFACE_MAP_ENTRY(nsITouchEventReceiver)
+NS_INTERFACE_MAP_END_AGGREGATED(mElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTouchEventReceiverTearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTouchEventReceiverTearoff)
+
+//----------------------------------------------------------------------
+
+NS_IMPL_CYCLE_COLLECTION_1(nsInlineEventHandlersTearoff, mElement)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsInlineEventHandlersTearoff)
+  NS_INTERFACE_MAP_ENTRY(nsIInlineEventHandlers)
+NS_INTERFACE_MAP_END_AGGREGATED(mElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsInlineEventHandlersTearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsInlineEventHandlersTearoff)
 
 //----------------------------------------------------------------------
 FragmentOrElement::nsDOMSlots::nsDOMSlots()
@@ -987,7 +1011,7 @@ FragmentOrElement::DestroyContent()
 
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  ReleaseWrapper(this);
+  nsContentUtils::ReleaseWrapper(this, this);
 
   uint32_t i, count = mAttrsAndChildren.ChildCount();
   for (i = 0; i < count; ++i) {
@@ -1040,19 +1064,21 @@ class ContentUnbinder : public nsRunnable
 public:
   ContentUnbinder()
   {
+    nsLayoutStatics::AddRef();
     mLast = this;
   }
 
   ~ContentUnbinder()
   {
     Run();
+    nsLayoutStatics::Release();
   }
 
   void UnbindSubtree(nsIContent* aNode)
   {
     if (aNode->NodeType() != nsIDOMNode::ELEMENT_NODE &&
         aNode->NodeType() != nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-      return;
+      return;  
     }
     FragmentOrElement* container = static_cast<FragmentOrElement*>(aNode);
     uint32_t childCount = container->mAttrsAndChildren.ChildCount();
@@ -1143,8 +1169,6 @@ FragmentOrElement::ClearContentUnbinder()
 {
   ContentUnbinder::UnbindAll();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(FragmentOrElement)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   nsINode::Unlink(tmp);
@@ -1737,6 +1761,10 @@ NS_INTERFACE_MAP_BEGIN(FragmentOrElement)
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsITouchEventReceiver,
+                                 new nsTouchEventReceiverTearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIInlineEventHandlers,
+                                 new nsInlineEventHandlersTearoff(this))
   // DOM bindings depend on the identity pointer being the
   // same as nsINode (which nsIContent inherits).
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)
@@ -1745,6 +1773,13 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(FragmentOrElement)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(FragmentOrElement,
                                                    nsNodeUtils::LastRelease(this))
+
+nsresult
+FragmentOrElement::PostQueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  return OwnerDoc()->BindingManager()->GetBindingImplementation(this, aIID,
+                                                                aInstancePtr);
+}
 
 //----------------------------------------------------------------------
 

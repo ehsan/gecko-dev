@@ -19,8 +19,8 @@ EXPORTS.mozilla.dom.workers.bindings += [
     'EventListenerManager.h',
     'EventTarget.h',
     'FileReaderSync.h',
-    'Location.h',
-    'Navigator.h',
+    'TextDecoder.h',
+    'TextEncoder.h',
     'URL.h',
     'WorkerFeature.h',
     'XMLHttpRequest.h',
@@ -37,11 +37,14 @@ CPP_SOURCES += [
     'Exceptions.cpp',
     'File.cpp',
     'FileReaderSync.cpp',
+    'ImageData.cpp',
     'Location.cpp',
     'Navigator.cpp',
     'Principal.cpp',
     'RuntimeService.cpp',
     'ScriptLoader.cpp',
+    'TextDecoder.cpp',
+    'TextEncoder.cpp',
     'URL.cpp',
     'Worker.cpp',
     'WorkerPrivate.cpp',
@@ -52,10 +55,4 @@ CPP_SOURCES += [
 ]
 
 LIBRARY_NAME = 'domworkers_s'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
 

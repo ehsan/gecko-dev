@@ -40,8 +40,8 @@ var canon = require('gcli/canon');
 // var assert = require('test/assert');
 var Canon = canon.Canon;
 
-var startCount;
-var events;
+var startCount = undefined;
+var events = undefined;
 
 var canonChange = function(ev) {
   events++;
@@ -217,11 +217,10 @@ exports.testAltCanon = function(options) {
 
   var commandSpecs = altCanon.getCommandSpecs();
   assert.is(JSON.stringify(commandSpecs),
-            '{"tss":{"name":"tss","description":"(No description)","params":[' +
-              '{"name":"str","type":"string","description":"(No description)"},' +
-              '{"name":"num","type":"number","description":"(No description)"},' +
-              '{"name":"opt","type":{"name":"selection","data":["1","2","3"]},"description":"(No description)"}'+
-            '],"isParent":false}}',
+            '{"tss":{"name":"tss","params":[' +
+              '{"name":"str","type":"string"},' +
+              '{"name":"num","type":"number"},' +
+              '{"name":"opt","type":{"name":"selection","data":["1","2","3"]}}]}}',
             'JSON.stringify(commandSpecs)');
 
   var remoter = function(args, context) {

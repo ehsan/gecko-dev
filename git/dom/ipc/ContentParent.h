@@ -25,6 +25,7 @@
 #include "nsNetUtil.h"
 #include "nsIPermissionManager.h"
 #include "nsIDOMGeoPositionCallback.h"
+#include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
@@ -35,7 +36,6 @@
 class mozIApplication;
 class nsConsoleService;
 class nsIDOMBlob;
-class nsIMemoryReporter;
 
 namespace mozilla {
 
@@ -55,7 +55,6 @@ class PCompositorParent;
 
 namespace dom {
 
-class Element;
 class TabParent;
 class PStorageParent;
 class ClonedMessageData;
@@ -104,12 +103,12 @@ public:
      */
     static TabParent*
     CreateBrowserOrApp(const TabContext& aContext,
-                       Element* aFrameElement);
+                       nsIDOMElement* aFrameElement);
 
     static void GetAll(nsTArray<ContentParent*>& aArray);
     static void GetAllEvenIfDead(nsTArray<ContentParent*>& aArray);
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
@@ -144,7 +143,6 @@ public:
     bool IsForApp();
 
     void SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report);
-    void ClearChildMemoryReporters();
 
     GeckoChildProcessHost* Process() {
         return mSubprocess;
@@ -180,8 +178,6 @@ protected:
     void OnChannelConnected(int32_t pid) MOZ_OVERRIDE;
     virtual void ActorDestroy(ActorDestroyReason why);
 
-    bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
-
 private:
     static nsDataHashtable<nsStringHashKey, ContentParent*> *sAppContentParents;
     static nsTArray<ContentParent*>* sNonAppContentParents;
@@ -199,7 +195,7 @@ private:
                                     ChildPrivileges aPrivs,
                                     hal::ProcessPriority aInitialPriority);
 
-    static hal::ProcessPriority GetInitialProcessPriority(Element* aFrameElement);
+    static hal::ProcessPriority GetInitialProcessPriority(nsIDOMElement* aFrameElement);
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
@@ -222,7 +218,7 @@ private:
     // has a pending system message, this function acquires the CPU wake lock on
     // behalf of the child.  We'll release the lock when the system message is
     // handled or after a timeout, whichever comes first.
-    void MaybeTakeCPUWakeLock(Element* aFrameElement);
+    void MaybeTakeCPUWakeLock(nsIDOMElement* aFrameElement);
 
     // Set the child process's priority and then check whether the child is
     // still alive.  Returns true if the process is still alive, and false
@@ -328,9 +324,6 @@ private:
     virtual bool DeallocPBluetoothParent(PBluetoothParent* aActor);
     virtual bool RecvPBluetoothConstructor(PBluetoothParent* aActor);
 
-    virtual PFMRadioParent* AllocPFMRadioParent();
-    virtual bool DeallocPFMRadioParent(PFMRadioParent* aActor);
-
     virtual PSpeechSynthesisParent* AllocPSpeechSynthesisParent();
     virtual bool DeallocPSpeechSynthesisParent(PSpeechSynthesisParent* aActor);
     virtual bool RecvPSpeechSynthesisConstructor(PSpeechSynthesisParent* aActor);
@@ -376,6 +369,10 @@ private:
                                            const nsString& aBidi, const nsString& aLang);
 
     virtual bool RecvCloseAlert(const nsString& aName);
+
+    virtual bool RecvTestPermissionFromPrincipal(const IPC::Principal& aPrincipal,
+                                                 const nsCString& aType,
+                                                 uint32_t* permission);
 
     virtual bool RecvLoadURIExternal(const URIParams& uri);
 
@@ -431,14 +428,7 @@ private:
 
     virtual bool RecvSetFakeVolumeState(const nsString& fsName, const int32_t& fsState) MOZ_OVERRIDE;
 
-    virtual bool RecvKeywordToURI(const nsCString& aKeyword, OptionalInputStreamParams* aPostData,
-                                  OptionalURIParams* aURI);
-
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
-
-    // If you add strong pointers to cycle collected objects here, be sure to
-    // release these objects in ShutDownProcess.  See the comment there for more
-    // details.
 
     GeckoChildProcessHost* mSubprocess;
     base::ChildPrivileges mOSPrivileges;
@@ -477,15 +467,12 @@ private:
     // false, but some previously scheduled IPC traffic may still pass
     // through.
     bool mIsAlive;
-
+    // True after the OS-level shutdown sequence has been initiated.
+    // After going true, any use of this at all, including lingering
+    // IPC traffic passing through, will cause assertions to fail.
+    bool mIsDestroyed;
     bool mSendPermissionUpdates;
     bool mIsForBrowser;
-
-    // These variables track whether we've called Close(), CloseWithError()
-    // and KillHard() on our channel.
-    bool mCalledClose;
-    bool mCalledCloseWithError;
-    bool mCalledKillHard;
 
     friend class CrashReporterParent;
 

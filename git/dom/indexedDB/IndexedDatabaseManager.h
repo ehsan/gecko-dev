@@ -12,7 +12,6 @@
 #include "nsIIndexedDatabaseManager.h"
 #include "nsIObserver.h"
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Mutex.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
@@ -147,7 +146,7 @@ private:
   mozilla::Mutex mFileMutex;
 
   static bool sIsMainProcess;
-  static mozilla::Atomic<int32_t> sLowDiskSpaceMode;
+  static int32_t sLowDiskSpaceMode;
 };
 
 END_INDEXEDDB_NAMESPACE

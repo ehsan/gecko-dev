@@ -52,10 +52,9 @@ public:
 
 private:
     // @param aLang [in] language to use for pref fonts and system default font
-    //        selection, or nullptr for the language guessed from the
-    //        gfxFontStyle.
+    //        selection, or NULL for the language guessed from the gfxFontStyle.
     // The FontGroup holds a reference to this set.
-    gfxFcFontSet *GetFontSet(PangoLanguage *aLang = nullptr);
+    gfxFcFontSet *GetFontSet(PangoLanguage *aLang = NULL);
 
     class FontSetByLangEntry {
     public:
@@ -74,11 +73,11 @@ private:
                        nsIAtom *aLanguage);
 
     // @param aLang [in] language to use for pref fonts and system font
-    //        resolution, or nullptr to guess a language from the gfxFontStyle.
-    // @param aMatchPattern [out] if non-nullptr, will return the pattern used.
+    //        resolution, or NULL to guess a language from the gfxFontStyle.
+    // @param aMatchPattern [out] if non-NULL, will return the pattern used.
     already_AddRefed<gfxFcFontSet>
     MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
-                nsAutoRef<FcPattern> *aMatchPattern = nullptr);
+                nsAutoRef<FcPattern> *aMatchPattern = NULL);
 
     gfxFcFontSet *GetBaseFontSet();
     gfxFcFont *GetBaseFont();

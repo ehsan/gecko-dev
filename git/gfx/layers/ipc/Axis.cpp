@@ -5,17 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Axis.h"
-#include <math.h>                       // for fabsf, pow, powf
-#include <algorithm>                    // for max
-#include "AsyncPanZoomController.h"     // for AsyncPanZoomController
-#include "FrameMetrics.h"               // for FrameMetrics
-#include "mozilla/Attributes.h"         // for MOZ_FINAL
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/gfx/Rect.h"           // for RoundedIn
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsMathUtils.h"                // for NS_lround
-#include "nsThreadUtils.h"              // for NS_DispatchToMainThread, etc
-#include "nscore.h"                     // for NS_IMETHOD
+#include "AsyncPanZoomController.h"
+#include "mozilla/Preferences.h"
+#include "nsThreadUtils.h"
+#include <algorithm>
 
 namespace mozilla {
 namespace layers {
@@ -252,12 +245,12 @@ float Axis::DisplacementWillOverscrollAmount(float aDisplacement) {
   }
 }
 
-Axis::Overscroll Axis::ScaleWillOverscroll(ScreenToScreenScale aScale, float aFocus) {
-  float originAfterScale = (GetOrigin() + aFocus) * aScale.scale - aFocus;
+Axis::Overscroll Axis::ScaleWillOverscroll(float aScale, float aFocus) {
+  float originAfterScale = (GetOrigin() + aFocus) * aScale - aFocus;
 
   bool both = ScaleWillOverscrollBothSides(aScale);
-  bool minus = originAfterScale < GetPageStart() * aScale.scale;
-  bool plus = (originAfterScale + GetCompositionLength()) > GetPageEnd() * aScale.scale;
+  bool minus = originAfterScale < GetPageStart() * aScale;
+  bool plus = (originAfterScale + GetCompositionLength()) > GetPageEnd() * aScale;
 
   if ((minus && plus) || both) {
     return OVERSCROLL_BOTH;
@@ -271,12 +264,12 @@ Axis::Overscroll Axis::ScaleWillOverscroll(ScreenToScreenScale aScale, float aFo
   return OVERSCROLL_NONE;
 }
 
-float Axis::ScaleWillOverscrollAmount(ScreenToScreenScale aScale, float aFocus) {
-  float originAfterScale = (GetOrigin() + aFocus) * aScale.scale - aFocus;
+float Axis::ScaleWillOverscrollAmount(float aScale, float aFocus) {
+  float originAfterScale = (GetOrigin() + aFocus) * aScale - aFocus;
   switch (ScaleWillOverscroll(aScale, aFocus)) {
-  case OVERSCROLL_MINUS: return originAfterScale - GetPageStart() * aScale.scale;
+  case OVERSCROLL_MINUS: return originAfterScale - GetPageStart() * aScale;
   case OVERSCROLL_PLUS: return (originAfterScale + GetCompositionLength()) -
-                               NS_lround(GetPageEnd() * aScale.scale);
+                               NS_lround(GetPageEnd() * aScale);
   // Don't handle OVERSCROLL_BOTH. Client code is expected to deal with it.
   default: return 0;
   }
@@ -319,12 +312,12 @@ float Axis::GetPageLength() {
   return GetRectLength(pageRect);
 }
 
-bool Axis::ScaleWillOverscrollBothSides(ScreenToScreenScale aScale) {
+bool Axis::ScaleWillOverscrollBothSides(float aScale) {
   const FrameMetrics& metrics = mAsyncPanZoomController->GetFrameMetrics();
 
   CSSRect cssContentRect = metrics.mScrollableRect;
 
-  CSSToScreenScale scale = metrics.mZoom * aScale;
+  CSSToScreenScale scale(metrics.mZoom.scale * aScale);
   CSSIntRect cssCompositionBounds = RoundedIn(metrics.mCompositionBounds / scale);
 
   return GetRectLength(cssContentRect) < GetRectLength(CSSRect(cssCompositionBounds));

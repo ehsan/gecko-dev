@@ -6,9 +6,3 @@
 
 MODULE = 'dom'
 
-CPP_UNIT_TESTS += [
-    'TestAudioChannelService.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-

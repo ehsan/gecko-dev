@@ -7,22 +7,18 @@
 #define mozilla_dom_workers_dombindinginlines_h__
 
 #include "mozilla/dom/FileReaderSyncBinding.h"
-#include "mozilla/dom/JSSlots.h"
+#include "mozilla/dom/TextDecoderBinding.h"
+#include "mozilla/dom/TextEncoderBinding.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
-#include "mozilla/dom/WorkerLocationBinding.h"
-#include "mozilla/dom/WorkerNavigatorBinding.h"
-#include "mozilla/dom/URLBinding.h"
-#include "jsfriendapi.h"
 
 BEGIN_WORKERS_NAMESPACE
 
 class FileReaderSync;
+class TextDecoder;
+class TextEncoder;
 class XMLHttpRequest;
 class XMLHttpRequestUpload;
-class WorkerLocation;
-class WorkerNavigator;
-class URL;
 
 namespace {
 
@@ -40,7 +36,7 @@ struct WrapPrototypeTraits
     GetJSClass()                                                               \
     {                                                                          \
       using namespace mozilla::dom;                                            \
-      return _class##Binding_workers::GetJSClass();                            \
+      return _class##Binding_workers::Class.ToJSClass();                       \
     }                                                                          \
                                                                                \
     static inline JSObject*                                                    \
@@ -52,11 +48,10 @@ struct WrapPrototypeTraits
   };
 
 SPECIALIZE_PROTO_TRAITS(FileReaderSync)
+SPECIALIZE_PROTO_TRAITS(TextDecoder)
+SPECIALIZE_PROTO_TRAITS(TextEncoder)
 SPECIALIZE_PROTO_TRAITS(XMLHttpRequest)
 SPECIALIZE_PROTO_TRAITS(XMLHttpRequestUpload)
-SPECIALIZE_PROTO_TRAITS(WorkerLocation)
-SPECIALIZE_PROTO_TRAITS(WorkerNavigator)
-SPECIALIZE_PROTO_TRAITS(URL)
 
 #undef SPECIALIZE_PROTO_TRAITS
 
@@ -69,7 +64,7 @@ Wrap(JSContext* aCx, JSObject* aGlobal, nsRefPtr<T>& aConcreteObject)
   MOZ_ASSERT(aCx);
 
   if (!aGlobal) {
-    aGlobal = JS::CurrentGlobalOrNull(aCx);
+    aGlobal = JS_GetGlobalForScopeChain(aCx);
     if (!aGlobal) {
       return NULL;
     }

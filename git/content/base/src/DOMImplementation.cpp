@@ -8,7 +8,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsIDOMDocument.h"
 #include "DocumentType.h"
 #include "nsTextNode.h"
 

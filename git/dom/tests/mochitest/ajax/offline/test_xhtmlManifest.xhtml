@@ -12,7 +12,8 @@ function manifestUpdated()
 {
   OfflineTest.ok(true, "Application cache updated.");
 
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 if (OfflineTest.setup()) {

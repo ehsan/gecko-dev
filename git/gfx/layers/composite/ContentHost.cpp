@@ -4,26 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/layers/ContentHost.h"
-#include "LayersLogging.h"              // for AppendToString
-#include "gfx2DGlue.h"                  // for ContentForFormat
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/BaseRect.h"       // for BaseRect
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/Effects.h"     // for TexturedEffect, Effect, etc
-#include "mozilla/layers/LayerTransaction.h"  // for ThebesBufferData
-#include "nsAString.h"
-#include "nsPrintfCString.h"            // for nsPrintfCString
-#include "nsString.h"                   // for nsAutoCString
-
-class gfxImageSurface;
+#include "mozilla/layers/Effects.h"
+#include "nsPrintfCString.h"
+#include "gfx2DGlue.h"
 
 namespace mozilla {
-namespace gfx {
-class Matrix4x4;
-}
 using namespace gfx;
-
 namespace layers {
 
 ContentHostBase::ContentHostBase(const TextureInfo& aTextureInfo)
@@ -189,10 +175,13 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
                                           Float(tileRegionRect.width) / texRect.width,
                                           Float(tileRegionRect.height) / texRect.height);
             GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain, aOpacity, aTransform, aOffset);
-            DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT;
-            diagnostics |= usingTiles ? DIAGNOSTIC_BIGIMAGE : 0;
-            diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
-            GetCompositor()->DrawDiagnostics(diagnostics, rect, aClipRect, aTransform, aOffset);
+            if (iterOnWhite) {
+                GetCompositor()->DrawDiagnostics(gfx::Color(0.0,0.0,1.0,1.0),
+                                                 rect, aClipRect, aTransform, aOffset);
+	    } else {
+                GetCompositor()->DrawDiagnostics(gfx::Color(0.0,1.0,0.0,1.0),
+                                                 rect, aClipRect, aTransform, aOffset);
+	    }
         }
       }
     }
@@ -222,8 +211,6 @@ ContentHostBase::SetCompositor(Compositor* aCompositor)
   }
 }
 
-#ifdef MOZ_DUMP_PAINTING
-
 void
 ContentHostBase::Dump(FILE* aFile,
                       const char* aPrefix,
@@ -252,8 +239,6 @@ ContentHostBase::Dump(FILE* aFile,
   }
 
 }
-
-#endif
 
 ContentHostSingleBuffered::~ContentHostSingleBuffered()
 {
@@ -528,7 +513,7 @@ ContentHostIncremental::TextureCreationRequest::Execute(ContentHostIncremental* 
     newHost->SetCompositor(compositor);
   }
   RefPtr<DeprecatedTextureHost> newHostOnWhite;
-  if (mTextureInfo.mTextureFlags & TEXTURE_COMPONENT_ALPHA) {
+  if (mTextureInfo.mTextureFlags & ComponentAlpha) {
     newHostOnWhite =
       DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::TShmem,
                                      mTextureInfo.mDeprecatedTextureHostFlags,
@@ -743,7 +728,6 @@ ContentHostDoubleBuffered::PrintInfo(nsACString& aTo, const char* aPrefix)
 }
 #endif
 
-#ifdef MOZ_DUMP_PAINTING
 void
 ContentHostDoubleBuffered::Dump(FILE* aFile,
                                 const char* aPrefix,
@@ -773,28 +757,6 @@ ContentHostDoubleBuffered::Dump(FILE* aFile,
   }
 
 }
-#endif
-
-LayerRenderState
-ContentHostBase::GetRenderState()
-{
-  LayerRenderState result = mDeprecatedTextureHost->GetRenderState();
-
-  if (mBufferRotation != nsIntPoint()) {
-    result.mFlags |= LAYER_RENDER_STATE_BUFFER_ROTATION;
-  }
-  result.SetOffset(GetOriginOffset());
-  return result;
-}
-
-#ifdef MOZ_DUMP_PAINTING
-already_AddRefed<gfxImageSurface>
-ContentHostBase::GetAsSurface()
-{
-  return mDeprecatedTextureHost->GetAsSurface();
-}
-#endif
-
 
 } // namespace
 } // namespace

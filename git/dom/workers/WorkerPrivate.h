@@ -15,6 +15,7 @@
 #include "nsIThreadInternal.h"
 #include "nsPIDOMWindow.h"
 
+#include "jsapi.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
@@ -40,6 +41,7 @@ class nsIScriptContext;
 class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
+class nsIXPCScriptNotify;
 
 namespace JS {
 class RuntimeStats;
@@ -63,7 +65,7 @@ protected:
   ClearingBehavior mClearingBehavior;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   bool
   Dispatch(JSContext* aCx);
@@ -107,6 +109,8 @@ protected:
 
   virtual void
   PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult);
+
+  void NotifyScriptExecutedIfNeeded() const;
 
 public:
   NS_DECL_NSIRUNNABLE
@@ -263,6 +267,7 @@ private:
   // Main-thread things.
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsIXPCScriptNotify> mScriptNotify;
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -459,6 +464,13 @@ public:
   {
     AssertIsOnMainThread();
     return mScriptContext;
+  }
+
+  nsIXPCScriptNotify*
+  GetScriptNotify() const
+  {
+    AssertIsOnMainThread();
+    return mScriptNotify;
   }
 
   JSObject*
@@ -897,6 +909,10 @@ private:
                 nsCOMPtr<nsIContentSecurityPolicy>& aCSP, bool aEvalAllowed,
                 bool aReportCSPViolations, bool aXHRParamsAllowed);
 
+  static bool
+  GetContentSecurityPolicy(JSContext *aCx,
+                           nsIContentSecurityPolicy** aCsp);
+
   bool
   Dispatch(WorkerRunnable* aEvent, EventQueue* aQueue);
 
@@ -967,9 +983,6 @@ private:
 
 WorkerPrivate*
 GetWorkerPrivateFromContext(JSContext* aCx);
-
-bool
-IsCurrentThreadRunningChromeWorker();
 
 enum WorkerStructuredDataType
 {

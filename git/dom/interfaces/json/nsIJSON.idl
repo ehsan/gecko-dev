@@ -9,12 +9,8 @@ interface nsIInputStream;
 interface nsIOutputStream;
 interface nsIScriptGlobalObject;
 
-[ptr] native JSValPtr(JS::Value);
+[ptr] native JSValPtr(jsval);
 [ptr] native JSContext(JSContext);
-
-%{C++
-#include "js/TypeDecls.h"
-%}
 
 /**
  * Don't use this!  Use JSON.parse and JSON.stringify directly.

@@ -78,7 +78,7 @@ ConvertCloneReadInfosToArrayInternal(
         return NS_ERROR_DOM_DATA_CLONE_ERR;
       }
 
-      if (!JS_SetElement(aCx, array, index, &val)) {
+      if (!JS_SetElement(aCx, array, index, val.address())) {
         NS_WARNING("Failed to set array element!");
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
@@ -119,8 +119,7 @@ HelperBase::WrapNative(JSContext* aCx,
   NS_ASSERTION(aResult.address(), "Null pointer!");
   NS_ASSERTION(mRequest, "Null request!");
 
-  nsRefPtr<IDBWrapperCache> wrapper = static_cast<IDBWrapperCache*>(mRequest);
-  JS::Rooted<JSObject*> global(aCx, wrapper->GetParentObject());
+  JS::Rooted<JSObject*> global(aCx, mRequest->GetParentObject());
   NS_ASSERTION(global, "This should never be null!");
 
   nsresult rv =
@@ -174,10 +173,11 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
 
     if (mainThread) {
       if (database) {
-        NS_ProxyRelease(mainThread, static_cast<IDBWrapperCache*>(database));
+        NS_ProxyRelease(mainThread, static_cast<nsIIDBDatabase*>(database));
       }
       if (transaction) {
-        NS_ProxyRelease(mainThread, static_cast<IDBWrapperCache*>(transaction));
+        NS_ProxyRelease(mainThread,
+                        static_cast<nsIIDBTransaction*>(transaction));
       }
     }
   }
@@ -185,8 +185,8 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
   NS_ASSERTION(!mOldProgressHandler, "Should not have anything here!");
 }
 
-NS_IMPL_ISUPPORTS2(AsyncConnectionHelper, nsIRunnable,
-                   mozIStorageProgressHandler)
+NS_IMPL_THREADSAFE_ISUPPORTS2(AsyncConnectionHelper, nsIRunnable,
+                                                     mozIStorageProgressHandler)
 
 NS_IMETHODIMP
 AsyncConnectionHelper::Run()

@@ -3,12 +3,25 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 # Solaris sh blows
 ifeq ($(OS_ARCH),SunOS)
 SHELL := ksh
 endif
 
+LIBRARY_NAME	= gklayout
+MSVC_ENABLE_PGO := 1
 EXPORT_LIBRARY = 1
+LIBXUL_LIBRARY	= 1
+FAIL_ON_WARNINGS = 1
+
+
 SHARED_LIBRARY_LIBS = \
 	../base/$(LIB_PREFIX)gkbase_s.$(LIB_SUFFIX) \
 	../forms/$(LIB_PREFIX)gkforms_s.$(LIB_SUFFIX) \
@@ -115,8 +128,7 @@ endif #}
 
 ifdef MOZ_B2G_FM #{
 SHARED_LIBRARY_LIBS	+= \
-  $(DEPTH)/dom/fmradio/$(LIB_PREFIX)domfmradio_s.$(LIB_SUFFIX) \
-  $(DEPTH)/dom/fmradio/ipc/$(LIB_PREFIX)domfmradio_s.$(LIB_SUFFIX) \
+  $(DEPTH)/dom/fm/$(LIB_PREFIX)domfm_s.$(LIB_SUFFIX) \
   $(NULL)
 endif #}
 
@@ -157,12 +169,6 @@ endif
 ifdef MOZ_WMF
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/wmf/$(LIB_PREFIX)gkconwmf_s.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
-ifdef MOZ_DIRECTSHOW
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/directshow/$(LIB_PREFIX)gkcondirectshow_s.$(LIB_SUFFIX) \
 	$(NULL)
 endif
 
@@ -247,6 +253,10 @@ SHARED_LIBRARY_LIBS += \
 		$(DEPTH)/content/smil/$(LIB_PREFIX)gkconsmil_s.$(LIB_SUFFIX) \
 		$(NULL)
 
+ifdef ENABLE_EDITOR_API_LOG
+DEFINES += -DENABLE_EDITOR_API_LOG
+endif
+
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/js/xpconnect/src/$(LIB_PREFIX)xpconnect_s.$(LIB_SUFFIX)
 
@@ -261,6 +271,7 @@ SHARED_LIBRARY_LIBS += \
   $(DEPTH)/dom/gamepad/$(LIB_PREFIX)domgamepad_s.$(LIB_SUFFIX)
 endif
 
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
@@ -320,7 +331,7 @@ LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/system/gonk
 endif #}
 
 ifdef MOZ_B2G_FM #{
-LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/fmradio
+LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/fm
 endif #}
 
 ifdef MOZ_B2G_BT #{
@@ -332,3 +343,5 @@ LOCAL_INCLUDES	+= -I$(topsrcdir)/content/media/webspeech/synth
 endif #}
 
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/camera
+
+DEFINES += -D_IMPL_NS_LAYOUT

@@ -77,16 +77,11 @@ function test() {
   var gNumSet = 0;
   function testOnWindow(options, callback) {
     var win = OpenBrowserWindow(options);
-    whenDelayedStartupFinished(win, () => callback(win));
-  }
-
-  function whenDelayedStartupFinished(aWindow, aCallback) {
-    Services.obs.addObserver(function observer(aSubject, aTopic) {
-      if (aWindow == aSubject) {
-        Services.obs.removeObserver(observer, aTopic);
-        executeSoon(aCallback);
-      }
-    }, "browser-delayed-startup-finished", false);
+    win.addEventListener("load", function onLoad() {
+      win.removeEventListener("load", onLoad, false);
+      windowsToClose.push(win);
+      executeSoon(function() callback(win));
+    }, false);
   }
 
   mockTransferRegisterer.register();

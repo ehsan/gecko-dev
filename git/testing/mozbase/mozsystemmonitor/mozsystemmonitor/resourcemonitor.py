@@ -6,10 +6,9 @@ import multiprocessing
 import sys
 import time
 
-# psutil will raise NotImplementedError if the platform is not supported.
 try:
     import psutil
-except Exception:
+except ImportError:
     psutil = None
 
 from collections import (

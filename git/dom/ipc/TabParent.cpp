@@ -41,9 +41,6 @@
 #include "nsIURI.h"
 #include "nsIMozBrowserFrame.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsIWebBrowserChrome.h"
-#include "nsIXULBrowserWindow.h"
-#include "nsIXULWindow.h"
 #include "nsViewManager.h"
 #include "nsIWidget.h"
 #include "nsIWindowWatcher.h"
@@ -220,7 +217,7 @@ TabParent::~TabParent()
 }
 
 void
-TabParent::SetOwnerElement(Element* aElement)
+TabParent::SetOwnerElement(nsIDOMElement* aElement)
 {
   mFrameElement = aElement;
   TryCacheDPIAndScale();
@@ -297,16 +294,12 @@ TabParent::ActorDestroy(ActorDestroyReason why)
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   if (frameLoader) {
-    nsCOMPtr<Element> frameElement(mFrameElement);
     ReceiveMessage(CHILD_PROCESS_SHUTDOWN_MESSAGE, false, nullptr, nullptr);
     frameLoader->DestroyChild();
 
     if (why == AbnormalShutdown && os) {
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, frameLoader),
                           "oop-frameloader-crashed", nullptr);
-      nsContentUtils::DispatchTrustedEvent(frameElement->OwnerDoc(), frameElement,
-                                           NS_LITERAL_STRING("oop-browser-crashed"),
-                                           true, true);
     }
   }
 
@@ -323,8 +316,7 @@ TabParent::RecvMoveFocus(const bool& aForward)
     nsCOMPtr<nsIDOMElement> dummy;
     uint32_t type = aForward ? uint32_t(nsIFocusManager::MOVEFOCUS_FORWARD)
                              : uint32_t(nsIFocusManager::MOVEFOCUS_BACKWARD);
-    nsCOMPtr<nsIDOMElement> frame = do_QueryInterface(mFrameElement);
-    fm->MoveFocus(nullptr, frame, type, nsIFocusManager::FLAG_BYKEY,
+    fm->MoveFocus(nullptr, mFrameElement, type, nsIFocusManager::FLAG_BYKEY, 
                   getter_AddRefs(dummy));
   }
   return true;
@@ -603,39 +595,6 @@ TabParent::SendKeyEvent(const nsAString& aType,
   }
 }
 
-bool
-TabParent::MapEventCoordinatesForChildProcess(nsEvent* aEvent)
-{
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (!frameLoader) {
-    return false;
-  }
-  LayoutDeviceIntPoint offset = nsEventStateManager::GetChildProcessOffset(frameLoader, *aEvent);
-  MapEventCoordinatesForChildProcess(offset, aEvent);
-  return true;
-}
-
-void
-TabParent::MapEventCoordinatesForChildProcess(
-  const LayoutDeviceIntPoint& aOffset, nsEvent* aEvent)
-{
-  if (aEvent->eventStructType != NS_TOUCH_EVENT) {
-    aEvent->refPoint = aOffset;
-  } else {
-    aEvent->refPoint = LayoutDeviceIntPoint();
-    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
-    // Then offset all the touch points by that distance, to put them
-    // in the space where top-left is 0,0.
-    const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
-    for (uint32_t i = 0; i < touches.Length(); ++i) {
-      Touch* touch = touches[i];
-      if (touch) {
-        touch->mRefPoint += LayoutDeviceIntPoint::ToUntyped(aOffset);
-      }
-    }
-  }
-}
-
 bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
 {
   if (mIsDestroyed) {
@@ -643,9 +602,6 @@ bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
   }
   nsMouseEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
-  if (!MapEventCoordinatesForChildProcess(&e)) {
-    return false;
-  }
   return PBrowserParent::SendRealMouseEvent(e);
 }
 
@@ -656,9 +612,6 @@ bool TabParent::SendMouseWheelEvent(WheelEvent& event)
   }
   WheelEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
-  if (!MapEventCoordinatesForChildProcess(&e)) {
-    return false;
-  }
   return PBrowserParent::SendMouseWheelEvent(event);
 }
 
@@ -669,9 +622,6 @@ bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
   }
   nsKeyEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
-  if (!MapEventCoordinatesForChildProcess(&e)) {
-    return false;
-  }
   return PBrowserParent::SendRealKeyEvent(e);
 }
 
@@ -714,9 +664,6 @@ bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
   }
 
   MaybeForwardEventToRenderFrame(event, &e);
-
-  MapEventCoordinatesForChildProcess(mChildProcessOffsetAtTouchStart, &e);
-
   return (e.message == NS_TOUCH_MOVE) ?
     PBrowserParent::SendRealTouchMoveEvent(e) :
     PBrowserParent::SendRealTouchEvent(e);
@@ -752,6 +699,9 @@ TabParent::TryCapture(const nsGUIEvent& aEvent)
     }
     return false;
   }
+
+  nsEventStateManager::MapEventCoordinatesForChildProcess(
+    mChildProcessOffsetAtTouchStart, &event);
 
   SendRealTouchEvent(event);
   return true;
@@ -793,42 +743,6 @@ TabParent::RecvSetBackgroundColor(const nscolor& aColor)
 {
   if (RenderFrameParent* frame = GetRenderFrame()) {
     frame->SetBackgroundColor(aColor);
-  }
-  return true;
-}
-
-bool
-TabParent::RecvSetStatus(const uint32_t& aType, const nsString& aStatus)
-{
-  nsCOMPtr<nsIContent> frame = do_QueryInterface(mFrameElement);
-  if (frame) {
-    nsCOMPtr<nsISupports> container = frame->OwnerDoc()->GetContainer();
-    if (!container)
-      return true;
-    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
-    if (!docShell)
-      return true;
-    nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-    docShell->GetTreeOwner(getter_AddRefs(treeOwner));
-    if (!treeOwner)
-      return true;
-
-    nsCOMPtr<nsIXULWindow> window = do_GetInterface(treeOwner);
-    if (window) {
-      nsCOMPtr<nsIXULBrowserWindow> xulBrowserWindow;
-      window->GetXULBrowserWindow(getter_AddRefs(xulBrowserWindow));
-      if (xulBrowserWindow) {
-        switch (aType)
-        {
-        case nsIWebBrowserChrome::STATUS_SCRIPT:
-          xulBrowserWindow->SetJSStatus(aStatus);
-          break;
-        case nsIWebBrowserChrome::STATUS_LINK:
-          xulBrowserWindow->SetOverLink(aStatus, nullptr);
-          break;
-        }
-      }
-    }
   }
   return true;
 }
@@ -1328,8 +1242,9 @@ TabParent::HandleDelayedDialogs()
 {
   nsCOMPtr<nsIWindowWatcher> ww = do_GetService(NS_WINDOWWATCHER_CONTRACTID);
   nsCOMPtr<nsIDOMWindow> window;
-  if (mFrameElement) {
-    window = do_QueryInterface(mFrameElement->OwnerDoc()->GetWindow());
+  nsCOMPtr<nsIContent> frame = do_QueryInterface(mFrameElement);
+  if (frame) {
+    window = do_QueryInterface(frame->OwnerDoc()->GetWindow());
   }
   nsCOMPtr<nsIDialogCreator> dialogCreator = do_QueryInterface(mBrowserDOMWindow);
   while (!ShouldDelayDialogs() && mDelayedDialogs.Length()) {
@@ -1340,10 +1255,9 @@ TabParent::HandleDelayedDialogs()
     params.swap(data->mParams);
     PContentDialogParent* dialog = data->mDialog;
     if (dialogCreator) {
-      nsCOMPtr<nsIDOMElement> frame = do_QueryInterface(mFrameElement);
       dialogCreator->OpenDialog(data->mType,
                                 data->mName, data->mFeatures,
-                                params, frame);
+                                params, mFrameElement);
     } else if (ww) {
       nsAutoCString url;
       if (data->mType) {
@@ -1372,7 +1286,7 @@ TabParent::HandleDelayedDialogs()
     }
   }
   if (ShouldDelayDialogs() && mDelayedDialogs.Length()) {
-    nsContentUtils::DispatchTrustedEvent(mFrameElement->OwnerDoc(), mFrameElement,
+    nsContentUtils::DispatchTrustedEvent(frame->OwnerDoc(), frame,
                                          NS_LITERAL_STRING("MozDelayedModalDialog"),
                                          true, true);
   }
@@ -1474,7 +1388,11 @@ TabParent::TryCacheDPIAndScale()
   if (!widget && mFrameElement) {
     // Even if we don't have a widget (e.g. because we're display:none), there's
     // probably a widget somewhere in the hierarchy our frame element lives in.
-    widget = nsContentUtils::WidgetForDocument(mFrameElement->OwnerDoc());
+    nsCOMPtr<nsIDOMDocument> ownerDoc;
+    mFrameElement->GetOwnerDocument(getter_AddRefs(ownerDoc));
+
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(ownerDoc);
+    widget = nsContentUtils::WidgetForDocument(doc);
   }
 
   if (widget) {
@@ -1556,22 +1474,11 @@ TabParent::RecvZoomToRect(const CSSRect& aRect)
 
 bool
 TabParent::RecvUpdateZoomConstraints(const bool& aAllowZoom,
-                                     const CSSToScreenScale& aMinZoom,
-                                     const CSSToScreenScale& aMaxZoom)
+                                     const float& aMinZoom,
+                                     const float& aMaxZoom)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->UpdateZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
-  }
-  return true;
-}
-
-bool
-TabParent::RecvUpdateScrollOffset(const uint32_t& aPresShellId,
-                                  const ViewID& aViewId,
-                                  const CSSIntPoint& aScrollOffset)
-{
-  if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->UpdateScrollOffset(aPresShellId, aViewId, aScrollOffset);
   }
   return true;
 }

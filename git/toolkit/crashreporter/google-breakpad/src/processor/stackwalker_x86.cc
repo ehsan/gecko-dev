@@ -132,8 +132,7 @@ StackFrame* StackwalkerX86::GetContextFrame() {
 
 StackFrameX86* StackwalkerX86::GetCallerByWindowsFrameInfo(
     const vector<StackFrame*> &frames,
-    WindowsFrameInfo* last_frame_info,
-    bool stack_scan_allowed) {
+    WindowsFrameInfo* last_frame_info) {
   StackFrame::FrameTrust trust = StackFrame::FRAME_TRUST_NONE;
 
   StackFrameX86* last_frame = static_cast<StackFrameX86*>(frames.back());
@@ -341,8 +340,7 @@ StackFrameX86* StackwalkerX86::GetCallerByWindowsFrameInfo(
     // frame pointer.
     uint32_t location_start = last_frame->context.esp;
     uint32_t location, eip;
-    if (!stack_scan_allowed
-        || !ScanForReturnAddress(location_start, &location, &eip)) {
+    if (!ScanForReturnAddress(location_start, &location, &eip)) {
       // if we can't find an instruction pointer even with stack scanning,
       // give up.
       return NULL;
@@ -385,8 +383,7 @@ StackFrameX86* StackwalkerX86::GetCallerByWindowsFrameInfo(
       // looking one 32-bit word above that location.
       uint32_t location_start = dictionary.get(ustr__ZDraSearchStart()) + 4;
       uint32_t location;
-      if (stack_scan_allowed
-          && ScanForReturnAddress(location_start, &location, &eip)) {
+      if (ScanForReturnAddress(location_start, &location, &eip)) {
         // This is a better return address that what program string
         // evaluation found.  Use it, and set %esp to the location above the
         // one where the return address was found.
@@ -494,8 +491,7 @@ StackFrameX86* StackwalkerX86::GetCallerByCFIFrameInfo(
 }
 
 StackFrameX86* StackwalkerX86::GetCallerByEBPAtBase(
-    const vector<StackFrame*> &frames,
-    bool stack_scan_allowed) {
+    const vector<StackFrame*> &frames) {
   StackFrame::FrameTrust trust;
   StackFrameX86* last_frame = static_cast<StackFrameX86*>(frames.back());
   uint32_t last_esp = last_frame->context.esp;
@@ -536,8 +532,7 @@ StackFrameX86* StackwalkerX86::GetCallerByEBPAtBase(
     // return address. This can happen if last_frame is executing code
     // for a module for which we don't have symbols, and that module
     // is compiled without a frame pointer.
-    if (!stack_scan_allowed
-        || !ScanForReturnAddress(last_esp, &caller_esp, &caller_eip)) {
+    if (!ScanForReturnAddress(last_esp, &caller_esp, &caller_eip)) {
       // if we can't find an instruction pointer even with stack scanning,
       // give up.
       return NULL;
@@ -568,8 +563,7 @@ StackFrameX86* StackwalkerX86::GetCallerByEBPAtBase(
   return frame;
 }
 
-StackFrame* StackwalkerX86::GetCallerFrame(const CallStack* stack,
-                                           bool stack_scan_allowed) {
+StackFrame* StackwalkerX86::GetCallerFrame(const CallStack* stack) {
   if (!memory_ || !stack) {
     BPLOG(ERROR) << "Can't get caller frame without memory or stack";
     return NULL;
@@ -583,8 +577,7 @@ StackFrame* StackwalkerX86::GetCallerFrame(const CallStack* stack,
   WindowsFrameInfo* windows_frame_info
       = frame_symbolizer_->FindWindowsFrameInfo(last_frame);
   if (windows_frame_info)
-    new_frame.reset(GetCallerByWindowsFrameInfo(frames, windows_frame_info,
-                                                stack_scan_allowed));
+    new_frame.reset(GetCallerByWindowsFrameInfo(frames, windows_frame_info));
 
   // If the resolver has DWARF CFI information, use that.
   if (!new_frame.get()) {
@@ -596,7 +589,7 @@ StackFrame* StackwalkerX86::GetCallerFrame(const CallStack* stack,
 
   // Otherwise, hope that the program was using a traditional frame structure.
   if (!new_frame.get())
-    new_frame.reset(GetCallerByEBPAtBase(frames, stack_scan_allowed));
+    new_frame.reset(GetCallerByEBPAtBase(frames));
 
   // If nothing worked, tell the caller.
   if (!new_frame.get())

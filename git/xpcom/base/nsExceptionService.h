@@ -6,7 +6,6 @@
 #ifndef nsExceptionService_h__
 #define nsExceptionService_h__
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
 
@@ -22,7 +21,7 @@ class nsExceptionManager;
 class nsExceptionService MOZ_FINAL : public nsIExceptionService, public nsIObserver
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIEXCEPTIONSERVICE
   NS_DECL_NSIEXCEPTIONMANAGER
   NS_DECL_NSIOBSERVER
@@ -44,13 +43,16 @@ public:
   static void DropAllThreads();
   static nsExceptionManager *firstThread;
 
-  /* Protects the thread list. */
+  nsSupportsHashtable mProviders;
+
+  /* single lock protects both providers hashtable
+     and thread list */
   static mozilla::Mutex* sLock;
 
   static unsigned tlsIndex;
   static void ThreadDestruct( void *data );
 #ifdef DEBUG
-  static mozilla::Atomic<int32_t> totalInstances;
+  static int32_t totalInstances;
 #endif
 
 private:

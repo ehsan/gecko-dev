@@ -12,6 +12,3 @@ CPP_SOURCES += [
     'Converters.cpp',
     'TestStreamConv.cpp',
 ]
-
-FAIL_ON_WARNINGS = True
-

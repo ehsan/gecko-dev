@@ -19,8 +19,9 @@
 #include "nsIHTMLCollection.h"
 #include "nsHashKeys.h"
 #include "nsRefPtrHashtable.h"
-#include "nsGenericHTMLElement.h"
+#include "jsapi.h"
 
+class nsGenericHTMLElement;
 class nsIDocument;
 class nsINode;
 
@@ -116,7 +117,7 @@ protected:
   nsRefPtrHashtable<nsStringHashKey, PropertyNodeList> mNamedItemEntries;
 
   // The element this collection is rooted at
-  nsRefPtr<nsGenericHTMLElement> mRoot;
+  nsCOMPtr<nsGenericHTMLElement> mRoot;
 
   // The document mRoot is in, if any
   nsCOMPtr<nsIDocument> mDoc;

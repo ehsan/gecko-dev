@@ -31,10 +31,9 @@ data_path = os.path.join(data_path, 'data')
 
 class TestEmitterBasic(unittest.TestCase):
     def reader(self, name):
-        config = MockConfig(os.path.join(data_path, name), extra_substs=dict(
-            ENABLE_TESTS='1',
-            BIN_SUFFIX='.prog',
-        ))
+        config = MockConfig(os.path.join(data_path, name))
+        config.substs['ENABLE_TESTS'] = '1'
+        config.substs['BIN_SUFFIX'] = '.prog'
 
         return BuildReader(config)
 
@@ -130,34 +129,26 @@ class TestEmitterBasic(unittest.TestCase):
             ASFILES=['fans.asm', 'tans.s'],
             CMMSRCS=['fans.mm', 'tans.mm'],
             CSRCS=['fans.c', 'tans.c'],
-            CPP_UNIT_TESTS=['foo.cpp'],
             DEFINES=['-Dfans', '-Dtans'],
-            EXPORT_LIBRARY=True,
             EXTRA_COMPONENTS=['fans.js', 'tans.js'],
             EXTRA_PP_COMPONENTS=['fans.pp.js', 'tans.pp.js'],
-            EXTRA_JS_MODULES=['bar.jsm', 'foo.jsm'],
-            EXTRA_PP_JS_MODULES=['bar.pp.jsm', 'foo.pp.jsm'],
-            FAIL_ON_WARNINGS=True,
-            FORCE_SHARED_LIB=True,
-            FORCE_STATIC_LIB=True,
             GTEST_CSRCS=['test1.c', 'test2.c'],
             GTEST_CMMSRCS=['test1.mm', 'test2.mm'],
             GTEST_CPPSRCS=['test1.cpp', 'test2.cpp'],
             HOST_CPPSRCS=['fans.cpp', 'tans.cpp'],
             HOST_CSRCS=['fans.c', 'tans.c'],
             HOST_LIBRARY_NAME='host_fans',
-            IS_COMPONENT=True,
             LIBRARY_NAME='lib_name',
             LIBS=['fans.lib', 'tans.lib'],
-            LIBXUL_LIBRARY=True,
-            MSVC_ENABLE_PGO=True,
-            NO_DIST_INSTALL=True,
-            MODULE='module_name',
+            NO_DIST_INSTALL='1',
             SDK_LIBRARY=['fans.sdk', 'tans.sdk'],
             SHARED_LIBRARY_LIBS=['fans.sll', 'tans.sll'],
             SIMPLE_PROGRAMS=['fans.x', 'tans.x'],
             SSRCS=['fans.S', 'tans.S'],
-        )
+            XPIDLSRCS=['bar.idl', 'biz.idl', 'foo.idl'],
+            XPIDL_MODULE='module_name',
+            XPIDL_FLAGS=['-Idir1', '-Idir2', '-Idir3'],
+            )
 
         variables = objs[1].variables
         self.assertEqual(len(variables), len(wanted))

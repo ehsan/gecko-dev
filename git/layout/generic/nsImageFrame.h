@@ -18,16 +18,19 @@
 #include "imgIContainer.h"
 #include "mozilla/Attributes.h"
 
+class nsIFrame;
 class nsImageMap;
 class nsIURI;
 class nsILoadGroup;
 struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
+struct nsSize;
 class nsDisplayImage;
 class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
 class nsImageLoadingContent;
+class imgRequestProxy;
 
 namespace mozilla {
 namespace layers {
@@ -113,7 +116,7 @@ public:
   void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
 #endif
 
-  virtual int GetSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const MOZ_OVERRIDE;
 
   nsresult GetIntrinsicImageSize(nsSize& aSize);
 
@@ -277,7 +280,6 @@ private:
 
   nsCOMPtr<imgINotificationObserver> mListener;
 
-  nsCOMPtr<imgIContainer> mImage;
   nsSize mComputedSize;
   nsIFrame::IntrinsicSize mIntrinsicSize;
   nsSize mIntrinsicRatio;

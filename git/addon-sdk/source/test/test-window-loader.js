@@ -1,14 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-'use strict';
-
-// Opening new windows in Fennec causes issues
-module.metadata = {
-  engines: {
-    'Firefox': '*'
-  }
-};
+"use strict";
 
 const { WindowLoader } = require('sdk/windows/loader'),
       { Trait } = require('sdk/deprecated/traits');
@@ -31,76 +24,91 @@ const Loader = Trait.compose(
   }
 );
 
-exports['test compositions with missing required properties'] = function(assert) {
-  assert.throws(
+exports['test compositions with missing required properties'] = function(test) {
+  test.assertRaises(
     function() WindowLoader.compose({})(),
-    /Missing required property: _onLoad/,
+    'Missing required property: _onLoad',
     'should throw missing required property exception'
   );
-  assert.throws(
+  test.assertRaises(
     function() WindowLoader.compose({ _onLoad: null, _tabOptions: null })(),
-    /Missing required property: _onUnload/,
+    'Missing required property: _onUnload',
     'should throw missing required property `_onUnload`'
   );
-  assert.throws(
+  test.assertRaises(
     function() WindowLoader.compose({ _onUnload: null, _tabOptions: null })(),
-    /Missing required property: _onLoad/,
+    'Missing required property: _onLoad',
     'should throw missing required property `_onLoad`'
   );
-  assert.throws(
+  test.assertRaises(
     function() WindowLoader.compose({ _onUnload: null, _onLoad: null })(),
-    /Missing required property: _tabOptions/,
+    'Missing required property: _tabOptions',
     'should throw missing required property `_tabOptions`'
   );
 };
 
-exports['test `load` events'] = function(assert, done) {
+exports['test `load` events'] = function(test) {
+  test.waitUntilDone();
   let onLoadCalled = false;
   Loader({
     onLoad: function(window) {
       onLoadCalled = true;
-      assert.equal(window, this._window, 'windows should match');
-      assert.equal(
+      test.assertEqual(
+        window, this._window, 'windows should match'
+      );
+      test.assertEqual(
         window.document.readyState, 'complete', 'window must be fully loaded'
       );
       window.close();
     },
     onUnload: function(window) {
-      assert.equal(window, this._window, 'windows should match');
-      assert.equal(
+      test.assertEqual(
+        window, this._window, 'windows should match'
+      );
+      test.assertEqual(
         window.document.readyState, 'complete', 'window must be fully loaded'
       );
-      assert.ok(onLoadCalled, 'load callback is supposed to be called');
-      done();
+      test.assert(onLoadCalled, 'load callback is supposed to be called');
+      test.done();
     }
   });
 };
 
-exports['test removeing listeners'] = function(assert, done) {
+exports['test removeing listeners'] = function(test) {
+  test.waitUntilDone();
   Loader({
     onLoad: function(window) {
-      assert.equal(window, this._window, 'windows should match');
+      test.assertEqual(
+        window, this._window, 'windows should match'
+      );
       window.close();
     },
-    onUnload: done
+    onUnload: function(window) {
+      test.done();
+    }
   });
 };
 
-exports['test create loader from opened window'] = function(assert, done) {
+exports['test create loader from opened window'] = function(test) {
+  test.waitUntilDone();
   let onUnloadCalled = false;
   Loader({
     onLoad: function(window) {
-      assert.equal(window, this._window, 'windows should match');
-      assert.equal(window.document.readyState, 'complete', 'window must be fully loaded');
+      test.assertEqual(
+        window, this._window, 'windows should match'
+      );
+      test.assertEqual(
+        window.document.readyState, 'complete', 'window must be fully loaded'
+      );
       Loader({
         window: window,
         onLoad: function(win) {
-          assert.equal(win, window, 'windows should match');
+          test.assertEqual(win, window, 'windows should match');
           window.close();
         },
         onUnload: function(window) {
-          assert.ok(onUnloadCalled, 'first handler should be called already');
-          done();
+          test.assert(onUnloadCalled, 'first handler should be called already');
+          test.done();
         }
       });
     },
@@ -110,4 +118,13 @@ exports['test create loader from opened window'] = function(assert, done) {
   });
 };
 
-require('sdk/test').run(exports);
+if (require("sdk/system/xul-app").is("Fennec")) {
+
+  module.exports = {
+    "test Unsupported Test": function UnsupportedTest (test) {
+        test.pass(
+          "Skipping this test until Fennec support is implemented." +
+          "See bug 809409");
+    }
+  }
+}

@@ -18,15 +18,6 @@ ul.children:not([expanded]) {
   display: inline-block;
   width: 1em;
   height: 1ex;
-  margin-right: -1em;
-}
-
-.newattr:focus {
-  margin-right: 0;
-}
-
-.closing-bracket {
-  pointer-events: none;
 }
 
 .summary {
@@ -35,6 +26,10 @@ ul.children:not([expanded]) {
 
 .summary[expanded] {
   display: none;
+}
+
+#root {
+  margin-right: 80px;
 }
 
 /* Preview */

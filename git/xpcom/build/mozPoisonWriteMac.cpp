@@ -9,7 +9,6 @@
 #include "mozilla/Util.h"
 #include "nsTraceRefcntImpl.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Telemetry.h"

@@ -6,26 +6,30 @@
 #ifndef GFX_BASICCANVASLAYER_H
 #define GFX_BASICCANVASLAYER_H
 
-#include "BasicImplData.h"              // for BasicImplData
-#include "BasicLayers.h"                // for BasicLayerManager
-#include "CopyableCanvasLayer.h"        // for CopyableCanvasLayer
-#include "Layers.h"                     // for CanvasLayer, etc
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsRegion.h"                   // for nsIntRegion
+#include "BasicLayersImpl.h"
+#include "nsXULAppAPI.h"
+#include "BasicLayers.h"
+#include "BasicImplData.h"
+#include "mozilla/layers/CanvasClient.h"
+#include "mozilla/Preferences.h"
+#include "CopyableCanvasLayer.h"
 
-class gfxContext;
+#include "gfxPlatform.h"
+
 using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
+
+class CanvasClient2D;
+class CanvasClientWebGL;
 
 class BasicCanvasLayer : public CopyableCanvasLayer,
                          public BasicImplData
 {
 public:
   BasicCanvasLayer(BasicLayerManager* aLayerManager) :
-    CopyableCanvasLayer(aLayerManager,
-                        static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    CopyableCanvasLayer(aLayerManager, static_cast<BasicImplData*>(this))
   { }
   
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)

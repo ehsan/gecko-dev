@@ -77,9 +77,10 @@ var WebrtcUI = {
     let { windowID: windowID, callID: callID } = JSON.parse(aData);
 
     let contentWindow = Services.wm.getOuterWindowWithId(windowID);
+    let browser = BrowserApp.getBrowserForWindow(contentWindow);
     let params = aSubject.QueryInterface(Ci.nsIMediaStreamOptions);
 
-    Services.wm.getMostRecentWindow(null).navigator.mozGetUserMediaDevices(
+    browser.ownerDocument.defaultView.navigator.mozGetUserMediaDevices(
       function (devices) {
         WebrtcUI.prompt(windowID, callID, params.audio, params.video, devices);
       },

@@ -7,7 +7,16 @@
 #ifndef WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_DSHOWTOOLS_H_
 #define WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_DSHOWTOOLS_H_
 
-#include <assert.h>
+#define NS_IF_ADDREF(expr) \
+  if (expr) { \
+    (expr)->AddRef(); \
+  }
+
+
+#define NS_IF_RELEASE(expr) \
+  if (expr) { \
+    (expr)->Release(); \
+  }
 
 namespace mozilla {
 

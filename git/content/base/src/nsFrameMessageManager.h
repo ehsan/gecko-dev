@@ -21,9 +21,7 @@
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
 #include "nsThreadUtils.h"
-#include "nsWeakPtr.h"
 #include "mozilla/Attributes.h"
-#include "js/RootingAPI.h"
 
 namespace mozilla {
 namespace dom {
@@ -108,12 +106,12 @@ StructuredCloneData UnpackClonedMessageDataForChild(const ClonedMessageData& aDa
 } // namespace mozilla
 
 class nsAXPCNativeCallContext;
+struct JSContext;
+class JSObject;
 
 struct nsMessageListenerInfo
 {
-  // Exactly one of mStrongListener and mWeakListener must be non-null.
-  nsCOMPtr<nsIMessageListener> mStrongListener;
-  nsWeakPtr mWeakListener;
+  nsCOMPtr<nsIMessageListener> mListener;
   nsCOMPtr<nsIAtom> mMessage;
 };
 
@@ -134,7 +132,7 @@ class MOZ_STACK_CLASS SameProcessCpowHolder : public CpowHolder
     bool ToObject(JSContext* aCx, JSObject** aObjp);
 
   private:
-    JS::Rooted<JSObject*> mObj;
+    JS::RootedObject mObj;
 };
 
 class nsFrameMessageManager MOZ_FINAL : public nsIContentFrameMessageManager,

@@ -223,6 +223,7 @@ pref("accessibility.typeaheadfind.timeout", 5000);
 pref("accessibility.typeaheadfind.flashBar", 1);
 pref("accessibility.typeaheadfind.linksonly", false);
 pref("accessibility.typeaheadfind.casesensitive", 0);
+// zoom key(F7) conflicts with caret browsing on maemo
 pref("accessibility.browsewithcaret_shortcut.enabled", false);
 
 // Whether the character encoding menu is under the main Firefox button. This
@@ -394,6 +395,9 @@ pref("app.geo.reportdata", 0);
 //pref("content.sink.perf_deflect_count", 1000000);
 //pref("content.sink.perf_parse_time", 50000000);
 
+// Disable methodjit in chrome to save memory
+pref("javascript.options.methodjit.chrome",  false);
+
 // Disable the JS engine's gc on memory pressure, since we do one in the mobile
 // browser (bug 669346).
 pref("javascript.options.gc_on_memory_pressure", false);
@@ -434,10 +438,6 @@ pref("browser.ui.touch.weight.visited", 120); // percentage
 // The percentage of the screen that needs to be scrolled before margins are exposed.
 pref("browser.ui.show-margins-threshold", 20);
 
-// Maximum distance from the point where the user pressed where we still
-// look for text to select
-pref("browser.ui.selection.distance", 250);
-
 // plugins
 pref("plugin.disable", false);
 pref("dom.ipc.plugins.enabled", false);
@@ -474,8 +474,10 @@ pref("security.alternate_certificate_error_page", "certerror");
 
 pref("security.warn_viewing_mixed", false); // Warning is disabled.  See Bug 616712.
 
+#ifdef NIGHTLY_BUILD
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
+#endif
 
 // Override some named colors to avoid inverse OS themes
 pref("ui.-moz-dialog", "#efebe7");
@@ -544,18 +546,13 @@ pref("layers.async-video.enabled", true);
 pref("layers.progressive-paint", true);
 pref("layers.low-precision-buffer", true);
 pref("layers.low-precision-resolution", 250);
-// We want to limit layers for two reasons:
-// 1) We can't scroll smoothly if we have to many draw calls
-// 2) Pages that have too many layers consume too much memory and crash.
-// By limiting the number of layers on mobile we're making the main thread
-// work harder keep scrolling smooth and memory low.
-pref("layers.max-active", 20);
 
 pref("notification.feature.enabled", true);
 pref("dom.webnotifications.enabled", true);
 
 // prevent tooltips from showing up
 pref("browser.chrome.toolbar_tips", false);
+pref("indexedDB.feature.enabled", true);
 pref("dom.indexedDB.warningQuota", 5);
 
 // prevent video elements from preloading too much data
@@ -651,11 +648,6 @@ pref("ui.scrolling.overscroll_snap_limit", -1);
 pref("ui.scrolling.min_scrollable_distance", -1);
 // The axis lock mode for panning behaviour - set between standard, free and sticky
 pref("ui.scrolling.axis_lock_mode", "standard");
-// Negate scrollY, true will make the mouse scroll wheel move the screen the same direction as with most desktops or laptops.
-pref("ui.scrolling.negate_wheel_scrollY", true);
-// Determine the dead zone for gamepad joysticks. Higher values result in larger dead zones; use a negative value to
-// auto-detect based on reported hardware values
-pref("ui.scrolling.gamepad_dead_zone", 10);
 
 
 // Enable accessibility mode if platform accessibility is enabled.
@@ -747,6 +739,11 @@ pref("browser.contentHandlers.types.3.uri", "chrome://browser/locale/region.prop
 pref("browser.contentHandlers.types.3.type", "application/vnd.mozilla.maybe.feed");
 
 #ifndef RELEASE_BUILD
+// Enable Web Audio for Firefox for Android in Nightly and Aurora
+pref("media.webaudio.enabled", true);
+#endif
+
+#ifndef RELEASE_BUILD
 pref("dom.payment.provider.0.name", "Firefox Marketplace");
 pref("dom.payment.provider.0.description", "marketplace.firefox.com");
 pref("dom.payment.provider.0.uri", "https://marketplace.firefox.com/mozpay/?req=");
@@ -754,30 +751,8 @@ pref("dom.payment.provider.0.type", "mozilla/payments/pay/v1");
 pref("dom.payment.provider.0.requestMethod", "GET");
 #endif
 
-#ifdef NIGHTLY_BUILD
-// Contacts API
-pref("dom.mozContacts.enabled", true);
-pref("dom.navigator-property.disable.mozContacts", false);
-pref("dom.global-constructor.disable.mozContact", false);
-#endif
-
-// Shortnumber matching needed for e.g. Brazil:
-// 01187654321 can be found with 87654321
-pref("dom.phonenumber.substringmatching.BR", 8);
-pref("dom.phonenumber.substringmatching.CO", 10);
-pref("dom.phonenumber.substringmatching.VE", 7);
-
 // Support for the mozAudioChannel attribute on media elements is disabled in non-webapps
 pref("media.useAudioChannelService", false);
 
 // Turn on the CSP 1.0 parser for Content Security Policy headers
 pref("security.csp.speccompliant", true);
-
-// Enable hardware-accelerated Skia canvas
-pref("gfx.canvas.azure.backends", "skia");
-pref("gfx.canvas.azure.accelerated", true);
-
-pref("general.useragent.override.youtube.com", "Android; Tablet;#Android; Mobile;");
-
-// When true, phone number linkification is enabled.
-pref("browser.ui.linkify.phone", false);

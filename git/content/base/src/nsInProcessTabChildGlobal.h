@@ -15,6 +15,7 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIClassInfo.h"
+#include "jsapi.h"
 #include "nsIDocShell.h"
 #include "nsIDOMElement.h"
 #include "nsCOMArray.h"

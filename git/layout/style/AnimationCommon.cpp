@@ -17,7 +17,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
-#include "RestyleManager.h"
 
 using namespace mozilla::layers;
 
@@ -338,7 +337,7 @@ CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
     return true;
   }
 
-  ScrollbarStyles ss = scrollable->GetScrollbarStyles();
+  nsPresContext::ScrollbarStyles ss = scrollable->GetScrollbarStyles();
   if (ss.mVertical == NS_STYLE_OVERFLOW_HIDDEN &&
       ss.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN &&
       scrollable->GetLogicalScrollPosition() == nsPoint(0, 0)) {
@@ -383,7 +382,7 @@ void
 CommonElementAnimationData::UpdateAnimationGeneration(nsPresContext* aPresContext)
 {
   mAnimationGeneration =
-    aPresContext->RestyleManager()->GetAnimationGeneration();
+    aPresContext->PresShell()->FrameConstructor()->GetAnimationGeneration();
 }
 
 }

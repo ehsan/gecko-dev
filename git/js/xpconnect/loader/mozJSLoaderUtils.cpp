@@ -6,7 +6,7 @@
 #include "nsScriptLoader.h"
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 
 #include "nsJSPrincipals.h"
 

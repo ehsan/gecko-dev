@@ -4,23 +4,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsPrincipal.h"
-
 #include "mozIThirdPartyUtil.h"
 #include "nscore.h"
 #include "nsScriptSecurityManager.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
-#include "pratom.h"
+#include "plstr.h"
+#include "nsCRT.h"
 #include "nsIURI.h"
+#include "nsIFileURL.h"
+#include "nsIProtocolHandler.h"
+#include "nsNetUtil.h"
 #include "nsJSPrincipals.h"
+#include "nsVoidArray.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIClassInfoImpl.h"
 #include "nsError.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "jswrapper.h"
+
+#include "nsPrincipal.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/HashFunctions.h"
@@ -435,6 +441,8 @@ nsPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 NS_IMETHODIMP
 nsPrincipal::GetAppStatus(uint16_t* aAppStatus)
 {
+  MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+
   *aAppStatus = GetAppStatus();
   return NS_OK;
 }
@@ -560,8 +568,8 @@ nsPrincipal::Write(nsIObjectOutputStream* aStream)
 uint16_t
 nsPrincipal::GetAppStatus()
 {
-  NS_WARN_IF_FALSE(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
-                   "Asking for app status on a principal with an unknown app id");
+  MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+
   // Installed apps have a valid app id (not NO_APP_ID or UNKNOWN_APP_ID)
   // and they are not inside a mozbrowser.
   if (mAppId == nsIScriptSecurityManager::NO_APP_ID ||

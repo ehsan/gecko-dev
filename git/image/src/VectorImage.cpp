@@ -16,7 +16,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/SVGSVGElement.h"
 #include "nsComponentManagerUtils.h"
-#include "nsIDOMEvent.h"
 #include "nsIObserverService.h"
 #include "nsIPresShell.h"
 #include "nsIStreamListener.h"
@@ -27,9 +26,7 @@
 #include "nsStubDocumentObserver.h"
 #include "nsSVGEffects.h" // for nsSVGRenderingObserver
 #include "nsSVGUtils.h"  // for nsSVGUtils::ConvertToSurfaceSize
-#include "Orientation.h"
 #include "SVGDocumentWrapper.h"
-#include "nsIDOMEventListener.h"
 
 namespace mozilla {
 
@@ -90,7 +87,7 @@ protected:
       // Ignore further invalidations until we draw.
       mHonoringInvalidations = false;
 
-      mVectorImage->InvalidateObserversOnNextRefreshDriverTick();
+      mVectorImage->InvalidateObserver();
     }
 
     // Our caller might've removed us from rendering-observer list.
@@ -314,8 +311,7 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker,
   mIsInitialized(false),
   mIsFullyLoaded(false),
   mIsDrawing(false),
-  mHaveAnimations(false),
-  mHasPendingInvalidation(false)
+  mHaveAnimations(false)
 {
 }
 
@@ -393,12 +389,10 @@ VectorImage::OnImageDataComplete(nsIRequest* aRequest,
 
   // Actually fire OnStopRequest.
   if (mStatusTracker) {
-    // XXX(seth): Is this seriously the least insane way to do this?
     nsRefPtr<imgStatusTracker> clone = mStatusTracker->CloneForRecording();
     imgDecoderObserver* observer = clone->GetDecoderObserver();
     observer->OnStopRequest(aLastPart, finalStatus);
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
   return finalStatus;
@@ -486,18 +480,6 @@ VectorImage::RequestRefresh(const mozilla::TimeStamp& aTime)
 {
   // TODO: Implement for b666446.
   EvaluateAnimation();
-
-  if (mHasPendingInvalidation && mStatusTracker) {
-    // This method is called under the Tick() of an observing document's
-    // refresh driver. We send out the following notifications here rather than
-    // under WillRefresh() (which would be called by our own refresh driver) so
-    // that we only send these notifications if we actually have a document
-    // that is observing us.
-    mStatusTracker->FrameChanged(&nsIntRect::GetMaxSizedIntRect());
-    mStatusTracker->OnStopFrame();
-  }
-
-  mHasPendingInvalidation = false;
 }
 
 //******************************************************************************
@@ -528,9 +510,6 @@ VectorImage::GetIntrinsicSize(nsSize* aSize)
     return NS_ERROR_FAILURE;
 
   nsIFrame* rootFrame = mSVGDocumentWrapper->GetRootLayoutFrame();
-  if (!rootFrame)
-    return NS_ERROR_FAILURE;
-
   *aSize = nsSize(-1, -1);
   nsIFrame::IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
   if (rfSize.width.GetUnit() == eStyleUnit_Coord)
@@ -550,17 +529,8 @@ VectorImage::GetIntrinsicRatio(nsSize* aRatio)
     return NS_ERROR_FAILURE;
 
   nsIFrame* rootFrame = mSVGDocumentWrapper->GetRootLayoutFrame();
-  if (!rootFrame)
-    return NS_ERROR_FAILURE;
-
   *aRatio = rootFrame->GetIntrinsicRatio();
   return NS_OK;
-}
-
-NS_IMETHODIMP_(Orientation)
-VectorImage::GetOrientation()
-{
-  return Orientation();
 }
 
 //******************************************************************************
@@ -877,8 +847,7 @@ VectorImage::OnStartRequest(nsIRequest* aRequest, nsISupports* aCtxt)
     nsRefPtr<imgStatusTracker> clone = mStatusTracker->CloneForRecording();
     imgDecoderObserver* observer = clone->GetDecoderObserver();
     observer->OnStartDecode();
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
 
@@ -966,8 +935,7 @@ VectorImage::OnSVGDocumentLoaded()
     observer->OnStopFrame();
     observer->OnStopDecode(NS_OK); // Unblock page load.
 
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
 
@@ -990,8 +958,7 @@ VectorImage::OnSVGDocumentError()
 
     // Unblock page load.
     observer->OnStopDecode(NS_ERROR_FAILURE);
-    ImageStatusDiff diff = mStatusTracker->Difference(clone);
-    mStatusTracker->ApplyDifference(diff);
+    imgStatusTracker::StatusDiff diff = mStatusTracker->CalculateAndApplyDifference(clone);
     mStatusTracker->SyncNotifyDifference(diff);
   }
 }
@@ -1019,9 +986,12 @@ VectorImage::OnDataAvailable(nsIRequest* aRequest, nsISupports* aCtxt,
 // Invalidation helper method
 
 void
-VectorImage::InvalidateObserversOnNextRefreshDriverTick()
+VectorImage::InvalidateObserver()
 {
-  mHasPendingInvalidation = true;
+  if (mStatusTracker) {
+    mStatusTracker->FrameChanged(&nsIntRect::GetMaxSizedIntRect());
+    mStatusTracker->OnStopFrame();
+  }
 }
 
 } // namespace image

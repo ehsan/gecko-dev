@@ -19,7 +19,7 @@ class gfxUniscribeShaper : public gfxFontShaper
 public:
     gfxUniscribeShaper(gfxGDIFont *aFont)
         : gfxFontShaper(aFont)
-        , mScriptCache(nullptr)
+        , mScriptCache(NULL)
     {
         MOZ_COUNT_CTOR(gfxUniscribeShaper);
     }

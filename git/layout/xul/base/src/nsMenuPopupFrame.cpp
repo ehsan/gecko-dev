@@ -49,7 +49,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/dom/Element.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -401,11 +400,7 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, b
   if (mIsOpenChanged) {
     nsIScrollableFrame *scrollframe = do_QueryFrame(GetChildBox());
     if (scrollframe) {
-      nsWeakFrame weakFrame(this);
       scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
-      if (!weakFrame.IsAlive()) {
-        return;
-      }
     }
   }
 

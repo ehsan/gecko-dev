@@ -14,15 +14,16 @@ const { defer, all } = require('sdk/core/promise');
 const { has } = require('sdk/util/array');
 const { setTimeout } = require('sdk/timers');
 const { before, after } = require('sdk/test/utils');
-const { set } = require('sdk/preferences/service');
 const {
   search 
 } = require('sdk/places/history');
 const {
-  invalidResolve, invalidReject, createTree,
-  compareWithHost, addVisits, resetPlaces
+  invalidResolve, invalidReject, clearBookmarks, createTree,
+  compareWithHost, clearAllBookmarks, addVisits, clearHistory
 } = require('./places-helper');
 const { promisedEmitter } = require('sdk/places/utils');
+const hsrv = Cc['@mozilla.org/browser/nav-history-service;1'].
+              getService(Ci.nsINavHistoryService);
 
 exports.testEmptyQuery = function (assert, done) {
   let within = toBeWithin();
@@ -87,9 +88,6 @@ exports.testSearchURL = function (assert, done) {
   });
 };
 
-// Disabling due to intermittent Bug 892619
-// TODO solve this
-/*
 exports.testSearchTimeRange = function (assert, done) {
   let firstTime, secondTime;
   addVisits([
@@ -123,7 +121,7 @@ exports.testSearchTimeRange = function (assert, done) {
     done();
   });
 };
-*/
+
 exports.testSearchQuery = function (assert, done) {
   addVisits([
     'http://mozilla.com', 'http://webaud.io', 'http://mozilla.com/webfwd'
@@ -241,11 +239,16 @@ function toBeWithin (range) {
   };
 }
 
+function clear (done) {
+  clearAllBookmarks();
+  clearHistory(done);
+}
+
 function searchP () {
   return promisedEmitter(search.apply(null, Array.slice(arguments)));
 }
 
-before(exports, (name, assert, done) => resetPlaces(done));
-after(exports, (name, assert, done) => resetPlaces(done));
+before(exports, (name, assert, done) => clear(done));
+after(exports, (name, assert, done) => clear(done));
 
 require('test').run(exports);

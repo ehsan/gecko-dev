@@ -33,6 +33,9 @@ nsresult NS_NewDOMBeforeUnloadEvent(nsIDOMEvent** aInstancePtrResult,
 {
   nsDOMBeforeUnloadEvent* it =
     new nsDOMBeforeUnloadEvent(aOwner, aPresContext, aEvent);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   return CallQueryInterface(it, aInstancePtrResult);
 }

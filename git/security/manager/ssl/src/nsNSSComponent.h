@@ -17,6 +17,7 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
+#include "nsIDOMEventTarget.h"
 #endif
 #include "nsINSSErrorsService.h"
 #include "nsNSSCallbacks.h"
@@ -25,7 +26,6 @@
 #include "nsClientAuthRemember.h"
 #include "prerror.h"
 
-class nsIDOMWindow;
 class nsIPrompt;
 class SmartCardThreadList;
 
@@ -133,7 +133,7 @@ public:
   nsNSSComponent();
   virtual ~nsNSSComponent();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISIGNATUREVERIFIER
   NS_DECL_NSIENTROPYCOLLECTOR
   NS_DECL_NSIOBSERVER

@@ -11,17 +11,13 @@ EXPORTS += [
     'MediaPluginDecoder.h',
     'MediaPluginHost.h',
     'MediaPluginReader.h',
-    'MediaResourceServer.h',
 ]
 
 CPP_SOURCES += [
     'MediaPluginDecoder.cpp',
     'MediaPluginHost.cpp',
     'MediaPluginReader.cpp',
-    'MediaResourceServer.cpp',
 ]
 
 LIBRARY_NAME = 'gkconmediaplugins_s'
-
-LIBXUL_LIBRARY = True
 

@@ -41,6 +41,9 @@ public:
   nsresult OSProtocolHandlerExists(const char * aScheme,
                                    bool * aHandlerExists);
 
+protected:
+  virtual void FixFilePermissions(nsIFile* aFile);
+
 private:
   uint32_t mPermissions;
 };

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLContextProvider.h"
-#include "GLContext.h"
 #include "nsDebug.h"
 #include "nsIWidget.h"
 #include "OpenGL/OpenGL.h"
@@ -95,9 +94,7 @@ public:
         : GLContext(caps, shareContext, isOffscreen),
           mContext(context),
           mTempTextureName(0)
-    {
-        SetProfileVersion(ContextProfile::OpenGLCompatibility, 210);
-    }
+    {}
 
     ~GLContextCGL()
     {
@@ -139,13 +136,12 @@ public:
 
         if (mContext) {
             [mContext makeCurrentContext];
-            // Use non-blocking swap in "ASAP mode".
-            // ASAP mode means that rendering is iterated as fast as possible.
-            // ASAP mode is entered when layout.frame_rate=0 (requires restart).
+            // Use blocking swap only with the default frame rate.
             // If swapInt is 1, then glSwapBuffers will block and wait for a vblank signal.
-            // When we're iterating as fast as possible, however, we want a non-blocking
-            // glSwapBuffers, which will happen when swapInt==0.
-            GLint swapInt = gfxPlatform::GetPrefLayoutFrameRate() == 0 ? 0 : 1;
+            // While this is fine for the default refresh rate, if the user chooses some
+            // other rate, and specifically if this rate is higher than the screen refresh rate,
+            // then we want a non-blocking glSwapBuffers, which will happen when swapInt==0.
+            GLint swapInt = gfxPlatform::GetPrefLayoutFrameRate() == -1 ? 1 : 0;
             [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
         }
         return true;
@@ -185,14 +181,12 @@ public:
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+                       TextureImage::Flags aFlags = TextureImage::NoFlags) MOZ_OVERRIDE;
 
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
-                TextureImage::Flags aFlags = TextureImage::NoFlags,
-                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+                TextureImage::Flags aFlags = TextureImage::NoFlags) MOZ_OVERRIDE;
 
     virtual SharedTextureHandle CreateSharedHandle(SharedTextureShareType shareType,
                                                    void* buffer,
@@ -234,8 +228,7 @@ public:
     CreateTextureImageInternal(const nsIntSize& aSize,
                                TextureImage::ContentType aContentType,
                                GLenum aWrapMode,
-                               TextureImage::Flags aFlags,
-                               TextureImage::ImageFormat aImageFormat);
+                               TextureImage::Flags aFlags);
 
 };
 
@@ -251,8 +244,7 @@ class TextureImageCGL : public BasicTextureImage
     GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
                                              TextureImage::ContentType aContentType,
                                              GLenum aWrapMode,
-                                             TextureImage::Flags aFlags,
-                                             TextureImage::ImageFormat aImageFormat);
+                                             TextureImage::Flags aFlags);
 public:
     ~TextureImageCGL()
     {
@@ -339,10 +331,8 @@ private:
                     GLenum aWrapMode,
                     ContentType aContentType,
                     GLContext* aContext,
-                    TextureImage::Flags aFlags = TextureImage::NoFlags,
-                    TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType,
-                            aContext, aFlags, aImageFormat)
+                    TextureImage::Flags aFlags = TextureImage::NoFlags)
+        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags)
         , mPixelBuffer(0)
         , mPixelBufferSize(0)
         , mBoundPixelBuffer(false)
@@ -357,8 +347,7 @@ already_AddRefed<TextureImage>
 GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
                                          TextureImage::ContentType aContentType,
                                          GLenum aWrapMode,
-                                         TextureImage::Flags aFlags,
-                                         TextureImage::ImageFormat aImageFormat)
+                                         TextureImage::Flags aFlags)
 {
     bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
     MakeCurrent();
@@ -376,8 +365,7 @@ GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
 
     nsRefPtr<TextureImageCGL> teximage
-        (new TextureImageCGL(texture, aSize, aWrapMode, aContentType,
-                             this, aFlags, aImageFormat));
+        (new TextureImageCGL(texture, aSize, aWrapMode, aContentType, this, aFlags));
     return teximage.forget();
 }
 
@@ -385,30 +373,25 @@ already_AddRefed<TextureImage>
 GLContextCGL::CreateTextureImage(const nsIntSize& aSize,
                                  TextureImage::ContentType aContentType,
                                  GLenum aWrapMode,
-                                 TextureImage::Flags aFlags,
-                                 TextureImage::ImageFormat aImageFormat)
+                                 TextureImage::Flags aFlags)
 {
     if (!IsOffscreenSizeAllowed(gfxIntSize(aSize.width, aSize.height)) &&
         gfxPlatform::OffMainThreadCompositingEnabled()) {
       NS_ASSERTION(aWrapMode == LOCAL_GL_CLAMP_TO_EDGE, "Can't support wrapping with tiles!");
-      nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType,
-                                                           aFlags, aImageFormat);
+      nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType, aFlags);
       return t.forget();
     }
 
-    return CreateBasicTextureImage(this, aSize, aContentType, aWrapMode,
-                                   aFlags, aImageFormat);
+    return CreateBasicTextureImage(this, aSize, aContentType, aWrapMode, aFlags);
 }
 
 already_AddRefed<TextureImage>
 GLContextCGL::TileGenFunc(const nsIntSize& aSize,
                           TextureImage::ContentType aContentType,
-                          TextureImage::Flags aFlags,
-                          TextureImage::ImageFormat aImageFormat)
+                          TextureImage::Flags aFlags)
 {
     return CreateTextureImageInternal(aSize, aContentType,
-                                      LOCAL_GL_CLAMP_TO_EDGE, aFlags,
-                                      aImageFormat);
+                                      LOCAL_GL_CLAMP_TO_EDGE, aFlags);
 }
 
 static GLContextCGL *
@@ -519,12 +502,12 @@ GLContextProviderCGL::GetGlobalContext(const ContextFlags)
 }
 
 SharedTextureHandle
-GLContextProviderCGL::CreateSharedHandle(SharedTextureShareType shareType,
+GLContextProviderCGL::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
                                          void* buffer,
-                                         SharedTextureBufferType bufferType)
+                                         GLContext::SharedTextureBufferType bufferType)
 {
-    if (shareType != SameProcess ||
-        bufferType != gl::IOSurface) {
+    if (shareType != GLContext::SameProcess ||
+        bufferType != GLContext::IOSurface) {
         return 0;
     }
 
@@ -535,7 +518,7 @@ GLContextProviderCGL::CreateSharedHandle(SharedTextureShareType shareType,
 }
 
 already_AddRefed<gfxASurface>
-GLContextProviderCGL::GetSharedHandleAsSurface(SharedTextureShareType shareType,
+GLContextProviderCGL::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
                                                SharedTextureHandle sharedHandle)
 {
   MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);

@@ -106,3 +106,4 @@ int main(int argc, char** argv) {
   return webrtc::EditFrames(in_path, width, height, first_frame_to_cut,
                             interval, last_frame_to_cut, out_path);
 }
+

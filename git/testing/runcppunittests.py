@@ -7,10 +7,16 @@
 from __future__ import with_statement
 import sys, os, tempfile, shutil
 from optparse import OptionParser
-import mozprocess, mozinfo, mozlog, mozcrash, mozfile
+import mozprocess, mozinfo, mozlog, mozcrash
 from contextlib import contextmanager
 
 log = mozlog.getLogger('cppunittests')
+
+@contextmanager
+def TemporaryDirectory():
+    tempdir = tempfile.mkdtemp()
+    yield tempdir
+    shutil.rmtree(tempdir)
 
 class CPPUnitTests(object):
     # Time (seconds) to wait for test process to complete
@@ -32,7 +38,7 @@ class CPPUnitTests(object):
         """
         basename = os.path.basename(prog)
         log.info("Running test %s", basename)
-        with mozfile.TemporaryDirectory() as tempdir:
+        with TemporaryDirectory() as tempdir:
             proc = mozprocess.ProcessHandler([prog],
                                              cwd=tempdir,
                                              env=env)
@@ -106,19 +112,11 @@ class CPPUnitTests(object):
         """
         self.xre_path = xre_path
         env = self.build_environment()
-        pass_count = 0
-        fail_count = 0
+        result = True
         for prog in programs:
             single_result = self.run_one_test(prog, env, symbols_path)
-            if single_result:
-                pass_count += 1
-            else:
-                fail_count += 1
-
-        log.info("Result summary:")
-        log.info("Passed: %d" % pass_count)
-        log.info("Failed: %d" % fail_count)
-        return fail_count == 0
+            result = result and single_result
+        return result
 
 class CPPUnittestOptions(OptionParser):
     def __init__(self):
@@ -132,19 +130,6 @@ class CPPUnittestOptions(OptionParser):
                         default = None,
                         help = "absolute path to directory containing breakpad symbols, or the URL of a zip file containing symbols")
 
-def extract_unittests_from_args(args):
-    """Extract unittests from args, expanding directories as needed"""
-    progs = []
-
-    for p in args:
-        if os.path.isdir(p):
-            #filter out .py files packaged with the unit tests
-            progs.extend([os.path.abspath(os.path.join(p, x)) for x in os.listdir(p) if not x.endswith('.py')])
-        else:
-            progs.append(os.path.abspath(p))
-
-    return progs
-
 def main():
     parser = CPPUnittestOptions()
     options, args = parser.parse_args()
@@ -154,7 +139,13 @@ def main():
     if not options.xre_path:
         print >>sys.stderr, """Error: --xre-path is required"""
         sys.exit(1)
-    progs = extract_unittests_from_args(args)
+    progs = []
+    for p in args:
+        if os.path.isdir(p):
+            #filter out .py files packaged with the unit tests
+            progs.extend([os.path.abspath(os.path.join(p, x)) for x in os.listdir(p) if not x.endswith('.py')])
+        else:
+            progs.append(os.path.abspath(p))
     options.xre_path = os.path.abspath(options.xre_path)
     tester = CPPUnitTests()
     try:

@@ -20,20 +20,21 @@ add_task(function test_createDownload()
 {
   // Creates a simple Download object without starting the download.
   yield Downloads.createDownload({
-    source: { url: "about:blank" },
-    target: { path: getTempFile(TEST_TARGET_FILE_NAME).path },
+    source: { uri: NetUtil.newURI("about:blank") },
+    target: { file: getTempFile(TEST_TARGET_FILE_NAME) },
     saver: { type: "copy" },
   });
 });
 
 /**
- * Tests createDownload for private download.
+* Tests createDownload for private download.
  */
 add_task(function test_createDownload_private()
 {
   let download = yield Downloads.createDownload({
-    source: { url: "about:blank", isPrivate: true },
-    target: { path: getTempFile(TEST_TARGET_FILE_NAME).path },
+    source: { uri: NetUtil.newURI("about:blank"),
+              isPrivate: true },
+    target: { file: getTempFile(TEST_TARGET_FILE_NAME) },
     saver: { type: "copy" }
   });
   do_check_true(download.source.isPrivate);
@@ -44,20 +45,21 @@ add_task(function test_createDownload_private()
  */
 add_task(function test_createDownload_public()
 {
-  let tempPath = getTempFile(TEST_TARGET_FILE_NAME).path;
+  let uri = NetUtil.newURI("about:blank");
+  let tempFile = getTempFile(TEST_TARGET_FILE_NAME);
   let download = yield Downloads.createDownload({
-    source: { url: "about:blank", isPrivate: false },
-    target: { path: tempPath },
+    source: { uri: uri, isPrivate: false },
+    target: { file: tempFile },
     saver: { type: "copy" }
   });
   do_check_false(download.source.isPrivate);
 
   download = yield Downloads.createDownload({
-    source: { url: "about:blank" },
-    target: { path: tempPath },
+    source: { uri: uri },
+    target: { file: tempFile },
     saver: { type: "copy" }
   });
-  do_check_false(download.source.isPrivate);
+  do_check_true(!download.source.isPrivate);
 });
 
 /**
@@ -66,9 +68,8 @@ add_task(function test_createDownload_public()
 add_task(function test_simpleDownload_uri_file_arguments()
 {
   let targetFile = getTempFile(TEST_TARGET_FILE_NAME);
-  yield Downloads.simpleDownload(NetUtil.newURI(httpUrl("source.txt")),
-                                 targetFile);
-  yield promiseVerifyContents(targetFile.path, TEST_DATA_SHORT);
+  yield Downloads.simpleDownload(TEST_SOURCE_URI, targetFile);
+  yield promiseVerifyContents(targetFile, TEST_DATA_SHORT);
 });
 
 /**
@@ -76,10 +77,10 @@ add_task(function test_simpleDownload_uri_file_arguments()
  */
 add_task(function test_simpleDownload_object_arguments()
 {
-  let targetPath = getTempFile(TEST_TARGET_FILE_NAME).path;
-  yield Downloads.simpleDownload({ url: httpUrl("source.txt") },
-                                 { path: targetPath });
-  yield promiseVerifyContents(targetPath, TEST_DATA_SHORT);
+  let targetFile = getTempFile(TEST_TARGET_FILE_NAME);
+  yield Downloads.simpleDownload({ uri: TEST_SOURCE_URI },
+                                 { file: targetFile });
+  yield promiseVerifyContents(targetFile, TEST_DATA_SHORT);
 });
 
 /**
@@ -87,15 +88,15 @@ add_task(function test_simpleDownload_object_arguments()
  */
 add_task(function test_simpleDownload_string_arguments()
 {
-  let targetPath = getTempFile(TEST_TARGET_FILE_NAME).path;
-  yield Downloads.simpleDownload(httpUrl("source.txt"),
-                                 targetPath);
-  yield promiseVerifyContents(targetPath, TEST_DATA_SHORT);
+  let targetFile = getTempFile(TEST_TARGET_FILE_NAME);
+  yield Downloads.simpleDownload(TEST_SOURCE_URI.spec,
+                                 targetFile.path);
+  yield promiseVerifyContents(targetFile, TEST_DATA_SHORT);
 
-  targetPath = getTempFile(TEST_TARGET_FILE_NAME).path;
-  yield Downloads.simpleDownload(new String(httpUrl("source.txt")),
-                                 new String(targetPath));
-  yield promiseVerifyContents(targetPath, TEST_DATA_SHORT);
+  targetFile = getTempFile(TEST_TARGET_FILE_NAME);
+  yield Downloads.simpleDownload(new String(TEST_SOURCE_URI.spec),
+                                 new String(targetFile.path));
+  yield promiseVerifyContents(targetFile, TEST_DATA_SHORT);
 });
 
 /**

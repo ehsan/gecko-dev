@@ -5,19 +5,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AudioContext.h"
+#include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/AnalyserNode.h"
 #include "mozilla/dom/AudioContextBinding.h"
-#include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/OfflineAudioContextBinding.h"
 #include "MediaStreamGraph.h"
+#include "mozilla/dom/AnalyserNode.h"
 #include "AudioDestinationNode.h"
 #include "AudioBufferSourceNode.h"
 #include "AudioBuffer.h"
 #include "GainNode.h"
-#include "MediaElementAudioSourceNode.h"
-#include "MediaStreamAudioSourceNode.h"
 #include "DelayNode.h"
 #include "PannerNode.h"
 #include "AudioListener.h"
@@ -30,7 +28,6 @@
 #include "WaveShaperNode.h"
 #include "PeriodicWave.h"
 #include "ConvolverNode.h"
-#include "OscillatorNode.h"
 #include "nsNetUtil.h"
 
 namespace mozilla {
@@ -65,7 +62,6 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
 
   mPannerNodes.Init();
   mAudioBufferSourceNodes.Init();
-  mOscillatorNodes.Init();
   mScriptProcessorNodes.Init();
 }
 
@@ -84,10 +80,9 @@ AudioContext::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 }
 
 /* static */ already_AddRefed<AudioContext>
-AudioContext::Constructor(const GlobalObject& aGlobal,
-                          ErrorResult& aRv)
+AudioContext::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
   if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -105,7 +100,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
                           float aSampleRate,
                           ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
   if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -165,7 +160,7 @@ AudioContext::CreateBuffer(JSContext* aJSContext, uint32_t aNumberOfChannels,
 }
 
 already_AddRefed<AudioBuffer>
-AudioContext::CreateBuffer(JSContext* aJSContext, const ArrayBuffer& aBuffer,
+AudioContext::CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
                           bool aMixToMono, ErrorResult& aRv)
 {
   // Do not accept this method unless the legacy pref has been set.
@@ -258,36 +253,6 @@ AudioContext::CreateAnalyser()
   return analyserNode.forget();
 }
 
-already_AddRefed<MediaElementAudioSourceNode>
-AudioContext::CreateMediaElementSource(HTMLMediaElement& aMediaElement,
-                                       ErrorResult& aRv)
-{
-  if (mIsOffline) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
-  nsRefPtr<DOMMediaStream> stream = aMediaElement.MozCaptureStream(aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-  nsRefPtr<MediaElementAudioSourceNode> mediaElementAudioSourceNode =
-    new MediaElementAudioSourceNode(this, stream);
-  return mediaElementAudioSourceNode.forget();
-}
-
-already_AddRefed<MediaStreamAudioSourceNode>
-AudioContext::CreateMediaStreamSource(DOMMediaStream& aMediaStream,
-                                      ErrorResult& aRv)
-{
-  if (mIsOffline) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
-  nsRefPtr<MediaStreamAudioSourceNode> mediaStreamAudioSourceNode =
-    new MediaStreamAudioSourceNode(this, &aMediaStream);
-  return mediaStreamAudioSourceNode.forget();
-}
-
 already_AddRefed<GainNode>
 AudioContext::CreateGain()
 {
@@ -372,15 +337,6 @@ AudioContext::CreateBiquadFilter()
   return filterNode.forget();
 }
 
-already_AddRefed<OscillatorNode>
-AudioContext::CreateOscillator()
-{
-  nsRefPtr<OscillatorNode> oscillatorNode =
-    new OscillatorNode(this);
-  mOscillatorNodes.PutEntry(oscillatorNode);
-  return oscillatorNode.forget();
-}
-
 already_AddRefed<PeriodicWave>
 AudioContext::CreatePeriodicWave(const Float32Array& aRealData,
                                  const Float32Array& aImagData,
@@ -456,12 +412,6 @@ AudioContext::UnregisterPannerNode(PannerNode* aNode)
 }
 
 void
-AudioContext::UnregisterOscillatorNode(OscillatorNode* aNode)
-{
-  mOscillatorNodes.RemoveEntry(aNode);
-}
-
-void
 AudioContext::UnregisterScriptProcessorNode(ScriptProcessorNode* aNode)
 {
   mScriptProcessorNodes.RemoveEntry(aNode);
@@ -521,24 +471,10 @@ GetHashtableElements(nsTHashtable<nsPtrHashKey<T> >& aHashtable, nsTArray<T*>& a
 }
 
 void
-AudioContext::ShutdownDecoder()
-{
-  mDecoder.Shutdown();
-}
-
-void
 AudioContext::Shutdown()
 {
   Suspend();
-
-  // We need to hold the AudioContext object alive here to make sure that
-  // it doesn't get destroyed before our decoder shutdown runnable has had
-  // a chance to run.
-  nsCOMPtr<nsIRunnable> threadShutdownEvent =
-    NS_NewRunnableMethod(this, &AudioContext::ShutdownDecoder);
-  if (threadShutdownEvent) {
-    NS_DispatchToCurrentThread(threadShutdownEvent);
-  }
+  mDecoder.Shutdown();
 
   // Stop all audio buffer source nodes, to make sure that they release
   // their self-references.
@@ -551,14 +487,6 @@ AudioContext::Shutdown()
   for (uint32_t i = 0; i < sourceNodes.Length(); ++i) {
     ErrorResult rv;
     sourceNodes[i]->Stop(0.0, rv, true);
-  }
-  // Stop all Oscillator nodes to make sure they release their
-  // playing reference.
-  nsTArray<OscillatorNode*> oscNodes;
-  GetHashtableElements(mOscillatorNodes, oscNodes);
-  for (uint32_t i = 0; i < oscNodes.Length(); ++i) {
-    ErrorResult rv;
-    oscNodes[i]->Stop(0.0, rv);
   }
   // Stop all script processor nodes, to make sure that they release
   // their self-references.

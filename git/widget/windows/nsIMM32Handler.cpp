@@ -1593,6 +1593,8 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
   event.rangeArray = textRanges.Elements();
 
   event.theText = mCompositionString.get();
+  mozilla::widget::ModifierKeyState modKeyState;
+  modKeyState.InitInputEvent(event);
 
   aWindow->DispatchWindowEvent(&event);
 

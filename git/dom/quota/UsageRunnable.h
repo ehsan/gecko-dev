@@ -9,7 +9,6 @@
 
 #include "mozilla/dom/quota/QuotaCommon.h"
 
-#include "mozilla/Atomics.h"
 #include "Utilities.h"
 
 BEGIN_QUOTA_NAMESPACE
@@ -70,7 +69,7 @@ public:
   }
 
 protected:
-  mozilla::Atomic<int32_t> mCanceled;
+  int32_t mCanceled;
 
 private:
   uint64_t mDatabaseUsage;

@@ -902,7 +902,7 @@ nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar*
 
   const PRUnichar* params[] = { aKey, aModifiers };
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("XBL Prototype Handler"), doc,
+                                  "XBL Prototype Handler", doc,
                                   nsContentUtils::eXBL_PROPERTIES,
                                   aMessageName,
                                   params, ArrayLength(params),
@@ -951,9 +951,8 @@ nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
 }
 
 nsresult
-nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
+nsXBLPrototypeHandler::Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream)
 {
-  AssertInCompilationScope();
   nsresult rv = aStream->Read8(&mPhase);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = aStream->Read8(&mType);
@@ -986,9 +985,8 @@ nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
 }
 
 nsresult
-nsXBLPrototypeHandler::Write(nsIObjectOutputStream* aStream)
+nsXBLPrototypeHandler::Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream)
 {
-  AssertInCompilationScope();
   // Make sure we don't write out NS_HANDLER_TYPE_XUL types, as they are used
   // for <keyset> elements.
   if ((mType & NS_HANDLER_TYPE_XUL) || !mEventName)

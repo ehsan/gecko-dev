@@ -7,14 +7,13 @@
 #include "WebGLBuffer.h"
 #include "WebGLVertexAttribData.h"
 #include "WebGLVertexArray.h"
-#include "GLContext.h"
 
 using namespace mozilla;
 
 void
 WebGLContext::BindVertexArray(WebGLVertexArray *array)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateObjectAllowDeletedOrNull("bindVertexArrayObject", array))
@@ -30,8 +29,6 @@ WebGLContext::BindVertexArray(WebGLVertexArray *array)
         ErrorInvalidOperation("bindVertexArray: can't bind a deleted array!");
         return;
     }
-
-    InvalidateBufferFetching();
 
     MakeContextCurrent();
 
@@ -49,7 +46,7 @@ WebGLContext::BindVertexArray(WebGLVertexArray *array)
 already_AddRefed<WebGLVertexArray>
 WebGLContext::CreateVertexArray()
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return nullptr;
 
     nsRefPtr<WebGLVertexArray> globj = new WebGLVertexArray(this);
@@ -65,7 +62,7 @@ WebGLContext::CreateVertexArray()
 void
 WebGLContext::DeleteVertexArray(WebGLVertexArray *array)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (array == nullptr)
@@ -83,7 +80,7 @@ WebGLContext::DeleteVertexArray(WebGLVertexArray *array)
 bool
 WebGLContext::IsVertexArray(WebGLVertexArray *array)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
 
     if (!array)

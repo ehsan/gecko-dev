@@ -109,7 +109,7 @@ var gSwitchApp = false;
 var gDisableReplaceFallback = false;
 
 // Time to wait for the test helper process before continuing the test
-const TEST_HELPER_TIMEOUT = 100;
+const TEST_HELPER_TIMEOUT = 2000;
 
 // Use a copy of the main application executable for the test to avoid main
 // executable in use errors.
@@ -318,7 +318,6 @@ if (APP_BIN_NAME == "xulrunner") {
  * Nulls out the most commonly used global vars used by tests as appropriate.
  */
 function cleanUp() {
-  logTestInfo("start - general test cleanup");
   removeUpdateDirsAndFiles();
 
   // Force the update manager to reload the update data to prevent it from
@@ -349,7 +348,6 @@ function cleanUp() {
   }
 
   gTestserver = null;
-  logTestInfo("finish - general test cleanup");
 }
 
 /**
@@ -1059,7 +1057,7 @@ function waitForHelperSleep() {
     return;
   }
   output.remove(false);
-  doUpdate();
+  do_timeout(TEST_HELPER_TIMEOUT, doUpdate);
 }
 
 function waitForHelperFinished() {
@@ -1072,7 +1070,7 @@ function waitForHelperFinished() {
   }
   // Give the lock file process time to unlock the file before deleting the
   // input and output files.
-  waitForHelperFinishFileUnlock();
+  do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinishFileUnlock);
 }
 
 function waitForHelperFinishFileUnlock() {
@@ -1092,13 +1090,13 @@ function waitForHelperFinishFileUnlock() {
     do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinishFileUnlock);
     return;
   }
-  checkUpdate();
+  do_timeout(TEST_HELPER_TIMEOUT, checkUpdate);
 }
 
 function setupHelperFinish() {
   let input = getApplyDirFile("a/b/input", true);
   writeFile(input, "finish\n");
-  waitForHelperFinished();
+  do_timeout(TEST_HELPER_TIMEOUT, waitForHelperFinished);
 }
 
 /**
@@ -1564,42 +1562,15 @@ function removeCallbackCopy() {
       appBinCopy.remove(false);
     }
     catch (e) {
-      logTestInfo("non-fatal error removing file after test finished (will " +
-                  "try again). File: " + appBinCopy.path + " Exception: " + e);
+      logTestInfo("non-fatal error removing file during cleanup (will try " +
+                  "again). File: " + appBinCopy.path + " Exception: " + e);
       do_timeout(TEST_HELPER_TIMEOUT, removeCallbackCopy);
       return;
     }
   }
-  logTestInfo("attempting removal of the updater binary");
-  removeUpdater();
-}
-
-
-/**
- * Helper function for updater tests that removes the updater binary before
- * ending the test so the updater binary isn't in use during test cleanup.
- */
-function removeUpdater() {
-  if (IS_WIN) {
-    // Remove the copy of the application executable used for the test on
-    // Windows if it exists.
-    let updater = getUpdatesDir();
-    updater.append("0");
-    updater.append(UPDATER_BIN_FILE);
-    if (updater.exists()) {
-      try {
-        updater.remove(false);
-      }
-      catch (e) {
-        logTestInfo("non-fatal error removing file after test finished (will " +
-                    "try again). File: " + updater.path + " Exception: " + e);
-        do_timeout(TEST_HELPER_TIMEOUT, removeUpdater);
-        return;
-      }
-    }
-  }
-  logTestInfo("calling do_test_finished");
-  do_test_finished();
+  // Use a timeout to give any files that were in use additional 
+  // time to close.  Same as updater.exe without service tests.
+  do_timeout(TEST_HELPER_TIMEOUT, do_test_finished);
 }
 
 // Waits until files that are in use that break tests are no longer in use and
@@ -1990,6 +1961,10 @@ function getProcessArgs(aExtraArgs) {
     launchScript.create(AUS_Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_DIRECTORY);
 
     let scriptContents = "#! /bin/sh\n";
+    // On Mac OS X versions prior to 10.6 the i386 acrhitecture must be used.
+    if (gIsLessThanMacOSX_10_6) {
+      scriptContents += "arch -arch i386 ";
+    }
     scriptContents += gAppBinPath + " -no-remote -process-updates " +
                       aExtraArgs.join(" ") + " 1> " +
                       appConsoleLogPath + " 2>&1";
@@ -2059,6 +2034,45 @@ function getLaunchScript() {
   return launchScript;
 }
 
+// A shell script is used to get the OS version due to nsSystemInfo not
+// returning the actual OS version. It is possible to get the actual OS version
+// using ctypes but it would be more complicated than using a shell script.
+XPCOMUtils.defineLazyGetter(this, "gIsLessThanMacOSX_10_6", function test_gMacVer() {
+  if (!IS_MACOSX) {
+    return false;
+  }
+
+  let [versionScript, versionFile] = getVersionScriptAndFile();
+  // Precreate the script with executable permissions
+  versionScript.create(AUS_Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_DIRECTORY);
+  let scriptContents = "#! /bin/sh\nsw_vers -productVersion >> " + versionFile.path;
+  writeFile(versionScript, scriptContents);
+  logTestInfo("created " + versionScript.path + " shell script containing:\n" +
+              scriptContents);
+
+  let versionScriptPath = versionScript.path;
+  if (/ /.test(versionScriptPath)) {
+    versionScriptPath = '"' + versionScriptPath + '"';
+  }
+
+
+  let launchBin = getLaunchBin();
+  let args = [versionScriptPath];
+  let process = AUS_Cc["@mozilla.org/process/util;1"].
+                createInstance(AUS_Ci.nsIProcess);
+  process.init(launchBin);
+  process.run(true, args, args.length);
+  if (process.exitValue != 0) {
+    do_throw("Version script exited with " + process.exitValue + "... unable " +
+             "to get Mac OS X version!");
+  }
+
+  let version = readFile(versionFile).split("\n")[0];
+  logTestInfo("executing on Mac OS X verssion " + version);
+
+  return (Services.vc.compare(version, "10.6") < 0)
+});
+
 /**
  * Checks for the existence of a platform specific application binary that can
  * be used for the test and gets its path if it is found.
@@ -2105,16 +2119,13 @@ function shouldAdjustPathsOnMac() {
  * files.
  */
 function adjustPathsOnWindows() {
-  logTestInfo("start - setup new process directory");
   // We copy the entire GRE directory into another location so that xpcshell
   // running doesn't prevent the updater from moving stuff around.
   let tmpDir = do_get_profile();
   tmpDir.append("ExecutableDir.tmp");
   tmpDir.createUnique(tmpDir.DIRECTORY_TYPE, 0755);
   let procDir = getCurrentProcessDir();
-  logTestInfo("start - copy the process directory");
   copyDirRecursive(procDir, tmpDir, "bin");
-  logTestInfo("finish - copy the process directory");
   let newDir = tmpDir.clone();
   newDir.append("bin");
   gWindowsBinDir = newDir;
@@ -2142,12 +2153,9 @@ function adjustPathsOnWindows() {
   let ds = Services.dirsvc.QueryInterface(AUS_Ci.nsIDirectoryService);
   ds.QueryInterface(AUS_Ci.nsIProperties).undefine(NS_GRE_DIR);
   ds.registerProvider(dirProvider);
-  do_register_cleanup(function APOW_cleanup() {
-    logTestInfo("start - unregistering directory provider");
+  do_register_cleanup(function() {
     ds.unregisterProvider(dirProvider);
-    logTestInfo("finish - unregistering directory provider");
   });
-  logTestInfo("finish - setup new process directory");
 }
 
 let gWindowsBinDir = null;
@@ -2254,6 +2262,30 @@ let gTimerCallback = {
   },
   QueryInterface: XPCOMUtils.generateQI([AUS_Ci.nsITimerCallback])
 };
+
+/**
+ * Gets the nsIFile references for the shell script to retrieve the Mac OS X
+ * version and the nsIFile to pipe the output of the shell script. If either of
+ * these files exist they will be removed by this function.
+ *
+ * @return  array containing two nsIFile references. The first array member is
+ *          the nsIFile for the shell script to launch to get the Mac OS X
+ *          version and the second array member is the nsIFile for the piped
+ *          output from the shell script.
+ */
+function getVersionScriptAndFile() {
+  let versionScript = do_get_file("/", true);
+  let versionFile = versionScript.clone();
+  versionScript.append("get_version.sh");
+  if (versionScript.exists()) {
+    versionScript.remove(false);
+  }
+  versionFile.append("version.out");
+  if (versionFile.exists()) {
+    versionFile.remove(false);
+  }
+  return [versionScript, versionFile];
+}
 
 // Environment related globals
 let gShouldResetEnv = undefined;

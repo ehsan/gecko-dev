@@ -5,16 +5,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "TraceLogging.h"
-
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
-#include <stdint.h>
-#include <string.h>
 #include <unistd.h>
-
-#include "jsapi.h"
-#include "jsscript.h"
+#include <string.h>
+#include <stdint.h>
 
 using namespace js;
 
@@ -28,7 +24,7 @@ using namespace js;
 
 #if defined(__i386__)
 static __inline__ uint64_t
-rdtsc(void)
+js::rdtsc(void)
 {
     uint64_t x;
     __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
@@ -36,7 +32,7 @@ rdtsc(void)
 }
 #elif defined(__x86_64__)
 static __inline__ uint64_t
-rdtsc(void)
+js::rdtsc(void)
 {
     unsigned hi, lo;
     __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
@@ -44,7 +40,7 @@ rdtsc(void)
 }
 #elif defined(__powerpc__)
 static __inline__ uint64_t
-rdtsc(void)
+js::rdtsc(void)
 {
     uint64_t result=0;
     uint32_t upper, lower,tmp;
@@ -66,31 +62,31 @@ rdtsc(void)
 #endif
 
 const char* const TraceLogging::type_name[] = {
-    "1,s",  // start script
-    "0,s",  // stop script
-    "1,c",  // start ion compilation
-    "0,c",  // stop ion compilation
-    "1,r",  // start regexp JIT execution
-    "0,r",  // stop regexp JIT execution
-    "1,G",  // start major GC
-    "0,G",  // stop major GC
-    "1,g",  // start minor GC
-    "0,g",  // stop minor GC
-    "1,ps", // start script parsing
-    "0,ps", // stop script parsing
-    "1,pl", // start lazy parsing
-    "0,pl", // stop lazy parsing
-    "1,pf", // start Function parsing
-    "0,pf", // stop Function parsing
-    "e,i",  // engine interpreter
-    "e,b",  // engine baseline
-    "e,o"   // engine ionmonkey
+    "start,ion_compile",
+    "stop,ion_compile",
+    "start,ion_cannon",
+    "stop,ion_cannon",
+    "stop,ion_cannon_bailout",
+    "start,ion_side_cannon",
+    "stop,ion_side_cannon",
+    "stop,ion_side_cannon_bailout",
+    "start,yarr_jit_execute",
+    "stop,yarr_jit_execute",
+    "start,jm_safepoint",
+    "stop,jm_safepoint",
+    "start,jm_normal",
+    "stop,jm_normal",
+    "start,jm_compile",
+    "stop,jm_compile",
+    "start,gc",
+    "stop,gc",
+    "start,interpreter",
+    "stop,interpreter"
 };
 TraceLogging* TraceLogging::_defaultLogger = NULL;
 
 TraceLogging::TraceLogging()
   : loggingTime(0),
-    startupTime(rdtsc()),
     entries(NULL),
     curEntry(0),
     numEntries(1000000),
@@ -132,7 +128,7 @@ TraceLogging::grow()
 void
 TraceLogging::log(Type type, const char* file, unsigned int lineno)
 {
-    uint64_t now = rdtsc() - startupTime;
+    uint64_t now = rdtsc();
 
     // Create array containing the entries if not existing.
     if (entries == NULL) {
@@ -153,22 +149,15 @@ TraceLogging::log(Type type, const char* file, unsigned int lineno)
     if (curEntry >= numEntries)
         grow();
 
-    // Save the time spend logging the information in order to discard this
-    // time from the logged time. Especially needed when increasing the array
-    // or flushing the information.
-    loggingTime += rdtsc() - startupTime - now;
-}
-
-void
-TraceLogging::log(Type type, const JS::CompileOptions &options)
-{
-    this->log(type, options.filename, options.lineno);
+    // Save the time spend logging the information in order to discard this time from the logged time.
+    // Especially needed when increasing the array or flushing the information.
+    loggingTime += rdtsc()-now;
 }
 
 void
 TraceLogging::log(Type type, JSScript* script)
 {
-    this->log(type, script->filename(), script->lineno);
+    this->log(type, script->filename, script->lineno);
 }
 
 void
@@ -194,7 +183,7 @@ TraceLogging::flush()
     for (unsigned int i = 0; i < curEntry; i++) {
         int written;
         if (entries[i].type() == INFO) {
-            written = fprintf(out, "I,%s\n", entries[i].file());
+            written = fprintf(out, "INFO,%s\n", entries[i].file());
         } else {
             if (entries[i].file() == NULL) {
                 written = fprintf(out, "%llu,%s\n",

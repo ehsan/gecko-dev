@@ -30,7 +30,6 @@ var newFactory = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory])
 };
 
-let oldPrompt;
 function initMockAppInfo() {
   var registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
   gAppInfoClassID = registrar.contractIDToCID(CONTRACT_ID);
@@ -39,8 +38,6 @@ function initMockAppInfo() {
   var components = [MockAppInfo];
   registrar.registerFactory(gAppInfoClassID, "", CONTRACT_ID, newFactory);
   gIncOldFactory = Cm.getClassObject(Cc[CONTRACT_ID], Ci.nsIFactory);
-
-  oldPrompt = Services.prompt;
 }
 
 function cleanupMockAppInfo() {
@@ -50,8 +47,6 @@ function cleanupMockAppInfo() {
     registrar.registerFactory(gAppInfoClassID, "", CONTRACT_ID, gIncOldFactory);
   }
   gIncOldFactory = null;
-
-  Services.prompt = oldPrompt;
 }
 
 MockAppInfo.prototype = {
@@ -79,72 +74,80 @@ gTests.push({
   set promptedPref(aValue) {
     Services.prefs.setBoolPref('app.crashreporter.prompted', aValue);
   },
+  get dialog() {
+    return document.getElementById("crash-prompt-dialog");
+  },
 
   run: function() {
     MockAppInfo.crashid = "testid";
 
-    // For the first set of tests, we want to be able to simulate that a
-    // specific button of the crash reporter prompt was pressed
-    Services.prompt = {
-      confirmEx: function() {
-        return this.retVal;
-      }
-    };
-
-    // Test 1:
-    // Pressing cancel button on the crash reporter prompt
-
-    // Set the crash reporter prefs to indicate that the prompt should appear
+    // never prompted, autosubmit off. We should prompt.
     this.autosubmitPref = false;
     this.promptedPref = false;
 
-    // We will simulate that "button 1" (which should be the cancel button)
-    // was pressed
-    Services.prompt.retVal = 1;
-
     BrowserUI.startupCrashCheck();
+
+    yield waitForMs(100);
+
+    ok(this.dialog, "prompt dialog exists");
+    ok(!this.dialog.hidden, "prompt dialog is visible");
+
+    // user refuses crash reporting opt-in
+    let refuseButton = document.getElementById("crash-button-refuse");
+    sendElementTap(window, refuseButton, 20, 20);
+
+    yield waitForCondition(() => this.dialog == null);
+
     ok(!this.autosubmitPref, "auto submit disabled?");
     ok(this.promptedPref, "prompted should be true");
 
-
-    // Test 2:
-    // Pressing 'ok' button on the crash reporter prompt
-
-    // Set the crash reporter prefs to indicate that the prompt should appear
+    // never prompted, autosubmit off. We should prompt.
     this.autosubmitPref = false;
     this.promptedPref = false;
 
     // should query on the first call to startupCrashCheck
     gMockAppInfoQueried = false;
 
-    // We will simulate that "button 0" (which should be the OK button)
-    // was pressed
-    Services.prompt.retVal = 0;
-
     BrowserUI.startupCrashCheck();
+
+    yield waitForMs(100);
+
+    ok(this.dialog, "prompt dialog exists");
+    ok(!this.dialog.hidden, "prompt dialog is visible");
     ok(gMockAppInfoQueried, "id queried");
+
+    // should query again when the user submits
+    gMockAppInfoQueried = false;
+
+    // user accepts crash reporting opt-in
+    let submitButton = document.getElementById("crash-button-accept");
+    sendElementTap(window, submitButton, 20, 20);
+
+    yield waitForCondition(() => this.dialog == null);
+
     ok(this.autosubmitPref, "auto submit enabled?");
     ok(this.promptedPref, "prompted should be true");
+    ok(gMockAppInfoQueried, "id queried");
 
-
-    // For the remaining tests, attempting to launch the crash reporter
-    // prompt would be incorrect behavior
-    Services.prompt.confirmEx = function() {
-      ok(false, "Should not attempt to launch crash reporter prompt");
-    };
-
-    // Test 3:
-    // Prompt should not appear if pref indicates that user has already
-    // been prompted
+    // prompted, auto-submit off. We shouldn't prompt.
     this.autosubmitPref = false;
     this.promptedPref = true;
+
     BrowserUI.startupCrashCheck();
 
-    // Test 4:
-    // Prompt should not appear if pref indicates that autosubmit is on
+    yield waitForMs(100);
+
+    ok(!this.dialog, "prompt dialog does not exists");
+
+    // never prompted, autosubmit *on*. We shouldn't prompt.
     this.autosubmitPref = true;
     this.promptedPref = false;
+
     BrowserUI.startupCrashCheck();
+
+    yield waitForMs(100);
+
+    ok(!this.dialog, "prompt dialog does not exists");
   }
 });
 

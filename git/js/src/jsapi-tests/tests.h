@@ -9,17 +9,20 @@
 
 #include "mozilla/Util.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "jsalloc.h"
 #include "jsapi.h"
 #include "jscntxt.h"
+#include "jsprvtd.h"
+#include "jsalloc.h"
+
+// For js::gc::AutoSuppressGC
 #include "jsgc.h"
 
 #include "js/Vector.h"
+
+#include <errno.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /* Note: Aborts on OOM. */
 class JSAPITestString {
@@ -186,7 +189,7 @@ class JSAPITest
     bool checkSame(jsval actualArg, jsval expectedArg,
                    const char *actualExpr, const char *expectedExpr,
                    const char *filename, int lineno) {
-        bool same;
+        JSBool same;
         JS::RootedValue actual(cx, actualArg), expected(cx, expectedArg);
         return (JS_SameValue(cx, actual, expected, &same) && same) ||
                fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
@@ -236,17 +239,17 @@ class JSAPITest
     }
 
   protected:
-    static bool
+    static JSBool
     print(JSContext *cx, unsigned argc, jsval *vp)
     {
         jsval *argv = JS_ARGV(cx, vp);
         for (unsigned i = 0; i < argc; i++) {
             JSString *str = JS_ValueToString(cx, argv[i]);
             if (!str)
-                return false;
+                return JS_FALSE;
             char *bytes = JS_EncodeString(cx, str);
             if (!bytes)
-                return false;
+                return JS_FALSE;
             printf("%s%s", i ? " " : "", bytes);
             JS_free(cx, bytes);
         }
@@ -254,13 +257,16 @@ class JSAPITest
         putchar('\n');
         fflush(stdout);
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return true;
+        return JS_TRUE;
     }
 
     bool definePrint();
 
-    static void setNativeStackQuota(JSRuntime *rt)
-    {
+    virtual JSRuntime * createRuntime() {
+        JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024, JS_USE_HELPER_THREADS);
+        if (!rt)
+            return NULL;
+
         const size_t MAX_STACK_SIZE =
 /* Assume we can't use more than 5e5 bytes of C stack by default. */
 #if (defined(DEBUG) && defined(__SUNPRO_CC))  || defined(JS_CPU_SPARC)
@@ -275,13 +281,6 @@ class JSAPITest
         ;
 
         JS_SetNativeStackQuota(rt, MAX_STACK_SIZE);
-    }
-
-    virtual JSRuntime * createRuntime() {
-        JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024, JS_USE_HELPER_THREADS);
-        if (!rt)
-            return NULL;
-        setNativeStackQuota(rt);
         return rt;
     }
 

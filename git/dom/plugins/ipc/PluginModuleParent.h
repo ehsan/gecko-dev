@@ -4,20 +4,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_plugins_PluginModuleParent_h
-#define mozilla_plugins_PluginModuleParent_h
+#ifndef dom_plugins_PluginModuleParent_h
+#define dom_plugins_PluginModuleParent_h 1
 
-#include "base/process.h"
-#include "mozilla/FileUtils.h"
-#include "mozilla/PluginLibrary.h"
-#include "mozilla/plugins/PluginProcessParent.h"
-#include "mozilla/plugins/PPluginModuleParent.h"
+#include <cstring>
+
+#include "base/basictypes.h"
+
+#include "prlink.h"
+
 #include "npapi.h"
 #include "npfunctions.h"
+
+#include "base/string_util.h"
+
+#include "mozilla/FileUtils.h"
+#include "mozilla/PluginLibrary.h"
+#include "mozilla/plugins/PPluginModuleParent.h"
+#include "mozilla/plugins/PluginInstanceParent.h"
+#include "mozilla/plugins/PluginProcessParent.h"
+#include "mozilla/plugins/PluginIdentifierParent.h"
+
 #include "nsAutoPtr.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "nsIObserver.h"
+#include "nsIFileStreams.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -33,8 +44,6 @@ namespace plugins {
 //-----------------------------------------------------------------------------
 
 class BrowserStreamParent;
-class PluginIdentifierParent;
-class PluginInstanceParent;
 
 #ifdef XP_WIN
 class PluginHangUIParent;
@@ -275,6 +284,10 @@ private:
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
     virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor);
 #endif
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+    virtual nsresult HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
+                                    bool* handled);
+#endif
 
 private:
     CrashReporterParent* CrashReporter();
@@ -357,4 +370,4 @@ private:
 } // namespace plugins
 } // namespace mozilla
 
-#endif // mozilla_plugins_PluginModuleParent_h
+#endif  // ifndef dom_plugins_PluginModuleParent_h

@@ -9,7 +9,6 @@
 #include "mozilla/dom/SVGSVGElement.h"
 
 #include "ClippedImage.h"
-#include "Orientation.h"
 
 using mozilla::layers::LayerManager;
 using mozilla::layers::ImageContainer;
@@ -233,8 +232,8 @@ ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
     // Create a surface to draw into.
     mozilla::RefPtr<mozilla::gfx::DrawTarget> target;
     target = gfxPlatform::GetPlatform()->
-      CreateOffscreenCanvasDrawTarget(gfx::IntSize(mClip.width, mClip.height),
-                                      gfx::FORMAT_B8G8R8A8);
+      CreateOffscreenDrawTarget(gfx::IntSize(mClip.width, mClip.height),
+                                gfx::FORMAT_B8G8R8A8);
     nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
       GetThebesSurfaceForDrawTarget(target);
 
@@ -410,14 +409,6 @@ ClippedImage::RequestDiscard()
   mCachedSurface = nullptr;
 
   return InnerImage()->RequestDiscard();
-}
-
-NS_IMETHODIMP_(Orientation)
-ClippedImage::GetOrientation()
-{
-  // XXX(seth): This should not actually be here; this is just to work around a
-  // what appears to be a bug in MSVC's linker.
-  return InnerImage()->GetOrientation();
 }
 
 } // namespace image

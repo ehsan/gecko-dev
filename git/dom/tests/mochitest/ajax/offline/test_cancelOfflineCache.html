@@ -18,13 +18,15 @@ var updateService = Cc['@mozilla.org/offlinecacheupdate-service;1']
 function manifestCached () {
   OfflineTest.ok(false, "The update was supposed to be canceled");
 
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 function onError () {
   OfflineTest.ok(true, "Expected error: Update canceled");
 
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 function onProgress () {
@@ -41,7 +43,6 @@ function onProgress () {
 
 if (OfflineTest.setup()) {
   applicationCache.onerror = OfflineTest.priv(onError);
-  applicationCache.onnoupdate = OfflineTest.failEvent;
   applicationCache.onprogress = OfflineTest.priv(onProgress);
   applicationCache.oncached = OfflineTest.priv(manifestCached);
 }

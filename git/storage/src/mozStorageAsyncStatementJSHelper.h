@@ -26,7 +26,7 @@ public:
   NS_DECL_NSIXPCSCRIPTABLE
 
 private:
-  nsresult getParams(AsyncStatement *, JSContext *, JSObject *, JS::Value *);
+  nsresult getParams(AsyncStatement *, JSContext *, JSObject *, jsval *);
 };
 
 } // namespace storage

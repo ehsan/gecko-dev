@@ -6,6 +6,7 @@
 
 #include "nsDOMCSSRGBColor.h"
 
+#include "nsContentUtils.h"
 #include "mozilla/dom/RGBColorBinding.h"
 #include "nsROCSSPrimitiveValue.h"
 

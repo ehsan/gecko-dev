@@ -24,8 +24,8 @@
 #include "nsCocoaWindow.h"
 #include "nsNativeThemeColors.h"
 #include "nsIScrollableFrame.h"
+#include "nsIDOMHTMLMeterElement.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLMeterElement.h"
 #include "nsLookAndFeel.h"
 
 #include "gfxContext.h"
@@ -34,7 +34,6 @@
 #include <algorithm>
 
 using namespace mozilla::gfx;
-using mozilla::dom::HTMLMeterElement;
 
 #define DRAW_IN_FRAME_DEBUG 0
 #define SCROLLBARS_VISUAL_DEBUG 0
@@ -1391,20 +1390,33 @@ nsNativeThemeCocoa::DrawMeter(CGContextRef cgContext, const HIRect& inBoxRect,
 
   NS_PRECONDITION(aFrame, "aFrame should not be null here!");
 
+  nsCOMPtr<nsIDOMHTMLMeterElement> meterElement =
+    do_QueryInterface(aFrame->GetContent());
+
   // When using -moz-meterbar on an non meter element, we will not be able to
   // get all the needed information so we just draw an empty meter.
-  nsIContent* content = aFrame->GetContent();
-  if (!(content && content->IsHTML(nsGkAtoms::meter))) {
+  if (!meterElement) {
     DrawCellWithSnapping(mMeterBarCell, cgContext, inBoxRect,
                          meterSetting, VerticalAlignFactor(aFrame),
                          mCellDrawView, IsFrameRTL(aFrame));
     return;
   }
 
-  HTMLMeterElement* meterElement = static_cast<HTMLMeterElement*>(content);
-  double value = meterElement->Value();
-  double min = meterElement->Min();
-  double max = meterElement->Max();
+  double value;
+  double min;
+  double max;
+  double low;
+  double high;
+  double optimum;
+
+  // NOTE: if we were allowed to static_cast to HTMLMeterElement we would be
+  // able to use nicer getters...
+  meterElement->GetValue(&value);
+  meterElement->GetMin(&min);
+  meterElement->GetMax(&max);
+  meterElement->GetLow(&low);
+  meterElement->GetHigh(&high);
+  meterElement->GetOptimum(&optimum);
 
   NSLevelIndicatorCell* cell = mMeterBarCell;
 
@@ -2329,7 +2341,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
         BOOL isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_THUMB_HORIZONTAL);
         BOOL isRolledOver = CheckBooleanAttr(GetParentScrollbarFrame(aFrame),
                                              nsGkAtoms::hover);
-        if (!nsCocoaFeatures::OnMountainLionOrLater() || !isRolledOver) {
+        if (!isRolledOver) {
           if (isHorizontal) {
             macRect.origin.y += 4;
             macRect.size.height -= 4;
@@ -2375,20 +2387,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       if (nsLookAndFeel::UseOverlayScrollbars() &&
           CheckBooleanAttr(GetParentScrollbarFrame(aFrame), nsGkAtoms::hover)) {
         BOOL isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
-        if (!nsCocoaFeatures::OnMountainLionOrLater()) {
-          // On OSX 10.7, scrollbars don't grow when hovered. The adjustments
-          // below were obtained by trial and error.
-          if (isHorizontal) {
-            macRect.origin.y += 2.0;
-          } else {
-            if (aFrame->StyleVisibility()->mDirection !=
-                  NS_STYLE_DIRECTION_RTL) {
-              macRect.origin.x += 3.0;
-            } else {
-              macRect.origin.x -= 1.0;
-            }
-          }
-        }
         const BOOL isOnTopOfDarkBackground = IsDarkBackground(aFrame);
         CUIDraw([NSWindow coreUIRenderer], macRect, cgContext,
                 (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
@@ -2853,15 +2851,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       *aIsOverridable = false;
 
       if (nsLookAndFeel::UseOverlayScrollbars()) {
-        nsIFrame* scrollbarFrame = GetParentScrollbarFrame(aFrame);
-        if (scrollbarFrame &&
-            scrollbarFrame->StyleDisplay()->mAppearance ==
-              NS_THEME_SCROLLBAR_SMALL) {
-          aResult->SizeTo(14, 14);
-        }
-        else {
-          aResult->SizeTo(16, 16);
-        }
+        aResult->SizeTo(16, 16);
         break;
       }
 

@@ -48,7 +48,7 @@ endif
 
 ifdef MOZ_B2G_FM
 DOM_SRCDIRS += \
-  dom/fmradio \
+  dom/fm \
   $(NULL)
 endif
 
@@ -61,3 +61,4 @@ DOM_SRCDIRS += content/media/webspeech
 endif
 
 LOCAL_INCLUDES += $(DOM_SRCDIRS:%=-I$(topsrcdir)/%)
+DEFINES += -D_IMPL_NS_LAYOUT

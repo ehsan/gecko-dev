@@ -13,9 +13,11 @@
 
 #include <string>
 
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/BWETestBase.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/TestSenderReceiver.h"
-#include "webrtc/typedefs.h"
+#include "BWETestBase.h"
+
+#include "typedefs.h"
+
+#include "TestSenderReceiver.h"
 
 class BWEStabilityTest : public BWEOneWayTest
 {

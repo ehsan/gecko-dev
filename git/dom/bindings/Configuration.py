@@ -53,6 +53,13 @@ class Configuration:
                 entry.append({})
             self.descriptors.extend([Descriptor(self, iface, x) for x in entry])
 
+        # Mark the descriptors for which the nativeType corresponds to exactly
+        # one interface.
+        for descriptor in self.descriptors:
+            descriptor.unsharedImplementation = all(
+                d.nativeType != descriptor.nativeType or d == descriptor
+                for d in self.descriptors)
+
         # Keep the descriptor list sorted for determinism.
         self.descriptors.sort(lambda x,y: cmp(x.name, y.name))
 
@@ -92,6 +99,8 @@ class Configuration:
                     item.setUserData("mainThread", True)
                 if item in worker:
                     item.setUserData("workers", True)
+        flagWorkerOrMainThread(self.dictionaries, mainDictionaries,
+                               workerDictionaries);
         flagWorkerOrMainThread(self.callbacks, mainCallbacks, workerCallbacks)
 
     def getInterface(self, ifname):
@@ -268,8 +277,7 @@ class Descriptor(DescriptorProvider):
             'NamedCreator': None,
             'NamedDeleter': None,
             'Stringifier': None,
-            'LegacyCaller': None,
-            'Jsonifier': None
+            'LegacyCaller': None
             }
         if self.concrete:
             self.proxy = False
@@ -282,8 +290,6 @@ class Descriptor(DescriptorProvider):
             for m in iface.members:
                 if m.isMethod() and m.isStringifier():
                     addOperation('Stringifier', m)
-                if m.isMethod() and m.isJsonifier():
-                    addOperation('Jsonifier', m)
                 # Don't worry about inheriting legacycallers either: in
                 # practice these are on most-derived prototypes.
                 if m.isMethod() and m.isLegacycaller():
@@ -349,20 +355,22 @@ class Descriptor(DescriptorProvider):
                     iface = iface.parent
         self.operations = operations
 
-        if self.workers and desc.get('nativeOwnership', 'worker') == 'worker':
+        if self.workers:
+            if desc.get('nativeOwnership', 'worker') != 'worker':
+                raise TypeError("Worker descriptor for %s should have 'worker' "
+                                "as value for nativeOwnership" %
+                                self.interface.identifier.name)
             self.nativeOwnership = "worker"
         else:
-            self.nativeOwnership = desc.get('nativeOwnership', 'refcounted')
-            if not self.nativeOwnership in ['owned', 'refcounted']:
+            self.nativeOwnership = desc.get('nativeOwnership', 'nsisupports')
+            if not self.nativeOwnership in ['owned', 'refcounted', 'nsisupports']:
                 raise TypeError("Descriptor for %s has unrecognized value (%s) "
                                 "for nativeOwnership" %
                                 (self.interface.identifier.name, self.nativeOwnership))
         self.customTrace = desc.get('customTrace', self.workers)
         self.customFinalize = desc.get('customFinalize', self.workers)
-        if desc.get('wantsQI', None) != None:
-            self._wantsQI = desc.get('wantsQI', None)
         self.wrapperCache = (not self.interface.isCallback() and
-                             (self.nativeOwnership == 'worker' or
+                             (self.workers or
                               (self.nativeOwnership != 'owned' and
                                desc.get('wrapperCache', True))))
 
@@ -471,34 +479,11 @@ class Descriptor(DescriptorProvider):
     def needsHeaderInclude(self):
         """
         An interface doesn't need a header file if it is not concrete,
-        not pref-controlled, has no prototype object, and has no
-        static methods or attributes.
+        not pref-controlled, and has only consts.
         """
         return (self.interface.isExternal() or self.concrete or
             self.interface.getExtendedAttribute("PrefControlled") or
-            self.interface.hasInterfacePrototypeObject() or
-            any((m.isAttr() or m.isMethod()) and m.isStatic() for m
-                in self.interface.members))
-
-    def wantsQI(self):
-        # If it was specified explicitly use that.
-        if hasattr(self, '_wantsQI'):
-            return self._wantsQI
-
-        # Make sure to not stick QueryInterface on abstract interfaces that
-        # have hasXPConnectImpls (like EventTarget).  So only put it on
-        # interfaces that are concrete and all of whose ancestors are abstract.
-        def allAncestorsAbstract(iface):
-            if not iface.parent:
-                return True
-            desc = self.getDescriptor(iface.parent.identifier.name)
-            if desc.concrete:
-                return False
-            return allAncestorsAbstract(iface.parent)
-        return (not self.workers and
-                self.interface.hasInterfacePrototypeObject() and
-                self.concrete and
-                allAncestorsAbstract(self.interface))
+            self.interface.hasInterfacePrototypeObject())
 
 # Some utility methods
 def getTypesFromDescriptor(descriptor):

@@ -79,7 +79,7 @@ is(BODY_UCS2.length,      CB_MAX_CONTENT_UCS2,     "BODY_UCS2.length");
 is(BODY_UCS2_IND.length,  CB_MAX_CONTENT_UCS2 - 1, "BODY_UCS2_IND.length")
 
 let cbs = window.navigator.mozCellBroadcast;
-ok(cbs instanceof window.MozCellBroadcast,
+ok(cbs instanceof MozCellBroadcast,
    "mozCellBroadcast is instanceof " + cbs.constructor);
 
 let pendingEmulatorCmdCount = 0;

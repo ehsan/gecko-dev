@@ -20,6 +20,14 @@ class nsRenderingContext;
 class nsFloatManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
+
+struct nsStyleDisplay;
+struct nsStyleVisibility;
+struct nsStylePosition;
+struct nsStyleBorder;
+struct nsStyleMargin;
+struct nsStylePadding;
+struct nsStyleText;
 struct nsHypotheticalBox;
 
 
@@ -42,6 +50,13 @@ NS_CSS_MINMAX(NumericType aValue, NumericType aMinValue, NumericType aMaxValue)
     result = aMinValue;
   return result;
 }
+
+/**
+ * Constant used to indicate an unconstrained size.
+ *
+ * @see #Reflow()
+ */
+#define NS_UNCONSTRAINEDSIZE NS_MAXSIZE
 
 /**
  * CSS Frame type. Included as part of the reflow state.
@@ -95,6 +110,14 @@ typedef uint32_t  nsCSSFrameType;
 #define NS_FRAME_GET_TYPE(_ft)                           \
   ((_ft) & ~(NS_CSS_FRAME_TYPE_REPLACED |                \
              NS_CSS_FRAME_TYPE_REPLACED_CONTAINS_BLOCK))
+
+#define NS_INTRINSICSIZE    NS_UNCONSTRAINEDSIZE
+#define NS_AUTOHEIGHT       NS_UNCONSTRAINEDSIZE
+#define NS_AUTOMARGIN       NS_UNCONSTRAINEDSIZE
+#define NS_AUTOOFFSET       NS_UNCONSTRAINEDSIZE
+// NOTE: there are assumptions all over that these have the same value, namely NS_UNCONSTRAINEDSIZE
+//       if any are changed to be a value other than NS_UNCONSTRAINEDSIZE
+//       at least update AdjustComputedHeight/Width and test ad nauseum
 
 // A base class of nsHTMLReflowState that computes only the padding,
 // border, and margin, since those values are needed more often.
@@ -388,7 +411,7 @@ public:
                     const nsSize&            aAvailableSpace,
                     uint32_t                 aFlags = 0);
 
-  // Initialize a reflow state for a child frame's reflow. Some state
+  // Initialize a reflow state for a child frames reflow. Some state
   // is copied from the parent reflow state; the remaining state is
   // computed. 
   nsHTMLReflowState(nsPresContext*           aPresContext,
@@ -457,28 +480,15 @@ public:
     }
     return std::max(aWidth, mComputedMinWidth);
   }
-
   /**
    * Apply the mComputed(Min/Max)Height constraints to the content
    * size computed so far.
-   *
-   * @param aHeight The height that we've computed an to which we want to apply
-   *        min/max constraints.
-   * @param aConsumed The amount of the computed height that was consumed by
-   *        our prev-in-flows.
    */
-  nscoord ApplyMinMaxHeight(nscoord aHeight, nscoord aConsumed = 0) const {
-    aHeight += aConsumed;
-
+  nscoord ApplyMinMaxHeight(nscoord aHeight) const {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxHeight) {
       aHeight = std::min(aHeight, mComputedMaxHeight);
     }
-
-    if (NS_UNCONSTRAINEDSIZE != mComputedMinHeight) {
-      aHeight = std::max(aHeight, mComputedMinHeight);
-    }
-
-    return aHeight - aConsumed;
+    return std::max(aHeight, mComputedMinHeight);
   }
 
   bool ShouldReflowAllKids() const {
@@ -524,12 +534,12 @@ public:
                                      nsMargin& aComputedOffsets);
 
   // If a relatively positioned element, adjust the position appropriately.
-  static void ApplyRelativePositioning(nsIFrame* aFrame,
+  static void ApplyRelativePositioning(const nsStyleDisplay* aDisplay,
                                        const nsMargin& aComputedOffsets,
                                        nsPoint* aPosition);
 
   void ApplyRelativePositioning(nsPoint* aPosition) const {
-    ApplyRelativePositioning(frame, mComputedOffsets, aPosition);
+    ApplyRelativePositioning(mStyleDisplay, mComputedOffsets, aPosition);
   }
 
 #ifdef DEBUG

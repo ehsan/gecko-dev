@@ -6,18 +6,16 @@
 #ifndef GFX_ASYNCCOMPOSITIONMANAGER_H
 #define GFX_ASYNCCOMPOSITIONMANAGER_H
 
-#include "Units.h"                      // for LayerPoint, etc
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerManagerComposite
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "mozilla/Attributes.h"         // for MOZ_DELETE, MOZ_FINAL, etc
-#include "mozilla/RefPtr.h"             // for RefCounted
-#include "mozilla/TimeStamp.h"          // for TimeStamp
-#include "mozilla/dom/ScreenOrientation.h"  // for ScreenOrientation
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/layers/LayerTransaction.h"  // for TargetConfig
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"            // for LayerManager::AddRef, etc
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "gfxPoint.h"
+#include "gfx3DMatrix.h"
+#include "nsAutoPtr.h"
+#include "nsRect.h"
+#include "mozilla/dom/ScreenOrientation.h"
+#include "mozilla/gfx/Rect.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/layers/LayerTransaction.h" // for TargetConfig
 
 namespace mozilla {
 namespace layers {
@@ -133,7 +131,7 @@ private:
                         bool aLayersUpdated,
                         ScreenPoint& aScrollOffset,
                         CSSToScreenScale& aScale,
-                        LayerMargin& aFixedLayerMargins,
+                        gfx::Margin& aFixedLayerMargins,
                         ScreenPoint& aOffset);
   void SyncFrameMetrics(const ScreenPoint& aScrollOffset,
                         float aZoom,
@@ -142,23 +140,20 @@ private:
                         const CSSRect& aDisplayPort,
                         const CSSToLayerScale& aDisplayResolution,
                         bool aIsFirstPaint,
-                        LayerMargin& aFixedLayerMargins,
+                        gfx::Margin& aFixedLayerMargins,
                         ScreenPoint& aOffset);
 
   /**
-   * Adds a translation to the transform of any fixed-pos layer descendant of
-   * aTransformedSubtreeRoot whose parent layer is not fixed. The translation is
-   * chosen so that the layer's anchor point relative to aTransformedSubtreeRoot's
-   * parent layer is the same as it was when aTransformedSubtreeRoot's
-   * GetLocalTransform() was aPreviousTransformForRoot.
-   * This function will also adjust layers so that the given content document
-   * fixed position margins will be respected during asynchronous panning and
-   * zooming.
+   * Recursively applies the given translation to all top-level fixed position
+   * layers that are descendants of the given layer.
+   * aScaleDiff is considered to be the scale transformation applied when
+   * displaying the layers, and is used to make sure the anchor points of
+   * fixed position layers remain in the same position.
    */
-  void AlignFixedLayersForAnchorPoint(Layer* aLayer,
-                                      Layer* aTransformedSubtreeRoot,
-                                      const gfx3DMatrix& aPreviousTransformForRoot,
-                                      const LayerMargin& aFixedLayerMargins);
+  void TransformFixedLayers(Layer* aLayer,
+                            const gfxPoint& aTranslation,
+                            const gfxSize& aScaleDiff,
+                            const gfx::Margin& aFixedLayerMargins);
 
   /**
    * DRAWING PHASE ONLY

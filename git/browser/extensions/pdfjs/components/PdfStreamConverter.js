@@ -16,7 +16,7 @@
  */
 /* jshint esnext:true */
 /* globals Components, Services, XPCOMUtils, NetUtil, PrivateBrowsingUtils,
-           dump, NetworkManager, PdfJsTelemetry */
+           dump, NetworkManager */
 
 'use strict';
 
@@ -41,9 +41,6 @@ Cu.import('resource://pdf.js/network.js');
 
 XPCOMUtils.defineLazyModuleGetter(this, 'PrivateBrowsingUtils',
   'resource://gre/modules/PrivateBrowsingUtils.jsm');
-
-XPCOMUtils.defineLazyModuleGetter(this, 'PdfJsTelemetry',
-  'resource://pdf.js/PdfJsTelemetry.jsm');
 
 var Svc = {};
 XPCOMUtils.defineLazyServiceGetter(Svc, 'mime',
@@ -197,12 +194,6 @@ PdfDataListener.prototype = {
 function ChromeActions(domWindow, contentDispositionFilename) {
   this.domWindow = domWindow;
   this.contentDispositionFilename = contentDispositionFilename;
-  this.telemetryState = {
-    documentInfo: false,
-    firstPageInfo: false,
-    streamTypesUsed: [],
-    startAt: Date.now()
-  };
 }
 
 ChromeActions.prototype = {
@@ -215,10 +206,6 @@ ChromeActions.prototype = {
     // The data may not be downloaded so we need just retry getting the pdf with
     // the original url.
     var originalUri = NetUtil.newURI(data.originalUrl);
-    var filename = data.filename;
-    if (typeof filename !== 'string' || !/\.pdf$/i.test(filename)) {
-      filename = 'document.pdf';
-    }
     var blobUri = data.blobUrl ? NetUtil.newURI(data.blobUrl) : originalUri;
     var extHelperAppSvc =
           Cc['@mozilla.org/uriloader/external-helper-app-service;1'].
@@ -247,9 +234,7 @@ ChromeActions.prototype = {
         // contentDisposition/contentDispositionFilename is readonly before FF18
         channel.contentDisposition = Ci.nsIChannel.DISPOSITION_ATTACHMENT;
         if (self.contentDispositionFilename) {
-          channel.contentDispositionFilename = self.contentDispositionFilename;
-        } else {
-          channel.contentDispositionFilename = filename;
+           channel.contentDispositionFilename = self.contentDispositionFilename;
         }
       } catch (e) {}
       channel.setURI(originalUri);
@@ -330,48 +315,11 @@ ChromeActions.prototype = {
   supportsDocumentColors: function() {
     return getBoolPref('browser.display.use_document_colors', true);
   },
-  reportTelemetry: function (data) {
-    var probeInfo = JSON.parse(data);
-    switch (probeInfo.type) {
-      case 'documentInfo':
-        if (!this.telemetryState.documentInfo) {
-          PdfJsTelemetry.onDocumentVersion(probeInfo.version | 0);
-          PdfJsTelemetry.onDocumentGenerator(probeInfo.generator | 0);
-          if (probeInfo.formType) {
-            PdfJsTelemetry.onForm(probeInfo.formType === 'acroform');
-          }
-          this.telemetryState.documentInfo = true;
-        }
-        break;
-      case 'pageInfo':
-        if (!this.telemetryState.firstPageInfo) {
-          var duration = Date.now() - this.telemetryState.startAt;
-          PdfJsTelemetry.onTimeToView(duration);
-          this.telemetryState.firstPageInfo = true;
-        }
-        break;
-      case 'streamInfo':
-        if (!Array.isArray(probeInfo.streamTypes)) {
-          break;
-        }
-        for (var i = 0; i < probeInfo.streamTypes.length; i++) {
-          var streamTypeId = probeInfo.streamTypes[i] | 0;
-          if (streamTypeId >= 0 && streamTypeId < 10 &&
-              !this.telemetryState.streamTypesUsed[streamTypeId]) {
-            PdfJsTelemetry.onStreamType(streamTypeId);
-            this.telemetryState.streamTypesUsed[streamTypeId] = true;
-          }
-        }
-        break;
-    }
-  },
   fallback: function(url, sendResponse) {
     var self = this;
     var domWindow = this.domWindow;
     var strings = getLocalizedStrings('chrome.properties');
     var message = getLocalizedString(strings, 'unsupported_feature');
-
-    PdfJsTelemetry.onFallback();
 
     var notificationBox = null;
     try {
@@ -405,7 +353,7 @@ ChromeActions.prototype = {
       }
     }];
     notificationBox.appendNotification(message, 'pdfjs-fallback', null,
-                                       notificationBox.PRIORITY_INFO_LOW,
+                                       notificationBox.PRIORITY_WARNING_LOW,
                                        buttons,
                                        function eventsCallback(eventType) {
       // Currently there is only one event "removed" but if there are any other
@@ -766,18 +714,6 @@ PdfStreamConverter.prototype = {
     // Change the content type so we don't get stuck in a loop.
     aRequest.setProperty('contentType', aRequest.contentType);
     aRequest.contentType = 'text/html';
-    if (isHttpRequest) {
-      // We trust PDF viewer, using no CSP
-      aRequest.setResponseHeader('Content-Security-Policy', '', false);
-      aRequest.setResponseHeader('Content-Security-Policy-Report-Only', '',
-                                 false);
-      aRequest.setResponseHeader('X-Content-Security-Policy', '', false);
-      aRequest.setResponseHeader('X-Content-Security-Policy-Report-Only', '',
-                                 false);
-    }
-
-    PdfJsTelemetry.onViewerIsUsed();
-    PdfJsTelemetry.onDocumentSize(aRequest.contentLength);
 
     if (!rangeRequest) {
       // Creating storage for PDF data

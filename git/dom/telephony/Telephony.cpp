@@ -5,24 +5,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Telephony.h"
-#include "mozilla/dom/TelephonyBinding.h"
 
 #include "nsIURI.h"
+#include "nsIDOMCallEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsIPermissionManager.h"
 
-#include "mozilla/dom/UnionTypes.h"
+#include "GeneratedEvents.h"
+#include "jsapi.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
+#include "nsDOMClassInfo.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
+#include "nsTArrayHelpers.h"
 #include "nsThreadUtils.h"
 
-#include "CallEvent.h"
-#include "CallsList.h"
 #include "TelephonyCall.h"
-#include "TelephonyCallGroup.h"
 
 #define NS_RILCONTENTHELPER_CONTRACTID "@mozilla.org/ril/content-helper;1"
 
@@ -78,20 +78,30 @@ public:
 };
 
 Telephony::Telephony()
-: mActiveCall(nullptr), mEnumerated(false)
+: mActiveCall(nullptr), mCallsArray(nullptr), mRooted(false),
+  mEnumerated(false)
 {
   if (!gTelephonyList) {
     gTelephonyList = new TelephonyList();
   }
 
   gTelephonyList->AppendElement(this);
-
-  SetIsDOMBinding();
 }
 
 Telephony::~Telephony()
 {
-  Shutdown();
+  if (mListener) {
+    mListener->Disconnect();
+
+    if (mProvider) {
+      mProvider->UnregisterTelephonyMsg(mListener);
+    }
+  }
+
+  if (mRooted) {
+    mCallsArray = nullptr;
+    NS_DROP_JS_OBJECTS(this, Telephony);
+  }
 
   NS_ASSERTION(gTelephonyList, "This should never be null!");
   NS_ASSERTION(gTelephonyList->Contains(this), "Should be in the list!");
@@ -99,30 +109,10 @@ Telephony::~Telephony()
   if (gTelephonyList->Length() == 1) {
     delete gTelephonyList;
     gTelephonyList = nullptr;
-  } else {
+  }
+  else {
     gTelephonyList->RemoveElement(this);
   }
-}
-
-void
-Telephony::Shutdown()
-{
-  if (mListener) {
-    mListener->Disconnect();
-
-    if (mProvider) {
-      mProvider->UnregisterTelephonyMsg(mListener);
-      mProvider = nullptr;
-    }
-
-    mListener = nullptr;
-  }
-}
-
-JSObject*
-Telephony::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return TelephonyBinding::Wrap(aCx, aScope, this);
 }
 
 // static
@@ -156,8 +146,6 @@ Telephony::Create(nsPIDOMWindow* aOwner, ErrorResult& aRv)
 
   telephony->mProvider = ril;
   telephony->mListener = new Listener(telephony);
-  telephony->mCallsList = new CallsList(telephony);
-  telephony->mGroup = TelephonyCallGroup::Create(telephony);
 
   nsresult rv = ril->EnumerateCalls(telephony->mListener);
   if (NS_FAILED(rv)) {
@@ -197,18 +185,26 @@ Telephony::NoteDialedCallFromOtherInstance(const nsAString& aNumber)
 nsresult
 Telephony::NotifyCallsChanged(TelephonyCall* aCall)
 {
+  if (aCall) {
+    if (aCall->CallState() == nsITelephonyProvider::CALL_STATE_DIALING ||
+        aCall->CallState() == nsITelephonyProvider::CALL_STATE_ALERTING ||
+        aCall->CallState() == nsITelephonyProvider::CALL_STATE_CONNECTED) {
+      NS_ASSERTION(!mActiveCall, "Already have an active call!");
+      mActiveCall = aCall;
+    } else if (mActiveCall && mActiveCall->CallIndex() == aCall->CallIndex()) {
+      mActiveCall = nullptr;
+    }
+  }
+
   return DispatchCallEvent(NS_LITERAL_STRING("callschanged"), aCall);
 }
 
-already_AddRefed<TelephonyCall>
+nsresult
 Telephony::DialInternal(bool isEmergency,
                         const nsAString& aNumber,
-                        ErrorResult& aRv)
+                        nsIDOMTelephonyCall** aResult)
 {
-  if (aNumber.IsEmpty()) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return nullptr;
-  }
+  NS_ENSURE_ARG(!aNumber.IsEmpty());
 
   for (uint32_t index = 0; index < mCalls.Length(); index++) {
     const nsRefPtr<TelephonyCall>& tempCall = mCalls[index];
@@ -217,8 +213,7 @@ Telephony::DialInternal(bool isEmergency,
       // One call has been dialed already and we only support one outgoing call
       // at a time.
       NS_WARNING("Only permitted to dial one call at a time!");
-      aRv.Throw(NS_ERROR_NOT_AVAILABLE);
-      return nullptr;
+      return NS_ERROR_NOT_AVAILABLE;
     }
   }
 
@@ -228,10 +223,7 @@ Telephony::DialInternal(bool isEmergency,
   } else {
     rv = mProvider->Dial(aNumber);
   }
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<TelephonyCall> call = CreateNewDialingCall(aNumber);
 
@@ -244,187 +236,164 @@ Telephony::DialInternal(bool isEmergency,
     }
   }
 
-  return call.forget();
+  call.forget(aResult);
+  return NS_OK;
 }
-
-void
-Telephony::UpdateActiveCall(TelephonyCall* aCall, bool aIsAdding)
-{
-  if (aIsAdding) {
-    if (aCall->CallState() == nsITelephonyProvider::CALL_STATE_DIALING ||
-        aCall->CallState() == nsITelephonyProvider::CALL_STATE_ALERTING ||
-        aCall->CallState() == nsITelephonyProvider::CALL_STATE_CONNECTED) {
-      NS_ASSERTION(!mActiveCall, "Already have an active call!");
-      mActiveCall = aCall;
-    }
-  } else if (mActiveCall && mActiveCall->CallIndex() == aCall->CallIndex()) {
-    mActiveCall = nullptr;
-  }
-}
-
-already_AddRefed<TelephonyCall>
-Telephony::GetCall(uint32_t aCallIndex)
-{
-  nsRefPtr<TelephonyCall> call;
-
-  for (uint32_t index = 0; index < mCalls.Length(); index++) {
-    nsRefPtr<TelephonyCall>& tempCall = mCalls[index];
-    if (tempCall->CallIndex() == aCallIndex) {
-      call = tempCall;
-      break;
-    }
-  }
-
-  return call.forget();
-}
-
-bool
-Telephony::MoveCall(uint32_t aCallIndex, bool aIsConference)
-{
-  nsRefPtr<TelephonyCall> call;
-
-  // Move a call to mGroup.
-  if (aIsConference) {
-    call = GetCall(aCallIndex);
-    if (call) {
-      RemoveCall(call);
-      mGroup->AddCall(call);
-      return true;
-    }
-
-    return false;
-  }
-
-  // Remove a call from mGroup.
-  call = mGroup->GetCall(aCallIndex);
-  if (call) {
-    mGroup->RemoveCall(call);
-    AddCall(call);
-    return true;
-  }
-
-  return false;
-}
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(Telephony)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Telephony,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCalls)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCallsList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGroup)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+  for (uint32_t index = 0; index < tmp->mCalls.Length(); index++) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCalls[i]");
+    cb.NoteXPCOMChild(tmp->mCalls[index]->ToISupports());
+  }
+  // Don't traverse mListener because it doesn't keep any reference to
+  // Telephony but a raw pointer instead.
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(Telephony,
+                                               nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCallsArray)
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Telephony,
                                                 nsDOMEventTargetHelper)
-  tmp->Shutdown();
+  tmp->mCalls.Clear();
   tmp->mActiveCall = nullptr;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCalls)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCallsList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGroup)
+  tmp->mCallsArray = nullptr;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Telephony)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTelephony)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Telephony)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(Telephony, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(Telephony, nsDOMEventTargetHelper)
 
+DOMCI_DATA(Telephony, Telephony)
+
 NS_IMPL_ISUPPORTS1(Telephony::Listener, nsITelephonyListener)
 
-// Telephony WebIDL
+// nsIDOMTelephony
 
-already_AddRefed<TelephonyCall>
-Telephony::Dial(const nsAString& aNumber, ErrorResult& aRv)
+NS_IMETHODIMP
+Telephony::Dial(const nsAString& aNumber, nsIDOMTelephonyCall** aResult)
 {
-  nsRefPtr<TelephonyCall> call = DialInternal(false, aNumber, aRv);
-  return call.forget();
+  DialInternal(false, aNumber, aResult);
+
+  return NS_OK;
 }
 
-already_AddRefed<TelephonyCall>
-Telephony::DialEmergency(const nsAString& aNumber, ErrorResult& aRv)
+NS_IMETHODIMP
+Telephony::DialEmergency(const nsAString& aNumber, nsIDOMTelephonyCall** aResult)
 {
-  nsRefPtr<TelephonyCall> call = DialInternal(true, aNumber, aRv);
-  return call.forget();
+  DialInternal(true, aNumber, aResult);
+
+  return NS_OK;
 }
 
-bool
-Telephony::GetMuted(ErrorResult& aRv) const
+NS_IMETHODIMP
+Telephony::GetMuted(bool* aMuted)
 {
-  bool muted = false;
-  aRv = mProvider->GetMicrophoneMuted(&muted);
+  nsresult rv = mProvider->GetMicrophoneMuted(aMuted);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return muted;
+  return NS_OK;
 }
 
-void
-Telephony::SetMuted(bool aMuted, ErrorResult& aRv)
+NS_IMETHODIMP
+Telephony::SetMuted(bool aMuted)
 {
-  aRv = mProvider->SetMicrophoneMuted(aMuted);
+  nsresult rv = mProvider->SetMicrophoneMuted(aMuted);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
-bool
-Telephony::GetSpeakerEnabled(ErrorResult& aRv) const
+NS_IMETHODIMP
+Telephony::GetSpeakerEnabled(bool* aSpeakerEnabled)
 {
-  bool enabled = false;
-  aRv = mProvider->GetSpeakerEnabled(&enabled);
+  nsresult rv = mProvider->GetSpeakerEnabled(aSpeakerEnabled);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return enabled;
+  return NS_OK;
 }
 
-void
-Telephony::SetSpeakerEnabled(bool aEnabled, ErrorResult& aRv)
+NS_IMETHODIMP
+Telephony::SetSpeakerEnabled(bool aSpeakerEnabled)
 {
-  aRv = mProvider->SetSpeakerEnabled(aEnabled);
+  nsresult rv = mProvider->SetSpeakerEnabled(aSpeakerEnabled);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
-void
-Telephony::GetActive(Nullable<TelephonyCallOrTelephonyCallGroupReturnValue>& aValue)
+NS_IMETHODIMP
+Telephony::GetActive(nsIDOMTelephonyCall** aActive)
 {
-  if (mActiveCall) {
-    aValue.SetValue().SetAsTelephonyCall() = mActiveCall;
-  } else if (mGroup->CallState() == nsITelephonyProvider::CALL_STATE_CONNECTED) {
-    aValue.SetValue().SetAsTelephonyCallGroup() = mGroup;
-  } else {
-    aValue.SetNull();
+  nsCOMPtr<nsIDOMTelephonyCall> activeCall = mActiveCall;
+  activeCall.forget(aActive);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Telephony::GetCalls(JS::Value* aCalls)
+{
+  JSObject* calls = mCallsArray;
+  if (!calls) {
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    AutoPushJSContext cx(sc ? sc->GetNativeContext() : nullptr);
+    if (sc) {
+      rv = nsTArrayToJSArray(cx, mCalls, &calls);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if (!mRooted) {
+        NS_HOLD_JS_OBJECTS(this, Telephony);
+        mRooted = true;
+      }
+
+      mCallsArray = calls;
+    } else {
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
+
+  aCalls->setObject(*calls);
+  return NS_OK;
 }
 
-already_AddRefed<CallsList>
-Telephony::Calls() const
-{
-  nsRefPtr<CallsList> list = mCallsList;
-  return list.forget();
-}
-
-already_AddRefed<TelephonyCallGroup>
-Telephony::ConferenceGroup() const
-{
-  nsRefPtr<TelephonyCallGroup> group = mGroup;
-  return group.forget();
-}
-
-void
-Telephony::StartTone(const nsAString& aDTMFChar, ErrorResult& aRv)
+NS_IMETHODIMP
+Telephony::StartTone(const nsAString& aDTMFChar)
 {
   if (aDTMFChar.IsEmpty()) {
     NS_WARNING("Empty tone string will be ignored");
-    return;
+    return NS_OK;
   }
 
   if (aDTMFChar.Length() > 1) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
+    return NS_ERROR_INVALID_ARG;
   }
 
-  aRv = mProvider->StartTone(aDTMFChar);
+  nsresult rv = mProvider->StartTone(aDTMFChar);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
-void
-Telephony::StopTone(ErrorResult& aRv)
+NS_IMETHODIMP
+Telephony::StopTone()
 {
-  aRv = mProvider->StopTone();
+  nsresult rv = mProvider->StopTone();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
+
+NS_IMPL_EVENT_HANDLER(Telephony, incoming)
+NS_IMPL_EVENT_HANDLER(Telephony, callschanged)
 
 // EventTarget
 
@@ -442,8 +411,7 @@ Telephony::EventListenerAdded(nsIAtom* aType)
 NS_IMETHODIMP
 Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
                             const nsAString& aNumber, bool aIsActive,
-                            bool aIsOutgoing, bool aIsEmergency,
-                            bool aIsConference)
+                            bool aIsOutgoing, bool aIsEmergency)
 {
   NS_ASSERTION(aCallIndex != kOutgoingPlaceholderCallIndex,
                "This should never happen!");
@@ -451,57 +419,6 @@ Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
   nsRefPtr<TelephonyCall> modifiedCall;
   nsRefPtr<TelephonyCall> outgoingCall;
 
-  // Update calls array first then state of a call in mCalls.
-
-  if (aIsConference) {
-    // Add the call into mGroup if it hasn't been there, otherwise we simply
-    // update its call state. We don't fire the statechange event on a call in
-    // conference here. Instead, the event will be fired later in
-    // TelephonyCallGroup::ChangeState(). Thus the sequence of firing the
-    // statechange events is guaranteed: first on TelephonyCallGroup then on
-    // individual TelephonyCall objects.
-
-    modifiedCall = mGroup->GetCall(aCallIndex);
-    if (modifiedCall) {
-      modifiedCall->ChangeStateInternal(aCallState, false);
-      return NS_OK;
-    }
-
-    // The call becomes a conference call. Remove it from Telephony::mCalls and
-    // add it to mGroup.
-    modifiedCall = GetCall(aCallIndex);
-    if (modifiedCall) {
-      modifiedCall->ChangeStateInternal(aCallState, false);
-      mGroup->AddCall(modifiedCall);
-      RemoveCall(modifiedCall);
-      return NS_OK;
-    }
-
-    // Didn't find this call in mCalls or mGroup. Create a new call.
-    nsRefPtr<TelephonyCall> call =
-      TelephonyCall::Create(this, aNumber, aCallState, aCallIndex,
-                            aIsEmergency, aIsConference);
-    NS_ASSERTION(call, "This should never fail!");
-
-    return NS_OK;
-  }
-
-  // Not a conference call. Remove the call from mGroup if it has been there.
-  modifiedCall = mGroup->GetCall(aCallIndex);
-  if (modifiedCall) {
-    if (aCallState != nsITelephonyProvider::CALL_STATE_DISCONNECTED) {
-      if (modifiedCall->CallState() != aCallState) {
-        modifiedCall->ChangeState(aCallState);
-      }
-      mGroup->RemoveCall(modifiedCall);
-      AddCall(modifiedCall);
-    } else {
-      modifiedCall->ChangeState(aCallState);
-    }
-    return NS_OK;
-  }
-
-  // Update calls in mCalls.
   for (uint32_t index = 0; index < mCalls.Length(); index++) {
     nsRefPtr<TelephonyCall>& tempCall = mCalls[index];
     if (tempCall->CallIndex() == kOutgoingPlaceholderCallIndex) {
@@ -568,13 +485,6 @@ Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
 }
 
 NS_IMETHODIMP
-Telephony::ConferenceCallStateChanged(uint16_t aCallState)
-{
-  mGroup->ChangeState(aCallState);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 Telephony::EnumerateCallStateComplete()
 {
   MOZ_ASSERT(!mEnumerated);
@@ -591,64 +501,25 @@ NS_IMETHODIMP
 Telephony::EnumerateCallState(uint32_t aCallIndex, uint16_t aCallState,
                               const nsAString& aNumber, bool aIsActive,
                               bool aIsOutgoing, bool aIsEmergency,
-                              bool aIsConference, bool* aContinue)
+                              bool* aContinue)
 {
-  nsRefPtr<TelephonyCall> call;
-
-  // We request calls enumeration in constructor, and the asynchronous result
-  // will be sent back through the callback function EnumerateCallState().
-  // However, it is likely to have call state changes, i.e. CallStateChanged()
-  // being called, before the enumeration result comes back. We'd make sure
-  // we don't somehow add duplicates due to the race condition.
-  call = aIsConference ? mGroup->GetCall(aCallIndex) : GetCall(aCallIndex);
-  if (call) {
-    // We have the call either in mCalls or in mGroup. Skip it.
-    *aContinue = true;
-    return NS_OK;
+  // Make sure we don't somehow add duplicates.
+  for (uint32_t index = 0; index < mCalls.Length(); index++) {
+    nsRefPtr<TelephonyCall>& tempCall = mCalls[index];
+    if (tempCall->CallIndex() == aCallIndex) {
+      // We have the call already. Skip it.
+      *aContinue = true;
+      return NS_OK;
+    }
   }
 
-  if (MoveCall(aCallIndex, aIsConference)) {
-    *aContinue = true;
-    return NS_OK;
-  }
-
-  // Didn't know anything about this call before now.
-
-  call = TelephonyCall::Create(this, aNumber, aCallState, aCallIndex,
-                               aIsEmergency, aIsConference);
+  nsRefPtr<TelephonyCall> call =
+    TelephonyCall::Create(this, aNumber, aCallState, aCallIndex, aIsEmergency);
   NS_ASSERTION(call, "This should never fail!");
 
-  NS_ASSERTION(aIsConference ? mGroup->CallsArray().Contains(call) :
-                               mCalls.Contains(call),
-               "Should have auto-added new call!");
+  NS_ASSERTION(mCalls.Contains(call), "Should have auto-added new call!");
 
   *aContinue = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-Telephony::SupplementaryServiceNotification(int32_t aCallIndex,
-                                            uint16_t aNotification)
-{
-  nsRefPtr<TelephonyCall> associatedCall;
-  if (!mCalls.IsEmpty() && aCallIndex != -1) {
-    associatedCall = GetCall(aCallIndex);
-  }
-
-  nsresult rv;
-  switch (aNotification) {
-    case nsITelephonyProvider::NOTIFICATION_REMOTE_HELD:
-      rv = DispatchCallEvent(NS_LITERAL_STRING("remoteheld"), associatedCall);
-      break;
-    case nsITelephonyProvider::NOTIFICATION_REMOTE_RESUMED:
-      rv = DispatchCallEvent(NS_LITERAL_STRING("remoteresumed"), associatedCall);
-      break;
-    default:
-      NS_ERROR("Got a bad notification!");
-      return NS_ERROR_UNEXPECTED;
-  }
-
-  NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
 
@@ -658,15 +529,18 @@ Telephony::NotifyError(int32_t aCallIndex,
 {
   nsRefPtr<TelephonyCall> callToNotify;
   if (!mCalls.IsEmpty()) {
-    // The connection is not established yet. Get the latest dialing call object.
+    // The connection is not established yet. Get the latest call object.
     if (aCallIndex == -1) {
-      nsRefPtr<TelephonyCall>& lastCall = mCalls[mCalls.Length() - 1];
-      if (lastCall->CallIndex() == kOutgoingPlaceholderCallIndex) {
-        callToNotify = lastCall;
-      }
+      callToNotify = mCalls[mCalls.Length() - 1];
     } else {
       // The connection has been established. Get the failed call.
-      callToNotify = GetCall(aCallIndex);
+      for (uint32_t index = 0; index < mCalls.Length(); index++) {
+        nsRefPtr<TelephonyCall>& call = mCalls[index];
+        if (call->CallIndex() == aCallIndex) {
+          callToNotify = call;
+          break;
+        }
+      }
     }
   }
 
@@ -685,33 +559,24 @@ Telephony::NotifyError(int32_t aCallIndex,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-Telephony::NotifyCdmaCallWaiting(const nsAString& aNumber)
-{
-  MOZ_ASSERT(mActiveCall &&
-             mActiveCall->CallState() == nsITelephonyProvider::CALL_STATE_CONNECTED);
-
-  nsRefPtr<TelephonyCall> callToNotify = mActiveCall;
-  callToNotify->UpdateSecondNumber(aNumber);
-  DispatchCallEvent(NS_LITERAL_STRING("callschanged"), callToNotify);
-  return NS_OK;
-}
-
 nsresult
 Telephony::DispatchCallEvent(const nsAString& aType,
-                             TelephonyCall* aCall)
+                             nsIDOMTelephonyCall* aCall)
 {
-  // The call may be null in following cases:
-  //   1. callschanged when notifying enumeration being completed
-  //   2. remoteheld/remoteresumed.
-  MOZ_ASSERT(aCall ||
-             aType.EqualsLiteral("callschanged") ||
-             aType.EqualsLiteral("remoteheld") ||
-             aType.EqualsLiteral("remtoeresumed"));
+  // We will notify enumeration being completed by firing oncallschanged.
+  // We only ever have a null call with that event type.
+  MOZ_ASSERT(aCall || aType.EqualsLiteral("callschanged"));
 
-  nsRefPtr<CallEvent> event = CallEvent::Create(this, aType, aCall, false, false);
+  nsCOMPtr<nsIDOMEvent> event;
+  NS_NewDOMCallEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  NS_ASSERTION(event, "This should never fail!");
 
-  return DispatchTrustedEvent(event);
+  nsCOMPtr<nsIDOMCallEvent> callEvent = do_QueryInterface(event);
+  MOZ_ASSERT(callEvent);
+  nsresult rv = callEvent->InitCallEvent(aType, false, false, aCall);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return DispatchTrustedEvent(callEvent);
 }
 
 void

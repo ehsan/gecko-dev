@@ -6,7 +6,8 @@
 #ifndef nsTraceMalloc_h___
 #define nsTraceMalloc_h___
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
+
 #include <stdio.h> /* for FILE */
 #include "prtypes.h"
 

@@ -15,7 +15,7 @@
 
   <binding id="local-browser" extends="chrome://global/content/bindings/browser.xml#browser">
     <implementation type="application/javascript"
-      implements="nsIObserver, nsIDOMEventListener, nsIMessageListener">
+      implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener, nsIMessageListener">
 
       <constructor>
         <![CDATA[
@@ -782,7 +782,15 @@
   </binding>
 
   <binding id="remote-browser" extends="#local-browser">
-    <implementation type="application/javascript" implements="nsIObserver, nsIDOMEventListener, nsIMessageListener">
+    <implementation type="application/javascript" implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener, nsIMessageListener">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            throw "accessibleType: Supports Remote?";
+          ]]>
+        </getter>
+      </property>
+
       <property name="autoscrollEnabled">
         <getter>
           <![CDATA[
@@ -851,11 +859,9 @@
 
             switch (aMessage.name) {
               case "scroll":
-	        if (!json.isRoot)
-		  return;
                 if (!self.scrollSync)
                   return;
-                this.doScroll(json.scrollOffset.x, json.scrollOffset.y, 0);
+                this.doScroll(json.x, json.y, 0);
                 break;
            }
          },

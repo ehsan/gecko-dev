@@ -34,6 +34,9 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-dialer-command": {
     "telephony": []
   },
+  "bluetooth-authorize": {
+    "bluetooth": []
+  },
   "bluetooth-cancel": {
     "bluetooth": []
   },
@@ -44,9 +47,6 @@ this.SystemMessagePermissionsTable = {
     "bluetooth": []
   },
   "bluetooth-hfp-status-changed": {
-    "bluetooth": []
-  },
-  "bluetooth-hid-status-changed": {
     "bluetooth": []
   },
   "bluetooth-sco-status-changed": {
@@ -71,7 +71,6 @@ this.SystemMessagePermissionsTable = {
   "icc-stkcommand": {
     "settings": ["read", "write"]
   },
-  "media-button": { },
   "notification": {
     "desktop-notification": []
   },
@@ -97,7 +96,7 @@ this.SystemMessagePermissionsTable = {
     "mobileconnection": []
   },
   "wappush-received": {
-    "wappush": []
+    "sms": []
   },
 };
 

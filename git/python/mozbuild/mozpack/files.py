@@ -17,10 +17,7 @@ from mozpack.executables import (
 )
 from mozpack.chrome.manifest import ManifestEntry
 from io import BytesIO
-from mozpack.errors import (
-    ErrorMessage,
-    errors,
-)
+from mozpack.errors import ErrorMessage
 from mozpack.mozjar import JarReader
 import mozpack.path
 from collections import OrderedDict
@@ -259,39 +256,6 @@ class AbsoluteSymlinkFile(File):
         return True
 
 
-class ExistingFile(BaseFile):
-    '''
-    File class that represents a file that may exist but whose content comes
-    from elsewhere.
-
-    This purpose of this class is to account for files that are installed via
-    external means. It is typically only used in manifests or in registries to
-    account for files.
-
-    When asked to copy, this class does nothing because nothing is known about
-    the source file/data.
-
-    Instances of this class come in two flavors: required and optional. If an
-    existing file is required, it must exist during copy() or an error is
-    raised.
-    '''
-    def __init__(self, required):
-        self.required = required
-
-    def copy(self, dest, skip_if_older=True):
-        if isinstance(dest, basestring):
-            dest = Dest(dest)
-        else:
-            assert isinstance(dest, Dest)
-
-        if not self.required:
-            return
-
-        if not dest.exists():
-            errors.fatal("Required existing file doesn't exist: %s" %
-                dest.path)
-
-
 class GeneratedFile(BaseFile):
     '''
     File class for content with no previous existence on the filesystem.
@@ -525,15 +489,11 @@ class FileFinder(BaseFinder):
     '''
     Helper to get appropriate BaseFile instances from the file system.
     '''
-    def __init__(self, base, find_executables=True, **kargs):
+    def __init__(self, base, **kargs):
         '''
         Create a FileFinder for files under the given base directory.
-        The find_executables argument determines whether the finder needs to
-        try to guess whether files are executables. Disabling this guessing
-        when not necessary can speed up the finder significantly.
         '''
         BaseFinder.__init__(self, base, **kargs)
-        self.find_executables = find_executables
 
     def _find(self, pattern):
         '''
@@ -571,7 +531,7 @@ class FileFinder(BaseFinder):
         if not os.path.exists(srcpath):
             return
 
-        if self.find_executables and is_executable(srcpath):
+        if is_executable(srcpath):
             yield path, ExecutableFile(srcpath)
         else:
             yield path, File(srcpath)
@@ -599,7 +559,7 @@ class FileFinder(BaseFinder):
             for p in os.listdir(os.path.join(self.base, base)):
                 if p.startswith('.') and not pattern[0].startswith('.'):
                     continue
-                if mozpack.path.match(p, pattern[0]):
+                if re.match(mozpack.path.translate(pattern[0]), p):
                     for p_, f in self._find_glob(mozpack.path.join(base, p),
                                                  pattern[1:]):
                         yield p_, f

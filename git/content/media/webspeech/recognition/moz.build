@@ -40,7 +40,3 @@ CPP_SOURCES += [
     'energy_endpointer_params.cc',
 ]
 
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkconwebspeechrecognition_s'
-

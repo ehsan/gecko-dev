@@ -8,7 +8,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
-Cu.import("resource://gre/modules/RemoteAddonsChild.jsm");
 
 let WebProgressListener = {
   init: function() {
@@ -26,9 +25,7 @@ let WebProgressListener = {
   _setupJSON: function setupJSON(aWebProgress, aRequest) {
     return {
       isTopLevel: aWebProgress.isTopLevel,
-      isLoadingDocument: aWebProgress.isLoadingDocument,
-      requestURI: this._requestSpec(aRequest),
-      loadType: aWebProgress.loadType
+      requestURI: this._requestSpec(aRequest)
     };
   },
 
@@ -187,23 +184,6 @@ let SecurityUI = {
   }
 };
 
-let ControllerCommands = {
-  init: function () {
-    addMessageListener("ControllerCommands:Do", this);
-  },
-
-  receiveMessage: function(message) {
-    switch(message.name) {
-      case "ControllerCommands:Do":
-        if (docShell.isCommandEnabled(message.data))
-          docShell.doCommand(message.data);
-        break;
-    }
-  }
-}
-
-ControllerCommands.init()
-
 addEventListener("DOMTitleChanged", function (aEvent) {
   let document = content.document;
   switch (aEvent.type) {
@@ -215,15 +195,3 @@ addEventListener("DOMTitleChanged", function (aEvent) {
     break;
   }
 }, false);
-
-addEventListener("ImageContentLoaded", function (aEvent) {
-  if (content.document instanceof Ci.nsIImageDocument) {
-    let req = content.document.imageRequest;
-    if (!req.image)
-      return;
-    sendAsyncMessage("ImageDocumentLoaded", { width: req.image.width,
-                                              height: req.image.height });
-  }
-}, false);
-
-RemoteAddonsChild.init(this);

@@ -18,8 +18,6 @@ function SourcesView() {
   this._onSourceSelect = this._onSourceSelect.bind(this);
   this._onSourceClick = this._onSourceClick.bind(this);
   this._onBreakpointRemoved = this._onBreakpointRemoved.bind(this);
-  this._onSourceCheck = this._onSourceCheck.bind(this);
-  this._onStopBlackBoxing = this._onStopBlackBoxing.bind(this);
   this._onBreakpointClick = this._onBreakpointClick.bind(this);
   this._onBreakpointCheckboxClick = this._onBreakpointCheckboxClick.bind(this);
   this._onConditionalPopupShowing = this._onConditionalPopupShowing.bind(this);
@@ -36,28 +34,20 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   initialize: function() {
     dumpn("Initializing the SourcesView");
 
-    this.widget = new SideMenuWidget(document.getElementById("sources"), {
-      showCheckboxes: true,
-      showArrows: true
-    });
+    this.widget = new SideMenuWidget(document.getElementById("sources"));
     this.emptyText = L10N.getStr("noSourcesText");
     this.unavailableText = L10N.getStr("noMatchingSourcesText");
-    this._blackBoxCheckboxTooltip = L10N.getStr("blackBoxCheckboxTooltip");
 
     this._commandset = document.getElementById("debuggerCommands");
     this._popupset = document.getElementById("debuggerPopupset");
     this._cmPopup = document.getElementById("sourceEditorContextMenu");
     this._cbPanel = document.getElementById("conditional-breakpoint-panel");
     this._cbTextbox = document.getElementById("conditional-breakpoint-panel-textbox");
-    this._editorDeck = document.getElementById("editor-deck");
-    this._stopBlackBoxButton = document.getElementById("black-boxed-message-button");
 
     window.addEventListener("Debugger:EditorLoaded", this._onEditorLoad, false);
     window.addEventListener("Debugger:EditorUnloaded", this._onEditorUnload, false);
     this.widget.addEventListener("select", this._onSourceSelect, false);
     this.widget.addEventListener("click", this._onSourceClick, false);
-    this.widget.addEventListener("check", this._onSourceCheck, false);
-    this._stopBlackBoxButton.addEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.addEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.addEventListener("popupshown", this._onConditionalPopupShown, false);
     this._cbPanel.addEventListener("popuphiding", this._onConditionalPopupHiding, false);
@@ -80,8 +70,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     window.removeEventListener("Debugger:EditorUnloaded", this._onEditorUnload, false);
     this.widget.removeEventListener("select", this._onSourceSelect, false);
     this.widget.removeEventListener("click", this._onSourceClick, false);
-    this.widget.removeEventListener("check", this._onSourceCheck, false);
-    this._stopBlackBoxButton.removeEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShown, false);
     this._cbPanel.removeEventListener("popuphiding", this._onConditionalPopupHiding, false);
@@ -121,8 +109,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this.push([label, url, group], {
       staged: aOptions.staged, /* stage the item to be appended later? */
       attachment: {
-        checkboxState: !aSource.isBlackBoxed,
-        checkboxTooltip: this._blackBoxCheckboxTooltip,
         source: aSource
       }
     });
@@ -466,8 +452,7 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
 
     let container = document.createElement("hbox");
     container.id = "breakpoint-" + aOptions.actor;
-    container.className = "dbg-breakpoint devtools-monospace" +
-                          " side-menu-widget-item-other";
+    container.className = "dbg-breakpoint side-menu-widget-item-other";
     container.setAttribute("align", "center");
     container.setAttribute("flex", "1");
 
@@ -644,18 +629,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     if (DebuggerView.editorSource != selectedSource) {
       DebuggerView.editorSource = selectedSource;
     }
-
-    this.maybeShowBlackBoxMessage();
-  },
-
-  /**
-   * Show or hide the black box message vs. source editor depending on if the
-   * selected source is black boxed or not.
-   */
-  maybeShowBlackBoxMessage: function () {
-    const source = DebuggerController.activeThread.source(
-      DebuggerView.editorSource);
-    this._editorDeck.selectedIndex = source.isBlackBoxed ? 1 : 0;
   },
 
   /**
@@ -664,22 +637,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   _onSourceClick: function() {
     // Use this container as a filtering target.
     DebuggerView.Filtering.target = this;
-  },
-
-  /**
-   * The check listener for the sources container.
-   */
-  _onSourceCheck: function({ detail: { checked }, target }) {
-    let item = this.getItemForElement(target);
-    DebuggerController.SourceScripts.blackBox(item.attachment.source, !checked);
-  },
-
-  /**
-   * The click listener for the stop black boxing button.
-   */
-  _onStopBlackBoxing: function() {
-    DebuggerController.SourceScripts.blackBox(DebuggerView.editorSource,
-                                              false);
   },
 
   /**
@@ -1430,7 +1387,7 @@ WatchExpressionsView.prototype = Heritage.extend(WidgetMethods, {
     arrowNode.className = "dbg-expression-arrow";
 
     let inputNode = document.createElement("textbox");
-    inputNode.className = "plain dbg-expression-input devtools-monospace";
+    inputNode.className = "plain dbg-expression-input";
     inputNode.setAttribute("value", aAttachment.initialExpression);
     inputNode.setAttribute("flex", "1");
 
@@ -2195,10 +2152,9 @@ LineResults.prototype = {
     let lineLength = 0;
     let firstMatch = null;
 
-    lineNumberNode.className = "plain dbg-results-line-number devtools-monospace";
+    lineNumberNode.className = "plain dbg-results-line-number";
     lineNumberNode.setAttribute("value", aLineNumber + 1);
-    lineContentsNode.className = "light list-widget-item devtools-monospace" +
-                                 " dbg-results-line-contents";
+    lineContentsNode.className = "light list-widget-item dbg-results-line-contents";
     lineContentsNode.setAttribute("flex", "1");
 
     for (let chunk of this._store) {

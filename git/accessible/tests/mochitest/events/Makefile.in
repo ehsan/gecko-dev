@@ -3,6 +3,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir	= @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 MOCHITEST_A11Y_FILES =\
 		docload_wnd.html \
 		focus.html \
@@ -22,6 +30,7 @@ MOCHITEST_A11Y_FILES =\
 		test_dragndrop.html \
 		test_flush.html \
 		test_focus_aria_activedescendant.html \
+		test_focus_autocomplete.xul \
 		test_focus_browserui.xul \
 		test_focus_canvas.html \
 		test_focus_contextmenu.xul \
@@ -53,9 +62,4 @@ MOCHITEST_A11Y_FILES =\
 		test_valuechange.html \
 		$(NULL)
 
-# Disabled on Linux and Windows due to frequent failures - bug 695019, bug 890795
-ifeq (,$(filter Linux WINNT,$(OS_ARCH)))
-MOCHITEST_A11Y_FILES += \
-		test_focus_autocomplete.xul \
-		$(NULL)
-endif
+include $(topsrcdir)/config/rules.mk

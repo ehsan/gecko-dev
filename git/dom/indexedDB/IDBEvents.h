@@ -61,7 +61,7 @@ public:
 
   static already_AddRefed<IDBVersionChangeEvent>
   Constructor(const GlobalObject& aGlobal,
-              const nsAString& aType,
+              const NonNull<nsAString>& aType,
               const IDBVersionChangeEventInit& aOptions,
               ErrorResult& aRv)
   {
@@ -69,7 +69,7 @@ public:
     if (!aOptions.mNewVersion.IsNull()) {
       newVersion = aOptions.mNewVersion.Value();
     }
-    nsCOMPtr<EventTarget> target = do_QueryInterface(aGlobal.GetAsSupports());
+    nsCOMPtr<EventTarget> target = do_QueryInterface(aGlobal.Get());
     return CreateInternal(target, aType, aOptions.mOldVersion, newVersion);
   }
 

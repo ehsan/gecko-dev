@@ -22,9 +22,7 @@
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
 #include "gfxQuartzSurface.h"
-#include "GLContextTypes.h"
-#include "mozilla/Mutex.h"
-#include "nsRegion.h"
+#include "GLContext.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -288,7 +286,8 @@ typedef NSInteger NSEventGestureAxis;
 
 #ifdef __LP64__
   // Support for fluid swipe tracking.
-  void (^mCancelSwipeAnimation)();
+  BOOL* mCancelSwipeAnimation;
+  uint32_t mCurrentSwipeDir;
 #endif
 
   // Whether this uses off-main-thread compositing.
@@ -359,7 +358,8 @@ typedef NSInteger NSEventGestureAxis;
 // Support for fluid swipe tracking.
 #ifdef __LP64__
 - (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
-                      scrollOverflow:(double)overflow;
+                     scrollOverflowX:(double)overflowX
+                     scrollOverflowY:(double)overflowY;
 #endif
 
 - (void)setUsingOMTCompositor:(BOOL)aUseOMTC;
@@ -448,8 +448,6 @@ public:
   void                    BackingScaleFactorChanged();
 
   virtual double          GetDefaultScaleInternal();
-
-  virtual int32_t         RoundsWidgetCoordinatesTo() MOZ_OVERRIDE;
 
   NS_IMETHOD              Invalidate(const nsIntRect &aRect);
 

@@ -28,9 +28,7 @@ SEARCH_PATHS = [
     'python/mach',
     'python/mozboot',
     'python/mozbuild',
-    'python/mozversioncontrol',
     'python/blessings',
-    'python/configobj',
     'python/psutil',
     'python/which',
     'build/pymake',
@@ -50,10 +48,7 @@ SEARCH_PATHS = [
     'testing/mozbase/mozprocess',
     'testing/mozbase/mozprofile',
     'testing/mozbase/mozrunner',
-    'testing/mozbase/mozsystemmonitor',
     'testing/mozbase/mozinfo',
-    'testing/mozbase/manifestdestiny',
-    'xpcom/idl-parser',
 ]
 
 # Individual files providing mach commands.
@@ -69,9 +64,6 @@ MACH_MODULES = [
     'testing/marionette/mach_commands.py',
     'testing/mochitest/mach_commands.py',
     'testing/xpcshell/mach_commands.py',
-    'testing/talos/mach_commands.py',
-    'testing/xpcshell/mach_commands.py',
-    'tools/mercurial/mach_commands.py',
     'tools/mach_commands.py',
 ]
 

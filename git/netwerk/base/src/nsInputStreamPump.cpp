@@ -155,11 +155,11 @@ nsInputStreamPump::EnsureWaiting()
 // although this class can only be accessed from one thread at a time, we do
 // allow its ownership to move from thread to thread, assuming the consumer
 // understands the limitations of this.
-NS_IMPL_ISUPPORTS4(nsInputStreamPump,
-                   nsIRequest,
-                   nsIThreadRetargetableRequest,
-                   nsIInputStreamCallback,
-                   nsIInputStreamPump)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsInputStreamPump,
+                              nsIRequest,
+                              nsIThreadRetargetableRequest,
+                              nsIInputStreamCallback,
+                              nsIInputStreamPump)
 
 //-----------------------------------------------------------------------------
 // nsInputStreamPump::nsIRequest
@@ -425,15 +425,11 @@ nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
         if (!mSuspendCount && (stillTransferring || mRetargeting)) {
             mState = nextState;
             mWaiting = false;
-            nsresult rv = EnsureWaiting();
-            if (NS_SUCCEEDED(rv))
+            mStatus = EnsureWaiting();
+            if (NS_SUCCEEDED(mStatus))
                 break;
             
             // Failure to start asynchronous wait: stop transfer.
-            // Do not set mStatus if it was previously set to report a failure.
-            if (NS_SUCCEEDED(mStatus)) {
-                mStatus = rv;
-            }
             nextState = STATE_STOP;
         }
 

@@ -109,9 +109,6 @@ var gUnexpectedCrashDumpFiles = { };
 var gCrashDumpDir;
 var gFailedNoPaint = false;
 
-// The enabled-state of the test-plugins, stored so they can be reset later
-var gTestPluginEnabledStates = null;
-
 const TYPE_REFTEST_EQUAL = '==';
 const TYPE_REFTEST_NOTEQUAL = '!=';
 const TYPE_LOAD = 'load';     // test without a reference (just test that it does
@@ -211,20 +208,6 @@ function IDForEventTarget(event)
     }
 }
 
-function getTestPlugin(aName) {
-  var ph = CC["@mozilla.org/plugin/host;1"].getService(CI.nsIPluginHost);
-  var tags = ph.getPluginTags();
-
-  // Find the test plugin
-  for (var i = 0; i < tags.length; i++) {
-    if (tags[i].name == aName)
-      return tags[i];
-  }
-
-  LogWarning("Failed to find the test-plugin.");
-  return null;
-}
-
 this.OnRefTestLoad = function OnRefTestLoad(win)
 {
     gCrashDumpDir = CC[NS_DIRECTORY_SERVICE_CONTRACTID]
@@ -283,17 +266,6 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
 #else
     document.getElementById("reftest-window").appendChild(gBrowser);
 #endif
-
-    // reftests should have the test plugins enabled, not click-to-play
-    let plugin1 = getTestPlugin("Test Plug-in");
-    let plugin2 = getTestPlugin("Second Test Plug-in");
-    if (plugin1 && plugin2) {
-      gTestPluginEnabledStates = [plugin1.enabledState, plugin2.enabledState];
-      plugin1.enabledState = CI.nsIPluginTag.STATE_ENABLED;
-      plugin2.enabledState = CI.nsIPluginTag.STATE_ENABLED;
-    } else {
-      LogWarning("Could not get test plugin tags.");
-    }
 
     gBrowserMessageManager = gBrowser.QueryInterface(CI.nsIFrameLoaderOwner)
                                      .frameLoader.messageManager;
@@ -526,14 +498,6 @@ function StartTests()
 
 function OnRefTestUnload()
 {
-  let plugin1 = getTestPlugin("Test Plug-in");
-  let plugin2 = getTestPlugin("Second Test Plug-in");
-  if (plugin1 && plugin2) {
-    plugin1.enabledState = gTestPluginEnabledStates[0];
-    plugin2.enabledState = gTestPluginEnabledStates[1];
-  } else {
-    LogWarning("Failed to get test plugin tags.");
-  }
 }
 
 // Read all available data from an input stream and return it
@@ -574,6 +538,13 @@ function BuildConditionSandbox(aURL) {
         sandbox.smallScreen = true;
     }
 
+#if REFTEST_B2G
+    // XXX nsIGfxInfo isn't available in B2G
+    sandbox.d2d = false;
+    sandbox.azureQuartz = false;
+    sandbox.azureSkia = false;
+    sandbox.contentSameGfxBackendAsCanvas = false;
+#else
     var gfxInfo = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo);
     try {
       sandbox.d2d = gfxInfo.D2DEnabled;
@@ -583,10 +554,10 @@ function BuildConditionSandbox(aURL) {
     var info = gfxInfo.getInfo();
     sandbox.azureQuartz = info.AzureCanvasBackend == "quartz";
     sandbox.azureSkia = info.AzureCanvasBackend == "skia";
-    sandbox.azureSkiaGL = info.AzureSkiaAccelerated; // FIXME: assumes GL right now
     // true if we are using the same Azure backend for rendering canvas and content
     sandbox.contentSameGfxBackendAsCanvas = info.AzureContentBackend == info.AzureCanvasBackend
                                             || (info.AzureContentBackend == "none" && info.AzureCanvasBackend == "cairo");
+#endif
 
     sandbox.layersGPUAccelerated =
       gWindowUtils.layerManagerType != "Basic";

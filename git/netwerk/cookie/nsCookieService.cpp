@@ -745,8 +745,8 @@ nsCookieService::InitDBStates()
     // Database may be corrupt. Synchronously close the connection, clean up the
     // default DBState, and try again.
     COOKIE_LOGSTRING(PR_LOG_WARNING, ("InitDBStates(): retrying TryInitDB()"));
-    CleanupCachedStatements();
-    CleanupDefaultDBConnection();
+
+    CloseDefaultDBConnection();
     result = TryInitDB(true);
     if (result == RESULT_RETRY) {
       // We're done. Change the code to failure so we clean up below.
@@ -760,8 +760,7 @@ nsCookieService::InitDBStates()
 
     // Connection failure is unrecoverable. Clean up our connection. We can run
     // fine without persistent storage -- e.g. if there's no profile.
-    CleanupCachedStatements();
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
   }
 }
 
@@ -1244,9 +1243,6 @@ nsCookieService::CloseDBStates()
   if (!mDefaultDBState)
     return;
 
-  // Cleanup cached statements before we can close anything.
-  CleanupCachedStatements();
-
   if (mDefaultDBState->dbConn) {
     // Cancel any pending read. No further results will be received by our
     // read listener.
@@ -1258,31 +1254,21 @@ nsCookieService::CloseDBStates()
     mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
   }
 
-  CleanupDefaultDBConnection();
+  CloseDefaultDBConnection();
 
   mDefaultDBState = NULL;
 }
 
-// Null out the statements.
-// This must be done before closing the connection.
+// Close the default connection by nulling out statements, listeners, and the
+// connection itself. This will not cancel a pending read or asynchronously
+// close the connection -- these must be done beforehand if necessary.
 void
-nsCookieService::CleanupCachedStatements()
+nsCookieService::CloseDefaultDBConnection()
 {
-  mDefaultDBState->stmtInsert = nullptr;
-  mDefaultDBState->stmtDelete = nullptr;
-  mDefaultDBState->stmtUpdate = nullptr;
-}
-
-// Null out the listeners, and the database connection itself. This
-// will not null out the statements, cancel a pending read or
-// asynchronously close the connection -- these must be done
-// beforehand if necessary.
-void
-nsCookieService::CleanupDefaultDBConnection()
-{
-  MOZ_ASSERT(!mDefaultDBState->stmtInsert, "stmtInsert has been cleaned up");
-  MOZ_ASSERT(!mDefaultDBState->stmtDelete, "stmtDelete has been cleaned up");
-  MOZ_ASSERT(!mDefaultDBState->stmtUpdate, "stmtUpdate has been cleaned up");
+  // Destroy our statements before we close the db.
+  mDefaultDBState->stmtInsert = NULL;
+  mDefaultDBState->stmtDelete = NULL;
+  mDefaultDBState->stmtUpdate = NULL;
 
   // Null out the database connections. If 'dbConn' has not been used for any
   // asynchronous operations yet, this will synchronously close it; otherwise,
@@ -1368,9 +1354,8 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
       mDefaultDBState->syncConn = nullptr;
     }
 
-    CleanupCachedStatements();
     mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
     break;
   }
   case DBState::CLOSING_FOR_REBUILD: {
@@ -1381,11 +1366,10 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
   case DBState::REBUILDING: {
     // We had an error while rebuilding the DB. Game over. Close the database
     // and let the close handler do nothing; then we'll move it out of the way.
-    CleanupCachedStatements();
     if (mDefaultDBState->dbConn) {
       mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
     }
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
     break;
   }
   }
@@ -1441,8 +1425,7 @@ nsCookieService::RebuildCorruptDB(DBState* aDBState)
     // closure.
     COOKIE_LOGSTRING(PR_LOG_WARNING,
       ("RebuildCorruptDB(): TryInitDB() failed with result %u", result));
-    CleanupCachedStatements();
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
     mDefaultDBState->corruptFlag = DBState::OK;
     mObserverService->NotifyObservers(nullptr, "cookie-db-closed", nullptr);
     return;
@@ -1472,7 +1455,7 @@ nsCookieService::RebuildCorruptDB(DBState* aDBState)
   NS_ASSERT_SUCCESS(rv);
   nsCOMPtr<mozIStoragePendingStatement> handle;
   rv = stmt->ExecuteAsync(aDBState->insertListener, getter_AddRefs(handle));
-  NS_ASSERT_SUCCESS(rv);
+  NS_ASSERT_SUCCESS(rv);    
 }
 
 nsCookieService::~nsCookieService()

@@ -14,7 +14,7 @@
 #include "nsWindowDefs.h"
 #include <windows.h>
 
-#define NS_NUM_OF_KEYS          70
+#define NS_NUM_OF_KEYS          68
 
 #define VK_OEM_1                0xBA   // ';:' for US
 #define VK_OEM_PLUS             0xBB   // '+' any country
@@ -297,12 +297,6 @@ public:
     UINT mCharCode;
     UINT mScanCode;
     bool mIsDeadKey;
-    bool mConsumed;
-
-    FakeCharMsg() :
-      mCharCode(0), mScanCode(0), mIsDeadKey(false), mConsumed(false)
-    {
-    }
 
     MSG GetCharMsg(HWND aWnd) const
     {
@@ -310,7 +304,7 @@ public:
       msg.hwnd = aWnd;
       msg.message = mIsDeadKey ? WM_DEADCHAR : WM_CHAR;
       msg.wParam = static_cast<WPARAM>(mCharCode);
-      msg.lParam = static_cast<LPARAM>(mScanCode << 16);
+      msg.lParam = static_cast<LPARAM>(mScanCode);
       msg.time = 0;
       msg.pt.x = msg.pt.y = 0;
       return msg;
@@ -320,7 +314,7 @@ public:
   NativeKey(nsWindowBase* aWidget,
             const MSG& aKeyOrCharMessage,
             const ModifierKeyState& aModKeyState,
-            nsTArray<FakeCharMsg>* aFakeCharMsgs = nullptr);
+            const FakeCharMsg* aFakeCharMsg = nullptr);
 
   /**
    * Handle WM_KEYDOWN message or WM_SYSKEYDOWN message.  The instance must be
@@ -336,7 +330,8 @@ public:
    * Returns true if dispatched keypress event is consumed.  Otherwise, false.
    */
   bool HandleCharMessage(const MSG& aCharMsg,
-                         bool* aEventDispatched = nullptr) const;
+                         bool* aEventDispatched = nullptr,
+                         const EventFlags* aExtraFlags = nullptr) const;
 
   /**
    * Handles keyup message.  Returns true if the event is consumed.
@@ -348,6 +343,10 @@ private:
   nsRefPtr<nsWindowBase> mWidget;
   HKL mKeyboardLayout;
   MSG mMsg;
+  // mCharMsg stores WM_*CHAR message following WM_*KEYDOWN message.
+  // If mMsg isn't WM_*KEYDOWN message or WM_*KEYDOWN but there is no following
+  // WM_*CHAR message, the message member is 0.
+  MSG mCharMsg;
 
   uint32_t mDOMKeyCode;
   KeyNameIndex mKeyNameIndex;
@@ -374,8 +373,7 @@ private:
   // Please note that the event may not cause any text input even if this
   // is true.  E.g., it might be dead key state or Ctrl key may be pressed.
   bool    mIsPrintableKey;
-
-  nsTArray<FakeCharMsg>* mFakeCharMsgs;
+  bool    mIsFakeCharMsg;
 
   NativeKey()
   {
@@ -404,9 +402,12 @@ private:
   {
     return (mMsg.message == WM_KEYDOWN || mMsg.message == WM_SYSKEYDOWN);
   }
-  bool IsFollowedByCharMessage() const;
-  bool IsFollowedByDeadCharMessage() const;
-  MSG RemoveFollowingCharMessage() const;
+  bool IsFollowedByCharMessage() const
+  {
+    MOZ_ASSERT(mMsg.message == WM_KEYDOWN || mMsg.message == WM_SYSKEYDOWN);
+    return (mCharMsg.message != 0);
+  }
+  const MSG& RemoveFollowingCharMessage() const;
 
   /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK.
@@ -444,22 +445,25 @@ private:
    * DispatchKeyPressEventsWithKeyboardLayout() dispatches keypress event(s)
    * with the information provided by KeyboardLayout class.
    */
-  bool DispatchKeyPressEventsWithKeyboardLayout() const;
+  bool DispatchKeyPressEventsWithKeyboardLayout(
+                        const EventFlags& aExtraFlags) const;
 
   /**
-   * Remove all following WM_CHAR, WM_SYSCHAR and WM_DEADCHAR messages for the
-   * WM_KEYDOWN or WM_SYSKEYDOWN message.  Additionally, dispatches plugin
-   * events if it's necessary.
-   * Returns true if the widget is destroyed.  Otherwise, false.
+   * Dispatches keypress events after removing WM_*CHAR messages for the
+   * WM_*KEYDOWN message.
+   * Returns true if the dispatched keypress event is consumed.  Otherwise,
+   * false.
    */
-  bool DispatchPluginEventsAndDiscardsCharMessages() const;
+  bool DispatchKeyPressEventsAndDiscardsCharMessages(
+                        const EventFlags& aExtraFlags) const;
 
   /**
    * DispatchKeyPressEventForFollowingCharMessage() dispatches keypress event
    * for following WM_*CHAR message.
    * Returns true if the event is consumed.  Otherwise, false.
    */
-  bool DispatchKeyPressEventForFollowingCharMessage() const;
+  bool DispatchKeyPressEventForFollowingCharMessage(
+                        const EventFlags& aExtraFlags) const;
 
   /**
    * Checkes whether the key event down message is handled without following

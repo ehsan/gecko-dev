@@ -6,7 +6,6 @@
 
 #include "mozilla/nsMemoryInfoDumper.h"
 
-#include "mozilla/Atomics.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Preferences.h"
@@ -16,12 +15,10 @@
 #include "mozilla/dom/ContentChild.h"
 #include "nsIConsoleService.h"
 #include "nsICycleCollectorListener.h"
-#include "nsIMemoryReporter.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsGZFileWriter.h"
 #include "nsJSEnvironment.h"
 #include "nsPrintfCString.h"
-#include "pratom.h"
 
 #ifdef XP_WIN
 #include <process.h>
@@ -144,7 +141,7 @@ static int sGCAndCCDumpSignum;             // SIGRTMIN + 2
 
 // This is the write-end of a pipe that we use to notice when a
 // dump-about-memory signal occurs.
-static Atomic<int> sDumpAboutMemoryPipeWriteFd(-1);
+static int sDumpAboutMemoryPipeWriteFd = -1;
 
 void
 DumpAboutMemorySignalHandler(int aSignum)
@@ -194,7 +191,7 @@ public:
   virtual void OnFileCanReadWithoutBlocking(int aFd) = 0;
   virtual void OnFileCanWriteWithoutBlocking(int aFd) {};
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   /**
    * Initialize this object.  This should be called right after the object is
@@ -261,7 +258,7 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(FdWatcher, nsIObserver);
+NS_IMPL_THREADSAFE_ISUPPORTS1(FdWatcher, nsIObserver);
 
 class SignalPipeWatcher : public FdWatcher
 {
@@ -331,7 +328,8 @@ public:
     //  2) open a new fd with the same number as sDumpAboutMemoryPipeWriteFd
     //     had.
     //  3) receive a signal, then write to the fd.
-    int pipeWriteFd = sDumpAboutMemoryPipeWriteFd.exchange(-1);
+    int pipeWriteFd = sDumpAboutMemoryPipeWriteFd;
+    PR_ATOMIC_SET(&sDumpAboutMemoryPipeWriteFd, -1);
     close(pipeWriteFd);
 
     FdWatcher::StopWatching();

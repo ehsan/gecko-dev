@@ -190,7 +190,6 @@ destroying the MediaDecoder object.
 #include "gfxRect.h"
 #include "MediaResource.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "mozilla/TimeStamp.h"
 #include "MediaStreamGraph.h"
 #include "MediaDecoderOwner.h"
 #include "AudioChannelCommon.h"
@@ -242,7 +241,7 @@ class MediaDecoder : public nsIObserver,
 public:
   typedef mozilla::layers::Image Image;
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   // Enumeration for the valid play states (see mPlayState)
@@ -278,12 +277,16 @@ public:
 
   // Start downloading the media. Decode the downloaded data up to the
   // point of the first frame of data.
+  // aResource is the media stream to use. Ownership of aResource passes to
+  // the decoder, even if Load returns an error.
   // This is called at most once per decoder, after Init().
-  virtual nsresult Load(nsIStreamListener** aListener,
+  virtual nsresult Load(MediaResource* aResource,
+                        nsIStreamListener** aListener,
                         MediaDecoder* aCloneDonor);
 
-  // Called in |Load| to open mResource.
-  nsresult OpenResource(nsIStreamListener** aStreamListener);
+  // Called in |Load| to open the media resource.
+  nsresult OpenResource(MediaResource* aResource,
+                        nsIStreamListener** aStreamListener);
 
   // Called when the video file has completed downloading.
   virtual void ResourceLoaded();
@@ -302,11 +305,6 @@ public:
   MediaResource* GetResource() const MOZ_FINAL MOZ_OVERRIDE
   {
     return mResource;
-  }
-  void SetResource(MediaResource* aResource)
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Should only be called on main thread");
-    mResource = aResource;
   }
 
   // Return the principal of the current URI being played or downloaded.
@@ -507,7 +505,6 @@ public:
   virtual void SetDuration(double aDuration);
 
   void SetMediaDuration(int64_t aDuration) MOZ_OVERRIDE;
-  void UpdateMediaDuration(int64_t aDuration) MOZ_OVERRIDE;
 
   // Set a flag indicating whether seeking is supported
   virtual void SetMediaSeekable(bool aMediaSeekable) MOZ_OVERRIDE;
@@ -643,10 +640,6 @@ public:
   // The actual playback rate computation. The monitor must be held.
   virtual double ComputePlaybackRate(bool* aReliable);
 
-  // Return true when the media is same-origin with the element. The monitor
-  // must be held.
-  bool IsSameOriginMedia();
-
   // Returns true if we can play the entire media through without stopping
   // to buffer, given the current download and playback rates.
   bool CanPlayThrough();
@@ -692,7 +685,7 @@ public:
   // Call on the main thread only.
   void FirstFrameLoaded();
 
-  // Returns true if the resource has been loaded. Acquires the monitor.
+  // Returns true if the resource has been loaded. Must be in monitor.
   // Call from any thread.
   virtual bool IsDataCachedToEndOfResource();
 
@@ -742,9 +735,6 @@ public:
 
   // Notifies the element that decoding has failed.
   virtual void DecodeError();
-
-  // Indicate whether the media is same-origin with the element.
-  void UpdateSameOriginStatus(bool aSameOrigin);
 
   MediaDecoderOwner* GetOwner() MOZ_OVERRIDE;
 
@@ -828,7 +818,7 @@ public:
 
     FrameStatistics() :
         mReentrantMonitor("MediaDecoder::FrameStats"),
-        mTotalFrameDelay(0.0),
+        mPlaybackJitter(0.0),
         mParsedFrames(0),
         mDecodedFrames(0),
         mPresentedFrames(0) {}
@@ -855,9 +845,9 @@ public:
       return mPresentedFrames;
     }
 
-    double GetTotalFrameDelay() {
+    double GetPlaybackJitter() {
       ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      return mTotalFrameDelay;
+      return mPlaybackJitter;
     }
 
     // Increments the parsed and decoded frame counters by the passed in counts.
@@ -877,11 +867,11 @@ public:
       ++mPresentedFrames;
     }
 
-    // Tracks the sum of display delay.
+    // Tracks the sum of display errors.
     // Can be called on any thread.
-    void NotifyFrameDelay(double aFrameDelay) {
+    void NotifyPlaybackJitter(double aDisplayError) {
       ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-      mTotalFrameDelay += aFrameDelay;
+      mPlaybackJitter += aDisplayError;
     }
 
   private:
@@ -889,20 +879,20 @@ public:
     // ReentrantMonitor to protect access of playback statistics.
     ReentrantMonitor mReentrantMonitor;
 
-    // Sum of displayed frame delays.
-    // Access protected by mReentrantMonitor.
-    double mTotalFrameDelay;
+    // Sum of display duration error.
+    // Access protected by mStatsReentrantMonitor.
+    double mPlaybackJitter;
 
     // Number of frames parsed and demuxed from media.
-    // Access protected by mReentrantMonitor.
+    // Access protected by mStatsReentrantMonitor.
     uint32_t mParsedFrames;
 
     // Number of parsed frames which were actually decoded.
-    // Access protected by mReentrantMonitor.
+    // Access protected by mStatsReentrantMonitor.
     uint32_t mDecodedFrames;
 
     // Number of decoded frames which were actually sent down the rendering
-    // pipeline to be painted ("presented"). Access protected by mReentrantMonitor.
+    // pipeline to be painted ("presented"). Access protected by mStatsReentrantMonitor.
     uint32_t mPresentedFrames;
   };
 
@@ -946,6 +936,13 @@ public:
   double mInitialPlaybackRate;
   bool mInitialPreservesPitch;
 
+  // Position to seek to when the seek notification is received by the
+  // decode thread. Written by the main thread and read via the
+  // decode thread. Synchronised using mReentrantMonitor. If the
+  // value is negative then no seek has been requested. When a seek is
+  // started this is reset to negative.
+  double mRequestedSeekTime;
+
   // Duration of the media resource. Set to -1 if unknown.
   // Set when the metadata is loaded. Accessed on the main thread
   // only.
@@ -960,10 +957,6 @@ public:
 
   // True if the media is seekable (i.e. supports random access).
   bool mMediaSeekable;
-
-  // True if the media is same-origin with the element. Data can only be
-  // passed to MediaStreams when this is true.
-  bool mSameOriginMedia;
 
   /******
    * The following member variables can be accessed from any thread.
@@ -1028,10 +1021,6 @@ public:
   // Should be true only when PlayState is PLAY_STATE_LOADING.
   bool mIsDormant;
 
-  // True if this decoder is exiting from dormant state.
-  // Should be true only when PlayState is PLAY_STATE_LOADING.
-  bool mIsExitingDormant;
-
   // Set to one of the valid play states.
   // This can only be changed on the main thread while holding the decoder
   // monitor. Thus, it can be safely read while holding the decoder monitor
@@ -1047,15 +1036,6 @@ public:
   // Any change to the state must call NotifyAll on the monitor.
   // This can only be PLAY_STATE_PAUSED or PLAY_STATE_PLAYING.
   PlayState mNextState;
-
-  // Position to seek to when the seek notification is received by the
-  // decode thread.
-  // This can only be changed on the main thread while holding the decoder
-  // monitor. Thus, it can be safely read while holding the decoder monitor
-  // OR on the main thread.
-  // If the value is negative then no seek has been requested. When a seek is
-  // started this is reset to negative.
-  double mRequestedSeekTime;
 
   // True when we have fully loaded the resource and reported that
   // to the element (i.e. reached NETWORK_LOADED state).

@@ -20,10 +20,3 @@ CPP_SOURCES += [
 IPDL_SOURCES = [
     'PRenderFrame.ipdl',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkipc_s'
-

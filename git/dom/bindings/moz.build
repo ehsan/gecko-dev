@@ -11,7 +11,6 @@ EXPORTS.mozilla += [
 ]
 
 EXPORTS.mozilla.dom += [
-    'AtomList.h',
     'BindingDeclarations.h',
     'BindingUtils.h',
     'CallbackFunction.h',
@@ -19,20 +18,13 @@ EXPORTS.mozilla.dom += [
     'CallbackObject.h',
     'DOMJSClass.h',
     'DOMJSProxyHandler.h',
-    'Date.h',
     'Errors.msg',
-    'JSSlots.h',
     'NonRefcountedDOMObject.h',
     'Nullable.h',
     'PrimitiveConversions.h',
+    'PrototypeList.h',
+    'RegisterBindings.h',
     'TypedArray.h',
+    'UnionConversions.h',
+    'UnionTypes.h',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'dombindings_s'
-

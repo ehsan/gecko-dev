@@ -6,11 +6,9 @@ import collections
 import gyp
 import gyp.common
 import sys
-import platform
 import os
 import re
 import shlex
-from mozbuild.util import FileAvoidWrite
 
 generator_wants_sorted_dependencies = True
 
@@ -104,7 +102,7 @@ endif
 # Rules for regenerating Makefiles from GYP files.
 Makefile: %(input_gypfiles)s %(generator)s
 	$(PYTHON) %(commandline)s
-	@$(TOUCH) $@
+
 endif
 """
 
@@ -115,25 +113,15 @@ def ensure_directory_exists(path):
 
 def GetFlavor(params):
   """Returns |params.flavor| if it's set, the system's default flavor else."""
-  system = platform.system().lower()
   flavors = {
-    'microsoft': 'win',
-    'windows'  : 'win',
-    'cygwin'   : 'win',
-    'darwin'   : 'mac',
-    'sunos'    : 'solaris',
-    'dragonfly': 'dragonfly',
-    'freebsd'  : 'freebsd',
-    'netbsd'   : 'netbsd',
-    'openbsd'  : 'openbsd',
+    'win32': 'win',
+    'darwin': 'mac',
+    'sunos5': 'solaris',
+    'freebsd7': 'freebsd',
+    'freebsd8': 'freebsd',
   }
-
-  if 'flavor' in params:
-    return params['flavor']
-  if system in flavors:
-    return flavors[system]
-
-  return 'linux'
+  flavor = flavors.get(sys.platform, 'linux')
+  return params.get('flavor', flavor)
 
 
 def CalculateVariables(default_variables, params):
@@ -157,7 +145,7 @@ def WriteMakefile(filename, data, build_file, depth, topsrcdir, srcdir, relative
   #TODO: should compare with the existing file and not overwrite it if the
   # contents are the same!
   ensure_directory_exists(filename)
-  with FileAvoidWrite(filename) as f:
+  with open(filename, "w") as f:
     f.write(COMMON_HEADER % {'buildfile': build_file,
                              'depth': depth,
                              'topsrcdir': topsrcdir,
@@ -169,7 +157,7 @@ def WriteMakefile(filename, data, build_file, depth, topsrcdir, srcdir, relative
       f.write(extra_data)
 
 def WriteCommonMk(path, build_files, scriptname, commandline):
-  with FileAvoidWrite(path) as f:
+  with open(path, "w") as f:
     f.write(COMMON_MK % {'input_gypfiles': ' '.join(build_files),
                          'generator': scriptname,
                          'commandline': ' '.join(commandline)})
@@ -468,8 +456,8 @@ def GenerateOutput(target_list, target_dicts, data, params):
                  "--depth=%s" % topsrcdir_path(options.depth),
                  "--generator-output=%s" % objdir_path(options.generator_output),
                  "--toplevel-dir=$(topsrcdir)",
+                 #XXX: handle other generator_flags gracefully?
                  "-G OBJDIR=$(DEPTH)"] + \
-                 ['-G %s' % g for g in options.generator_flags if not g.startswith('OBJDIR=')] + \
                  ['-D%s' % d for d in options.defines] + \
                  [topsrcdir_path(b) for b in params['build_files']]
 

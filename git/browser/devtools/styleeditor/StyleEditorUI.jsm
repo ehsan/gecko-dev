@@ -149,7 +149,7 @@ StyleEditorUI.prototype = {
    */
   _onStyleSheetsCleared: function() {
     // remember selected sheet and line number for next load
-    if (this.selectedEditor && this.selectedEditor.sourceEditor) {
+    if (this.selectedEditor) {
       let href = this.selectedEditor.styleSheet.href;
       let {line, col} = this.selectedEditor.sourceEditor.getCaretPosition();
       this.selectStyleSheet(href, line, col);

@@ -122,6 +122,7 @@ assertEq(args[2], 6);
 
 //////////////////
 
+var bailout = Proxy.createFunction({}, Math.sin);
 function arg_len2() { assertEq(arguments.length, 4); }
 function bailing_arg_len(a) {
     if (a == 90) {

@@ -9,6 +9,8 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
+#include "jsapi.h"
+#include "jsdbgapi.h"
 #include "nsIXPCSecurityManager.h"
 #include "nsInterfaceHashtable.h"
 #include "nsHashtable.h"
@@ -18,9 +20,8 @@
 #include "pldhash.h"
 #include "plstr.h"
 #include "nsIScriptExternalNameSet.h"
-#include "js/TypeDecls.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 class nsIDocShell;
 class nsString;
@@ -370,13 +371,13 @@ private:
 
     bool SubjectIsPrivileged();
 
-    static bool
+    static JSBool
     CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> obj,
                       JS::Handle<jsid> id, JSAccessMode mode,
                       JS::MutableHandle<JS::Value> vp);
     
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
-    static bool
+    static JSBool
     ContentSecurityPolicyPermitsJSAction(JSContext *cx);
 
     // Returns null if a principal cannot be found; generally callers

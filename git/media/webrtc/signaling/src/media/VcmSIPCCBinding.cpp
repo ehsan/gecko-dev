@@ -1405,14 +1405,12 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     return VCM_ERROR;
   }
 
-  mozilla::RefPtr<TransportFlow> rtcp_flow = nullptr;
-  if(!attrs->rtcp_mux) {
-    rtcp_flow = vcmCreateTransportFlow(pc.impl(), level, true,
-                                       fingerprint_alg, fingerprint);
-    if (!rtcp_flow) {
-      CSFLogError( logTag, "Could not create RTCP flow");
-      return VCM_ERROR;
-    }
+  mozilla::RefPtr<TransportFlow> rtcp_flow =
+    vcmCreateTransportFlow(pc.impl(), level, true,
+                           fingerprint_alg, fingerprint);
+  if (!rtcp_flow) {
+    CSFLogError( logTag, "Could not create RTCP flow");
+    return VCM_ERROR;
   }
 
   if (CC_IS_AUDIO(mcap_id)) {
@@ -2048,14 +2046,12 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
       CSFLogError( logTag, "Could not create RTP flow");
       return VCM_ERROR;
   }
-  mozilla::RefPtr<TransportFlow> rtcp_flow = nullptr;
-  if(!attrs->rtcp_mux) {
-    rtcp_flow = vcmCreateTransportFlow(pc.impl(), level, true,
-                                       fingerprint_alg, fingerprint);
-    if (!rtcp_flow) {
+  mozilla::RefPtr<TransportFlow> rtcp_flow =
+      vcmCreateTransportFlow(pc.impl(), level, true,
+                             fingerprint_alg, fingerprint);
+  if (!rtcp_flow) {
       CSFLogError( logTag, "Could not create RTCP flow");
       return VCM_ERROR;
-    }
   }
 
   if (CC_IS_AUDIO(mcap_id)) {
@@ -2088,7 +2084,7 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
             pc.impl()->GetHandle(),
             pc.impl()->GetMainThread().get(),
             pc.impl()->GetSTSThread(),
-            stream->GetMediaStream(),
+            stream->GetMediaStream()->GetStream(),
             pc_track_id,
             conduit, rtp_flow, rtcp_flow);
 
@@ -2127,7 +2123,7 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
             pc.impl()->GetHandle(),
             pc.impl()->GetMainThread().get(),
             pc.impl()->GetSTSThread(),
-            stream->GetMediaStream(),
+            stream->GetMediaStream()->GetStream(),
             pc_track_id,
             conduit, rtp_flow, rtcp_flow);
 

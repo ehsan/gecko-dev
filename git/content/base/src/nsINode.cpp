@@ -61,6 +61,7 @@
 #include "nsIDOMUserDataHandler.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
+#include "nsIFrame.h"
 #include "nsILinkHandler.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
@@ -75,6 +76,7 @@
 #include "nsViewManager.h"
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
+#include "nsLayoutStatics.h"
 #include "nsLayoutUtils.h"
 #include "nsMutationEvent.h"
 #include "nsNetUtil.h"
@@ -733,6 +735,15 @@ nsINode::GetUserData(JSContext* aCx, const nsAString& aKey, ErrorResult& aError)
   return result;
 }
 
+//static
+bool
+nsINode::IsChromeOrXBL(JSContext* aCx, JSObject* /* unused */)
+{
+  JSCompartment* compartment = js::GetContextCompartment(aCx);
+  return xpc::AccessCheck::isChrome(compartment) ||
+         xpc::IsXBLScope(compartment);
+}
+
 uint16_t
 nsINode::CompareDocumentPosition(nsINode& aOtherNode) const
 {
@@ -1252,9 +1263,9 @@ nsINode::Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb)
 
 /* static */
 void
-nsINode::Unlink(nsINode* tmp)
+nsINode::Unlink(nsINode *tmp)
 {
-  tmp->ReleaseWrapper(tmp);
+  nsContentUtils::ReleaseWrapper(tmp, tmp);
 
   nsSlots *slots = tmp->GetExistingSlots();
   if (slots) {
@@ -1316,27 +1327,8 @@ AdoptNodeIntoOwnerDoc(nsINode *aParent, nsINode *aNode)
   NS_ASSERTION(aParent->OwnerDoc() == doc,
                "ownerDoc chainged while adopting");
   NS_ASSERTION(adoptedNode == node, "Uh, adopt node changed nodes?");
-  NS_ASSERTION(aParent->OwnerDoc() == aNode->OwnerDoc(),
+  NS_ASSERTION(aParent->HasSameOwnerDoc(aNode),
                "ownerDocument changed again after adopting!");
-
-  return NS_OK;
-}
-
-static nsresult
-CheckForOutdatedParent(nsINode* aParent, nsINode* aNode)
-{
-  if (JSObject* existingObj = aNode->GetWrapper()) {
-    nsIGlobalObject* global = aParent->OwnerDoc()->GetScopeObject();
-    MOZ_ASSERT(global);
-
-    if (js::GetGlobalForObjectCrossCompartment(existingObj) !=
-        global->GetGlobalJSObject()) {
-      AutoJSContext cx;
-      JS::Rooted<JSObject*> rooted(cx, existingObj);
-      nsresult rv = ReparentWrapper(cx, rooted);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
 
   return NS_OK;
 }
@@ -1357,11 +1349,8 @@ nsINode::doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
   nsIDocument* doc = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, aNotify);
 
-  if (OwnerDoc() != aKid->OwnerDoc()) {
+  if (!HasSameOwnerDoc(aKid)) {
     rv = AdoptNodeIntoOwnerDoc(this, aKid);
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else if (OwnerDoc()->DidDocumentOpen()) {
-    rv = CheckForOutdatedParent(this, aKid);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1415,34 +1404,6 @@ nsINode::doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
   return NS_OK;
 }
 
-Element*
-nsINode::GetPreviousElementSibling() const
-{
-  nsIContent* previousSibling = GetPreviousSibling();
-  while (previousSibling) {
-    if (previousSibling->IsElement()) {
-      return previousSibling->AsElement();
-    }
-    previousSibling = previousSibling->GetPreviousSibling();
-  }
-
-  return nullptr;
-}
-
-Element*
-nsINode::GetNextElementSibling() const
-{
-  nsIContent* nextSibling = GetNextSibling();
-  while (nextSibling) {
-    if (nextSibling->IsElement()) {
-      return nextSibling->AsElement();
-    }
-    nextSibling = nextSibling->GetNextSibling();
-  }
-
-  return nullptr;
-}
-
 void
 nsINode::Remove()
 {
@@ -1456,34 +1417,6 @@ nsINode::Remove()
     return;
   }
   parent->RemoveChildAt(uint32_t(index), true);
-}
-
-Element*
-nsINode::GetFirstElementChild() const
-{
-  for (nsIContent* child = GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsElement()) {
-      return child->AsElement();
-    }
-  }
-
-  return nullptr;
-}
-
-Element*
-nsINode::GetLastElementChild() const
-{
-  for (nsIContent* child = GetLastChild();
-       child;
-       child = child->GetPreviousSibling()) {
-    if (child->IsElement()) {
-      return child->AsElement();
-    }
-  }
-
-  return nullptr;
 }
 
 void
@@ -1806,7 +1739,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
       }
 
       // Verify that newContent has no parent.
-      if (newContent->GetParentNode()) {
+      if (newContent->GetParent()) {
         aError.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
         return nullptr;
       }
@@ -1883,7 +1816,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
 
       // Verify that all the things in fragChildren have no parent.
       for (uint32_t i = 0; i < count; ++i) {
-        if (fragChildren.ref().ElementAt(i)->GetParentNode()) {
+        if (fragChildren.ref().ElementAt(i)->GetParent()) {
           aError.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
           return nullptr;
         }
@@ -1973,13 +1906,8 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
   // DocumentType nodes are the only nodes that can have a null
   // ownerDocument according to the DOM spec, and we need to allow
   // inserting them w/o calling AdoptNode().
-  if (doc != newContent->OwnerDoc()) {
+  if (!HasSameOwnerDoc(newContent)) {
     aError = AdoptNodeIntoOwnerDoc(this, aNewChild);
-    if (aError.Failed()) {
-      return nullptr;
-    }
-  } else if (doc->DidDocumentOpen()) {
-    aError = CheckForOutdatedParent(this, aNewChild);
     if (aError.Failed()) {
       return nullptr;
     }
@@ -2168,15 +2096,13 @@ nsINode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 #define EVENT(name_, id_, type_, struct_)                                    \
   EventHandlerNonNull* nsINode::GetOn##name_() {                             \
     nsEventListenerManager *elm = GetListenerManager(false);                 \
-    return elm ? elm->GetEventHandler(nsGkAtoms::on##name_, EmptyString())   \
-               : nullptr;                                                    \
+    return elm ? elm->GetEventHandler(nsGkAtoms::on##name_) : nullptr;       \
   }                                                                          \
   void nsINode::SetOn##name_(EventHandlerNonNull* handler,                   \
                              ErrorResult& error) {                           \
     nsEventListenerManager *elm = GetListenerManager(true);                  \
     if (elm) {                                                               \
-      error = elm->SetEventHandler(nsGkAtoms::on##name_,                     \
-                                   EmptyString(), handler);                  \
+      error = elm->SetEventHandler(nsGkAtoms::on##name_, handler);           \
     } else {                                                                 \
       error.Throw(NS_ERROR_OUT_OF_MEMORY);                                   \
     }                                                                        \

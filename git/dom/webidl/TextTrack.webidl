@@ -35,8 +35,8 @@ interface TextTrack : EventTarget {
   readonly attribute TextTrackCueList? cues;
   readonly attribute TextTrackCueList? activeCues;
 
-  void addCue(VTTCue cue);
-  void removeCue(VTTCue cue);
+  void addCue(TextTrackCue cue);
+  void removeCue(TextTrackCue cue);
 
   [SetterThrows]
            attribute EventHandler oncuechange;

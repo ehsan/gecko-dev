@@ -8,7 +8,6 @@
 var gDebuggee;
 var gClient;
 var gThreadClient;
-var gBpClient;
 
 function run_test()
 {
@@ -33,8 +32,7 @@ function test_black_box()
     gThreadClient.setBreakpoint({
       url: SOURCE_URL,
       line: 4
-    }, function ({error}, bpClient) {
-      gBpClient = bpClient;
+    }, function ({error}) {
       do_check_true(!error, "Should not get an error: " + error);
       gThreadClient.resume(test_black_box_dbg_statement);
     });
@@ -78,10 +76,7 @@ function test_black_box_dbg_statement() {
       gClient.addOneTimeListener("paused", function (aEvent, aPacket) {
         do_check_eq(aPacket.why.type, "breakpoint",
                     "We should pass over the debugger statement.");
-        gBpClient.remove(function ({error}) {
-          do_check_true(!error, "Should not get an error: " + error);
-          gThreadClient.resume(test_unblack_box_dbg_statement.bind(null, sourceClient));
-        });
+        gThreadClient.resume(test_unblack_box_dbg_statement.bind(null, sourceClient));
       });
       gDebuggee.runTest();
     });
@@ -95,7 +90,14 @@ function test_unblack_box_dbg_statement(aSourceClient) {
     gClient.addOneTimeListener("paused", function (aEvent, aPacket) {
       do_check_eq(aPacket.why.type, "debuggerStatement",
                   "We should stop at the debugger statement again");
-      finishClient(gClient);
+
+      // We will hit the breakpoint on resume, so do this nastiness to skip over it.
+      gClient.addOneTimeListener(
+        "paused",
+        gThreadClient.resume.bind(
+          gThreadClient,
+          finishClient.bind(null, gClient)));
+      gThreadClient.resume();
     });
     gDebuggee.runTest();
   });

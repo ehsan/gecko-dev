@@ -29,21 +29,16 @@
 #include "PeerConnectionMedia.h"
 
 #ifdef MOZILLA_INTERNAL_API
-#include "mozilla/TimeStamp.h"
 #include "mozilla/net/DataChannel.h"
+#include "Layers.h"
 #include "VideoUtils.h"
+#include "ImageLayers.h"
 #include "VideoSegment.h"
 #include "nsNSSShutDown.h"
 #else
 namespace mozilla {
   class DataChannel;
 }
-#endif
-
-#if defined(__cplusplus) && __cplusplus >= 201103L
-typedef struct Timecard Timecard;
-#else
-#include "timecard.h"
 #endif
 
 using namespace mozilla;
@@ -184,7 +179,7 @@ public:
     kInternalError                    = 9
   };
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_IPEERCONNECTION
 
   static PeerConnectionImpl* CreatePeerConnection();
@@ -288,11 +283,6 @@ public:
   // Sets the RTC Signaling State
   void SetSignalingState_m(SignalingState aSignalingState);
 
-#ifdef MOZILLA_INTERNAL_API
-  // initialize telemetry for when calls start
-  void startCallTelem();
-#endif
-
 private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
@@ -333,11 +323,6 @@ private:
 
   // ICE callbacks run on the right thread.
   nsresult IceStateChange_m(IceState aState);
-
-  // Timecard used to measure processing time. This should be the first class
-  // attribute so that we accurately measure the time required to instantiate
-  // any other attributes of this class.
-  Timecard *mTimeCard;
 
   // The role we are adopting
   Role mRole;
@@ -382,11 +367,6 @@ private:
 #endif
 
   nsRefPtr<PeerConnectionMedia> mMedia;
-
-#ifdef MOZILLA_INTERNAL_API
-  // Start time of call used for Telemetry
-  mozilla::TimeStamp mStartTime;
-#endif
 
   // Temporary: used to prevent multiple audio streams or multiple video streams
   // in a single PC. This is tied up in the IETF discussion around proper

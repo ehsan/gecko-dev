@@ -6,16 +6,18 @@
 #ifndef WEBGLACTIVEINFO_H_
 #define WEBGLACTIVEINFO_H_
 
-#include "WebGLObjectModel.h"
+#include "WebGLTypes.h"
+#include "nsISupports.h"
 #include "nsString.h"
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 
 namespace mozilla {
 
 class WebGLActiveInfo MOZ_FINAL
+    : public nsISupports
 {
 public:
-    WebGLActiveInfo(GLint size, GLenum type, const nsACString& name) :
+    WebGLActiveInfo(WebGLint size, WebGLenum type, const nsACString& name) :
         mSize(size),
         mType(type),
         mName(NS_ConvertASCIItoUTF16(name))
@@ -23,11 +25,11 @@ public:
 
     // WebIDL attributes
 
-    GLint Size() const {
+    WebGLint Size() const {
         return mSize;
     }
 
-    GLenum Type() const {
+    WebGLenum Type() const {
         return mType;
     }
 
@@ -37,11 +39,11 @@ public:
 
     JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
 
-   NS_INLINE_DECL_REFCOUNTING(WebGLActiveInfo)
+    NS_DECL_ISUPPORTS
 
 protected:
-    GLint mSize;
-    GLenum mType;
+    WebGLint mSize;
+    WebGLenum mType;
     nsString mName;
 };
 

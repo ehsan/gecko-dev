@@ -39,9 +39,9 @@ using namespace mozilla::services;
 namespace mozilla {
 namespace system {
 
-NS_IMPL_ISUPPORTS2(nsVolumeService,
-                   nsIVolumeService,
-                   nsIDOMMozWakeLockListener)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsVolumeService,
+                              nsIVolumeService,
+                              nsIDOMMozWakeLockListener)
 
 StaticRefPtr<nsVolumeService> nsVolumeService::sSingleton;
 
@@ -246,9 +246,7 @@ nsVolumeService::CreateOrGetVolumeByPath(const nsAString& aPath, nsIVolume** aRe
   // from the pathname, so that the caller can determine the volume size.
   nsCOMPtr<nsIVolume> vol = new nsVolume(NS_LITERAL_STRING("fake"),
                                          aPath, nsIVolume::STATE_MOUNTED,
-                                         -1    /* generation */,
-                                         true  /* isMediaPresent*/,
-                                         false /* isSharing */);
+                                         -1 /*generation*/);
   vol.forget(aResult);
   return NS_OK;
 }
@@ -377,12 +375,8 @@ NS_IMETHODIMP
 nsVolumeService::CreateFakeVolume(const nsAString& name, const nsAString& path)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    nsRefPtr<nsVolume> vol = new nsVolume(name, path, nsIVolume::STATE_INIT,
-                                          -1    /* mountGeneration */,
-                                          true  /* isMediaPresent */,
-                                          false /* isSharing */);
+    nsRefPtr<nsVolume> vol = new nsVolume(name, path, nsIVolume::STATE_INIT, -1);
     vol->SetIsFake(true);
-    vol->LogState();
     UpdateVolume(vol.get());
     return NS_OK;
   }
@@ -404,7 +398,6 @@ nsVolumeService::SetFakeVolumeState(const nsAString& name, int32_t state)
       return NS_ERROR_NOT_AVAILABLE;
     }
     vol->SetState(state);
-    vol->LogState();
     UpdateVolume(vol.get());
     return NS_OK;
   }
@@ -430,11 +423,9 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    DBG("UpdateVolumeRunnable::Run '%s' state %s gen %d locked %d "
-        "media %d sharing %d",
+    DBG("UpdateVolumeRunnable::Run '%s' state %s gen %d locked %d",
         mVolume->NameStr().get(), mVolume->StateStr(),
-        mVolume->MountGeneration(), (int)mVolume->IsMountLocked(),
-        (int)mVolume->IsMediaPresent(), mVolume->IsSharing());
+        mVolume->MountGeneration(), (int)mVolume->IsMountLocked());
 
     mVolumeService->UpdateVolume(mVolume);
     mVolumeService = nullptr;
@@ -450,11 +441,9 @@ private:
 void
 nsVolumeService::UpdateVolumeIOThread(const Volume* aVolume)
 {
-  DBG("UpdateVolumeIOThread: Volume '%s' state %s mount '%s' gen %d locked %d "
-      "media %d sharing %d",
+  DBG("UpdateVolumeIOThread: Volume '%s' state %s mount '%s' gen %d locked %d",
       aVolume->NameStr(), aVolume->StateStr(), aVolume->MountPoint().get(),
-      aVolume->MountGeneration(), (int)aVolume->IsMountLocked(),
-      (int)aVolume->IsMediaPresent(), (int)aVolume->IsSharing());
+      aVolume->MountGeneration(), (int)aVolume->IsMountLocked());
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
   NS_DispatchToMainThread(new UpdateVolumeRunnable(this, aVolume));
 }

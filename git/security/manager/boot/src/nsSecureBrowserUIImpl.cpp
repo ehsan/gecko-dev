@@ -100,17 +100,17 @@ static PLDHashTableOps gMapOps = {
 #ifdef DEBUG
 class nsAutoAtomic {
   public:
-    nsAutoAtomic(Atomic<int32_t> &i)
+    nsAutoAtomic(int32_t &i)
     :mI(i) {
-      mI++;
+      PR_ATOMIC_INCREMENT(&mI);
     }
 
     ~nsAutoAtomic() {
-      mI--;
+      PR_ATOMIC_DECREMENT(&mI);
     }
 
   protected:
-    Atomic<int32_t> &mI;
+    int32_t &mI;
 
   private:
     nsAutoAtomic(); // not accessible
@@ -150,13 +150,13 @@ nsSecureBrowserUIImpl::~nsSecureBrowserUIImpl()
   }
 }
 
-NS_IMPL_ISUPPORTS6(nsSecureBrowserUIImpl,
-                   nsISecureBrowserUI,
-                   nsIWebProgressListener,
-                   nsIFormSubmitObserver,
-                   nsIObserver,
-                   nsISupportsWeakReference,
-                   nsISSLStatusProvider)
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsSecureBrowserUIImpl,
+                              nsISecureBrowserUI,
+                              nsIWebProgressListener,
+                              nsIFormSubmitObserver,
+                              nsIObserver,
+                              nsISupportsWeakReference,
+                              nsISSLStatusProvider)
 
 NS_IMETHODIMP
 nsSecureBrowserUIImpl::Init(nsIDOMWindow *aWindow)

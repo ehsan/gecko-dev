@@ -34,41 +34,12 @@
   margin-left: 0;
 }
 
-.devtools-responsiveui-close {
-  list-style-image: url("chrome://browser/skin/devtools/close.png");
-}
-
-.devtools-responsiveui-rotate {
-  list-style-image: url("chrome://browser/skin/devtools/responsiveui-rotate.png");
-}
-
-.devtools-responsiveui-touch {
-  list-style-image: url("chrome://browser/skin/devtools/responsiveui-touch.png");
-  -moz-image-region: rect(0px,16px,16px,0px);
-}
-
-.devtools-responsiveui-touch[checked] {
-  -moz-image-region: rect(0px,32px,16px,16px);
-}
-
-.devtools-responsiveui-screenshot {
-  list-style-image: url("chrome://browser/skin/devtools/responsiveui-screenshot.png");
-}
-
-.devtools-responsiveui-resizebarV {
+.devtools-responsiveui-resizebar {
   width: 7px;
   height: 24px;
   cursor: ew-resize;
   transform: translate(12px, -12px);
   background-image: url("chrome://browser/skin/devtools/responsive-vertical-resizer.png");
-}
-
-.devtools-responsiveui-resizebarH {
-  width: 24px;
-  height: 7px;
-  cursor: ns-resize;
-  transform: translate(-12px, 12px);
-  background-image: url("chrome://browser/skin/devtools/responsive-horizontal-resizer.png");
 }
 
 .devtools-responsiveui-resizehandle {

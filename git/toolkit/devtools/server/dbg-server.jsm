@@ -15,7 +15,7 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cu = Components.utils;
 
-this.EXPORTED_SYMBOLS = ["DebuggerServer", "ActorPool"];
+this.EXPORTED_SYMBOLS = ["DebuggerServer"];
 
 var loadSubScript =
   "function loadSubScript(aURL)\n" +
@@ -41,4 +41,3 @@ Cu.evalInSandbox(loadSubScript, gGlobal, "1.8");
 gGlobal.loadSubScript("resource://gre/modules/devtools/server/main.js");
 
 this.DebuggerServer = gGlobal.DebuggerServer;
-this.ActorPool = gGlobal.ActorPool;
