@@ -26,11 +26,6 @@ static const int64_t SEEK_VS_READ_THRESHOLD = 32*1024;
 
 static const uint32_t HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE = 416;
 
-// Number of bytes we have accumulated before we assume the connection download
-// rate can be reliably calculated. 57 Segments at IW=3 allows slow start to
-// reach a CWND of 30 (See bug 831998)
-static const int64_t RELIABLE_DATA_THRESHOLD = 57 * 1460;
-
 namespace mozilla {
 
 class MediaDecoder;
@@ -88,8 +83,7 @@ public:
   }
   double GetRateAtLastStop(bool* aReliable) {
     double seconds = mAccumulatedTime.ToSeconds();
-    *aReliable = (seconds >= 1.0) ||
-                 (mAccumulatedBytes >= RELIABLE_DATA_THRESHOLD);
+    *aReliable = seconds >= 1.0;
     if (seconds <= 0.0)
       return 0.0;
     return static_cast<double>(mAccumulatedBytes)/seconds;
@@ -100,8 +94,7 @@ public:
       time += TimeStamp::Now() - mLastStartTime;
     }
     double seconds = time.ToSeconds();
-    *aReliable = (seconds >= 3.0) ||
-                 (mAccumulatedBytes >= RELIABLE_DATA_THRESHOLD);
+    *aReliable = seconds >= 3.0;
     if (seconds <= 0.0)
       return 0.0;
     return static_cast<double>(mAccumulatedBytes)/seconds;

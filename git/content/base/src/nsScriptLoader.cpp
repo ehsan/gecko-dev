@@ -1062,7 +1062,7 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                  aLength, &unicodeLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!aString.SetLength(unicodeLength, fallible_t())) {
+  if (!EnsureStringLength(aString, unicodeLength)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

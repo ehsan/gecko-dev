@@ -15,7 +15,7 @@ function run_test()
 
   gClient = new DebuggerClient(DebuggerServer.connectPipe());
   gClient.connect(function() {
-    attachTestTabAndResume(gClient, "test-grips", function(aResponse, aTabClient, aThreadClient) {
+    attachTestGlobalClientAndResume(gClient, "test-grips", function(aResponse, aThreadClient) {
       gThreadClient = aThreadClient;
       test_named_function();
     });

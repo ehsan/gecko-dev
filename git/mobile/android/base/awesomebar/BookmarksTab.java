@@ -10,7 +10,6 @@ import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.FaviconView;
@@ -18,7 +17,6 @@ import org.mozilla.gecko.widget.FaviconView;
 import android.app.Activity;
 import android.content.Context;
 import android.database.Cursor;
-import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.util.Log;
 import android.util.Pair;
@@ -344,17 +342,7 @@ public class BookmarksTab extends AwesomeBarTab {
             if (viewType == VIEW_TYPE_ITEM) {
                 updateTitle(viewHolder.titleView, cursor);
                 updateUrl(viewHolder.urlView, cursor);
-
-                byte[] b = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
-                Bitmap favicon = null;
-                if (b != null) {
-                    Bitmap bitmap = BitmapUtils.decodeByteArray(b);
-                    if (bitmap != null) {
-                        favicon = Favicons.getInstance().scaleImage(bitmap);
-                    }
-                }
-                String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
-                updateFavicon(viewHolder.faviconView, favicon, url);
+                updateFavicon(viewHolder.faviconView, cursor);
             } else {
                 viewHolder.titleView.setText(getFolderTitle(position));
             }

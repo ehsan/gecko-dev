@@ -20,15 +20,11 @@
 #include "DynamicsCompressorNode.h"
 #include "BiquadFilterNode.h"
 #include "ScriptProcessorNode.h"
-#include "ChannelMergerNode.h"
-#include "ChannelSplitterNode.h"
 #include "nsNetUtil.h"
 
 // Note that this number is an arbitrary large value to protect against OOM
 // attacks.
 const unsigned MAX_SCRIPT_PROCESSOR_CHANNELS = 10000;
-const unsigned MAX_CHANNEL_SPLITTER_OUTPUTS = UINT16_MAX;
-const unsigned MAX_CHANNEL_MERGER_INPUTS = UINT16_MAX;
 
 namespace mozilla {
 namespace dom {
@@ -118,6 +114,8 @@ already_AddRefed<AudioBuffer>
 AudioContext::CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
                           bool aMixToMono, ErrorResult& aRv)
 {
+  // TODO: handle aMixToMono
+
   // Sniff the content of the media.
   // Failed type sniffing will be handled by SyncDecodeMedia.
   nsAutoCString contentType;
@@ -130,11 +128,7 @@ AudioContext::CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
   if (mDecoder.SyncDecodeMedia(contentType.get(),
                                job.mBuffer, job.mLength, job) &&
       job.mOutput) {
-    nsRefPtr<AudioBuffer> buffer = job.mOutput.forget();
-    if (aMixToMono) {
-      buffer->MixToMono(aJSContext);
-    }
-    return buffer.forget();
+    return job.mOutput.forget();
   }
 
   return nullptr;
@@ -212,34 +206,6 @@ AudioContext::CreatePanner()
   nsRefPtr<PannerNode> pannerNode = new PannerNode(this);
   mPannerNodes.PutEntry(pannerNode);
   return pannerNode.forget();
-}
-
-already_AddRefed<ChannelSplitterNode>
-AudioContext::CreateChannelSplitter(uint32_t aNumberOfOutputs, ErrorResult& aRv)
-{
-  if (aNumberOfOutputs == 0 ||
-      aNumberOfOutputs > MAX_CHANNEL_SPLITTER_OUTPUTS) {
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return nullptr;
-  }
-
-  nsRefPtr<ChannelSplitterNode> splitterNode =
-    new ChannelSplitterNode(this, aNumberOfOutputs);
-  return splitterNode.forget();
-}
-
-already_AddRefed<ChannelMergerNode>
-AudioContext::CreateChannelMerger(uint32_t aNumberOfInputs, ErrorResult& aRv)
-{
-  if (aNumberOfInputs == 0 ||
-      aNumberOfInputs > MAX_CHANNEL_MERGER_INPUTS) {
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return nullptr;
-  }
-
-  nsRefPtr<ChannelMergerNode> mergerNode =
-    new ChannelMergerNode(this, aNumberOfInputs);
-  return mergerNode.forget();
 }
 
 already_AddRefed<DynamicsCompressorNode>

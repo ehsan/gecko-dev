@@ -876,9 +876,9 @@
                 <xul:button anonid="remove-btn" class="addon-control remove"
                             label="&cmd.uninstallAddon.label;"
                             oncommand="document.getBindingParent(this).uninstall();"/>
-                <xul:menulist anonid="state-menulist"
-                              class="addon-control state"
-                              tooltiptext="&cmd.stateMenu.tooltip;">
+                <xul:menulist anonid="tristate-menulist"
+                              class="addon-control"
+                              tooltiptext="&cmd.tristateMenu.tooltip;">
                   <xul:menupopup>
                     <xul:menuitem anonid="ask-to-activate-menuitem"
                                   class="addon-control"
@@ -979,9 +979,9 @@
         document.getAnonymousElementByAttribute(this, "anonid",
                                                 "description");
       </field>
-      <field name="_stateMenulist">
+      <field name="_tristateMenulist">
         document.getAnonymousElementByAttribute(this, "anonid",
-                                                "state-menulist");
+                                                "tristate-menulist");
       </field>
       <field name="_askToActivateMenuitem">
         document.getAnonymousElementByAttribute(this, "anonid",
@@ -1288,16 +1288,15 @@
             this._alwaysActivateMenuitem.disabled = !this.hasPermission("enable");
             this._neverActivateMenuitem.disabled = !this.hasPermission("disable");
             if (this.mAddon.userDisabled === true) {
-              this._stateMenulist.selectedItem = this._neverActivateMenuitem;
+              this._tristateMenulist.selectedItem = this._neverActivateMenuitem;
             } else if (this.mAddon.userDisabled == AddonManager.STATE_ASK_TO_ACTIVATE) {
-              this._stateMenulist.selectedItem = this._askToActivateMenuitem;
+              this._tristateMenulist.selectedItem = this._askToActivateMenuitem;
             } else {
-              this._stateMenulist.selectedItem = this._alwaysActivateMenuitem;
+              this._tristateMenulist.selectedItem = this._alwaysActivateMenuitem;
             }
-            this._stateMenulist.selectedItem.disabled = false;
-            this._stateMenulist.disabled = false;
+            this._tristateMenulist.disabled = false;
           } else {
-            this._stateMenulist.disabled = true;
+            this._tristateMenulist.disabled = true;
             if (this.hasPermission("enable")) {
               this._enableBtn.hidden = false;
               let tooltip = gViewController.commands["cmd_enableItem"]

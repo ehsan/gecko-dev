@@ -136,7 +136,6 @@ function migrateSettings() {
     for (let origin in ActiveProviders._providers) {
       let prefname;
       let manifest;
-      let defaultManifest;
       try {
         prefname = getPrefnameFromOrigin(origin);
         manifest = JSON.parse(Services.prefs.getComplexValue(prefname, Ci.nsISupportsString).data);
@@ -149,27 +148,14 @@ function migrateSettings() {
         ActiveProviders.flush();
         continue;
       }
-      let needsUpdate = !manifest.updateDate;
-      // fx23 may have built-ins with shareURL
-      try {
-        defaultManifest = Services.prefs.getDefaultBranch(null)
-                        .getComplexValue(prefname, Ci.nsISupportsString).data;
-        defaultManifest = JSON.parse(defaultManifest);
-        if (defaultManifest.shareURL && !manifest.shareURL) {
-          manifest.shareURL = defaultManifest.shareURL;
-          needsUpdate = true;
-        }
-      } catch(e) {
-        // not a built-in, continue
-      }
-      if (needsUpdate) {
+      if (!manifest.updateDate) {
         // the provider was installed with an older build, so we will update the
         // timestamp and ensure the manifest is in user prefs
         delete manifest.builtin;
-        // we're potentially updating for share, so always mark the updateDate
-        manifest.updateDate = Date.now();
-        if (!manifest.installDate)
+        if (!manifest.updateDate) {
+          manifest.updateDate = Date.now();
           manifest.installDate = 0; // we don't know when it was installed
+        }
 
         let string = Cc["@mozilla.org/supports-string;1"].
                      createInstance(Ci.nsISupportsString);
@@ -418,7 +404,7 @@ this.SocialService = {
   },
 
   _manifestFromData: function(type, data, principal) {
-    let sameOriginRequired = ['workerURL', 'sidebarURL', 'shareURL'];
+    let sameOriginRequired = ['workerURL', 'sidebarURL'];
 
     if (type == 'directory') {
       // directory provided manifests must have origin in manifest, use that
@@ -436,7 +422,7 @@ this.SocialService = {
     // iconURL and name are required
     // iconURL may be a different origin (CDN or data url support) if this is
     // a whitelisted or directory listed provider
-    if (!data['workerURL'] && !data['sidebarURL'] && !data['shareURL']) {
+    if (!data['workerURL'] || !data['sidebarURL']) {
       Cu.reportError("SocialService.manifestFromData manifest missing required workerURL or sidebarURL.");
       return null;
     }
@@ -592,7 +578,6 @@ function SocialProvider(input) {
   this.icon64URL = input.icon64URL;
   this.workerURL = input.workerURL;
   this.sidebarURL = input.sidebarURL;
-  this.shareURL = input.shareURL;
   this.origin = input.origin;
   let originUri = Services.io.newURI(input.origin, null, null);
   this.principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
@@ -641,24 +626,25 @@ SocialProvider.prototype = {
   // values aren't to be used as the user is logged out'.
   profile: undefined,
 
-  // Contains the information necessary to support our page mark feature.
+  // Contains the information necessary to support our "recommend" feature.
   // null means no info yet provided (which includes the case of the provider
   // not supporting the feature) or the provided data is invalid.  Updated via
-  // the 'pageMarkInfo' setter and returned via the getter.
-  _pageMarkInfo: null,
-  get pageMarkInfo() {
-    return this._pageMarkInfo;
+  // the 'recommendInfo' setter and returned via the getter.
+  _recommendInfo: null,
+  get recommendInfo() {
+    return this._recommendInfo;
   },
-  set pageMarkInfo(data) {
-    // Accept *and validate* the page-mark-config message from the provider.
+  set recommendInfo(data) {
+    // Accept *and validate* the user-recommend-prompt-response message from
+    // the provider.
     let promptImages = {};
     let promptMessages = {};
     function reportError(reason) {
-      Cu.reportError("Invalid page-mark data from provider: " + reason + ": marking is disabled for this provider");
-      // and we explicitly reset the page-mark data to null to avoid stale
+      Cu.reportError("Invalid recommend data from provider: " + reason + ": sharing is disabled for this provider");
+      // and we explicitly reset the recommend data to null to avoid stale
       // data being used and notify our observers.
-      this._pageMarkInfo = null;
-      Services.obs.notifyObservers(null, "social:page-mark-config", this.origin);
+      this._recommendInfo = null;
+      Services.obs.notifyObservers(null, "social:recommend-info-changed", this.origin);
     }
     if (!data ||
         !data.images || typeof data.images != "object" ||
@@ -666,10 +652,10 @@ SocialProvider.prototype = {
       reportError("data is missing valid 'images' or 'messages' elements");
       return;
     }
-    for (let sub of ["marked", "unmarked"]) {
+    for (let sub of ["share", "unshare"]) {
       let url = data.images[sub];
       if (!url || typeof url != "string" || url.length == 0) {
-        reportError('images["' + sub + '"] is not a valid string');
+        reportError('images["' + sub + '"] is missing or not a non-empty string');
         return;
       }
       // resolve potentially relative URLs but there is no same-origin check
@@ -683,15 +669,19 @@ SocialProvider.prototype = {
       }
       promptImages[sub] = imgUri.spec;
     }
-    for (let sub of ["markedTooltip", "unmarkedTooltip", "markedLabel", "unmarkedLabel"]) {
+    for (let sub of ["shareTooltip", "unshareTooltip",
+                     "sharedLabel", "unsharedLabel", "unshareLabel",
+                     "portraitLabel",
+                     "unshareConfirmLabel", "unshareConfirmAccessKey",
+                     "unshareCancelLabel", "unshareCancelAccessKey"]) {
       if (typeof data.messages[sub] != "string" || data.messages[sub].length == 0) {
         reportError('messages["' + sub + '"] is not a valid string');
         return;
       }
       promptMessages[sub] = data.messages[sub];
     }
-    this._pageMarkInfo = {images: promptImages, messages: promptMessages};
-    Services.obs.notifyObservers(null, "social:page-mark-config", this.origin);
+    this._recommendInfo = {images: promptImages, messages: promptMessages};
+    Services.obs.notifyObservers(null, "social:recommend-info-changed", this.origin);
   },
 
   // Map of objects describing the provider's notification icons, whose

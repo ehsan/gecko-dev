@@ -10,9 +10,6 @@
 
 #include "AccessibleValue.h"
 
-namespace mozilla {
-namespace a11y {
-
 class ia2AccessibleValue: public IAccessibleValue
 {
 public:
@@ -35,7 +32,5 @@ public:
 
 };
 
-} // namespace a11y
-} // namespace mozilla
-
 #endif
+

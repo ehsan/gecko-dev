@@ -170,12 +170,13 @@ NS_IMETHODIMP
 nsDOMMultipartFile::Initialize(nsISupports* aOwner,
                                JSContext* aCx,
                                JSObject* aObj,
-                               const JS::CallArgs& aArgs)
+                               uint32_t aArgc,
+                               JS::Value* aArgv)
 {
   if (!mIsFile) {
-    return InitBlob(aCx, aArgs.length(), aArgs.array(), GetXPConnectNative);
+    return InitBlob(aCx, aArgc, aArgv, GetXPConnectNative);
   }
-  return InitFile(aCx, aArgs.length(), aArgs.array());
+  return InitFile(aCx, aArgc, aArgv);
 }
 
 nsresult
@@ -192,14 +193,14 @@ nsDOMMultipartFile::InitBlob(JSContext* aCx,
         return NS_ERROR_TYPE_ERR;
       }
       mContentType = d.mType;
-      nativeEOL = d.mEndings == EndingTypes::Native;
+      nativeEOL = d.mEndings == EndingTypesValues::Native;
     } else {
       BlobPropertyBagWorkers d;
       if (!d.Init(aCx, JS::Handle<JS::Value>::fromMarkedLocation(&aArgv[1]))) {
         return NS_ERROR_TYPE_ERR;
       }
       mContentType = d.mType;
-      nativeEOL = d.mEndings == EndingTypes::Native;
+      nativeEOL = d.mEndings == EndingTypesValues::Native;
     }
   }
 

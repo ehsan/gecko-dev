@@ -277,8 +277,7 @@ DestroyProtoAndIfaceCache(JSObject* obj)
  * Add constants to an object.
  */
 bool
-DefineConstants(JSContext* cx, JS::Handle<JSObject*> obj,
-                const ConstantSpec* cs);
+DefineConstants(JSContext* cx, JSObject* obj, const ConstantSpec* cs);
 
 struct JSNativeHolder
 {

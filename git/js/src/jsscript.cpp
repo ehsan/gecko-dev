@@ -1916,7 +1916,11 @@ JSScript::isShortRunning()
 {
     return length < 100 &&
            hasAnalysis() &&
-           !analysis()->hasFunctionCalls();
+           !analysis()->hasFunctionCalls()
+#ifdef JS_METHODJIT
+           && getMaxLoopCount() < 40
+#endif
+           ;
 }
 
 bool
@@ -2879,15 +2883,11 @@ void
 JSScript::updateBaselineOrIonRaw()
 {
 #ifdef JS_ION
-    if (hasIonScript()) {
+    if (hasIonScript())
         baselineOrIonRaw = ion->method()->raw();
-        baselineOrIonSkipArgCheck = ion->method()->raw() + ion->getSkipArgCheckEntryOffset();
-    } else if (hasBaselineScript()) {
+    else if (hasBaselineScript())
         baselineOrIonRaw = baseline->method()->raw();
-        baselineOrIonSkipArgCheck = baseline->method()->raw();
-    } else {
+    else
         baselineOrIonRaw = NULL;
-        baselineOrIonSkipArgCheck = NULL;
-    }
 #endif
 }

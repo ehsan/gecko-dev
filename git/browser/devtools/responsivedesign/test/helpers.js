@@ -733,13 +733,10 @@ helpers._exec = function(options, name, expected) {
       var actualOutput = div.textContent.trim();
 
       var doTest = function(match, against) {
-        if (match.test(against)) {
-          assert.ok(true, 'html output for ' + name + ' should match ' +
-                          match.source);
-        } else {
-          assert.ok(false, 'html output for ' + name + ' should match ' +
-                           match.source +
-                           '. Actual textContent: "' + against + '"');
+        if (!match.test(against)) {
+          assert.ok(false, 'html output for ' + name + ' against ' + match.source);
+          log('Actual textContent');
+          log(against);
         }
       };
 
@@ -757,7 +754,7 @@ helpers._exec = function(options, name, expected) {
         doTest(expected.output, actualOutput);
       }
 
-      deferred.resolve(actualOutput);
+      deferred.resolve();
     });
   };
 
@@ -795,9 +792,9 @@ helpers._setup = function(options, name, action) {
 /**
  * Helper to shutdown the test
  */
-helpers._post = function(name, action, output) {
+helpers._post = function(name, action) {
   if (typeof action === 'function') {
-    return Promise.resolve(action(output));
+    return Promise.resolve(action());
   }
   return Promise.resolve(action);
 };
@@ -954,8 +951,8 @@ helpers.audit = function(options, audits) {
       var checkDone = helpers._check(options, name, audit.check);
       return checkDone.then(function() {
         var execDone = helpers._exec(options, name, audit.exec);
-        return execDone.then(function(output) {
-          return helpers._post(name, audit.post, output).then(function() {
+        return execDone.then(function() {
+          return helpers._post(name, audit.post).then(function() {
             if (assert.testLogging) {
               log('- END \'' + name + '\' in ' + assert.currentTest);
             }

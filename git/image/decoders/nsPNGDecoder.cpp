@@ -140,19 +140,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                                int32_t width, int32_t height,
                                gfxASurface::gfxImageFormat format)
 {
-  // Our first full frame is automatically created by the image decoding
-  // infrastructure. Just use it as long as we're not creating a subframe.
-  MOZ_ASSERT(HasSize());
-  if (mNumFrames != 0 ||
-      x_offset != 0 || y_offset != 0 ||
-      width != mImageMetadata.GetWidth() || height != mImageMetadata.GetHeight()) {
-    NeedNewFrame(mNumFrames, x_offset, y_offset, width, height, format);
-  } else if (mNumFrames == 0) {
-    // Our preallocated frame matches up, with the possible exception of alpha.
-    if (format == gfxASurface::ImageFormatRGB24) {
-      GetCurrentFrame()->SetHasNoAlpha();
-    }
-  }
+  NeedNewFrame(mNumFrames, x_offset, y_offset, width, height, format);
 
   mFrameRect.x = x_offset;
   mFrameRect.y = y_offset;
@@ -663,7 +651,14 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
     }
   }
 
-  if (!decoder->mFrameIsHidden && decoder->NeedsNewFrame()) {
+  /* Reject any ancillary chunk after IDAT with a bad CRC (bug #397593).
+   * It would be better to show the default frame (if one has already been
+   * successfully decoded) before bailing, but it's simpler to just bail
+   * out with an error message.
+   */
+  png_set_crc_action(png_ptr, PNG_CRC_NO_CHANGE, PNG_CRC_ERROR_QUIT);
+
+  if (!decoder->mFrameIsHidden) {
     /* We know that we need a new frame, so pause input so the decoder
      * infrastructure can give it to us.
      */

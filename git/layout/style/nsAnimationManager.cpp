@@ -43,13 +43,11 @@ double
 ElementAnimations::GetPositionInIteration(TimeDuration aElapsedDuration,
                                           TimeDuration aIterationDuration,
                                           double aIterationCount,
-                                          uint32_t aDirection,
+                                          uint32_t aDirection, bool aIsForElement,
                                           ElementAnimation* aAnimation,
                                           ElementAnimations* aEa,
                                           EventArray* aEventsToDispatch)
 {
-  MOZ_ASSERT(!aAnimation == !aEa && !aAnimation == !aEventsToDispatch);
-
   // Set |currentIterationCount| to the (fractional) number of
   // iterations we've completed up to the current position.
   double currentIterationCount = aElapsedDuration / aIterationDuration;
@@ -57,11 +55,12 @@ ElementAnimations::GetPositionInIteration(TimeDuration aElapsedDuration,
   if (currentIterationCount >= aIterationCount) {
     if (aAnimation) {
       // Dispatch 'animationend' when needed.
-      if (aAnimation->mLastNotification !=
+      if (aIsForElement &&
+          aAnimation->mLastNotification !=
             ElementAnimation::LAST_NOTIFICATION_END) {
         aAnimation->mLastNotification = ElementAnimation::LAST_NOTIFICATION_END;
         AnimationEventInfo ei(aEa->mElement, aAnimation->mName, NS_ANIMATION_END,
-                              aElapsedDuration, aEa->PseudoElement());
+                              aElapsedDuration);
         aEventsToDispatch->AppendElement(ei);
       }
 
@@ -130,7 +129,7 @@ ElementAnimations::GetPositionInIteration(TimeDuration aElapsedDuration,
   }
 
   // Dispatch 'animationstart' or 'animationiteration' when needed.
-  if (aAnimation && dispatchStartOrIteration &&
+  if (aAnimation && aIsForElement && dispatchStartOrIteration &&
       whichIteration != aAnimation->mLastNotification) {
     // Notify 'animationstart' even if a negative delay puts us
     // past the first iteration.
@@ -144,7 +143,7 @@ ElementAnimations::GetPositionInIteration(TimeDuration aElapsedDuration,
 
     aAnimation->mLastNotification = whichIteration;
     AnimationEventInfo ei(aEa->mElement, aAnimation->mName, message,
-                          aElapsedDuration, aEa->PseudoElement());
+                          aElapsedDuration);
     aEventsToDispatch->AppendElement(ei);
   }
 
@@ -184,7 +183,8 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
       // FIXME: avoid recalculating every time when paused.
       GetPositionInIteration(anim.ElapsedDurationAt(aRefreshTime),
                              anim.mIterationDuration, anim.mIterationCount,
-                             anim.mDirection, &anim, this, &aEventsToDispatch);
+                             anim.mDirection, IsForElement(),
+                             &anim, this, &aEventsToDispatch);
 
       // GetPositionInIteration just adjusted mLastNotification; check
       // its new value against the value before we called
@@ -233,8 +233,8 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
       double positionInIteration =
         GetPositionInIteration(anim.ElapsedDurationAt(aRefreshTime),
                                anim.mIterationDuration, anim.mIterationCount,
-                               anim.mDirection, &anim, this,
-                               &aEventsToDispatch);
+                               anim.mDirection, IsForElement(),
+                               &anim, this, &aEventsToDispatch);
 
       // The position is -1 when we don't have fill data for the current time,
       // so we shouldn't animate.

@@ -324,7 +324,6 @@ class ICEntry
     _(Call_Scripted)            \
     _(Call_AnyScripted)         \
     _(Call_Native)              \
-    _(Call_ScriptedApplyArguments) \
                                 \
     _(GetElem_Fallback)         \
     _(GetElem_Native)           \
@@ -366,7 +365,6 @@ class ICEntry
     _(GetProp_CallScripted)     \
     _(GetProp_CallNative)       \
     _(GetProp_CallListBaseNative)\
-    _(GetProp_CallListBaseWithGenerationNative)\
     _(GetProp_ArgumentsLength)  \
                                 \
     _(SetProp_Fallback)         \
@@ -722,16 +720,14 @@ class ICStub
     static bool CanMakeCalls(ICStub::Kind kind) {
         JS_ASSERT(IsValidKind(kind));
         switch (kind) {
-          case Call_Fallback:
           case Call_Scripted:
           case Call_AnyScripted:
           case Call_Native:
-          case Call_ScriptedApplyArguments:
+          case Call_Fallback:
           case UseCount_Fallback:
           case GetProp_CallScripted:
           case GetProp_CallNative:
           case GetProp_CallListBaseNative:
-          case GetProp_CallListBaseWithGenerationNative:
           case SetProp_CallScripted:
           case SetProp_CallNative:
             return true;
@@ -4167,7 +4163,7 @@ class ICGetProp_CallNative : public ICGetPropCallGetter
     };
 };
 
-class ICGetPropCallListBaseNativeStub : public ICMonitoredStub
+class ICGetProp_CallListBaseNative : public ICMonitoredStub
 {
   friend class ICStubSpace;
   protected:
@@ -4190,13 +4186,26 @@ class ICGetPropCallListBaseNativeStub : public ICMonitoredStub
     // PC offset of call
     uint32_t pcOffset_;
 
-    ICGetPropCallListBaseNativeStub(ICStub::Kind kind, IonCode *stubCode,
-                                    ICStub *firstMonitorStub, HandleShape shape,
-                                    BaseProxyHandler *proxyHandler, HandleShape expandoShape,
-                                    HandleObject holder, HandleShape holderShape,
-                                    HandleFunction getter, uint32_t pcOffset);
+    ICGetProp_CallListBaseNative(IonCode *stubCode, ICStub *firstMonitorStub,
+                                 HandleShape shape, BaseProxyHandler *proxyHandler,
+                                 HandleShape expandoShape, HandleObject holder,
+                                 HandleShape holderShape, HandleFunction getter,
+                                 uint32_t pcOffset);
 
   public:
+    static inline ICGetProp_CallListBaseNative *New(
+            ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
+            HandleShape shape, BaseProxyHandler *proxyHandler,
+            HandleShape expandoShape, HandleObject holder, HandleShape holderShape,
+            HandleFunction getter, uint32_t pcOffset)
+    {
+        if (!code)
+            return NULL;
+        return space->allocate<ICGetProp_CallListBaseNative>(code, firstMonitorStub, shape,
+                                                   proxyHandler, expandoShape, holder,
+                                                   holderShape, getter, pcOffset);
+    }
+
     HeapPtrShape &shape() {
         return shape_;
     }
@@ -4217,128 +4226,55 @@ class ICGetPropCallListBaseNativeStub : public ICMonitoredStub
     }
 
     static size_t offsetOfShape() {
-        return offsetof(ICGetPropCallListBaseNativeStub, shape_);
+        return offsetof(ICGetProp_CallListBaseNative, shape_);
     }
     static size_t offsetOfProxyHandler() {
-        return offsetof(ICGetPropCallListBaseNativeStub, proxyHandler_);
+        return offsetof(ICGetProp_CallListBaseNative, proxyHandler_);
     }
     static size_t offsetOfExpandoShape() {
-        return offsetof(ICGetPropCallListBaseNativeStub, expandoShape_);
+        return offsetof(ICGetProp_CallListBaseNative, expandoShape_);
     }
     static size_t offsetOfHolder() {
-        return offsetof(ICGetPropCallListBaseNativeStub, holder_);
+        return offsetof(ICGetProp_CallListBaseNative, holder_);
     }
     static size_t offsetOfHolderShape() {
-        return offsetof(ICGetPropCallListBaseNativeStub, holderShape_);
+        return offsetof(ICGetProp_CallListBaseNative, holderShape_);
     }
     static size_t offsetOfGetter() {
-        return offsetof(ICGetPropCallListBaseNativeStub, getter_);
+        return offsetof(ICGetProp_CallListBaseNative, getter_);
     }
     static size_t offsetOfPCOffset() {
-        return offsetof(ICGetPropCallListBaseNativeStub, pcOffset_);
-    }
-};
-
-class ICGetProp_CallListBaseNative : public ICGetPropCallListBaseNativeStub
-{
-    friend class ICStubSpace;
-    ICGetProp_CallListBaseNative(IonCode *stubCode, ICStub *firstMonitorStub, HandleShape shape,
-                                 BaseProxyHandler *proxyHandler, HandleShape expandoShape,
-                                 HandleObject holder, HandleShape holderShape,
-                                 HandleFunction getter, uint32_t pcOffset)
-      : ICGetPropCallListBaseNativeStub(ICStub::GetProp_CallListBaseNative, stubCode,
-                                        firstMonitorStub, shape, proxyHandler, expandoShape,
-                                        holder, holderShape, getter, pcOffset)
-    {}
-
-  public:
-    static inline ICGetProp_CallListBaseNative *New(
-            ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-            HandleShape shape, BaseProxyHandler *proxyHandler,
-            HandleShape expandoShape, HandleObject holder, HandleShape holderShape,
-            HandleFunction getter, uint32_t pcOffset)
-    {
-        if (!code)
-            return NULL;
-        return space->allocate<ICGetProp_CallListBaseNative>(code, firstMonitorStub, shape,
-                                                   proxyHandler, expandoShape, holder,
-                                                   holderShape, getter, pcOffset);
-    }
-};
-
-class ICGetProp_CallListBaseWithGenerationNative : public ICGetPropCallListBaseNativeStub
-{
-  protected:
-    ExpandoAndGeneration *expandoAndGeneration_;
-    uint32_t generation_;
-
-  public:
-    ICGetProp_CallListBaseWithGenerationNative(IonCode *stubCode, ICStub *firstMonitorStub,
-                                               HandleShape shape, BaseProxyHandler *proxyHandler,
-                                               ExpandoAndGeneration *expandoAndGeneration,
-                                               uint32_t generation, HandleShape expandoShape,
-                                               HandleObject holder, HandleShape holderShape,
-                                               HandleFunction getter, uint32_t pcOffset)
-      : ICGetPropCallListBaseNativeStub(ICStub::GetProp_CallListBaseWithGenerationNative,
-                                        stubCode, firstMonitorStub, shape, proxyHandler,
-                                        expandoShape, holder, holderShape, getter, pcOffset),
-        expandoAndGeneration_(expandoAndGeneration),
-        generation_(generation)
-    {
+        return offsetof(ICGetProp_CallListBaseNative, pcOffset_);
     }
 
-    static inline ICGetProp_CallListBaseWithGenerationNative *New(
-            ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-            HandleShape shape, BaseProxyHandler *proxyHandler,
-            ExpandoAndGeneration *expandoAndGeneration, uint32_t generation,
-            HandleShape expandoShape, HandleObject holder, HandleShape holderShape,
-            HandleFunction getter, uint32_t pcOffset)
-    {
-        if (!code)
-            return NULL;
-        return space->allocate<ICGetProp_CallListBaseWithGenerationNative>(code, firstMonitorStub,
-                                                   shape, proxyHandler, expandoAndGeneration,
-                                                   generation, expandoShape, holder, holderShape,
-                                                   getter, pcOffset);
-    }
+    class Compiler : public ICStubCompiler {
+      protected:
+        ICStub *firstMonitorStub_;
+        RootedObject obj_;
+        RootedObject holder_;
+        RootedFunction getter_;
+        uint32_t pcOffset_;
 
-    void *expandoAndGeneration() const {
-        return expandoAndGeneration_;
-    }
-    uint32_t generation() const {
-        return generation_;
-    }
+        bool generateStubCode(MacroAssembler &masm);
 
-    void setGeneration(uint32_t value) {
-        generation_ = value;
-    }
+      public:
+        Compiler(JSContext *cx, ICStub *firstMonitorStub, HandleObject obj,
+                 HandleObject holder, HandleFunction getter, uint32_t pcOffset);
 
-    static size_t offsetOfInternalStruct() {
-        return offsetof(ICGetProp_CallListBaseWithGenerationNative, expandoAndGeneration_);
-    }
-    static size_t offsetOfGeneration() {
-        return offsetof(ICGetProp_CallListBaseWithGenerationNative, generation_);
-    }
-};
+        ICStub *getStub(ICStubSpace *space) {
+            RootedShape shape(cx, obj_->lastProperty());
+            RootedShape holderShape(cx, holder_->lastProperty());
 
-class ICGetPropCallListBaseNativeCompiler : public ICStubCompiler {
-    ICStub *firstMonitorStub_;
-    RootedObject obj_;
-    RootedObject holder_;
-    RootedFunction getter_;
-    uint32_t pcOffset_;
+            Value expandoVal = obj_->getFixedSlot(GetListBaseExpandoSlot());
+            RootedShape expandoShape(cx, NULL);
+            if (expandoVal.isObject())
+                expandoShape = expandoVal.toObject().lastProperty();
 
-    bool generateStubCode(MacroAssembler &masm, Address* internalStructAddr,
-                          Address* generationAddr);
-    bool generateStubCode(MacroAssembler &masm);
-
-  public:
-    ICGetPropCallListBaseNativeCompiler(JSContext *cx, ICStub::Kind kind,
-                                        ICStub *firstMonitorStub, HandleObject obj,
-                                        HandleObject holder, HandleFunction getter,
-                                        uint32_t pcOffset);
-
-    ICStub *getStub(ICStubSpace *space);
+            return ICGetProp_CallListBaseNative::New(
+                        space, getStubCode(), firstMonitorStub_, shape, GetProxyHandler(obj_),
+                        expandoShape, holder_, holderShape, getter_, pcOffset_);
+        }
+    };
 };
 
 class ICGetProp_ArgumentsLength : public ICStub
@@ -4772,9 +4708,6 @@ class ICCallStubCompiler : public ICStubCompiler
     { }
 
     void pushCallArguments(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg);
-    Register guardFunApply(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg,
-                           bool checkNative, Label *failure);
-    void pushCallerArguments(MacroAssembler &masm, GeneralRegisterSet regs);
 };
 
 class ICCall_Fallback : public ICMonitoredFallbackStub
@@ -5003,56 +4936,6 @@ class ICCall_Native : public ICMonitoredStub
 
         ICStub *getStub(ICStubSpace *space) {
             return ICCall_Native::New(space, getStubCode(), firstMonitorStub_, callee_, pcOffset_);
-        }
-    };
-};
-
-class ICCall_ScriptedApplyArguments : public ICMonitoredStub
-{
-    friend class ICStubSpace;
-
-  protected:
-    uint32_t pcOffset_;
-
-    ICCall_ScriptedApplyArguments(IonCode *stubCode, ICStub *firstMonitorStub, uint32_t pcOffset)
-      : ICMonitoredStub(ICStub::Call_ScriptedApplyArguments, stubCode, firstMonitorStub),
-        pcOffset_(pcOffset)
-    {}
-
-  public:
-    static inline ICCall_ScriptedApplyArguments *New(ICStubSpace *space, IonCode *code,
-                                                     ICStub *firstMonitorStub, uint32_t pcOffset)
-    {
-        if (!code)
-            return NULL;
-        return space->allocate<ICCall_ScriptedApplyArguments>(code, firstMonitorStub, pcOffset);
-    }
-
-    static size_t offsetOfPCOffset() {
-        return offsetof(ICCall_ScriptedApplyArguments, pcOffset_);
-    }
-
-    // Compiler for this stub kind.
-    class Compiler : public ICCallStubCompiler {
-      protected:
-        ICStub *firstMonitorStub_;
-        uint32_t pcOffset_;
-        bool generateStubCode(MacroAssembler &masm);
-
-        virtual int32_t getKey() const {
-            return static_cast<int32_t>(kind);
-        }
-
-      public:
-        Compiler(JSContext *cx, ICStub *firstMonitorStub, uint32_t pcOffset)
-          : ICCallStubCompiler(cx, ICStub::Call_ScriptedApplyArguments),
-            firstMonitorStub_(firstMonitorStub),
-            pcOffset_(pcOffset)
-        { }
-
-        ICStub *getStub(ICStubSpace *space) {
-            return ICCall_ScriptedApplyArguments::New(space, getStubCode(), firstMonitorStub_,
-                                                      pcOffset_);
         }
     };
 };

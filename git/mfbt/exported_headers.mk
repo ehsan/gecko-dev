@@ -18,7 +18,6 @@ EXPORTS_mozilla += \
   Compiler.h \
   Constants.h \
   DebugOnly.h \
-  decimal/Decimal.h \
   Endian.h \
   EnumSet.h \
   FloatingPoint.h \
@@ -31,7 +30,6 @@ EXPORTS_mozilla += \
   MSStdInt.h \
   NullPtr.h \
   PodOperations.h \
-  Poison.h \
   Range.h \
   RangedPtr.h \
   RefPtr.h \

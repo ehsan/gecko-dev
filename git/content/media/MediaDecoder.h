@@ -759,7 +759,7 @@ public:
   static bool IsGStreamerEnabled();
 #endif
 
-#ifdef MOZ_OMX_DECODER
+#ifdef MOZ_WIDGET_GONK
   static bool IsOmxEnabled();
 #endif
 

@@ -622,9 +622,9 @@
                             label="&cmd.installAddon.label;"
                             accesskey="&cmd.installAddon.accesskey;"
                             command="cmd_installItem"/>
-                    <menulist id="detail-state-menulist"
+                    <menulist id="detail-tristate-menulist"
                               crop="none" sizetopopup="always"
-                              tooltiptext="&cmd.stateMenu.tooltip;">
+                              tooltiptext="&cmd.tristateMenu.tooltip;">
                       <menupopup>
                         <menuitem id="detail-ask-to-activate-menuitem"
                                   class="addon-control"

@@ -640,9 +640,7 @@ WebAudioDecodeJob::FinalizeBufferData()
   }
 
   for (uint32_t i = 0; i < mChannels; ++i) {
-    if (!mOutput->SetChannelDataFromArrayBufferContents(cx, i, mChannelBuffers[i].first)) {
-      return false;
-    }
+    mOutput->SetChannelDataFromArrayBufferContents(cx, i, mChannelBuffers[i].first);
   }
 
   return true;
@@ -670,11 +668,8 @@ WebAudioDecodeJob::AllocateBuffer()
     return false;
   }
   for (uint32_t i = 0; i < mChannels; ++i) {
-    JS::RootedObject channelObj(cx, mOutput->GetChannelData(i));
-    JS::RootedObject arrayBuffer(cx, JS_GetArrayBufferViewBuffer(channelObj));
-    if (!arrayBuffer) {
-      return false;
-    }
+    JSObject* channelObj = mOutput->GetChannelData(i);
+    JSObject* arrayBuffer = JS_GetArrayBufferViewBuffer(channelObj);
     void* contents;
     uint8_t* data;
     if (JS_FALSE == JS_StealArrayBufferContents(cx, arrayBuffer, &contents, &data)) {

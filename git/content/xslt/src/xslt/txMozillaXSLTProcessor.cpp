@@ -1247,7 +1247,8 @@ txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
 
 NS_IMETHODIMP
 txMozillaXSLTProcessor::Initialize(nsISupports* aOwner, JSContext* cx,
-                                   JSObject* obj, const JS::CallArgs& args)
+                                   JSObject* obj, uint32_t argc,
+                                   JS::Value* argv)
 {
     nsCOMPtr<nsIPrincipal> prin;
     nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
@@ -1438,11 +1439,11 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
                 JSContext* cx = nsContentUtils::GetCurrentJSContext();
                 NS_ENSURE_TRUE(cx, NS_ERROR_NOT_AVAILABLE);
 
-                JS::RootedObject jsobj(cx);
-                rv = holder->GetJSObject(jsobj.address());
+                JSObject *jsobj;
+                rv = holder->GetJSObject(&jsobj);
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                JS::RootedString str(cx, JS_ValueToString(cx, OBJECT_TO_JSVAL(jsobj)));
+                JSString *str = JS_ValueToString(cx, OBJECT_TO_JSVAL(jsobj));
                 NS_ENSURE_TRUE(str, NS_ERROR_FAILURE);
 
                 nsDependentJSString value;

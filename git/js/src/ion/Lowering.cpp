@@ -2751,7 +2751,7 @@ void
 LIRGenerator::updateResumeState(MBasicBlock *block)
 {
     lastResumePoint_ = block->entryResumePoint();
-    if (IonSpewEnabled(IonSpew_Snapshots) && lastResumePoint_)
+    if (IonSpewEnabled(IonSpew_Snapshots))
         SpewResumePoint(block, NULL, lastResumePoint_);
 }
 

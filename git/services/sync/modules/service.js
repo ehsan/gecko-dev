@@ -876,8 +876,6 @@ Sync11Service.prototype = {
     Svc.Prefs.set("lastversion", WEAVE_VERSION);
 
     this.identity.deleteSyncCredentials();
-
-    Svc.Obs.notify("weave:service:start-over:finish");
   },
 
   persistLogin: function persistLogin() {

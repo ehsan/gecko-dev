@@ -1365,14 +1365,11 @@ class MCall
     // Original value of argc from the bytecode.
     uint32_t numActualArgs_;
 
-    bool needsArgCheck_;
-
     MCall(JSFunction *target, uint32_t numActualArgs, bool construct)
       : construct_(construct),
         target_(target),
         targetScript_(NULL),
-        numActualArgs_(numActualArgs),
-        needsArgCheck_(true)
+        numActualArgs_(numActualArgs)
     {
         setResultType(MIRType_Value);
     }
@@ -1388,14 +1385,6 @@ class MCall
     void initFunction(MDefinition *func) {
         JS_ASSERT(!func->isPassArg());
         return setOperand(FunctionOperandIndex, func);
-    }
-
-    bool needsArgCheck() const {
-        return needsArgCheck_;
-    }
-
-    void disableArgCheck() {
-        needsArgCheck_ = false;
     }
 
     MPrepareCall *getPrepareCall() {
@@ -2748,7 +2737,7 @@ class MBitXor : public MBinaryBitwiseInstruction
         return this;
     }
     MDefinition *foldIfEqual() {
-        return this;
+        return MConstant::New(Int32Value(0));
     }
 };
 

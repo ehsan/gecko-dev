@@ -1568,10 +1568,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     masm.loadPtr(Address(calleereg, offsetof(JSFunction, u.i.script_)), objreg);
 
     // Load script jitcode.
-    if (call->mir()->needsArgCheck())
-        masm.loadBaselineOrIonRaw(objreg, objreg, executionMode, &uncompiled);
-    else
-        masm.loadBaselineOrIonNoArgCheck(objreg, objreg, executionMode, &uncompiled);
+    masm.loadBaselineOrIonRaw(objreg, objreg, executionMode, &uncompiled);
 
     // Nestle the StackPointer up to the argument vector.
     masm.freeStack(unusedStack);
@@ -2255,7 +2252,7 @@ CodeGenerator::maybeCreateScriptCounts()
             MResumePoint *resume = block->entryResumePoint();
             while (resume->caller())
                 resume = resume->caller();
-            DebugOnly<uint32_t> offset = resume->pc() - script->code;
+            uint32_t offset = resume->pc() - script->code;
             JS_ASSERT(offset < script->length);
         }
 
@@ -4905,10 +4902,6 @@ CodeGenerator::generate()
             return false;
     }
 
-    // Remember the entry offset to skip the argument check.
-    masm.flushBuffer();
-    setSkipArgCheckEntryOffset(masm.size());
-
     if (!generatePrologue())
         return false;
     if (!generateBody())
@@ -4958,7 +4951,6 @@ CodeGenerator::link()
                      graph.mir().numCallTargets());
 
     ionScript->setMethod(code);
-    ionScript->setSkipArgCheckEntryOffset(getSkipArgCheckEntryOffset());
 
     SetIonScript(script, executionMode, ionScript);
 
@@ -5423,8 +5415,7 @@ CodeGenerator::visitCallSetProperty(LCallSetProperty *ins)
     ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LCallSetProperty::Value));
 
     const Register objReg = ToRegister(ins->getOperand(0));
-    jsbytecode *pc = ins->mir()->resumePoint()->pc();
-    bool isSetName = JSOp(*pc) == JSOP_SETNAME || JSOp(*pc) == JSOP_SETGNAME;
+    bool isSetName = JSOp(*ins->mir()->resumePoint()->pc()) == JSOP_SETNAME;
 
     pushArg(Imm32(isSetName));
     pushArg(Imm32(ins->mir()->strict()));
@@ -5460,8 +5451,7 @@ CodeGenerator::visitSetPropertyCacheV(LSetPropertyCacheV *ins)
     RegisterSet liveRegs = ins->safepoint()->liveRegs();
     Register objReg = ToRegister(ins->getOperand(0));
     ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LSetPropertyCacheV::Value));
-    jsbytecode *pc = ins->mir()->resumePoint()->pc();
-    bool isSetName = JSOp(*pc) == JSOP_SETNAME || JSOp(*pc) == JSOP_SETGNAME;
+    bool isSetName = JSOp(*ins->mir()->resumePoint()->pc()) == JSOP_SETNAME;
 
     SetPropertyIC cache(liveRegs, objReg, ins->mir()->name(), value,
                         isSetName, ins->mir()->strict());

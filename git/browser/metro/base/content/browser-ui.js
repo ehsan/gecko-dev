@@ -77,7 +77,6 @@ var BrowserUI = {
   get _back() { return document.getElementById("cmd_back"); },
   get _forward() { return document.getElementById("cmd_forward"); },
 
-  lastKnownGoodURL: "", //used when the user wants to escape unfinished url entry
   init: function() {
     // listen content messages
     messageManager.addMessageListener("DOMTitleChanged", this);
@@ -148,7 +147,7 @@ var BrowserUI = {
         FindHelperUI.init();
         PdfJs.init();
 #ifdef MOZ_SERVICES_SYNC
-        Sync.init();
+        WeaveGlue.init();
 #endif
       } catch(ex) {
         Util.dumpLn("Exception in delay load module:", ex.message);
@@ -643,7 +642,6 @@ var BrowserUI = {
 
   _setURI: function _setURI(aURL) {
     this._edit.value = aURL;
-    this.lastKnownGoodURL = aURL;
   },
 
   _urlbarClicked: function _urlbarClicked() {
@@ -729,7 +727,6 @@ var BrowserUI = {
     aEvent.preventDefault();
 
     if (this._edit.popupOpen) {
-      this._edit.value = this.lastKnownGoodURL;
       this._edit.closePopup();
       StartUI.hide();
       ContextUI.dismiss();
@@ -750,9 +747,8 @@ var BrowserUI = {
     }
 
     // Check open modal elements
-    if (DialogUI.modals.length > 0) {
+    if (DialogUI.modals.length > 0)
       return;
-    }
 
     // Check open panel
     if (PanelUI.isVisible) {
@@ -1045,7 +1041,7 @@ var BrowserUI = {
         break;
       case "cmd_remoteTabs":
         if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
-          Sync.open();
+          WeaveGlue.open();
         } else {
           PanelUI.show("remotetabs-container");
         }
@@ -1482,7 +1478,7 @@ var SyncPanelUI = {
     Elements.syncFlyout.addEventListener("PopupChanged", function onShow(aEvent) {
       if (aEvent.detail && aEvent.target === Elements.syncFlyout) {
         Elements.syncFlyout.removeEventListener("PopupChanged", onShow, false);
-        Sync.init();
+        WeaveGlue.init();
       }
     }, false);
   }

@@ -76,9 +76,6 @@ this.PhoneNumber = (function (dataBase) {
   // representation.
   function ParseFormat(md) {
     var formats = md.formats;
-    if (!formats) {
-      return null;
-    }
     // Bail if we already parsed the format definitions.
     if (!(Array.isArray(formats[0])))
       return;
@@ -141,9 +138,6 @@ this.PhoneNumber = (function (dataBase) {
     // so make sure to parse it now if we haven't already done so.
     ParseFormat(regionMetaData);
     var formats = regionMetaData.formats;
-    if (!formats) {
-      return null;
-    }
     for (var n = 0; n < formats.length; ++n) {
       var format = formats[n];
       // The leading digits field is optional. If we don't have it, just
@@ -178,14 +172,12 @@ this.PhoneNumber = (function (dataBase) {
           // "$NP" will be replaced by the national prefix, and "$FG" with the
           // first group of numbers.
           var match = number.match(SPLIT_FIRST_GROUP);
-          if (match) {
-            var firstGroup = match[1];
-            var rest = match[2];
-            var prefix = nationalPrefixFormattingRule;
-            prefix = prefix.replace("$NP", regionMetaData.nationalPrefix);
-            prefix = prefix.replace("$FG", firstGroup);
-            number = prefix + rest;
-          }
+          var firstGroup = match[1];
+          var rest = match[2];
+          var prefix = nationalPrefixFormattingRule;
+          prefix = prefix.replace("$NP", regionMetaData.nationalPrefix);
+          prefix = prefix.replace("$FG", firstGroup);
+          number = prefix + rest;
         }
       }
       return (number == "NA") ? null : number;
@@ -296,8 +288,6 @@ this.PhoneNumber = (function (dataBase) {
       for (var n = 0; n < entry.length; ++n) {
         if (typeof entry[n] == "string")
           entry[n] = ParseMetaData(countryCode, entry[n]);
-        if (n > 0)
-          entry[n].formats = entry[0].formats;
         ret = ParseNationalNumber(number, entry[n])
         if (ret)
           return ret;

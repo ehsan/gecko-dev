@@ -645,7 +645,6 @@ dictionary Dict : ParentDict {
 dictionary ParentDict : GrandparentDict {
   long c = 5;
   TestInterface someInterface;
-  TestInterface? someNullableInterface = null;
   TestExternalInterface someExternalInterface;
   any parentAny;
 };

@@ -10,6 +10,3 @@ EXPORTS += [
     'nsIHTMLDocument.h',
 ]
 
-EXPORTS.mozilla.dom += [
-    'ImageDocument.h',
-]

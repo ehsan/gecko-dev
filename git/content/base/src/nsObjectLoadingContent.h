@@ -195,7 +195,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
     }
-    JS::Value LegacyCall(JSContext* aCx, JS::Handle<JS::Value> aThisVal,
+    JS::Value LegacyCall(JSContext* aCx, JS::Value aThisVal,
                          const mozilla::dom::Sequence<JS::Value>& aArguments,
                          mozilla::ErrorResult& aRv);
 
@@ -462,8 +462,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
                                          nsNPAPIPluginInstance** aResult);
 
     // Utility method for getting our plugin JSObject
-    static nsresult GetPluginJSObject(JSContext *cx,
-                                      JS::Handle<JSObject*> obj,
+    static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
                                       nsNPAPIPluginInstance *plugin_inst,
                                       JSObject **plugin_obj,
                                       JSObject **plugin_proto);

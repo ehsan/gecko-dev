@@ -1256,12 +1256,8 @@ SpecialPowersAPI.prototype = {
     return this.focusManager.focusedWindow;
   },
 
-  focus: function(aWindow) {
-    // This is called inside TestRunner._makeIframe without aWindow, because of assertions in oop mochitests
-    // With aWindow, it is called in SimpleTest.waitForFocus to allow popup window opener focus switching
-    if (aWindow)
-      aWindow.focus();
-    sendAsyncMessage("SpecialPowers.Focus", {});
+  focus: function(window) {
+    window.focus();
   },
 
   getClipboardData: function(flavor) {

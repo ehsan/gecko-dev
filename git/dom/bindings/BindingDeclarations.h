@@ -34,8 +34,10 @@ namespace dom {
 struct MainThreadDictionaryBase
 {
 protected:
-  bool ParseJSON(JSContext *aCx, const nsAString& aJSON,
-                 JS::MutableHandle<JS::Value> aVal);
+  JSContext* ParseJSON(const nsAString& aJSON,
+                       Maybe<JSAutoRequest>& aAr,
+                       Maybe<JSAutoCompartment>& aAc,
+                       Maybe< JS::Rooted<JS::Value> >& aVal);
 };
 
 struct EnumEntry {

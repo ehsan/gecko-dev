@@ -22,7 +22,6 @@
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
 #include <algorithm>
-#include "DOMMediaStream.h"
 
 using namespace mozilla::layers;
 using namespace mozilla::dom;
@@ -1138,9 +1137,6 @@ public:
   {
     NS_ASSERTION(mGraph->mDetectedNotRunning,
                  "We should know the graph thread control loop isn't running!");
-
-    mGraph->ShutdownThreads();
-
     // mGraph's thread is not running so it's OK to do whatever here
     if (mGraph->IsEmpty()) {
       // mGraph is no longer needed, so delete it. If the graph is not empty
@@ -1148,13 +1144,6 @@ public:
       // detect that the manager has been emptied, and delete it.
       delete mGraph;
     } else {
-      for (uint32_t i = 0; i < mGraph->mStreams.Length(); ++i) {
-        DOMMediaStream* s = mGraph->mStreams[i]->GetWrapper();
-        if (s) {
-          s->NotifyMediaStreamGraphShutdown();
-        }
-      }
-
       NS_ASSERTION(mGraph->mForceShutDown, "Not in forced shutdown?");
       mGraph->mLifecycleState =
         MediaStreamGraphImpl::LIFECYCLE_WAITING_FOR_STREAM_DESTRUCTION;
@@ -1868,8 +1857,7 @@ MediaInputPort::SetGraphImpl(MediaStreamGraphImpl* aGraph)
 }
 
 already_AddRefed<MediaInputPort>
-ProcessedMediaStream::AllocateInputPort(MediaStream* aStream, uint32_t aFlags,
-                                        uint16_t aInputNumber, uint16_t aOutputNumber)
+ProcessedMediaStream::AllocateInputPort(MediaStream* aStream, uint32_t aFlags)
 {
   // This method creates two references to the MediaInputPort: one for
   // the main thread, and one for the MediaStreamGraph.
@@ -1886,8 +1874,7 @@ ProcessedMediaStream::AllocateInputPort(MediaStream* aStream, uint32_t aFlags,
     }
     nsRefPtr<MediaInputPort> mPort;
   };
-  nsRefPtr<MediaInputPort> port = new MediaInputPort(aStream, this, aFlags,
-                                                     aInputNumber, aOutputNumber);
+  nsRefPtr<MediaInputPort> port = new MediaInputPort(aStream, this, aFlags);
   port->SetGraphImpl(GraphImpl());
   GraphImpl()->AppendMessage(new Message(port));
   return port.forget();

@@ -22,7 +22,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/StaticPtr.h"
 #include "prlog.h"
-#include "DOMMediaStream.h"
 
 #ifdef MOZ_WEBRTC
 #include "mtransport/runnable_utils.h"
@@ -201,26 +200,13 @@ class GetUserMediaNotificationEvent: public nsRunnable
                                   GetUserMediaStatus aStatus)
     : mListener(aListener), mStatus(aStatus) {}
 
-    GetUserMediaNotificationEvent(GetUserMediaStatus aStatus,
-                                  already_AddRefed<DOMMediaStream> aStream,
-                                  DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback)
-    : mStream(aStream), mOnTracksAvailableCallback(aOnTracksAvailableCallback),
-      mStatus(aStatus) {}
-    virtual ~GetUserMediaNotificationEvent()
-    {
-
-    }
+    GetUserMediaNotificationEvent(GetUserMediaStatus aStatus)
+    : mListener(nullptr), mStatus(aStatus) {}
 
     NS_IMETHOD
     Run()
     {
       NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-      // Make sure mStream is cleared and our reference to the DOMMediaStream
-      // is dropped on the main thread, no matter what happens in this method.
-      // Otherwise this object might be destroyed off the main thread,
-      // releasing DOMMediaStream off the main thread, which is not allowed.
-      nsRefPtr<DOMMediaStream> stream = mStream.forget();
-
       nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
       if (!obs) {
         NS_WARNING("Could not get the Observer service for GetUserMedia recording notification.");
@@ -230,7 +216,6 @@ class GetUserMediaNotificationEvent: public nsRunnable
       switch (mStatus) {
         case STARTING:
           msg = NS_LITERAL_STRING("starting");
-          stream->OnTracksAvailable(mOnTracksAvailableCallback.forget());
           break;
         case STOPPING:
           msg = NS_LITERAL_STRING("shutdown");
@@ -252,8 +237,6 @@ class GetUserMediaNotificationEvent: public nsRunnable
 
   protected:
     nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
-    nsRefPtr<DOMMediaStream> mStream;
-    nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
     GetUserMediaStatus mStatus;
 };
 
@@ -271,14 +254,10 @@ public:
   // so we can send Stop without AddRef()ing from the MSG thread
   MediaOperationRunnable(MediaOperation aType,
     GetUserMediaCallbackMediaStreamListener* aListener,
-    DOMMediaStream* aStream,
-    DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback,
     MediaEngineSource* aAudioSource,
     MediaEngineSource* aVideoSource,
     bool aNeedsFinish)
     : mType(aType)
-    , mStream(aStream)
-    , mOnTracksAvailableCallback(aOnTracksAvailableCallback)
     , mAudioSource(aAudioSource)
     , mVideoSource(aVideoSource)
     , mListener(aListener)
@@ -307,34 +286,24 @@ public:
 
           source->SetPullEnabled(true);
 
-          DOMMediaStream::TrackTypeHints expectedTracks = 0;
           if (mAudioSource) {
             rv = mAudioSource->Start(source, kAudioTrack);
-            if (NS_SUCCEEDED(rv)) {
-              expectedTracks |= DOMMediaStream::HINT_CONTENTS_AUDIO;
-            } else {
+            if (NS_FAILED(rv)) {
               MM_LOG(("Starting audio failed, rv=%d",rv));
             }
           }
           if (mVideoSource) {
             rv = mVideoSource->Start(source, kVideoTrack);
-            if (NS_SUCCEEDED(rv)) {
-              expectedTracks |= DOMMediaStream::HINT_CONTENTS_VIDEO;
-            } else {
+            if (NS_FAILED(rv)) {
               MM_LOG(("Starting video failed, rv=%d",rv));
             }
           }
 
-          mOnTracksAvailableCallback->SetExpectedTracks(expectedTracks);
-
           MM_LOG(("started all sources"));
-          // Forward mOnTracksAvailableCallback to GetUserMediaNotificationEvent,
-          // because mOnTracksAvailableCallback needs to be added to mStream
-          // on the main thread.
           nsRefPtr<GetUserMediaNotificationEvent> event =
-            new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STARTING,
-                                              mStream.forget(),
-                                              mOnTracksAvailableCallback.forget());
+            new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STARTING);
+
+
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
         break;
@@ -370,8 +339,6 @@ public:
 
 private:
   MediaOperation mType;
-  nsRefPtr<DOMMediaStream> mStream;
-  nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
   nsRefPtr<MediaEngineSource> mAudioSource; // threadsafe
   nsRefPtr<MediaEngineSource> mVideoSource; // threadsafe
   nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe

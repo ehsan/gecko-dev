@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko.widget;
 
+import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.Favicons;
 import org.mozilla.gecko.R;
 
@@ -28,11 +29,8 @@ public class FaviconView extends ImageView {
         setScaleType(ImageView.ScaleType.CENTER);
     }
 
-    /*
-     * @param bitmap favicon image
-     * @param key string used as a key to cache the dominant color of this image
-     */
-    public void updateImage(Bitmap bitmap, String key) {
+    @Override
+    public void setImageBitmap(final Bitmap bitmap) {
         if (bitmap == null) {
             // Call setImageDrawable directly to avoid creating a useless BitmapDrawable.
             setImageDrawable(null);
@@ -45,11 +43,20 @@ public class FaviconView extends ImageView {
         } else {
             super.setImageBitmap(bitmap);
             // Otherwise show a dominant color background.
-            int color = Favicons.getInstance().getFaviconColor(bitmap, key);
-            color = Color.argb(70, Color.red(color), Color.green(color), Color.blue(color));
-            Drawable drawable = getResources().getDrawable(R.drawable.favicon_bg);
-            drawable.setColorFilter(color, Mode.SRC_ATOP);
-            setBackgroundDrawable(drawable);
+            new AsyncTask<Void, Void, Integer>(){
+                @Override
+                public Integer doInBackground(Void... params) {
+                    return BitmapUtils.getDominantColor(bitmap);
+                }
+                @Override
+                public void onPostExecute(Integer color) {
+                    // Set an alpha value on the dominant color.
+                    color = Color.argb(70, Color.red(color), Color.green(color), Color.blue(color));
+                    Drawable drawable = getResources().getDrawable(R.drawable.favicon_bg);
+                    drawable.setColorFilter(color, Mode.SRC_ATOP);
+                    setBackgroundDrawable(drawable);
+                }
+            }.execute();
         }
     }
 }
