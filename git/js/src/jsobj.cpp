@@ -1193,15 +1193,23 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
     if (!shape)
         return NULL;
 
-    gc::InitialHeap heap = GetInitialHeap(newKind, clasp);
-    JSObject *obj = JSObject::create(cx, kind, heap, shape, type);
-    if (!obj)
+    HeapSlot *slots;
+    if (!PreallocateObjectDynamicSlots(cx, shape, &slots))
         return NULL;
+
+    gc::InitialHeap heap = GetInitialHeap(newKind, clasp);
+    JSObject *obj = JSObject::create(cx, kind, heap, shape, type, slots);
+    if (!obj) {
+        js_free(slots);
+        return NULL;
+    }
 
     if (newKind == SingletonObject) {
         RootedObject nobj(cx, obj);
-        if (!JSObject::setSingletonType(cx, nobj))
+        if (!JSObject::setSingletonType(cx, nobj)) {
+            js_free(slots);
             return NULL;
+        }
         obj = nobj;
     }
 

@@ -216,7 +216,7 @@ nsDeviceSensors::Notify(const mozilla::hal::SensorData& aSensorData)
     windowListeners[i]->GetDocument(getter_AddRefs(domdoc));
 
     if (domdoc) {
-      nsCOMPtr<mozilla::dom::EventTarget> target = do_QueryInterface(windowListeners[i]);
+      nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(windowListeners[i]);
       if (type == nsIDeviceSensorData::TYPE_ACCELERATION || 
         type == nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION || 
         type == nsIDeviceSensorData::TYPE_GYROSCOPE)
@@ -233,11 +233,11 @@ nsDeviceSensors::Notify(const mozilla::hal::SensorData& aSensorData)
 }
 
 void
-nsDeviceSensors::FireDOMLightEvent(mozilla::dom::EventTarget* aTarget,
-                                   double aValue)
+nsDeviceSensors::FireDOMLightEvent(nsIDOMEventTarget *aTarget,
+                                  double aValue)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMDeviceLightEvent(getter_AddRefs(event), aTarget, nullptr, nullptr);
+  NS_NewDOMDeviceLightEvent(getter_AddRefs(event), nullptr, nullptr);
 
   nsCOMPtr<nsIDOMDeviceLightEvent> oe = do_QueryInterface(event);
   oe->InitDeviceLightEvent(NS_LITERAL_STRING("devicelight"),
@@ -252,13 +252,13 @@ nsDeviceSensors::FireDOMLightEvent(mozilla::dom::EventTarget* aTarget,
 }
 
 void
-nsDeviceSensors::FireDOMProximityEvent(mozilla::dom::EventTarget* aTarget,
+nsDeviceSensors::FireDOMProximityEvent(nsIDOMEventTarget *aTarget,
                                        double aValue,
                                        double aMin,
                                        double aMax)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMDeviceProximityEvent(getter_AddRefs(event), aTarget, nullptr, nullptr);
+  NS_NewDOMDeviceProximityEvent(getter_AddRefs(event), nullptr, nullptr);
   nsCOMPtr<nsIDOMDeviceProximityEvent> oe = do_QueryInterface(event);
 
   oe->InitDeviceProximityEvent(NS_LITERAL_STRING("deviceproximity"),
@@ -286,11 +286,10 @@ nsDeviceSensors::FireDOMProximityEvent(mozilla::dom::EventTarget* aTarget,
 }
 
 void
-nsDeviceSensors::FireDOMUserProximityEvent(mozilla::dom::EventTarget* aTarget,
-                                           bool aNear)
+nsDeviceSensors::FireDOMUserProximityEvent(nsIDOMEventTarget *aTarget, bool aNear)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMUserProximityEvent(getter_AddRefs(event), aTarget, nullptr, nullptr);
+  NS_NewDOMUserProximityEvent(getter_AddRefs(event), nullptr, nullptr);
   nsCOMPtr<nsIDOMUserProximityEvent> pe = do_QueryInterface(event);
 
   pe->InitUserProximityEvent(NS_LITERAL_STRING("userproximity"),

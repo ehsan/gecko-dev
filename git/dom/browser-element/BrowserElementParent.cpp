@@ -82,7 +82,7 @@ DispatchCustomDOMEvent(Element* aFrameElement, const nsAString& aEventName,
   }
 
   nsCOMPtr<nsIDOMEvent> domEvent;
-  nsEventDispatcher::CreateEvent(aFrameElement, presContext, nullptr,
+  nsEventDispatcher::CreateEvent(presContext, nullptr,
                                  NS_LITERAL_STRING("customevent"),
                                  getter_AddRefs(domEvent));
   NS_ENSURE_TRUE(domEvent, false);

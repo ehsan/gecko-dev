@@ -91,8 +91,8 @@ public:
   virtual nsresult
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
 
-  virtual already_AddRefed<nsIDOMEvent>
-  CreateSuccessEvent(mozilla::dom::EventTarget* aOwner) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsDOMEvent>
+  CreateSuccessEvent() MOZ_OVERRIDE;
 
   virtual nsresult
   GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
@@ -140,7 +140,7 @@ public:
     }
 
     nsRefPtr<nsDOMEvent> event =
-      IDBVersionChangeEvent::Create(mDatabase, mOldVersion, mNewVersion);
+      IDBVersionChangeEvent::Create(mOldVersion, mNewVersion);
     MOZ_ASSERT(event);
 
     bool dummy;
@@ -434,7 +434,8 @@ IndexedDBDatabaseChild::RecvBlocked(const uint64_t& aOldVersion)
   MOZ_ASSERT(!mDatabase);
 
   nsCOMPtr<nsIRunnable> runnable =
-    IDBVersionChangeEvent::CreateBlockedRunnable(mRequest, aOldVersion, mVersion);
+    IDBVersionChangeEvent::CreateBlockedRunnable(aOldVersion, mVersion,
+                                                 mRequest);
 
   MainThreadEventTarget target;
   if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
@@ -1256,8 +1257,8 @@ IndexedDBDeleteDatabaseRequestChild::RecvBlocked(
   MOZ_ASSERT(mOpenRequest);
 
   nsCOMPtr<nsIRunnable> runnable =
-    IDBVersionChangeEvent::CreateBlockedRunnable(mOpenRequest,
-                                                 aCurrentVersion, 0);
+    IDBVersionChangeEvent::CreateBlockedRunnable(aCurrentVersion, 0,
+                                                 mOpenRequest);
 
   MainThreadEventTarget target;
   if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
@@ -1322,11 +1323,10 @@ IPCSetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   return NS_ERROR_FAILURE;
 }
 
-already_AddRefed<nsIDOMEvent>
-IPCSetVersionHelper::CreateSuccessEvent(mozilla::dom::EventTarget* aOwner)
+already_AddRefed<nsDOMEvent>
+IPCSetVersionHelper::CreateSuccessEvent()
 {
-  return IDBVersionChangeEvent::CreateUpgradeNeeded(aOwner,
-                                                    mOldVersion,
+  return IDBVersionChangeEvent::CreateUpgradeNeeded(mOldVersion,
                                                     mRequestedVersion);
 }
 

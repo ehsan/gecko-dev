@@ -106,7 +106,6 @@
 #include "WrapperFactory.h"
 #include "DocumentType.h"
 #include <algorithm>
-#include "nsDOMEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2408,22 +2407,15 @@ nsINode::GetAttributes()
   if (!IsElement()) {
     return nullptr;
   }
-  return AsElement()->Attributes();
+  return AsElement()->GetAttributes();
 }
 
 nsresult
-nsINode::GetAttributes(nsIDOMMozNamedAttrMap** aAttributes)
+nsINode::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 {
-  nsRefPtr<nsDOMAttributeMap> map = GetAttributes();
-  map.forget(aAttributes);
-  return NS_OK;
-}
-
-bool
-EventTarget::DispatchEvent(nsDOMEvent& aEvent,
-                           ErrorResult& aRv)
-{
-  bool result = false;
-  aRv = DispatchEvent(&aEvent, &result);
-  return result;
+  if (!IsElement()) {
+    *aAttributes = nullptr;
+    return NS_OK;
+  }
+  return CallQueryInterface(GetAttributes(), aAttributes);
 }

@@ -7,10 +7,9 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMXULCommandEvent.h"
 
-nsDOMXULCommandEvent::nsDOMXULCommandEvent(mozilla::dom::EventTarget* aOwner,
-                                           nsPresContext* aPresContext,
+nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
                                            nsInputEvent* aEvent)
-  : nsDOMUIEvent(aOwner, aPresContext,
+  : nsDOMUIEvent(aPresContext,
                  aEvent ? aEvent : new nsInputEvent(false, 0, nullptr))
 {
   if (aEvent) {
@@ -103,11 +102,9 @@ nsDOMXULCommandEvent::InitCommandEvent(const nsAString& aType,
 
 
 nsresult NS_NewDOMXULCommandEvent(nsIDOMEvent** aInstancePtrResult,
-                                  mozilla::dom::EventTarget* aOwner,
                                   nsPresContext* aPresContext,
                                   nsInputEvent *aEvent) 
 {
-  nsDOMXULCommandEvent* it =
-    new nsDOMXULCommandEvent(aOwner, aPresContext, aEvent);
+  nsDOMXULCommandEvent* it = new nsDOMXULCommandEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -22,7 +22,6 @@ DEFINES += \
 EXPORTS_webvtt = \
   include/webvtt/cue.h \
   include/webvtt/error.h \
-  include/webvtt/node.h \
   include/webvtt/parser.h \
   include/webvtt/string.h \
   include/webvtt/util.h \
@@ -34,7 +33,6 @@ CSRCS = \
   cuetext.c \
   error.c \
   lexer.c \
-  node.c \
   parser.c \
   string.c \
   $(NULL)

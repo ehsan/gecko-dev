@@ -15,8 +15,7 @@ class nsDOMAnimationEvent : public nsDOMEvent,
                             public nsIDOMAnimationEvent
 {
 public:
-  nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
-                      nsPresContext *aPresContext,
+  nsDOMAnimationEvent(nsPresContext *aPresContext,
                       nsAnimationEvent *aEvent);
   ~nsDOMAnimationEvent();
 

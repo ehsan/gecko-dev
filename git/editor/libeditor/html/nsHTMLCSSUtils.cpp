@@ -964,22 +964,7 @@ nsHTMLCSSUtils::RemoveCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
                                                bool aSuppressTransaction)
 {
   nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(element, NS_OK);
-
-  return RemoveCSSEquivalentToHTMLStyle(element, aHTMLProperty, aAttribute,
-                                        aValue, aSuppressTransaction);
-}
-
-nsresult
-nsHTMLCSSUtils::RemoveCSSEquivalentToHTMLStyle(dom::Element* aElement,
-                                               nsIAtom* aHTMLProperty,
-                                               const nsAString* aAttribute,
-                                               const nsAString* aValue,
-                                               bool aSuppressTransaction)
-{
-  MOZ_ASSERT(aElement);
-
-  if (!IsCSSEditableProperty(aElement, aHTMLProperty, aAttribute)) {
+  if (!element || !IsCSSEditableProperty(element, aHTMLProperty, aAttribute)) {
     return NS_OK;
   }
 
@@ -989,11 +974,11 @@ nsHTMLCSSUtils::RemoveCSSEquivalentToHTMLStyle(dom::Element* aElement,
   // Find the CSS equivalence to the HTML style
   nsTArray<nsIAtom*> cssPropertyArray;
   nsTArray<nsString> cssValueArray;
-  GenerateCSSDeclarationsFromHTMLStyle(aElement, aHTMLProperty, aAttribute,
+  GenerateCSSDeclarationsFromHTMLStyle(element, aHTMLProperty, aAttribute,
                                        aValue, cssPropertyArray, cssValueArray,
                                        true);
 
-  nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(aElement);
+  nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(element);
   // remove the individual CSS inline styles
   int32_t count = cssPropertyArray.Length();
   for (int32_t index = 0; index < count; index++) {

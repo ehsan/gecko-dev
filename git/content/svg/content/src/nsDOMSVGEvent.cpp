@@ -9,10 +9,9 @@
 //----------------------------------------------------------------------
 // Implementation
 
-nsDOMSVGEvent::nsDOMSVGEvent(mozilla::dom::EventTarget* aOwner,
-                             nsPresContext* aPresContext,
+nsDOMSVGEvent::nsDOMSVGEvent(nsPresContext* aPresContext,
                              nsEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext,
+  : nsDOMEvent(aPresContext,
                aEvent ? aEvent : new nsEvent(false, 0))
 {
   if (aEvent) {
@@ -48,10 +47,12 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 nsresult
 NS_NewDOMSVGEvent(nsIDOMEvent** aInstancePtrResult,
-                  mozilla::dom::EventTarget* aOwner,
                   nsPresContext* aPresContext,
                   nsEvent *aEvent)
 {
-  nsDOMSVGEvent* it = new nsDOMSVGEvent(aOwner, aPresContext, aEvent);
+  nsDOMSVGEvent* it = new nsDOMSVGEvent(aPresContext, aEvent);
+  if (!it)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   return CallQueryInterface(it, aInstancePtrResult);
 }

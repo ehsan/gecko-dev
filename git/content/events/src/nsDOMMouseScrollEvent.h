@@ -13,8 +13,7 @@ class nsDOMMouseScrollEvent : public nsDOMMouseEvent,
                               public nsIDOMMouseScrollEvent
 {
 public:
-  nsDOMMouseScrollEvent(mozilla::dom::EventTarget* aOwner,
-                        nsPresContext* aPresContext, nsInputEvent* aEvent);
+  nsDOMMouseScrollEvent(nsPresContext* aPresContext, nsInputEvent* aEvent);
   virtual ~nsDOMMouseScrollEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

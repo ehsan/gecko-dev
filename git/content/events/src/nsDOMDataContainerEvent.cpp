@@ -6,11 +6,9 @@
 #include "nsDOMDataContainerEvent.h"
 #include "nsDOMClassInfoID.h"
 
-nsDOMDataContainerEvent::nsDOMDataContainerEvent(
-                                             mozilla::dom::EventTarget* aOwner,
-                                             nsPresContext* aPresContext,
-                                             nsEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent)
+nsDOMDataContainerEvent::nsDOMDataContainerEvent(nsPresContext *aPresContext,
+                                                 nsEvent *aEvent)
+  : nsDOMEvent(aPresContext, aEvent)
 {
   mData.Init();
 }
@@ -61,12 +59,11 @@ nsDOMDataContainerEvent::SetData(const nsAString& aKey, nsIVariant *aData)
 
 nsresult
 NS_NewDOMDataContainerEvent(nsIDOMEvent** aInstancePtrResult,
-                            mozilla::dom::EventTarget* aOwner,
-                            nsPresContext* aPresContext,
-                            nsEvent* aEvent)
+                   nsPresContext* aPresContext,
+                   nsEvent* aEvent)
 {
   nsDOMDataContainerEvent* it =
-    new nsDOMDataContainerEvent(aOwner, aPresContext, aEvent);
+    new nsDOMDataContainerEvent(aPresContext, aEvent);
   NS_ENSURE_TRUE(it, NS_ERROR_OUT_OF_MEMORY);
 
   return CallQueryInterface(it, aInstancePtrResult);

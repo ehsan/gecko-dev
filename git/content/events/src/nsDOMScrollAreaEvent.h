@@ -16,8 +16,7 @@ class nsDOMScrollAreaEvent : public nsDOMUIEvent,
                              public nsIDOMScrollAreaEvent
 {
 public:
-  nsDOMScrollAreaEvent(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext *aPresContext,
+  nsDOMScrollAreaEvent(nsPresContext *aPresContext,
                        nsScrollAreaEvent *aEvent);
   virtual ~nsDOMScrollAreaEvent();
 

@@ -12,7 +12,6 @@
 #include "nsCOMPtr.h"
 
 class nsBaseContentList;
-class nsGUIEvent;
 
 class nsRangeFrame : public nsContainerFrame,
                      public nsIAnonymousContentCreator
@@ -89,8 +88,6 @@ public:
    * Returns whether the frame and its child should use the native style.
    */
   bool ShouldUseNativeStyle() const;
-
-  double GetValueAtEventPoint(nsGUIEvent* aEvent);
 
 private:
 

@@ -151,14 +151,13 @@ typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&
 class RemoveDeviceTask : public nsRunnable {
 public:
   RemoveDeviceTask(const nsAString& aAdapterPath,
-                   const nsACString& aDeviceObjectPath,
+                   const char* aDeviceObjectPath,
                    BluetoothReplyRunnable* aRunnable)
     : mAdapterPath(aAdapterPath)
     , mDeviceObjectPath(aDeviceObjectPath)
     , mRunnable(aRunnable)
   {
-    MOZ_ASSERT(!aAdapterPath.IsEmpty());
-    MOZ_ASSERT(!aDeviceObjectPath.IsEmpty());
+    MOZ_ASSERT(aDeviceObjectPath);
     MOZ_ASSERT(aRunnable);
   }
 
@@ -169,13 +168,11 @@ public:
     BluetoothValue v = true;
     nsString errorStr;
 
-    const char* tempDeviceObjectPath = mDeviceObjectPath.get();
-
     DBusMessage *reply =
       dbus_func_args(gThreadConnection->GetConnection(),
                      NS_ConvertUTF16toUTF8(mAdapterPath).get(),
                      DBUS_ADAPTER_IFACE, "RemoveDevice",
-                     DBUS_TYPE_OBJECT_PATH, &tempDeviceObjectPath,
+                     DBUS_TYPE_OBJECT_PATH, &mDeviceObjectPath,
                      DBUS_TYPE_INVALID);
 
     if (reply) {
@@ -191,7 +188,7 @@ public:
 
 private:
   nsString mAdapterPath;
-  nsCString mDeviceObjectPath;
+  const char* mDeviceObjectPath;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
 };
 
@@ -2041,8 +2038,7 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
     return NS_ERROR_FAILURE;
   }
 
-  nsCString intermediatePropName(NS_ConvertUTF16toUTF8(aValue.name()));
-  const char* propName = intermediatePropName.get();
+  const char* propName = NS_ConvertUTF16toUTF8(aValue.name()).get();
   if (!dbus_message_append_args(msg, DBUS_TYPE_STRING, &propName, DBUS_TYPE_INVALID)) {
     NS_WARNING("Couldn't append arguments to dbus message!");
     return NS_ERROR_FAILURE;
@@ -2223,12 +2219,12 @@ BluetoothDBusService::RemoveDeviceInternal(const nsAString& aAdapterPath,
     return NS_OK;
   }
 
-  nsCString tempDeviceObjectPath(
+  nsCString tempDeviceObjectPath =
     NS_ConvertUTF16toUTF8(GetObjectPathFromAddress(aAdapterPath,
-                                                   aDeviceAddress)));
+                                                   aDeviceAddress));
 
   nsRefPtr<nsRunnable> task(new RemoveDeviceTask(aAdapterPath,
-                                                 tempDeviceObjectPath,
+                                                 tempDeviceObjectPath.get(),
                                                  aRunnable));
 
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(task, NS_DISPATCH_NORMAL))) {

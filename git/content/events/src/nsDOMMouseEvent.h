@@ -15,8 +15,7 @@ class nsDOMMouseEvent : public nsDOMUIEvent,
                         public nsIDOMMouseEvent
 {
 public:
-  nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
-                  nsPresContext* aPresContext, nsInputEvent* aEvent);
+  nsDOMMouseEvent(nsPresContext* aPresContext, nsInputEvent* aEvent);
   virtual ~nsDOMMouseEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

@@ -32,19 +32,14 @@
 #include "nsLayoutUtils.h"
 #include "nsIScrollableFrame.h"
 #include "nsDOMClassInfoID.h"
-#include "nsDOMEventTargetHelper.h"
-#include "nsPIWindowRoot.h"
 
 using namespace mozilla;
 
 static char *sPopupAllowedEvents;
 
 
-nsDOMEvent::nsDOMEvent(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext, nsEvent* aEvent)
+nsDOMEvent::nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent)
 {
-  SetOwner(aOwner);
-
   mPrivateDataDuplicated = false;
 
   if (aEvent) {
@@ -111,7 +106,6 @@ nsDOMEvent::~nsDOMEvent()
 DOMCI_DATA(Event, nsDOMEvent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMEvent)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEvent)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
@@ -120,10 +114,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMEvent)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMEvent)
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
   if (tmp->mEventIsInternal) {
@@ -150,8 +140,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPresContext);
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mExplicitOriginalTarget);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mOwner);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
@@ -187,8 +175,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPresContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mExplicitOriginalTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOwner)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // nsIDOMEventInterface
@@ -303,10 +289,6 @@ nsDOMEvent::Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
     }
   }
 
-  if (!mOwner) {
-    mOwner = w;
-  }
-
   JSAutoRequest ar(aCx);
   JSString* jsstr = JS_ValueToString(aCx, aArgv[0]);
   if (!jsstr) {
@@ -333,33 +315,6 @@ nsDOMEvent::InitFromCtor(const nsAString& aType,
   nsresult rv = d.Init(aCx, aVal);
   NS_ENSURE_SUCCESS(rv, rv);
   return InitEvent(aType, d.bubbles, d.cancelable);
-}
-
-//static
-already_AddRefed<nsDOMEvent>
-nsDOMEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
-                        const nsAString& aType,
-                        const mozilla::dom::EventInit& aParam,
-                        mozilla::ErrorResult& aRv)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
-  nsRefPtr<nsDOMEvent> e = nsDOMEvent::CreateEvent(t, nullptr, nullptr);
-
-  bool trusted = false;
-  nsCOMPtr<nsPIDOMWindow> w = do_QueryInterface(t);
-  if (w) {
-    nsCOMPtr<nsIDocument> d = do_QueryInterface(w->GetExtantDocument());
-    if (d) {
-      trusted = nsContentUtils::IsChromeDoc(d);
-      nsIPresShell* s = d->GetShell();
-      if (s) {
-        e->InitPresContextData(s->GetPresContext());
-      }
-    }
-  }
-  aRv = e->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
-  e->SetTrusted(trusted);
-  return e.forget();
 }
 
 NS_IMETHODIMP
@@ -865,12 +820,6 @@ nsDOMEvent::GetInternalNSEvent()
   return mEvent;
 }
 
-NS_IMETHODIMP_(nsDOMEvent*)
-nsDOMEvent::InternalDOMEvent()
-{
-  return this;
-}
-
 // return true if eventName is contained within events, delimited by
 // spaces
 static bool
@@ -1250,49 +1199,15 @@ nsDOMEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
   return true;
 }
 
-NS_IMETHODIMP_(void)
-nsDOMEvent::SetOwner(mozilla::dom::EventTarget* aOwner)
-{
-  mOwner = nullptr;
-
-  if (!aOwner) {
-    return;
-  }
-
-  nsCOMPtr<nsINode> n = do_QueryInterface(aOwner);
-  if (n) {
-    mOwner = do_QueryInterface(n->OwnerDoc()->GetScopeObject());
-    return;
-  }
-
-  nsCOMPtr<nsPIDOMWindow> w = do_QueryInterface(aOwner);
-  if (w) {
-    if (w->IsOuterWindow()) {
-      mOwner = w->GetCurrentInnerWindow();
-    } else {
-      mOwner.swap(w);
-    }
-    return;
-  }
-
-  nsCOMPtr<nsDOMEventTargetHelper> eth = do_QueryInterface(aOwner);
-  if (eth) {
-    mOwner = eth->GetOwner();
-    return;
-  }
-
-#ifdef DEBUG
-  nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(aOwner);
-  MOZ_ASSERT(root, "Unexpected EventTarget!");
-#endif
-}
 
 nsresult NS_NewDOMEvent(nsIDOMEvent** aInstancePtrResult,
-                        mozilla::dom::EventTarget* aOwner,
                         nsPresContext* aPresContext,
                         nsEvent *aEvent) 
 {
-  nsRefPtr<nsDOMEvent> it =
-    nsDOMEvent::CreateEvent(aOwner, aPresContext, aEvent);
+  nsDOMEvent* it = new nsDOMEvent(aPresContext, aEvent);
+  if (nullptr == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -32,13 +32,6 @@ LIBS += \
   $(NULL)
 endif
 
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  -lbinder \
-  -lutils \
-  $(NULL)
-endif
-
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 

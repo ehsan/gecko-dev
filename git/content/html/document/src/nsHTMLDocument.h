@@ -25,7 +25,6 @@
 
 #include "nsICommandManager.h"
 #include "mozilla/dom/HTMLSharedElement.h"
-#include "nsDOMEvent.h"
 
 class nsIEditor;
 class nsIParser;
@@ -99,11 +98,6 @@ public:
 
   // nsIDOMHTMLDocument interface
   NS_DECL_NSIDOMHTMLDOCUMENT
-
-  void RouteEvent(nsDOMEvent& aEvent)
-  {
-    RouteEvent(&aEvent);
-  }
 
   /**
    * Returns the result of document.all[aID] which can either be a node

@@ -7,7 +7,8 @@
 #ifndef mozilla_dom_file_domarchivereader_h__
 #define mozilla_dom_file_domarchivereader_h__
 
-#include "nsWrapperCache.h"
+#include "nsIDOMArchiveReader.h"
+#include "nsIJSNativeInitializer.h"
 
 #include "FileCommon.h"
 
@@ -15,15 +16,7 @@
 #include "nsIChannel.h"
 #include "nsIDOMFile.h"
 #include "mozilla/Attributes.h"
-
-class nsIDOMArchiveRequest;
-
-namespace mozilla {
-namespace dom {
-class ArchiveReaderOptions;
-class GlobalObject;
-} // namespace dom
-} // namespace mozilla
+#include "DictionaryHelpers.h"
 
 BEGIN_FILE_NAMESPACE
 
@@ -32,30 +25,25 @@ class ArchiveRequest;
 /**
  * This is the ArchiveReader object
  */
-class ArchiveReader MOZ_FINAL : public nsISupports,
-                                public nsWrapperCache
+class ArchiveReader MOZ_FINAL : public nsIDOMArchiveReader,
+                                public nsIJSNativeInitializer
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(ArchiveReader)
 
-  static already_AddRefed<ArchiveReader>
-  Constructor(const GlobalObject& aGlobal, nsIDOMBlob* aBlob,
-              const ArchiveReaderOptions& aOptions, ErrorResult& aError);
+  NS_DECL_NSIDOMARCHIVEREADER
 
-  ArchiveReader(nsIDOMBlob* aBlob, nsPIDOMWindow* aWindow,
-                const nsString& aEncoding);
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(ArchiveReader,
+                                           nsIDOMArchiveReader)
 
-  nsIDOMWindow* GetParentObject() const
-  {
-    return mWindow;
-  }
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap) MOZ_OVERRIDE;
+  ArchiveReader();
 
-  already_AddRefed<nsIDOMArchiveRequest> GetFilenames();
-  already_AddRefed<nsIDOMArchiveRequest> GetFile(const nsAString& filename);
-  already_AddRefed<nsIDOMArchiveRequest> GetFiles();
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner,
+                        JSContext* aCx,
+                        JSObject* aObj,
+                        uint32_t aArgc,
+                        JS::Value* aArgv);
 
   nsresult GetInputStream(nsIInputStream** aInputStream);
   nsresult GetSize(uint64_t* aSize);
@@ -109,7 +97,7 @@ protected:
     nsresult status;
   } mData;
 
-  nsString mEncoding;
+  mozilla::idl::ArchiveReaderOptions mOptions;
 };
 
 END_FILE_NAMESPACE

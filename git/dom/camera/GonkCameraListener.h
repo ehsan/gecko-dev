@@ -18,7 +18,7 @@
 #define GONK_CAMERA_LISTENER_H
 
 #include <utils/Timers.h>
-#include <camera/Camera.h>
+#include "libcameraservice/CameraHardwareInterface.h"
 
 namespace android {
 

@@ -43,8 +43,7 @@
 #include "nsIDOMTreeWalker.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMComment.h"
-#include "nsIDOMMozNamedAttrMap.h"
-#include "nsIDOMAttr.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNodeList.h"
 #include "nsIWebProgressListener.h"
 #include "nsIAuthPrompt.h"
@@ -3375,18 +3374,18 @@ nsWebBrowserPersist::StoreURIAttributeNS(
     // Find the named URI attribute on the (element) node and store
     // a reference to the URI that maps onto a local file name
 
-    nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
+    nsCOMPtr<nsIDOMNamedNodeMap> attrMap;
+    nsCOMPtr<nsIDOMNode> attrNode;
     rv = aNode->GetAttributes(getter_AddRefs(attrMap));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     NS_ConvertASCIItoUTF16 namespaceURI(aNamespaceURI);
     NS_ConvertASCIItoUTF16 attribute(aAttribute);
-    nsCOMPtr<nsIDOMAttr> attr;
-    rv = attrMap->GetNamedItemNS(namespaceURI, attribute, getter_AddRefs(attr));
-    if (attr)
+    rv = attrMap->GetNamedItemNS(namespaceURI, attribute, getter_AddRefs(attrNode));
+    if (attrNode)
     {
         nsAutoString oldValue;
-        attr->GetValue(oldValue);
+        attrNode->GetNodeValue(oldValue);
         if (!oldValue.IsEmpty())
         {
             NS_ConvertUTF16toUTF8 oldCValue(oldValue);
@@ -3485,21 +3484,22 @@ nsWebBrowserPersist::FixupNodeAttributeNS(nsIDOMNode *aNode,
     // Find the named URI attribute on the (element) node and change it to reference
     // a local file.
 
-    nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
+    nsCOMPtr<nsIDOMNamedNodeMap> attrMap;
+    nsCOMPtr<nsIDOMNode> attrNode;
     rv = aNode->GetAttributes(getter_AddRefs(attrMap));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     NS_ConvertASCIItoUTF16 attribute(aAttribute);
     NS_ConvertASCIItoUTF16 namespaceURI(aNamespaceURI);
-    nsCOMPtr<nsIDOMAttr> attr;
-    rv = attrMap->GetNamedItemNS(namespaceURI, attribute, getter_AddRefs(attr));
-    if (attr) {
+    rv = attrMap->GetNamedItemNS(namespaceURI, attribute, getter_AddRefs(attrNode));
+    if (attrNode)
+    {
         nsString uri;
-        attr->GetValue(uri);
+        attrNode->GetNodeValue(uri);
         rv = FixupURI(uri);
         if (NS_SUCCEEDED(rv))
         {
-            attr->SetValue(uri);
+            attrNode->SetNodeValue(uri);
         }
     }
 
@@ -3511,7 +3511,8 @@ nsWebBrowserPersist::FixupAnchor(nsIDOMNode *aNode)
 {
     NS_ENSURE_ARG_POINTER(aNode);
 
-    nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
+    nsCOMPtr<nsIDOMNamedNodeMap> attrMap;
+    nsCOMPtr<nsIDOMNode> attrNode;
     nsresult rv = aNode->GetAttributes(getter_AddRefs(attrMap));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
@@ -3522,12 +3523,11 @@ nsWebBrowserPersist::FixupAnchor(nsIDOMNode *aNode)
 
     // Make all anchor links absolute so they point off onto the Internet
     nsString attribute(NS_LITERAL_STRING("href"));
-    nsCOMPtr<nsIDOMAttr> attr;
-    rv = attrMap->GetNamedItem(attribute, getter_AddRefs(attr));
-    if (attr)
+    rv = attrMap->GetNamedItem(attribute, getter_AddRefs(attrNode));
+    if (attrNode)
     {
         nsString oldValue;
-        attr->GetValue(oldValue);
+        attrNode->GetNodeValue(oldValue);
         NS_ConvertUTF16toUTF8 oldCValue(oldValue);
 
         // Skip empty values and self-referencing bookmarks
@@ -3556,7 +3556,7 @@ nsWebBrowserPersist::FixupAnchor(nsIDOMNode *aNode)
             newURI->SetUserPass(EmptyCString());
             nsAutoCString uriSpec;
             newURI->GetSpec(uriSpec);
-            attr->SetValue(NS_ConvertUTF8toUTF16(uriSpec));
+            attrNode->SetNodeValue(NS_ConvertUTF8toUTF16(uriSpec));
         }
     }
 

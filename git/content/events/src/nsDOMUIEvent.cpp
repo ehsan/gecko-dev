@@ -23,9 +23,8 @@
 
 using namespace mozilla;
 
-nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
-                           nsPresContext* aPresContext, nsGUIEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent ?
+nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent ?
                static_cast<nsEvent *>(aEvent) :
                static_cast<nsEvent *>(new nsUIEvent(false, 0, 0)))
   , mClientPoint(0, 0), mLayerPoint(0, 0), mPagePoint(0, 0), mMovementPoint(0, 0)
@@ -506,10 +505,9 @@ nsDOMUIEvent::GetModifierStateInternal(const nsAString& aKey)
 
 
 nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,
-                          mozilla::dom::EventTarget* aOwner,
                           nsPresContext* aPresContext,
                           nsGUIEvent *aEvent) 
 {
-  nsDOMUIEvent* it = new nsDOMUIEvent(aOwner, aPresContext, aEvent);
+  nsDOMUIEvent* it = new nsDOMUIEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -997,6 +997,18 @@ LivemarkLoadListener.prototype = {
     this._livemark.expireTime = Date.now() + aMilliseconds;
   },
 
+  // nsIBadCertListener2
+  notifyCertProblem: function LLL_certProblem(aSocketInfo, aStatus, aTargetSite)
+  {
+    return true;
+  },
+
+  // nsISSLErrorListener
+  notifySSLError: function LLL_SSLError(aSocketInfo, aError, aTargetSite)
+  {
+    return true;
+  },
+
   // nsIInterfaceRequestor
   getInterface: function LLL_getInterface(aIID)
   {
@@ -1008,6 +1020,8 @@ LivemarkLoadListener.prototype = {
     Ci.nsIFeedResultListener
   , Ci.nsIStreamListener
   , Ci.nsIRequestObserver
+  , Ci.nsIBadCertListener2
+  , Ci.nsISSLErrorListener
   , Ci.nsIInterfaceRequestor
   ])
 }

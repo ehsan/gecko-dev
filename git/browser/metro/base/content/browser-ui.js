@@ -100,6 +100,7 @@ var BrowserUI = {
     ContextUI.init();
     StartUI.init();
     PanelUI.init();
+    IdentityUI.init();
     if (Browser.getHomePage() === "about:start") {
       StartUI.show();
     }

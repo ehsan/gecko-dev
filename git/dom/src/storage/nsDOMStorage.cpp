@@ -1628,9 +1628,7 @@ nsDOMStorage2::BroadcastChangeNotification(const nsSubstring &aKey,
 {
   nsresult rv;
   nsCOMPtr<nsIDOMEvent> domEvent;
-  // Note, this DOM event should never reach JS. It is cloned later in
-  // nsGlobalWindow.
-  NS_NewDOMStorageEvent(getter_AddRefs(domEvent), nullptr, nullptr, nullptr);
+  NS_NewDOMStorageEvent(getter_AddRefs(domEvent), nullptr, nullptr);
   nsCOMPtr<nsIDOMStorageEvent> event = do_QueryInterface(domEvent);
   rv = event->InitStorageEvent(NS_LITERAL_STRING("storage"),
                                false,

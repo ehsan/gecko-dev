@@ -30,28 +30,11 @@ class Zip: public mozilla::RefCounted<Zip>
 {
 public:
   /**
-   * Create a Zip instance for the given file name. Returns NULL in case
-   * of failure.
+   * Create a Zip instance for the given file name. In case of error, the
+   * Zip instance is still created but methods will error out.
    */
-  static mozilla::TemporaryRef<Zip> Create(const char *filename);
+  Zip(const char *filename, ZipCollection *collection = NULL);
 
-  /**
-   * Create a Zip instance using the given buffer.
-   */
-  static mozilla::TemporaryRef<Zip> Create(void *buffer, size_t size) {
-    return Create(NULL, buffer, size);
-  }
-
-private:
-  static mozilla::TemporaryRef<Zip> Create(const char *filename,
-                                           void *buffer, size_t size);
-
-  /**
-   * Private constructor
-   */
-  Zip(const char *filename, void *buffer, size_t size);
-
-public:
   /**
    * Destructor
    */
@@ -320,6 +303,9 @@ private:
 
   /* Pointer to the Directory entries */
   mutable const DirectoryEntry *entries;
+
+  /* ZipCollection containing this Zip */
+  mutable ZipCollection *parent;
 };
 
 /**
@@ -328,27 +314,19 @@ private:
 class ZipCollection
 {
 public:
-  static ZipCollection Singleton;
-
   /**
    * Get a Zip instance for the given path. If there is an existing one
    * already, return that one, otherwise create a new one.
    */
-  static mozilla::TemporaryRef<Zip> GetZip(const char *path);
+  mozilla::TemporaryRef<Zip> GetZip(const char *path);
 
 protected:
-  friend class Zip;
-  /**
-   * Register the given Zip instance. This method is meant to be called
-   * by Zip::Create.
-   */
-  static void Register(Zip *zip);
-
   /**
    * Forget about the given Zip instance. This method is meant to be called
    * by the Zip destructor.
    */
-  static void Forget(Zip *zip);
+  friend Zip::~Zip();
+  void Forget(Zip *zip);
 
 private:
   /* Zip instances bookkept in this collection */

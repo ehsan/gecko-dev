@@ -47,16 +47,20 @@ public:
                  const nsACString& aAddress)
     : mConsumer(aConsumer)
     , mIOLoop(nullptr)
+    , mFd(-1)
     , mConnector(aConnector)
-    , mShuttingDownOnIOThread(false)
+    , mCurrentTaskIsCanceled(false)
+    , mTask(nullptr)
     , mAddress(aAddress)
+    , mLock("UnixSocketImpl.mLock")
   {
   }
 
   ~UnixSocketImpl()
   {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(IsShutdownOnMainThread());
+    StopTask();
+    mReadWatcher.StopWatchingFileDescriptor();
+    mWriteWatcher.StopWatchingFileDescriptor();
   }
 
   void QueueWriteData(UnixSocketRawData* aData)
@@ -70,35 +74,44 @@ public:
     return mFd > 0;
   }
 
-  bool IsShutdownOnMainThread()
+  void CancelTask()
   {
-    MOZ_ASSERT(NS_IsMainThread());
-    return mConsumer == nullptr;
+    MutexAutoLock lock(mLock);
+    mCurrentTaskIsCanceled = true;
   }
   
-  void ShutdownOnMainThread()
+  bool IsCanceled()
   {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(!IsShutdownOnMainThread());
-    mConsumer = nullptr;
+    MutexAutoLock lock(mLock);
+    return mCurrentTaskIsCanceled;
   }
 
-  bool IsShutdownOnIOThread()
+  void UnsetTask()
   {
-    return mShuttingDownOnIOThread;
+    mTask = nullptr;
   }
 
-  void ShutdownOnIOThread()
+  void EnqueueTask(int aDelayMs, CancelableTask* aTask)
   {
-    MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(!mShuttingDownOnIOThread);
-
-    mReadWatcher.StopWatchingFileDescriptor();
-    mWriteWatcher.StopWatchingFileDescriptor();
-
-    mShuttingDownOnIOThread = true;
+    MessageLoopForIO* ioLoop = MessageLoopForIO::current();
+    if (!ioLoop) {
+      NS_WARNING("No IOLoop to attach to, cancelling self!");
+      return;
+    }
+    if (mTask) {
+      return;
+    }
+    if (IsCanceled()) {
+      return;
+    }
+    mTask = aTask;
+    if (aDelayMs) {
+      ioLoop->PostDelayedTask(FROM_HERE, mTask, aDelayMs);
+    } else {
+      ioLoop->PostTask(FROM_HERE, mTask);
+    }
   }
-
+  
   void SetUpIO()
   {
     MOZ_ASSERT(!mIOLoop);
@@ -126,7 +139,25 @@ public:
    */
   void Accept();
 
+  /** 
+   * Close an open connection
+   */
+  void Close();
+
   /**
+   * Stop whatever connect/accept task is running
+   */
+  void StopTask()
+  {
+    if (mTask) {
+      mTask->Cancel();
+      mTask = nullptr;
+    }
+    MutexAutoLock lock(mLock);
+    mCurrentTaskIsCanceled = true;
+  }
+
+  /** 
    * Set up nonblocking flags on whatever our current file descriptor is.
    *
    * @return true if successful, false otherwise
@@ -138,7 +169,7 @@ public:
     if (!mConnector)
     {
       NS_WARNING("No connector to get socket address from!");
-      aAddrStr.Truncate();
+      aAddrStr = nsString();
       return;
     }
     mConnector->GetSocketAddr(mAddr, aAddrStr);
@@ -180,6 +211,11 @@ private:
   UnixSocketRawDataQueue mOutgoingQ;
 
   /**
+   * Incoming packet. Only to be accessed on IO Thread.
+   */
+  nsAutoPtr<UnixSocketRawData> mIncoming;
+
+  /**
    * Read watcher for libevent. Only to be accessed on IO Thread.
    */
   MessageLoopForIO::FileDescriptorWatcher mReadWatcher;
@@ -203,7 +239,13 @@ private:
   /**
    * If true, do not requeue whatever task we're running
    */
-  bool mShuttingDownOnIOThread;
+  bool mCurrentTaskIsCanceled;
+
+  /**
+   * Pointer to the task we're currently running. DO NOT DELETE MANUALLY. This
+   * will be taken care of by the IO loop. Just set to nullptr.
+   */
+  CancelableTask* mTask;
 
   /**
    * Address we are connecting to, assuming we are creating a client connection.
@@ -219,6 +261,11 @@ private:
    * Address struct of the socket currently in use
    */
   sockaddr mAddr;
+
+  /**
+   * Protects mCurrentTaskIsCanceled
+   */
+  mozilla::Mutex mLock;
 };
 
 template<class T>
@@ -254,14 +301,13 @@ public:
     mEvent(e)
   {
     MOZ_ASSERT(aImpl);
-    MOZ_ASSERT(!NS_IsMainThread());
   }
 
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    if (mImpl->IsShutdownOnMainThread()) {
-      NS_WARNING("CloseSocket has already been called!");
+    if (!mImpl->mConsumer) {
+      NS_WARNING("CloseSocket has already been called! (mConsumer is null)");
       // Since we've already explicitly closed and the close happened before
       // this, this isn't really an error. Since we've warned, return OK.
       return NS_OK;
@@ -293,15 +339,12 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_IsMainThread());
-    if(mImpl->IsShutdownOnMainThread()) {
+    if(!mImpl->mConsumer) {
       NS_WARNING("mConsumer is null, aborting receive!");
       // Since we've already explicitly closed and the close happened before
       // this, this isn't really an error. Since we've warned, return OK.
       return NS_OK;
     }
-
-    MOZ_ASSERT(mImpl->mConsumer);
     mImpl->mConsumer->ReceiveSocketData(mRawData);
     return NS_OK;
   }
@@ -327,9 +370,6 @@ public:
   void
   Run()
   {
-    MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(!mImpl->IsShutdownOnIOThread());
-
     mImpl->QueueWriteData(mData);
   }
 
@@ -337,6 +377,44 @@ private:
   nsRefPtr<UnixSocketConsumer> mConsumer;
   UnixSocketImpl* mImpl;
   UnixSocketRawData* mData;
+};
+
+class SocketCloseTask : public Task
+{
+public:
+  SocketCloseTask(UnixSocketImpl* aImpl)
+    : mImpl(aImpl)
+  {
+    MOZ_ASSERT(aImpl);
+  }
+
+  void Run()
+  {
+    NS_ENSURE_TRUE_VOID(mImpl);
+
+    mImpl->UnsetTask();
+    mImpl->Close();
+  }
+
+private:
+  UnixSocketImpl* mImpl;
+};
+
+class StartImplReadingTask : public Task
+{
+public:
+  StartImplReadingTask(UnixSocketImpl* aImpl)
+    : mImpl(aImpl)
+  {
+  }
+
+  void
+  Run()
+  {
+    mImpl->SetUpIO();
+  }
+private:
+  UnixSocketImpl* mImpl;
 };
 
 class RequestClosingSocketTask : public nsRunnable
@@ -351,15 +429,14 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    if (mImpl->IsShutdownOnMainThread()) {
-      NS_WARNING("CloseSocket has already been called!");
+    if(!mImpl->mConsumer) {
+      NS_WARNING("CloseSocket has already been called! (mConsumer is null)");
       // Since we've already explicitly closed and the close happened before
       // this, this isn't really an error. Since we've warned, return OK.
       return NS_OK;
     }
 
-    // Start from here, same handling flow as calling CloseSocket() from
-    // upper layer
+    // Start from here, same handling flow as calling CloseSocket() from upper layer
     mImpl->mConsumer->CloseSocket();
     return NS_OK;
   }
@@ -370,69 +447,54 @@ private:
 class SocketAcceptTask : public CancelableTask {
   virtual void Run();
 
+  bool mCanceled;
   UnixSocketImpl* mImpl;
 public:
-  SocketAcceptTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
-
-  virtual void Cancel()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    mImpl = nullptr;
-  }
+  virtual void Cancel() { mCanceled = true; }
+  SocketAcceptTask(UnixSocketImpl* aImpl) : mCanceled(false), mImpl(aImpl) { }
 };
 
-void SocketAcceptTask::Run()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  if (mImpl) {
-    mImpl->Accept();
+void SocketAcceptTask::Run() {
+  mImpl->UnsetTask();
+  if (mCanceled) {
+    return;
   }
+  mImpl->Accept();
 }
 
-class SocketConnectTask : public Task {
+class SocketConnectTask : public CancelableTask {
   virtual void Run();
 
+  bool mCanceled;
   UnixSocketImpl* mImpl;
 public:
-  SocketConnectTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
+  SocketConnectTask(UnixSocketImpl* aImpl) : mCanceled(false), mImpl(aImpl) { }
+  virtual void Cancel() { mCanceled = true; }  
 };
 
-void SocketConnectTask::Run()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
+void SocketConnectTask::Run() {
+  mImpl->UnsetTask();
+  if (mCanceled) {
+    return;
+  }
   mImpl->Connect();
 }
 
-class ShutdownSocketTask : public Task {
-  virtual void Run();
-
-  UnixSocketImpl* mImpl;
-
-public:
-  ShutdownSocketTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
-};
-
-void ShutdownSocketTask::Run()
+void
+UnixSocketImpl::Close()
 {
-  MOZ_ASSERT(!NS_IsMainThread());
+  mReadWatcher.StopWatchingFileDescriptor();
+  mWriteWatcher.StopWatchingFileDescriptor();
 
-  // At this point, there should be no new events on the IO thread after this
-  // one with the possible exception of a SocketAcceptTask that
-  // ShutdownOnIOThread will cancel for us. We are now fully shut down, so we
-  // can send a message to the main thread that will delete mImpl safely knowing
-  // that no more tasks reference it.
-  mImpl->ShutdownOnIOThread();
-
-  nsRefPtr<nsIRunnable> t(new DeleteInstanceRunnable<UnixSocketImpl>(mImpl));
+  nsRefPtr<nsIRunnable> t(new DeleteInstanceRunnable<UnixSocketImpl>(this));
+  NS_ENSURE_TRUE_VOID(t);
   nsresult rv = NS_DispatchToMainThread(t);
   NS_ENSURE_SUCCESS_VOID(rv);
 }
 
-void  
+void
 UnixSocketImpl::Accept()
 {
-  MOZ_ASSERT(!NS_IsMainThread());
 
   if (!mConnector) {
     NS_WARNING("No connector object available!");
@@ -476,13 +538,6 @@ UnixSocketImpl::Accept()
 void
 UnixSocketImpl::Connect()
 {
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  if (!mConnector) {
-    NS_WARNING("No connector object available!");
-    return;
-  }
-
   if(mFd.get() < 0)
   {
     mFd = mConnector->Create();
@@ -517,7 +572,11 @@ UnixSocketImpl::Connect()
     new OnSocketEventTask(this, OnSocketEventTask::CONNECT_SUCCESS);
   NS_DispatchToMainThread(t);
 
-  SetUpIO();
+  // Due to the fact that we've dispatched our OnConnectSuccess message before
+  // starting reading, we're guaranteed that any subsequent read tasks will
+  // happen after the object has been notified of a successful connect.
+  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
+                                   new StartImplReadingTask(this));
 }
 
 bool
@@ -557,8 +616,6 @@ UnixSocketConsumer::SendSocketData(UnixSocketRawData* aData)
   if (!mImpl) {
     return false;
   }
-
-  MOZ_ASSERT(!mImpl->IsShutdownOnMainThread());
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    new SocketSendTask(this, mImpl, aData));
   return true;
@@ -574,10 +631,9 @@ UnixSocketConsumer::SendSocketData(const nsACString& aStr)
   if (aStr.Length() > MAX_READ_SIZE) {
     return false;
   }
-
-  MOZ_ASSERT(!mImpl->IsShutdownOnMainThread());
+  nsCString str(aStr);
   UnixSocketRawData* d = new UnixSocketRawData(aStr.Length());
-  memcpy(d->mData, aStr.BeginReading(), aStr.Length());
+  memcpy(d->mData, str.get(), aStr.Length());
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    new SocketSendTask(this, mImpl, d));
   return true;
@@ -586,20 +642,19 @@ UnixSocketConsumer::SendSocketData(const nsACString& aStr)
 void
 UnixSocketConsumer::CloseSocket()
 {
+  // Needed due to refcount change
   MOZ_ASSERT(NS_IsMainThread());
   if (!mImpl) {
     return;
   }
-
-  // From this point on, we consider mImpl as being deleted.
-  // We sever the relationship here so any future calls to listen or connect
-  // will create a new implementation.
-  mImpl->ShutdownOnMainThread();
-
-  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new ShutdownSocketTask(mImpl));
-
+  UnixSocketImpl* impl = mImpl;
+  // To make sure the owner doesn't die on the IOThread, remove pointer here
   mImpl = nullptr;
+  // Line it up to be destructed on the IO Thread
+  impl->mConsumer.forget();
+  impl->CancelTask();
+
+  XRE_GetIOMessageLoop()->PostTask(FROM_HERE, new SocketCloseTask(impl));
 
   NotifyDisconnect();
 }
@@ -607,55 +662,57 @@ UnixSocketConsumer::CloseSocket()
 void
 UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
 {
-  MOZ_ASSERT(!NS_IsMainThread());
-  MOZ_ASSERT(!mShuttingDownOnIOThread);
+  enum SocketConnectionStatus status = mConsumer->GetConnectionStatus();
 
-  SocketConnectionStatus status = mConsumer->GetConnectionStatus();
   if (status == SOCKET_CONNECTED) {
-    // Read all of the incoming data.
-    while (true) {
-      uint8_t data[MAX_READ_SIZE];
-      ssize_t ret = read(aFd, data, MAX_READ_SIZE);
-      if (ret <= 0) {
-        if (ret == -1) {
-          if (errno == EINTR) {
-            continue; // retry system call when interrupted
-          }
-          if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return; // no data available: return and re-poll
-          }
 
+    // Keep reading data until either
+    //
+    //   - mIncoming is completely read
+    //     If so, sConsumer->MessageReceived(mIncoming.forget())
+    //
+    //   - mIncoming isn't completely read, but there's no more
+    //     data available on the socket
+    //     If so, break;
+    while (true) {
+      if (!mIncoming) {
+        uint8_t data[MAX_READ_SIZE];
+        ssize_t ret = read(aFd, data, MAX_READ_SIZE);
+        if (ret < 0) {
+          if (ret == -1) {
+            if (errno == EINTR) {
+              continue; // retry system call when interrupted
+            }
+            else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+              return; // no data available: return and re-poll
+            }
+            // else fall through to error handling on other errno's
+          }
 #ifdef DEBUG
           NS_WARNING("Cannot read from network");
 #endif
-          // else fall through to error handling on other errno's
+          // At this point, assume that we can't actually access
+          // the socket anymore
+          mReadWatcher.StopWatchingFileDescriptor();
+          mWriteWatcher.StopWatchingFileDescriptor();
+          nsRefPtr<RequestClosingSocketTask> t = new RequestClosingSocketTask(this);
+          NS_DispatchToMainThread(t);
+          return;
         }
-
-        // We're done with our descriptors. Ensure that spurious events don't
-        // cause us to end up back here.
-        mReadWatcher.StopWatchingFileDescriptor();
-        mWriteWatcher.StopWatchingFileDescriptor();
-        nsRefPtr<RequestClosingSocketTask> t = new RequestClosingSocketTask(this);
-        NS_DispatchToMainThread(t);
-        return;
-      }
-
-      UnixSocketRawData* incoming = new UnixSocketRawData(ret);
-      memcpy(incoming->mData, data, ret);
-      nsRefPtr<SocketReceiveTask> t = new SocketReceiveTask(this, incoming);
-      NS_DispatchToMainThread(t);
-
-      // If ret is less than MAX_READ_SIZE, there's no more data in the socket
-      // for us to read now.
-      if (ret < ssize_t(MAX_READ_SIZE)) {
-        return;
+        if (ret) {
+          mIncoming = new UnixSocketRawData(ret);
+          memcpy(mIncoming->mData, data, ret);
+          nsRefPtr<SocketReceiveTask> t =
+            new SocketReceiveTask(this, mIncoming.forget());
+          NS_DispatchToMainThread(t);
+        }
+        if (ret < ssize_t(MAX_READ_SIZE)) {
+          return;
+        }
       }
     }
+  } else if (status == SOCKET_LISTENING) {
 
-    MOZ_NOT_REACHED("We returned early");
-  }
-
-  if (status == SOCKET_LISTENING) {
     int client_fd = accept(mFd.get(), &mAddr, &mAddrSize);
 
     if (client_fd < 0) {
@@ -677,16 +734,17 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
       new OnSocketEventTask(this, OnSocketEventTask::CONNECT_SUCCESS);
     NS_DispatchToMainThread(t);
 
-    SetUpIO();
+    // Due to the fact that we've dispatched our OnConnectSuccess message before
+    // starting reading, we're guaranteed that any subsequent read tasks will
+    // happen after the object has been notified of a successful connect.
+    XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
+                                     new StartImplReadingTask(this));
   }
 }
 
 void
 UnixSocketImpl::OnFileCanWriteWithoutBlocking(int aFd)
 {
-  MOZ_ASSERT(!NS_IsMainThread());
-  MOZ_ASSERT(!mShuttingDownOnIOThread);
-
   // Try to write the bytes of mCurrentRilRawData.  If all were written, continue.
   //
   // Otherwise, save the byte position of the next byte to write
@@ -733,9 +791,9 @@ UnixSocketImpl::OnFileCanWriteWithoutBlocking(int aFd)
 void
 UnixSocketConsumer::GetSocketAddr(nsAString& aAddrStr)
 {
-  aAddrStr.Truncate();
   if (!mImpl || mConnectionStatus != SOCKET_CONNECTED) {
     NS_WARNING("No socket currently open!");
+    aAddrStr = nsString();
     return;
   }
   mImpl->GetSocketAddr(aAddrStr);
@@ -776,7 +834,8 @@ UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
     NS_WARNING("Socket already connecting/connected!");
     return false;
   }
-  nsCString addr(aAddress);
+  nsCString addr;
+  addr.Assign(aAddress);
   mImpl = new UnixSocketImpl(this, aConnector, addr);
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   mConnectionStatus = SOCKET_CONNECTING;
@@ -797,11 +856,23 @@ UnixSocketConsumer::ListenSocket(UnixSocketConnector* aConnector)
     NS_WARNING("Socket already connecting/connected!");
     return false;
   }
-  mImpl = new UnixSocketImpl(this, aConnector, EmptyCString());
+  nsCString addr;
+  mImpl = new UnixSocketImpl(this, aConnector, addr);
   mConnectionStatus = SOCKET_LISTENING;
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    new SocketAcceptTask(mImpl));
   return true;
+}
+
+void
+UnixSocketConsumer::CancelSocketTask()
+{
+  mConnectionStatus = SOCKET_DISCONNECTED;
+  if(!mImpl) {
+    NS_WARNING("No socket implementation to cancel task on!");
+    return;
+  }
+  mImpl->StopTask();
 }
 
 } // namespace ipc

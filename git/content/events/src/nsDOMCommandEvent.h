@@ -13,8 +13,7 @@ class nsDOMCommandEvent : public nsDOMEvent,
                           public nsIDOMCommandEvent
 {
 public:
-  nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
-                    nsPresContext* aPresContext,
+  nsDOMCommandEvent(nsPresContext* aPresContext,
                     nsCommandEvent* aEvent);
   virtual ~nsDOMCommandEvent();
 

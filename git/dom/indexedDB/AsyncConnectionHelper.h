@@ -178,8 +178,7 @@ protected:
    * OnSuccess is called.  A subclass can override this to fire an event other
    * than "success" at the request.
    */
-  virtual already_AddRefed<nsIDOMEvent> CreateSuccessEvent(
-    mozilla::dom::EventTarget* aOwner);
+  virtual already_AddRefed<nsDOMEvent> CreateSuccessEvent();
 
   /**
    * This callback is run on the main thread if DoDatabaseWork returned NS_OK.

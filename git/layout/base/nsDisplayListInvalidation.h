@@ -63,16 +63,6 @@ public:
   nsRect mBorderRect;
 };
 
-class nsDisplayItemBoundsGeometry : public nsDisplayItemGeometry
-{
-public:
-  nsDisplayItemBoundsGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder);
-
-  virtual void MoveBy(const nsPoint& aOffset);
-
-  bool mHasRoundedCorners;
-};
-
 class nsDisplayBorderGeometry : public nsDisplayItemGeometry
 {
 public:

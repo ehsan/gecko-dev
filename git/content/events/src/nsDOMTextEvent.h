@@ -14,8 +14,7 @@ class nsDOMTextEvent : public nsDOMUIEvent,
                        public nsIPrivateTextEvent
 {
 public:
-  nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
-                 nsPresContext* aPresContext, nsTextEvent* aEvent);
+  nsDOMTextEvent(nsPresContext* aPresContext, nsTextEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
 

@@ -3681,7 +3681,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         int endOffset = end - lastEnd;
 
         View firstChild = getChildAt(0);
-        int firstStart = (mIsVertical ? firstChild.getTop() : firstChild.getLeft());
+        final int firstStart = (mIsVertical ? firstChild.getTop() : firstChild.getLeft());
 
         // Make sure we are 1) Too high, and 2) Either there are more rows above the
         // first row or the first row is scrolled off the top of the drawable area
@@ -3695,11 +3695,9 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
             offsetChildren(endOffset);
 
             if (mFirstPosition > 0) {
-                firstStart = (mIsVertical ? firstChild.getTop() : firstChild.getLeft());
-
                 // Fill the gap that was opened above mFirstPosition with more rows, if
                 // possible
-                fillBefore(mFirstPosition - 1, firstStart - mItemMargin);
+                fillBefore(mFirstPosition - 1, firstChild.getTop() - mItemMargin);
 
                 // Close up the remaining gap
                 adjustViewsStartOrEnd();
@@ -3731,7 +3729,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         int startOffset = firstStart - start;
 
         View last = getChildAt(childCount - 1);
-        int lastEnd = (mIsVertical ? last.getBottom() : last.getRight());
+        final int lastEnd = (mIsVertical ? last.getBottom() : last.getRight());
 
         int lastPosition = mFirstPosition + childCount - 1;
 
@@ -3749,8 +3747,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
                 offsetChildren(-startOffset);
 
                 if (lastPosition < mItemCount - 1) {
-                    lastEnd = (mIsVertical ? last.getBottom() : last.getRight());
-
                     // Fill the gap that was opened below the last position with more rows, if
                     // possible
                     fillAfter(lastPosition + 1, lastEnd + mItemMargin);

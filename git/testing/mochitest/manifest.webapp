@@ -26,8 +26,7 @@
     "desktop-notification":{},
     "idle":{},
     "network-events":{},
-    "embed-apps":{},
-    "systemXHR":{}
+    "embed-apps":{}
   },
   "locales": {
     "en-US": {

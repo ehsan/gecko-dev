@@ -13,9 +13,8 @@ class nsDOMBeforeUnloadEvent : public nsDOMEvent,
                                public nsIDOMBeforeUnloadEvent
 {
 public:
-  nsDOMBeforeUnloadEvent(mozilla::dom::EventTarget* aOwner,
-                         nsPresContext* aPresContext, nsEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent) {}
+  nsDOMBeforeUnloadEvent(nsPresContext* aPresContext, nsEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent) {}
 
   NS_DECL_ISUPPORTS_INHERITED
 

@@ -18,7 +18,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMAttr.h"
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsBindingManager.h"
 #include "nsINameSpaceManager.h"
@@ -684,7 +684,7 @@ inDOMView::AttributeChanged(nsIDocument* aDocument, dom::Element* aElement,
       return;
     }
     // get the number of attributes on this content node
-    nsCOMPtr<nsIDOMMozNamedAttrMap> attrs;
+    nsCOMPtr<nsIDOMNamedNodeMap> attrs;
     content->GetAttributes(getter_AddRefs(attrs));
     uint32_t attrCount;
     attrs->GetLength(&attrCount);
@@ -1178,37 +1178,42 @@ nsresult
 inDOMView::GetChildNodesFor(nsIDOMNode* aNode, nsCOMArray<nsIDOMNode>& aResult)
 {
   NS_ENSURE_ARG(aNode);
-  // attribute nodes
-  if (mWhatToShow & nsIDOMNodeFilter::SHOW_ATTRIBUTE) {
-    nsCOMPtr<nsIDOMMozNamedAttrMap> attrs;
-    aNode->GetAttributes(getter_AddRefs(attrs));
-    if (attrs) {
-      AppendAttrsToArray(attrs, aResult);
-    }
-  }
-
-  if (mWhatToShow & nsIDOMNodeFilter::SHOW_ELEMENT) {
-    nsCOMPtr<nsIDOMNodeList> kids;
-    if (!mDOMUtils) {
-      mDOMUtils = do_GetService("@mozilla.org/inspector/dom-utils;1");
-      if (!mDOMUtils) {
-        return NS_ERROR_FAILURE;
+  // Need to do this test to prevent unfortunate NYI assertion
+  // on nsXULAttribute::GetChildNodes
+  nsCOMPtr<nsIDOMAttr> attr = do_QueryInterface(aNode);
+  if (!attr) {
+    // attribute nodes
+    if (mWhatToShow & nsIDOMNodeFilter::SHOW_ATTRIBUTE) {
+      nsCOMPtr<nsIDOMNamedNodeMap> attrs;
+      aNode->GetAttributes(getter_AddRefs(attrs));
+      if (attrs) {
+        AppendAttrsToArray(attrs, aResult);
       }
     }
 
-    mDOMUtils->GetChildrenForNode(aNode, mShowAnonymous,
-                                  getter_AddRefs(kids));
+    if (mWhatToShow & nsIDOMNodeFilter::SHOW_ELEMENT) {
+      nsCOMPtr<nsIDOMNodeList> kids;
+      if (!mDOMUtils) {
+        mDOMUtils = do_GetService("@mozilla.org/inspector/dom-utils;1");
+        if (!mDOMUtils) {
+          return NS_ERROR_FAILURE;
+        }
+      }
 
-    if (kids) {
-      AppendKidsToArray(kids, aResult);
+      mDOMUtils->GetChildrenForNode(aNode, mShowAnonymous,
+                                    getter_AddRefs(kids));
+
+      if (kids) {
+        AppendKidsToArray(kids, aResult);
+      }
     }
-  }
 
-  if (mShowSubDocuments) {
-    nsCOMPtr<nsIDOMNode> domdoc =
-      do_QueryInterface(inLayoutUtils::GetSubDocumentFor(aNode));
-    if (domdoc) {
-      aResult.AppendObject(domdoc);
+    if (mShowSubDocuments) {
+      nsCOMPtr<nsIDOMNode> domdoc =
+        do_QueryInterface(inLayoutUtils::GetSubDocumentFor(aNode));
+      if (domdoc) {
+        aResult.AppendObject(domdoc);
+      }
     }
   }
 
@@ -1273,15 +1278,15 @@ inDOMView::AppendKidsToArray(nsIDOMNodeList* aKids,
 }
 
 nsresult
-inDOMView::AppendAttrsToArray(nsIDOMMozNamedAttrMap* aAttributes,
+inDOMView::AppendAttrsToArray(nsIDOMNamedNodeMap* aKids,
                               nsCOMArray<nsIDOMNode>& aArray)
 {
   uint32_t l = 0;
-  aAttributes->GetLength(&l);
-  nsCOMPtr<nsIDOMAttr> attribute;
+  aKids->GetLength(&l);
+  nsCOMPtr<nsIDOMNode> kid;
   for (uint32_t i = 0; i < l; ++i) {
-    aAttributes->Item(i, getter_AddRefs(attribute));
-    aArray.AppendObject(attribute);
+    aKids->Item(i, getter_AddRefs(kid));
+    aArray.AppendObject(kid);
   }
   return NS_OK;
 }

@@ -36,9 +36,8 @@ enum Cancelable {
   eCancelable
 };
 
-already_AddRefed<nsIDOMEvent>
-CreateGenericEvent(mozilla::dom::EventTarget* aOwner,
-                   const nsAString& aType,
+already_AddRefed<nsDOMEvent>
+CreateGenericEvent(const nsAString& aType,
                    Bubbles aBubbles,
                    Cancelable aCancelable);
 
@@ -51,70 +50,61 @@ public:
   NS_DECL_NSIIDBVERSIONCHANGEEVENT
 
   inline static already_AddRefed<nsDOMEvent>
-  Create(mozilla::dom::EventTarget* aOwner,
-         int64_t aOldVersion,
+  Create(int64_t aOldVersion,
          int64_t aNewVersion)
   {
-    return CreateInternal(aOwner,
-                          NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
+    return CreateInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
                           aOldVersion, aNewVersion);
   }
 
   inline static already_AddRefed<nsDOMEvent>
-  CreateBlocked(mozilla::dom::EventTarget* aOwner,
-                uint64_t aOldVersion,
+  CreateBlocked(uint64_t aOldVersion,
                 uint64_t aNewVersion)
   {
-    return CreateInternal(aOwner, NS_LITERAL_STRING(BLOCKED_EVT_STR),
+    return CreateInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR),
                           aOldVersion, aNewVersion);
   }
 
   inline static already_AddRefed<nsDOMEvent>
-  CreateUpgradeNeeded(mozilla::dom::EventTarget* aOwner,
-                      uint64_t aOldVersion,
+  CreateUpgradeNeeded(uint64_t aOldVersion,
                       uint64_t aNewVersion)
   {
-    return CreateInternal(aOwner,
-                          NS_LITERAL_STRING(UPGRADENEEDED_EVT_STR),
+    return CreateInternal(NS_LITERAL_STRING(UPGRADENEEDED_EVT_STR),
                           aOldVersion, aNewVersion);
   }
 
   inline static already_AddRefed<nsIRunnable>
-  CreateRunnable(mozilla::dom::EventTarget* aTarget,
-                 uint64_t aOldVersion,
-                 uint64_t aNewVersion)
+  CreateRunnable(uint64_t aOldVersion,
+                 uint64_t aNewVersion,
+                 nsIDOMEventTarget* aTarget)
   {
-    return CreateRunnableInternal(aTarget,
-                                  NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
-                                  aOldVersion, aNewVersion);
+    return CreateRunnableInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
+                                  aOldVersion, aNewVersion, aTarget);
   }
 
   static already_AddRefed<nsIRunnable>
-  CreateBlockedRunnable(mozilla::dom::EventTarget* aTarget,
-                        uint64_t aOldVersion,
-                        uint64_t aNewVersion)
+  CreateBlockedRunnable(uint64_t aOldVersion,
+                        uint64_t aNewVersion,
+                        nsIDOMEventTarget* aTarget)
   {
-    return CreateRunnableInternal(aTarget,
-                                  NS_LITERAL_STRING(BLOCKED_EVT_STR),
-                                  aOldVersion, aNewVersion);
+    return CreateRunnableInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR),
+                                  aOldVersion, aNewVersion, aTarget);
   }
 
 protected:
-  IDBVersionChangeEvent(mozilla::dom::EventTarget* aOwner)
-  : nsDOMEvent(aOwner, nullptr, nullptr) { }
+  IDBVersionChangeEvent() : nsDOMEvent(nullptr, nullptr) { }
   virtual ~IDBVersionChangeEvent() { }
 
   static already_AddRefed<nsDOMEvent>
-  CreateInternal(mozilla::dom::EventTarget* aOwner,
-                 const nsAString& aType,
+  CreateInternal(const nsAString& aType,
                  uint64_t aOldVersion,
                  uint64_t aNewVersion);
 
   static already_AddRefed<nsIRunnable>
-  CreateRunnableInternal(mozilla::dom::EventTarget* aOwner,
-                         const nsAString& aType,
+  CreateRunnableInternal(const nsAString& aType,
                          uint64_t aOldVersion,
-                         uint64_t aNewVersion);
+                         uint64_t aNewVersion,
+                         nsIDOMEventTarget* aTarget);
 
   uint64_t mOldVersion;
   uint64_t mNewVersion;

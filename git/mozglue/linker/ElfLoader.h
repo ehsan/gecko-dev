@@ -412,6 +412,9 @@ private:
   /* Keep track of all registered destructors */
   std::vector<DestructorCaller> destructors;
 
+  /* Keep track of Zips used for library loading */
+  ZipCollection zips;
+
   /* Forward declaration, see further below */
   class DebuggerHelper;
 public:

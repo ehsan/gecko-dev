@@ -44,9 +44,8 @@ class nsDOMDeviceMotionEvent MOZ_FINAL : public nsDOMEvent,
 {
 public:
 
-  nsDOMDeviceMotionEvent(mozilla::dom::EventTarget* aOwner,
-                         nsPresContext* aPresContext, nsEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent)
+  nsDOMDeviceMotionEvent(nsPresContext* aPresContext, nsEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent)
   {}
 
   NS_DECL_ISUPPORTS_INHERITED

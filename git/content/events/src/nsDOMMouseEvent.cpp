@@ -12,10 +12,9 @@
 
 using namespace mozilla;
 
-nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
-                                 nsPresContext* aPresContext,
+nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
                                  nsInputEvent* aEvent)
-  : nsDOMUIEvent(aOwner, aPresContext, aEvent ? aEvent :
+  : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
                  new nsMouseEvent(false, 0, nullptr,
                                   nsMouseEvent::eReal))
 {
@@ -404,10 +403,9 @@ nsDOMMouseEvent::GetMozInputSource(uint16_t* aInputSource)
 }
 
 nsresult NS_NewDOMMouseEvent(nsIDOMEvent** aInstancePtrResult,
-                             mozilla::dom::EventTarget* aOwner,
                              nsPresContext* aPresContext,
-                             nsInputEvent *aEvent)
+                             nsInputEvent *aEvent) 
 {
-  nsDOMMouseEvent* it = new nsDOMMouseEvent(aOwner, aPresContext, aEvent);
+  nsDOMMouseEvent* it = new nsDOMMouseEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -959,11 +959,8 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
       if (ls->IsListening(aEvent) &&
           (aEvent->mFlags.mIsTrusted || ls->mFlags.mAllowUntrustedEvents)) {
         if (!*aDOMEvent) {
-          // This is tiny bit slow, but happens only once per event.
-          nsCOMPtr<mozilla::dom::EventTarget> et =
-            do_QueryInterface(aEvent->originalTarget);
-          nsEventDispatcher::CreateEvent(et, aPresContext,
-                                         aEvent, EmptyString(), aDOMEvent);
+          nsEventDispatcher::CreateEvent(aPresContext, aEvent,
+                                         EmptyString(), aDOMEvent);
         }
         if (*aDOMEvent) {
           if (!aEvent->currentTarget) {

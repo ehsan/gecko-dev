@@ -4,17 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Implementation of the |attributes| property of DOM Core's Element object.
+ * Implementation of the |attributes| property of DOM Core's nsIDOMNode object.
  */
 
-#ifndef nsDOMAttributeMap_h
-#define nsDOMAttributeMap_h
+#ifndef nsDOMAttributeMap_h___
+#define nsDOMAttributeMap_h___
 
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsStringGlue.h"
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIDOMAttr.h"
+#include "nsIDOMNode.h"
 #include "mozilla/ErrorResult.h"
 
 class nsIAtom;
@@ -86,8 +86,8 @@ private:
   nsAttrKey mKey;
 };
 
-// Helper class that implements the nsIDOMMozNamedAttrMap interface.
-class nsDOMAttributeMap : public nsIDOMMozNamedAttrMap
+// Helper class that implements the nsIDOMNamedNodeMap interface.
+class nsDOMAttributeMap : public nsIDOMNamedNodeMap
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -97,8 +97,8 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  // nsIDOMMozNamedAttrMap interface
-  NS_DECL_NSIDOMMOZNAMEDATTRMAP
+  // nsIDOMNamedNodeMap interface
+  NS_DECL_NSIDOMNAMEDNODEMAP
 
   void DropReference();
 
@@ -145,12 +145,12 @@ public:
   {
 #ifdef DEBUG
     {
-      nsCOMPtr<nsIDOMMozNamedAttrMap> map_qi = do_QueryInterface(aSupports);
+      nsCOMPtr<nsIDOMNamedNodeMap> map_qi = do_QueryInterface(aSupports);
 
       // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsIDOMMozNamedAttrMap pointer as the nsISupports
+      // question doesn't use the nsIDOMNamedNodeMap pointer as the nsISupports
       // pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(map_qi == static_cast<nsIDOMMozNamedAttrMap*>(aSupports),
+      NS_ASSERTION(map_qi == static_cast<nsIDOMNamedNodeMap*>(aSupports),
                    "Uh, fix QI!");
     }
 #endif
@@ -164,7 +164,7 @@ public:
                                  const nsAString& aLocalName,
                                  mozilla::ErrorResult& aError);
 
-  already_AddRefed<nsDOMAttribute> SetNamedItemNS(nsIDOMAttr *aNode,
+  already_AddRefed<nsDOMAttribute> SetNamedItemNS(nsIDOMNode *aNode,
                                                   mozilla::ErrorResult& aError)
   {
     return SetNamedItemInternal(aNode, true, aError);
@@ -185,7 +185,7 @@ private:
    * true) implementation.
    */
   already_AddRefed<nsDOMAttribute>
-    SetNamedItemInternal(nsIDOMAttr *aNode,
+    SetNamedItemInternal(nsIDOMNode *aNode,
                          bool aWithNS,
                          mozilla::ErrorResult& aError);
 
@@ -203,4 +203,4 @@ private:
 };
 
 
-#endif /* nsDOMAttributeMap_h */
+#endif /* nsDOMAttributeMap_h___ */

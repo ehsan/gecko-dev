@@ -17,10 +17,9 @@ using namespace mozilla::dom;
 //----------------------------------------------------------------------
 // Implementation
 
-nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(mozilla::dom::EventTarget* aOwner,
-                                     nsPresContext* aPresContext,
+nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
                                      nsGUIEvent* aEvent)
-  : nsDOMUIEvent(aOwner, aPresContext,
+  : nsDOMUIEvent(aPresContext,
                  aEvent ? aEvent : new nsGUIEvent(false, NS_SVG_ZOOM, 0))
 {
   if (aEvent) {
@@ -127,10 +126,12 @@ nsDOMSVGZoomEvent::GetNewTranslate(nsISupports **aNewTranslate)
 
 nsresult
 NS_NewDOMSVGZoomEvent(nsIDOMEvent** aInstancePtrResult,
-                      mozilla::dom::EventTarget* aOwner,
                       nsPresContext* aPresContext,
                       nsGUIEvent *aEvent)
 {
-  nsDOMSVGZoomEvent* it = new nsDOMSVGZoomEvent(aOwner, aPresContext, aEvent);
+  nsDOMSVGZoomEvent* it = new nsDOMSVGZoomEvent(aPresContext, aEvent);
+  if (!it)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   return CallQueryInterface(it, aInstancePtrResult);
 }

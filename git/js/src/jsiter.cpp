@@ -392,7 +392,7 @@ NewPropertyIteratorObject(JSContext *cx, unsigned flags)
             return NULL;
 
         RawObject obj = JSObject::create(cx, ITERATOR_FINALIZE_KIND,
-                                         GetInitialHeap(GenericObject, clasp), shape, type);
+                                         GetInitialHeap(GenericObject, clasp), shape, type, NULL);
         if (!obj)
             return NULL;
 

@@ -91,6 +91,10 @@ DOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
       return NS_ERROR_DOM_NAMESPACE_ERR;
     }
   }
+  else if (DOMStringIsNull(aQualifiedName) &&
+           !DOMStringIsNull(aNamespaceURI)) {
+    return NS_ERROR_DOM_NAMESPACE_ERR;
+  }
 
   nsCOMPtr<nsIScriptGlobalObject> scriptHandlingObject =
     do_QueryReferent(mScriptObject);

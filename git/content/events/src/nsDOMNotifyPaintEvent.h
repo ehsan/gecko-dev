@@ -16,8 +16,7 @@ class nsDOMNotifyPaintEvent : public nsDOMEvent,
                               public nsIDOMNotifyPaintEvent
 {
 public:
-  nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
-                        nsPresContext*           aPresContext,
+  nsDOMNotifyPaintEvent(nsPresContext*           aPresContext,
                         nsEvent*                 aEvent,
                         uint32_t                 aEventType,
                         nsInvalidateRequestList* aInvalidateRequests);

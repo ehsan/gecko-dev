@@ -1971,7 +1971,6 @@ gfxPangoFontGroup::UpdateFontList()
 
     mFonts[0] = FamilyFace();
     mFontSets.Clear();
-    mCachedEllipsisTextRun = nullptr;
     mUnderlineOffset = UNDERLINE_OFFSET_NOT_SET;
     mCurrGeneration = newGeneration;
     mSkipDrawing = false;

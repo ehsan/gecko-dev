@@ -2867,9 +2867,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // check to see if scroll events should roll up the popup
       if ([theEvent type] == NSScrollWheel) {
         shouldRollup = rollupListener->ShouldRollupOnMouseWheelEvent();
-        // consume scroll events that aren't over the popup
-        // unless the popup is an arrow panel
-        consumeEvent = rollupListener->ShouldConsumeOnMouseWheelEvent();
+        // always consume scroll events that aren't over the popup
+        consumeEvent = YES;
       }
 
       // if we're dealing with menus, we probably have submenus and

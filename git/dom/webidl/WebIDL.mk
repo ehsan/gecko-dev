@@ -9,7 +9,6 @@ generated_webidl_files = \
   $(NULL)
 
 webidl_files = \
-  ArchiveReader.webidl \
   AudioBuffer.webidl \
   AudioBufferSourceNode.webidl \
   AudioContext.webidl \
@@ -46,7 +45,6 @@ webidl_files = \
   DummyBinding.webidl \
   DynamicsCompressorNode.webidl \
   Element.webidl \
-  Event.webidl \
   EventHandler.webidl \
   EventListener.webidl \
   EventSource.webidl \

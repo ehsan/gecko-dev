@@ -110,6 +110,7 @@ private:
     already_AddRefed<nsINode>
     NextOrPrevNode(NodePointer::MoveToMethodType aMove, ErrorResult& aResult);
 
+    bool mDetached;
     NodePointer mPointer;
     NodePointer mWorkingPointer;
 };

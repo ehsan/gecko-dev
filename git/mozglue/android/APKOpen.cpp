@@ -212,7 +212,7 @@ loadGeckoLibs(const char *apkName)
   struct rusage usage1;
   getrusage(RUSAGE_THREAD, &usage1);
   
-  RefPtr<Zip> zip = ZipCollection::GetZip(apkName);
+  RefPtr<Zip> zip = new Zip(apkName);
 
 #ifdef MOZ_CRASHREPORTER
   file_ids = (char *)extractBuf("lib.id", zip);
@@ -261,7 +261,7 @@ static int loadSQLiteLibs(const char *apkName)
 {
   chdir(getenv("GRE_HOME"));
 
-  RefPtr<Zip> zip = ZipCollection::GetZip(apkName);
+  RefPtr<Zip> zip = new Zip(apkName);
   if (!lib_mapping) {
     lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
   }
@@ -294,7 +294,7 @@ loadNSSLibs(const char *apkName)
 {
   chdir(getenv("GRE_HOME"));
 
-  RefPtr<Zip> zip = ZipCollection::GetZip(apkName);
+  RefPtr<Zip> zip = new Zip(apkName);
   if (!lib_mapping) {
     lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
   }

@@ -122,11 +122,6 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
-  void PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor);
-  void StartRangeThumbDrag(nsGUIEvent* aEvent);
-  void FinishRangeThumbDrag(nsGUIEvent* aEvent = nullptr);
-  void CancelRangeThumbDrag();
-  void SetValueOfRangeForUserEvent(double aValue);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -775,13 +770,6 @@ protected:
    */
   nsString mFocusedValue;  
 
-  /**
-   * If mIsDraggingRange is true, this is the value that the input had before
-   * the drag started. Used to reset the input to its old value if the drag is
-   * canceled.
-   */
-  double mRangeThumbDragStartValue;
-
   // Step scale factor values, for input types that have one.
   static const double kStepScaleFactorDate;
   static const double kStepScaleFactorNumberRange;
@@ -816,7 +804,6 @@ protected:
   bool                     mCanShowValidUI      : 1;
   bool                     mCanShowInvalidUI    : 1;
   bool                     mHasRange            : 1;
-  bool                     mIsDraggingRange     : 1;
 
 private:
   struct nsFilePickerFilter {

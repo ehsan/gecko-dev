@@ -93,7 +93,8 @@ nsHTTPDownloadEvent::Run()
     nsCOMPtr<nsIInputStream> uploadStream;
     rv = NS_NewPostDataStream(getter_AddRefs(uploadStream),
                               false,
-                              mRequestSession->mPostData);
+                              mRequestSession->mPostData,
+                              0, ios);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(chan));

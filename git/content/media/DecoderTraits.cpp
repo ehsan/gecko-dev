@@ -183,12 +183,6 @@ static const char* const gH264Types[4] = {
 };
 
 static bool
-IsH264Type(const nsACString& aType)
-{
-  return CodecListContains(gH264Types, aType);
-}
-
-static bool
 IsGStreamerSupportedType(const nsACString& aMimeType)
 {
   if (!MediaDecoder::IsGStreamerEnabled())
@@ -206,6 +200,12 @@ IsGStreamerSupportedType(const nsACString& aMimeType)
     return true;
 #endif
   return false;
+}
+
+static bool
+IsH264Type(const nsACString& aType)
+{
+  return CodecListContains(gH264Types, aType);
 }
 #endif
 

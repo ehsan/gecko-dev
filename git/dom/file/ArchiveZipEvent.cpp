@@ -22,10 +22,10 @@ USING_FILE_NAMESPACE
 
 ArchiveZipItem::ArchiveZipItem(const char* aFilename,
                                const ZipCentral& aCentralStruct,
-                               const nsAString& aEncoding)
+                               const mozilla::idl::ArchiveReaderOptions& aOptions)
 : mFilename(aFilename),
   mCentralStruct(aCentralStruct),
-  mEncoding(aEncoding)
+  mOptions(aOptions)
 {
   MOZ_COUNT_CTOR(ArchiveZipItem);
 }
@@ -38,13 +38,13 @@ ArchiveZipItem::~ArchiveZipItem()
 nsresult
 ArchiveZipItem::ConvertFilename()
 {
-  if (mEncoding.IsEmpty()) {
+  if (mOptions.encoding.IsEmpty()) {
     return NS_ERROR_FAILURE;
   }
 
   nsString filenameU;
   nsresult rv = nsContentUtils::ConvertStringFromCharset(
-                  NS_ConvertUTF16toUTF8(mEncoding),
+                  NS_ConvertUTF16toUTF8(mOptions.encoding),
                   mFilename, filenameU);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -111,9 +111,9 @@ ArchiveZipItem::StrToInt16(const uint8_t* aStr)
 // ArchiveReaderZipEvent
 
 ArchiveReaderZipEvent::ArchiveReaderZipEvent(ArchiveReader* aArchiveReader,
-                                             const nsAString& aEncoding)
+                                             const mozilla::idl::ArchiveReaderOptions& aOptions)
 : ArchiveReaderEvent(aArchiveReader),
-  mEncoding(aEncoding)
+  mOptions(aOptions)
 {
 }
 
@@ -201,7 +201,7 @@ ArchiveReaderZipEvent::Exec()
 
     // We ignore the directories:
     if (filename[filenameLen - 1] != '/') {
-      mFileList.AppendElement(new ArchiveZipItem(filename, centralStruct, mEncoding));
+      mFileList.AppendElement(new ArchiveZipItem(filename, centralStruct, mOptions));
     }
 
     // Ignore the rest

@@ -14,8 +14,7 @@ class nsDOMSimpleGestureEvent : public nsDOMMouseEvent,
                                 public nsIDOMSimpleGestureEvent
 {
 public:
-  nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwner,
-                          nsPresContext*, nsSimpleGestureEvent*);
+  nsDOMSimpleGestureEvent(nsPresContext*, nsSimpleGestureEvent*);
   virtual ~nsDOMSimpleGestureEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

@@ -76,7 +76,6 @@ class nsWindowSizes;
 class nsSmallVoidArray;
 class nsDOMCaretPosition;
 class nsViewportInfo;
-class nsDOMEvent;
 
 namespace mozilla {
 class ErrorResult;
@@ -1944,8 +1943,8 @@ public:
   already_AddRefed<nsINode>
     ImportNode(nsINode& aNode, bool aDeep, mozilla::ErrorResult& rv) const;
   nsINode* AdoptNode(nsINode& aNode, mozilla::ErrorResult& rv);
-  already_AddRefed<nsDOMEvent> CreateEvent(const nsAString& aEventType,
-                                           mozilla::ErrorResult& rv) const;
+  already_AddRefed<nsIDOMEvent> CreateEvent(const nsAString& aEventType,
+                                            mozilla::ErrorResult& rv) const;
   already_AddRefed<nsRange> CreateRange(mozilla::ErrorResult& rv);
   already_AddRefed<mozilla::dom::NodeIterator>
     CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,

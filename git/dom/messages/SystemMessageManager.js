@@ -85,8 +85,7 @@ SystemMessageManager.prototype = {
 
     if (this._isInBrowserElement) {
       debug("the app loaded in the browser cannot set message handler");
-      // Don't throw there, but ignore the registration.
-      return;
+      throw Cr.NS_ERROR_FAILURE;
     }
 
     if (!aType) {
@@ -117,8 +116,7 @@ SystemMessageManager.prototype = {
 
     if (this._isInBrowserElement) {
       debug("the app loaded in the browser cannot ask pending message");
-      // Don't throw there, but pretend to have no messages available.
-      return false;
+      throw Cr.NS_ERROR_FAILURE;
     }
 
     // If we have a handler for this type, we can't have any pending message.

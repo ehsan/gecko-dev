@@ -1193,16 +1193,6 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
     }
 
     if (!isLastEncodedWord || q < p) {
-      if (!encodedText.IsEmpty()) {
-        rv = DecodeQOrBase64Str(encodedText.get(), encodedText.Length(),
-                                prevEncoding, prevCharset.get(), aResult);
-        if (NS_FAILED(rv)) {
-          aResult.Append(encodedText);
-        }
-        encodedText.Truncate();
-        prevCharset.Truncate();
-        prevEncoding = '\0';
-      }
       // copy the part before the encoded-word
       CopyRawHeader(begin, p - begin, aDefaultCharset, aResult);
       begin = p;
@@ -1293,7 +1283,6 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
       }
       encodedText.Truncate();
       prevCharset.Truncate();
-      prevEncoding = '\0';
     }
     if (!bDecoded) {
       rv = DecodeQOrBase64Str(q + 2, R - (q + 2), curEncoding,

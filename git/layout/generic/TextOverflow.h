@@ -13,9 +13,7 @@
 #include "nsTHashtable.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
-
 class nsIScrollableFrame;
-class gfxTextRun;
 
 namespace mozilla {
 namespace css {
@@ -219,8 +217,10 @@ class TextOverflow {
 
     // The current width of the marker, the range is [0 .. mIntrinsicWidth].
     nscoord                        mWidth;
-    // The intrinsic width of the marker.
+    // The intrinsic width of the marker string.
     nscoord                        mIntrinsicWidth;
+    // The marker text.
+    nsString                       mMarkerString;
     // The style for this side.
     const nsStyleTextOverflowSide* mStyle;
     // True if there is visible overflowing inline content on this side.
