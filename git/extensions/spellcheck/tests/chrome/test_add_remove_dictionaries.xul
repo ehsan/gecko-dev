@@ -12,6 +12,7 @@
   <script type="application/javascript">
   <![CDATA[
 SimpleTest.waitForExplicitFinish();
+SimpleTest.ignoreAllUncaughtExceptions();
 
 function getMisspelledWords(editor) {
   return editor.selectionController.getSelection(Components.interfaces.nsISelectionController.SELECTION_SPELLCHECK).toString();
@@ -35,9 +36,7 @@ function setCurrentDictionary(editor, dictionary) {
 }
 
 function RunTest() {
-  var textbox = document.getElementById('textbox');
-  textbox.focus();
-  var editor = textbox.editor;
+  var editor = document.getElementById('textbox').editor;
 
   var dir = Components.classes["@mozilla.org/file/directory_service;1"].
             getService(Components.interfaces.nsIProperties).

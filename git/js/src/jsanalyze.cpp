@@ -188,7 +188,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         for (unsigned i = 0; i < nargs; i++)
             escapedSlots[ArgSlot(i)] = true;
     } else {
-        for (uint32_t i = 0; i < script->numClosedArgs(); i++) {
+        for (uint32_t i = 0; i < script->nClosedArgs(); i++) {
             unsigned arg = script->getClosedArg(i);
             JS_ASSERT(arg < nargs);
             escapedSlots[ArgSlot(arg)] = true;
@@ -199,7 +199,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         for (unsigned i = 0; i < script->nfixed; i++)
             escapedSlots[LocalSlot(script, i)] = true;
     } else {
-        for (uint32_t i = 0; i < script->numClosedVars(); i++) {
+        for (uint32_t i = 0; i < script->nClosedVars(); i++) {
             unsigned local = script->getClosedVar(i);
             JS_ASSERT(local < script->nfixed);
             escapedSlots[LocalSlot(script, local)] = true;
@@ -218,13 +218,13 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     isCompileable = true;
 
     isInlineable = true;
-    if (script->numClosedArgs() || script->numClosedVars() || heavyweight ||
+    if (script->nClosedArgs() || script->nClosedVars() || heavyweight ||
         script->usesEval || script->mayNeedArgsObj() || cx->compartment->debugMode()) {
         isInlineable = false;
     }
 
     modifiesArguments_ = false;
-    if (script->numClosedArgs() || heavyweight)
+    if (script->nClosedArgs() || heavyweight)
         modifiesArguments_ = true;
 
     canTrackVars = true;

@@ -162,6 +162,13 @@ nsXFormsComboboxPopupWidgetAccessible::NativeState()
   return state;
 }
 
+NS_IMETHODIMP
+nsXFormsComboboxPopupWidgetAccessible::GetValue(nsAString& aValue)
+{
+  aValue.Truncate();
+  return NS_OK;
+}
+
 nsresult
 nsXFormsComboboxPopupWidgetAccessible::GetNameInternal(nsAString& aName)
 {
@@ -174,12 +181,6 @@ void
 nsXFormsComboboxPopupWidgetAccessible::Description(nsString& aDescription)
 {
   aDescription.Truncate();
-}
-
-void
-nsXFormsComboboxPopupWidgetAccessible::Value(nsString& aValue)
-{
-  aValue.Truncate();
 }
 
 void

@@ -95,8 +95,7 @@ nsAppShell::nsAppShell()
       mCondLock("nsAppShell.mCondLock"),
       mQueueCond(mCondLock, "nsAppShell.mQueueCond"),
       mQueuedDrawEvent(nsnull),
-      mQueuedViewportEvent(nsnull),
-      mAllowCoalescingNextDraw(false)
+      mQueuedViewportEvent(nsnull)
 {
     gAppShell = this;
 }
@@ -517,11 +516,6 @@ void
 nsAppShell::PostEvent(AndroidGeckoEvent *ae)
 {
     {
-        // set this to true when inserting events that we can coalesce
-        // viewport events across. this is effectively maintaining a whitelist
-        // of events that are unaffected by viewport changes.
-        bool allowCoalescingNextViewport = false;
-
         MutexAutoLock lock(mQueueLock);
         EVLOG("nsAppShell::PostEvent %p %d", ae, ae->Type());
         switch (ae->Type()) {
@@ -582,18 +576,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
                 delete mQueuedDrawEvent;
             }
 
-            if (mAllowCoalescingNextDraw) {
-                // if we're not allowing coalescing of this draw event, then
-                // don't set mQueuedDrawEvent to point to this; that way the
-                // next draw event that comes in won't kill this one.
-                mAllowCoalescingNextDraw = true;
-                mQueuedDrawEvent = nsnull;
-            } else {
-                mQueuedDrawEvent = ae;
-            }
-
-            allowCoalescingNextViewport = true;
-
+            mQueuedDrawEvent = ae;
             mEventQueue.AppendElement(ae);
             break;
 
@@ -605,11 +588,6 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
                 delete mQueuedViewportEvent;
             }
             mQueuedViewportEvent = ae;
-            // temporarily turn off draw-coalescing, so that we process a draw
-            // event as soon as possible after a viewport change
-            mAllowCoalescingNextDraw = false;
-            allowCoalescingNextViewport = true;
-
             mEventQueue.AppendElement(ae);
             break;
 
@@ -629,20 +607,10 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
             mEventQueue.AppendElement(ae);
             break;
 
-        case AndroidGeckoEvent::NATIVE_POKE:
-            allowCoalescingNextViewport = true;
-            // fall through
-
         default:
             mEventQueue.AppendElement(ae);
             break;
         }
-
-        // if the event wasn't on our whitelist then reset mQueuedViewportEvent
-        // so that we don't coalesce future viewport events into the last viewport
-        // event we added
-        if (!allowCoalescingNextViewport)
-            mQueuedViewportEvent = nsnull;
     }
     NotifyNativeEvent();
 }

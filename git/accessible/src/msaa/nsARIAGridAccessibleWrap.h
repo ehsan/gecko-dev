@@ -38,18 +38,47 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZILLA_A11Y_ARIAGRIDACCESSIBLEWRAP_H
-#define MOZILLA_A11Y_ARIAGRIDACCESSIBLEWRAP_H
+#ifndef _NSARIAGRIDACCESSIBLEWRAP_H
+#define _NSARIAGRIDACCESSIBLEWRAP_H
 
-#include "ARIAGridAccessible.h"
+#include "nsARIAGridAccessible.h"
+#include "CAccessibleTable.h"
+#include "CAccessibleTableCell.h"
 
-namespace mozilla {
-namespace a11y {
+/**
+ * IA2 wrapper class for nsARIAGridAccessible implementing IAccessibleTable and
+ * IAccessibleTable2 interfaces.
+ */
+class nsARIAGridAccessibleWrap : public nsARIAGridAccessible,
+                                 public CAccessibleTable
+{
+public:
+  nsARIAGridAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
+    nsARIAGridAccessible(aContent, aDoc) {}
 
-typedef class ARIAGridAccessible ARIAGridAccessibleWrap;
-typedef class ARIAGridCellAccessible ARIAGridCellAccessibleWrap;
+  // IUnknown
+  DECL_IUNKNOWN_INHERITED
 
-} // namespace a11y
-} // namespace mozilla
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+};
+
+/**
+ * IA2 wrapper class for nsARIAGridCellAccessible implementing
+ * IAccessibleTableCell interface.
+ */
+class nsARIAGridCellAccessibleWrap : public nsARIAGridCellAccessible,
+                                     public CAccessibleTableCell
+{
+public:
+  nsARIAGridCellAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
+    nsARIAGridCellAccessible(aContent, aDoc) {}
+
+  // IUnknown
+  DECL_IUNKNOWN_INHERITED
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+};
 
 #endif

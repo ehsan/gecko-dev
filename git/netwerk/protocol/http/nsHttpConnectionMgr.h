@@ -55,7 +55,7 @@
 #include "nsITimer.h"
 #include "nsIX509Cert3.h"
 
-class nsHttpPipeline;
+#include "nsHttpPipeline.h"
 
 //-----------------------------------------------------------------------------
 

@@ -372,15 +372,8 @@ nsScreen::MozLockOrientation(const nsAString& aOrientation, bool* aReturn)
   }
 
   if (!IsChromeType(GetOwner()->GetDocShell())) {
-    nsCOMPtr<nsIDOMDocument> doc;
-    GetOwner()->GetDocument(getter_AddRefs(doc));
-    if (!doc) {
-      *aReturn = false;
-      return NS_OK;
-    }
-
     bool fullscreen;
-    doc->GetMozFullScreen(&fullscreen);
+    GetOwner()->GetFullScreen(&fullscreen);
     if (!fullscreen) {
       *aReturn = false;
       return NS_OK;

@@ -283,7 +283,8 @@ nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
 
   nsAutoString text;
   if (aAccessible != gInitiatorAcc) {
-    aAccessible->Value(text);
+    nsresult rv = aAccessible->GetValue(text);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return AppendString(aString, text) ?
       NS_OK : NS_OK_NO_NAME_CLAUSE_HANDLED;
@@ -303,7 +304,8 @@ nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
            siblingContent = siblingContent->GetNextSibling()) {
         // .. and subsequent text
         if (!siblingContent->TextIsOnlyWhitespace()) {
-          aAccessible->Value(text);
+          nsresult rv = aAccessible->GetValue(text);
+          NS_ENSURE_SUCCESS(rv, rv);
 
           return AppendString(aString, text) ?
             NS_OK : NS_OK_NO_NAME_CLAUSE_HANDLED;

@@ -143,17 +143,20 @@ nsXULTreeAccessible::NativeState()
   return state;
 }
 
-void
-nsXULTreeAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXULTreeAccessible::GetValue(nsAString& aValue)
 {
   // Return the value is the first selected child.
 
   aValue.Truncate();
 
+  if (IsDefunct() || !mTreeView)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return;
+    return NS_ERROR_FAILURE;
 
   PRInt32 currentIndex;
   nsCOMPtr<nsIDOMElement> selectItem;
@@ -166,9 +169,10 @@ nsXULTreeAccessible::Value(nsString& aValue)
     if (cols)
       cols->GetKeyColumn(getter_AddRefs(keyCol));
 
-    mTreeView->GetCellText(currentIndex, keyCol, aValue);
+    return mTreeView->GetCellText(currentIndex, keyCol, aValue);
   }
 
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,8 +72,8 @@ __try {
   *aHyperlinkCount = 0;
 
   nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(this);
-  if (hyperText->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  if (!hyperText)
+    return E_FAIL;
 
   *aHyperlinkCount = hyperText->GetLinkCount();
   return S_OK;
@@ -90,8 +90,8 @@ __try {
   *aHyperlink = NULL;
 
   nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(this);
-  if (hyperText->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  if (!hyperText)
+    return E_FAIL;
 
   nsAccessible* hyperLink = hyperText->GetLinkAt(aLinkIndex);
   nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryObject(hyperLink));
@@ -118,8 +118,8 @@ __try {
   *aHyperlinkIndex = 0;
 
   nsRefPtr<nsHyperTextAccessible> hyperAcc(do_QueryObject(this));
-  if (hyperAcc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  if (!hyperAcc)
+    return E_FAIL;
 
   *aHyperlinkIndex = hyperAcc->GetLinkIndexAtOffset(aCharIndex);
   return S_OK;

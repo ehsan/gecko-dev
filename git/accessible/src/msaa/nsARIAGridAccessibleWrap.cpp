@@ -38,53 +38,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZILLA_A11Y_ARIAGRIDACCESSIBLEWRAP_H
-#define MOZILLA_A11Y_ARIAGRIDACCESSIBLEWRAP_H
+#include "nsARIAGridAccessibleWrap.h"
 
-#include "ARIAGridAccessible.h"
-#include "CAccessibleTable.h"
-#include "CAccessibleTableCell.h"
+////////////////////////////////////////////////////////////////////////////////
+// nsARIAGridAccessibleWrap
+////////////////////////////////////////////////////////////////////////////////
 
-namespace mozilla {
-namespace a11y {
+NS_IMPL_ISUPPORTS_INHERITED0(nsARIAGridAccessibleWrap,
+                             nsARIAGridAccessible)
 
-/**
- * IA2 wrapper class for ARIAGridAccessible implementing IAccessibleTable and
- * IAccessibleTable2 interfaces.
- */
-class ARIAGridAccessibleWrap : public ARIAGridAccessible,
-                               public CAccessibleTable
-{
-public:
-  ARIAGridAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
-    ARIAGridAccessible(aContent, aDoc) {}
+IMPL_IUNKNOWN_INHERITED1(nsARIAGridAccessibleWrap,
+                         nsAccessibleWrap,
+                         CAccessibleTable)
 
-  // IUnknown
-  DECL_IUNKNOWN_INHERITED
 
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-};
+////////////////////////////////////////////////////////////////////////////////
+// nsARIAGridCellAccessibleWrap
+////////////////////////////////////////////////////////////////////////////////
 
-/**
- * IA2 wrapper class for ARIAGridCellAccessible implementing
- * IAccessibleTableCell interface.
- */
-class ARIAGridCellAccessibleWrap : public ARIAGridCellAccessible,
-                                   public CAccessibleTableCell
-{
-public:
-  ARIAGridCellAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
-    ARIAGridCellAccessible(aContent, aDoc) {}
+NS_IMPL_ISUPPORTS_INHERITED0(nsARIAGridCellAccessibleWrap,
+                             nsARIAGridCellAccessible)
 
-  // IUnknown
-  DECL_IUNKNOWN_INHERITED
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-};
-
-} // namespace a11y
-} // namespace mozilla
-
-#endif
+IMPL_IUNKNOWN_INHERITED1(nsARIAGridCellAccessibleWrap,
+                         nsHyperTextAccessibleWrap,
+                         CAccessibleTableCell)

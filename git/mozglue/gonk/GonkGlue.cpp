@@ -4,7 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <unistd.h>
-#include <pthread.h>
 #include <vector>
 
 #define NS_EXPORT __attribute__ ((visibility("default")))
@@ -52,10 +51,3 @@ __wrap_fork(void)
   }
   return pid;
 }
-
-extern "C" NS_EXPORT int
-__wrap_raise(int sig)
-{
-  return pthread_kill(pthread_self(), sig);
-}
-

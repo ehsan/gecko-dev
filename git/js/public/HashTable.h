@@ -630,7 +630,9 @@ class HashTable : private AllocPolicy
                 deltaLog2 = 1;
             }
 
-            return changeTableSize(deltaLog2);
+            (void) changeTableSize(deltaLog2);
+
+            return true;
         }
 
         return false;

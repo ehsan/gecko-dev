@@ -144,7 +144,7 @@ nsHttpTransaction::nsHttpTransaction()
     , mResponseHeadTaken(false)
 {
     LOG(("Creating nsHttpTransaction @%x\n", this));
-    gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
+    gHttpHandler->GetMaxPipelineObjectSize(mMaxPipelineObjectSize);
 }
 
 nsHttpTransaction::~nsHttpTransaction()
@@ -1366,10 +1366,8 @@ nsHttpTransaction::HandleContent(char *buf,
     // for this response reschedule the pipeline
     if ((mClassification != CLASS_SOLO) &&
         mChunkedDecoder &&
-        ((mContentRead + mChunkedDecoder->GetChunkRemaining()) >
-         mMaxPipelineObjectSize)) {
+        (mContentRead > mMaxPipelineObjectSize))
         CancelPipeline(nsHttpConnectionMgr::BadUnexpectedLarge);
-    }
 
     // check for end-of-file
     if ((mContentRead == mContentLength) ||
@@ -1481,7 +1479,7 @@ nsHttpTransaction::CancelPipeline(PRUint32 reason)
         static_cast<nsHttpConnectionMgr::PipelineFeedbackInfoType>(reason),
         nsnull, mClassification);
 
-    mConnection->CancelPipeline(NS_ERROR_ABORT);
+    mConnection->CancelPipeline(NS_ERROR_CORRUPTED_CONTENT);
 
     // Avoid pipelining this transaction on restart by classifying it as solo.
     // This also prevents BadUnexpectedLarge from being reported more

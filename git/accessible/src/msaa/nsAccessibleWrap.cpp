@@ -168,9 +168,9 @@ __try {
   *ppdispParent = NULL;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
-  nsDocAccessible* doc = AsDoc();
+  nsRefPtr<nsDocAccessible> doc(do_QueryObject(this));
   if (doc) {
     // Return window system accessible object for root document and tab document
     // accessibles.
@@ -210,7 +210,7 @@ __try {
   *pcountChildren = 0;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   if (nsAccUtils::MustPrune(this))
     return S_OK;
@@ -228,7 +228,7 @@ STDMETHODIMP nsAccessibleWrap::get_accChild(
 __try {
   *ppdispChild = NULL;
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   // IAccessible::accChild is used to return this accessible or child accessible
   // at the given index or to get an accessible by child ID in the case of
@@ -236,17 +236,12 @@ __try {
   // on the document accessible). The getting an accessible by child ID is used
   // by AccessibleObjectFromEvent() called by AT when AT handles our MSAA event.
   nsAccessible* child = GetXPAccessibleFor(varChild);
-  if (!child)
-    return E_INVALIDARG;
-
-  if (child->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  *ppdispChild = NativeAccessible(child);
+  if (child)
+    *ppdispChild = NativeAccessible(child);
 
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
-  return S_OK;
+  return (*ppdispChild)? S_OK: E_INVALIDARG;
 }
 
 STDMETHODIMP nsAccessibleWrap::get_accName(
@@ -255,17 +250,9 @@ STDMETHODIMP nsAccessibleWrap::get_accName(
 {
 __try {
   *pszName = NULL;
-
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
   if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
+    return E_FAIL;
   nsAutoString name;
   nsresult rv = xpAccessible->GetName(name);
   if (NS_FAILED(rv))
@@ -294,21 +281,13 @@ STDMETHODIMP nsAccessibleWrap::get_accValue(
 __try {
   *pszValue = NULL;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  if (xpAccessible->NativeRole() == roles::PASSWORD_TEXT)
-    return E_ACCESSDENIED;
+  if (!xpAccessible || xpAccessible->IsDefunct())
+    return E_FAIL;
 
   nsAutoString value;
-  xpAccessible->Value(value);
+  if (NS_FAILED(xpAccessible->GetValue(value)))
+    return E_FAIL;
 
   // See bug 438784: need to expose URL on doc's value attribute. For this,
   // reverting part of fix for bug 425693 to make this MSAA method behave
@@ -331,15 +310,9 @@ nsAccessibleWrap::get_accDescription(VARIANT varChild,
 __try {
   *pszDescription = NULL;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  if (!xpAccessible || xpAccessible->IsDefunct())
+    return E_FAIL;
 
   nsAutoString description;
   xpAccessible->Description(description);
@@ -360,14 +333,11 @@ __try {
   VariantInit(pvarRole);
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
   if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
 #ifdef DEBUG_A11Y
   NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(xpAccessible),
@@ -440,15 +410,9 @@ __try {
   pvarState->vt = VT_I4;
   pvarState->lVal = 0;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
   if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   // MSAA only has 31 states and the lowest 31 bits of our state bit mask
   // are the same states as MSAA.
@@ -503,15 +467,9 @@ __try {
     return E_INVALIDARG;
   *pszKeyboardShortcut = NULL;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   nsAccessible* acc = GetXPAccessibleFor(varChild);
-  if (!acc)
-    return E_INVALIDARG;
-
-  if (acc->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  if (!acc || acc->IsDefunct())
+    return E_FAIL;
 
   KeyBinding keyBinding = acc->AccessKey();
   if (keyBinding.IsEmpty())
@@ -538,7 +496,7 @@ STDMETHODIMP nsAccessibleWrap::get_accFocus(
   //              for the child object with the keyboard focus.
 __try {
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   VariantInit(pvarChild);
 
@@ -712,9 +670,6 @@ __try {
   VariantInit(pvarChildren);
   pvarChildren->vt = VT_EMPTY;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   if (IsSelect()) {
     nsCOMPtr<nsIArray> selectedItems = SelectedItems();
     if (selectedItems) {
@@ -739,24 +694,16 @@ STDMETHODIMP nsAccessibleWrap::get_accDefaultAction(
 {
 __try {
   *pszDefaultAction = NULL;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  if (xpAccessible) {
+    nsAutoString defaultAction;
+    if (NS_FAILED(xpAccessible->GetActionName(0, defaultAction)))
+      return E_FAIL;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAutoString defaultAction;
-  if (NS_FAILED(xpAccessible->GetActionName(0, defaultAction)))
-    return E_FAIL;
-
-  *pszDefaultAction = ::SysAllocStringLen(defaultAction.get(),
-                                          defaultAction.Length());
-  return *pszDefaultAction ? S_OK : E_OUTOFMEMORY;
+    *pszDefaultAction = ::SysAllocStringLen(defaultAction.get(),
+                                            defaultAction.Length());
+    return *pszDefaultAction ? S_OK : E_OUTOFMEMORY;
+  }
 
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
@@ -767,16 +714,9 @@ STDMETHODIMP nsAccessibleWrap::accSelect(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   // currently only handle focus and selection
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  NS_ENSURE_TRUE(xpAccessible, E_FAIL);
 
   if (flagsSelect & (SELFLAG_TAKEFOCUS|SELFLAG_TAKESELECTION|SELFLAG_REMOVESELECTION))
   {
@@ -810,26 +750,19 @@ STDMETHODIMP nsAccessibleWrap::accLocation(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
 
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible)
-    return E_INVALIDARG;
+  if (xpAccessible) {
+    PRInt32 x, y, width, height;
+    if (NS_FAILED(xpAccessible->GetBounds(&x, &y, &width, &height)))
+      return E_FAIL;
 
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  PRInt32 x, y, width, height;
-  if (NS_FAILED(xpAccessible->GetBounds(&x, &y, &width, &height)))
-    return E_FAIL;
-
-  *pxLeft = x;
-  *pyTop = y;
-  *pcxWidth = width;
-  *pcyHeight = height;
-  return S_OK;
-
+    *pxLeft = x;
+    *pyTop = y;
+    *pcxWidth = width;
+    *pcyHeight = height;
+    return S_OK;
+  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return E_FAIL;
@@ -844,15 +777,9 @@ __try {
   if (!pvarEndUpAt)
     return E_INVALIDARG;
 
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   nsAccessible* accessible = GetXPAccessibleFor(varStart);
-  if (!accessible)
-    return E_INVALIDARG;
-
-  if (accessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+  if (!accessible || accessible->IsDefunct())
+    return E_FAIL;
 
   VariantInit(pvarEndUpAt);
 
@@ -957,9 +884,8 @@ STDMETHODIMP nsAccessibleWrap::accHitTest(
 {
 __try {
   VariantInit(pvarChild);
-
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   nsAccessible* accessible = ChildAtPoint(xLeft, yTop, eDirectChild);
 
@@ -987,20 +913,12 @@ STDMETHODIMP nsAccessibleWrap::accDoDefaultAction(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible)
-    return E_INVALIDARG;
-
-  if (xpAccessible->IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
-  return GetHRESULT(xpAccessible->DoAction(0));
-
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  if (!xpAccessible || FAILED(xpAccessible->DoAction(0))) {
+    return E_FAIL;
+  }
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  return S_OK;
 }
 
 STDMETHODIMP nsAccessibleWrap::put_accName(
@@ -1115,7 +1033,7 @@ __try {
   *aNRelations = 0;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
        relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
@@ -1139,7 +1057,7 @@ __try {
   *aRelation = NULL;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   PRUint32 relIdx = 0;
   for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
@@ -1174,7 +1092,7 @@ __try {
   *aNRelations = 0;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
        relType <= nsIAccessibleRelation::RELATION_LAST &&
@@ -1200,7 +1118,7 @@ __try {
   *aRole = 0;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   NS_ASSERTION(gWindowsRoleMap[roles::LAST_ENTRY].ia2Role == ROLE_WINDOWS_LAST_ENTRY,
                "MSAA role map skewed");
@@ -1226,9 +1144,6 @@ STDMETHODIMP
 nsAccessibleWrap::scrollTo(enum IA2ScrollType aScrollType)
 {
 __try {
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   nsAccessNode::ScrollTo(aScrollType);
   return S_OK;
 
@@ -1241,9 +1156,6 @@ nsAccessibleWrap::scrollToPoint(enum IA2CoordinateType aCoordType,
                                 long aX, long aY)
 {
 __try {
-  if (IsDefunct())
-      return CO_E_OBJNOTCONNECTED;
-
   PRUint32 geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
     nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE;
@@ -1261,9 +1173,6 @@ nsAccessibleWrap::get_groupPosition(long *aGroupLevel,
                                     long *aPositionInGroup)
 {
 __try {
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
-
   PRInt32 groupLevel = 0;
   PRInt32 similarItemsInGroup = 0;
   PRInt32 positionInGroup = 0;
@@ -1294,9 +1203,6 @@ nsAccessibleWrap::get_states(AccessibleStates *aStates)
 {
 __try {
   *aStates = 0;
-
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   // XXX: bug 344674 should come with better approach that we have here.
 
@@ -1420,7 +1326,7 @@ __try {
   *aWindowHandle = 0;
 
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   *aWindowHandle = GetHWNDFor(this);
   return S_OK;
@@ -1438,7 +1344,7 @@ __try {
 
   *aIndexInParent = -1;
   if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
+    return E_FAIL;
 
   *aIndexInParent = IndexInParent();
   if (*aIndexInParent == -1)
@@ -1457,9 +1363,6 @@ __try {
   // subcodes: language-code = primary-code ( "-" subcode )*
   // Two-letter primary codes are reserved for [ISO639] language abbreviations.
   // Any two-letter subcode is understood to be a [ISO3166] country code.
-
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsAutoString lang;
   Language(lang);
@@ -1503,9 +1406,6 @@ nsAccessibleWrap::get_attributes(BSTR *aAttributes)
   // characters ":;=,\".
 __try {
   *aAttributes = NULL;
-
-  if (IsDefunct())
-    return CO_E_OBJNOTCONNECTED;
 
   nsCOMPtr<nsIPersistentProperties> attributes;
   nsresult rv = GetAttributes(getter_AddRefs(attributes));

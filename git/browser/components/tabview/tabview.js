@@ -60,7 +60,7 @@ let AllTabs = {
   },
 
   get tabs() {
-    return Array.filter(gBrowser.tabs, function (tab) Utils.isValidXULTab(tab));
+    return Array.filter(gBrowser.tabs, function (tab) !tab.closing);
   },
 
   register: function AllTabs_register(eventName, callback) {

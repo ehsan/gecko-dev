@@ -417,7 +417,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         }).start();
     }
 
-    private void updateCheckerboardImage() {
+    private void updateCheckerboardLayer(RenderContext renderContext) {
         int checkerboardColor = mView.getController().getCheckerboardColor();
         boolean showChecks = mView.getController().checkerboardShouldShowChecks();
         if (checkerboardColor == mCheckerboardImage.getColor() &&
@@ -432,6 +432,8 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         } finally {
             mCheckerboardLayer.endTransaction();
         }
+
+        mCheckerboardLayer.update(renderContext);   // called on compositor thread
     }
 
     /*
@@ -535,8 +537,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             if (rootLayer != null) mUpdated &= rootLayer.update(mPageContext);  // called on compositor thread
             mUpdated &= mBackgroundLayer.update(mScreenContext);    // called on compositor thread
             mUpdated &= mShadowLayer.update(mPageContext);  // called on compositor thread
-            updateCheckerboardImage();
-            mUpdated &= mCheckerboardLayer.update(mScreenContext);   // called on compositor thread
+            updateCheckerboardLayer(mScreenContext);
             if (mFrameRateLayer != null) mUpdated &= mFrameRateLayer.update(mScreenContext); // called on compositor thread
             mUpdated &= mVertScrollLayer.update(mPageContext);  // called on compositor thread
             mUpdated &= mHorizScrollLayer.update(mPageContext); // called on compositor thread

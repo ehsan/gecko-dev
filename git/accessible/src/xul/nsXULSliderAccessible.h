@@ -55,6 +55,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
+  NS_IMETHOD GetValue(nsAString& aValue);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
@@ -62,7 +63,6 @@ public:
   NS_DECL_NSIACCESSIBLEVALUE
 
   // nsAccessible
-  virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual bool CanHaveAnonChildren();

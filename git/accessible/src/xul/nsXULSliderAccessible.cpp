@@ -92,10 +92,10 @@ nsXULSliderAccessible::NativeState()
 
 // nsIAccessible
 
-void
-nsXULSliderAccessible::Value(nsString& aValue)
+NS_IMETHODIMP
+nsXULSliderAccessible::GetValue(nsAString& aValue)
 {
-  GetSliderAttr(nsGkAtoms::curpos, aValue);
+  return GetSliderAttr(nsGkAtoms::curpos, aValue);
 }
 
 PRUint8

@@ -210,18 +210,17 @@ nsXULListboxAccessible::NativeState()
 /**
   * Our value is the label of our ( first ) selected child.
   */
-void
-nsXULListboxAccessible::Value(nsString& aValue)
+NS_IMETHODIMP nsXULListboxAccessible::GetValue(nsAString& _retval)
 {
-  aValue.Truncate();
-
+  _retval.Truncate();
   nsCOMPtr<nsIDOMXULSelectControlElement> select(do_QueryInterface(mContent));
   if (select) {
     nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
     select->GetSelectedItem(getter_AddRefs(selectedItem));
     if (selectedItem)
-      selectedItem->GetLabel(aValue);
+      return selectedItem->GetLabel(_retval);
   }
+  return NS_ERROR_FAILURE;
 }
 
 role

@@ -116,11 +116,12 @@
 
 - (NSURL*)url
 {
-  if (!mGeckoAccessible || mGeckoAccessible->IsDefunct())
+  if (!mGeckoAccessible)
     return nil;
 
   nsAutoString value;
-  mGeckoAccessible->Value(value);
+  nsresult rv = mGeckoAccessible->GetValue(value);
+  NS_ENSURE_SUCCESS(rv, nil);
 
   NSString* urlString = value.IsEmpty() ? nil : nsCocoaUtils::ToNSString(value);
   if (!urlString)

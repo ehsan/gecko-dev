@@ -541,8 +541,8 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         if (JSScript::isValidOffset(script->trynotesOffset))
             ntrynotes = script->trynotes()->length;
         /* no globals when encoding;  see assertion above */
-        nClosedArgs = script->numClosedArgs();
-        nClosedVars = script->numClosedVars();
+        nClosedArgs = script->nClosedArgs();
+        nClosedVars = script->nClosedVars();
 
         nTypeSets = script->nTypeSets;
 
