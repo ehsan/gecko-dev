@@ -397,6 +397,12 @@
 #include popup-notifications.inc
 
 #include ../../components/customizableui/content/panelUI.inc.xul
+
+    <hbox id="downloads-animation-container" mousethrough="always">
+      <vbox id="downloads-notification-anchor">
+        <vbox id="downloads-indicator-notification"/>
+      </vbox>
+    </hbox>
   </popupset>
 
 #ifdef CAN_DRAW_IN_TITLEBAR
@@ -949,12 +955,6 @@
       <hbox id="addonbar-closebutton"/>
       <statusbar id="status-bar"/>
     </toolbar>
-
-    <hbox id="downloads-animation-container" mousethrough="always">
-      <vbox id="downloads-notification-anchor">
-        <vbox id="downloads-indicator-notification"/>
-      </vbox>
-    </hbox>
 
     <toolbarpalette id="BrowserToolbarPalette">
 
