@@ -365,7 +365,7 @@ Simulator::Create()
 
     if (!sim->init()) {
         js_delete(sim);
-        return nullptr;
+        return false;
     }
 
     if (getenv("ARM_SIM_ICACHE_CHECKS"))

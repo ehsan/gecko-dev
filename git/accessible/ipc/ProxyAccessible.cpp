@@ -15,7 +15,7 @@ namespace a11y {
 void
 ProxyAccessible::Shutdown()
 {
-  NS_ASSERTION(!mOuterDoc, "Why do we still have a child doc?");
+  MOZ_ASSERT(!mOuterDoc);
 
   // XXX Ideally  this wouldn't be necessary, but it seems OuterDoc accessibles
   // can be destroyed before the doc they own.

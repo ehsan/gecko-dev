@@ -983,6 +983,7 @@ Statistics::beginSlice(const ZoneGCStats &zoneStats, JSGCInvocationKind gckind,
     if (!slices.append(data)) {
         // OOM testing fails if we CrashAtUnhandlableOOM here.
         abortSlices = true;
+        slices.clear();
         return;
     }
 

@@ -2496,10 +2496,7 @@ ContentChild::RecvGetProfile(nsCString* aProfile)
 bool
 ContentChild::RecvLoadPluginResult(const uint32_t& aPluginId, const bool& aResult)
 {
-    nsresult rv;
-    bool finalResult = aResult &&
-                       SendConnectPluginBridge(aPluginId, &rv) &&
-                       NS_SUCCEEDED(rv);
+    bool finalResult = aResult && SendConnectPluginBridge(aPluginId);
     plugins::PluginModuleContentParent::OnLoadPluginResult(aPluginId,
                                                            finalResult);
     return true;
