@@ -7,6 +7,7 @@
 #include "cms.h"
 #include "cryptohi.h"
 #include "keyhi.h"
+#include "nsCertificatePrincipal.h"
 #include "nsCOMPtr.h"
 #include "nsNSSComponent.h"
 #include "nssb64.h"
@@ -221,7 +222,7 @@ namespace {
 
 struct VerifyCertificateContext
 {
-  nsCOMPtr<nsIX509Cert> signingCert;
+  nsCOMPtr<nsICertificatePrincipal> principal;
   ScopedCERTCertList builtChain;
 };
 
@@ -241,7 +242,27 @@ VerifyCertificate(CERTCertificate* cert, void* voidContext, void* pinArg)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  context->signingCert = xpcomCert;
+  nsAutoString fingerprint;
+  nsresult rv = xpcomCert->GetSha1Fingerprint(fingerprint);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  nsAutoString orgName;
+  rv = xpcomCert->GetOrganization(orgName);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  nsAutoString subjectName;
+  rv = xpcomCert->GetSubjectName(subjectName);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  context->principal =
+    new nsCertificatePrincipal(NS_ConvertUTF16toUTF8(fingerprint),
+                               NS_ConvertUTF16toUTF8(subjectName),
+                               NS_ConvertUTF16toUTF8(orgName),
+                               xpcomCert);
 
   RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
   NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
@@ -263,14 +284,14 @@ nsDataSignatureVerifier::VerifySignature(const char* aRSABuf,
                                          const char* aPlaintext,
                                          uint32_t aPlaintextLen,
                                          int32_t* aErrorCode,
-                                         nsIX509Cert** aSigningCert)
+                                         nsICertificatePrincipal** aPrincipal)
 {
-  if (!aPlaintext || !aSigningCert || !aErrorCode) {
+  if (!aPlaintext || !aPrincipal || !aErrorCode) {
     return NS_ERROR_INVALID_ARG;
   }
 
   *aErrorCode = VERIFY_ERROR_OTHER;
-  *aSigningCert = nullptr;
+  *aPrincipal = nullptr;
 
   nsNSSShutDownPreventionLock locker;
 
@@ -304,7 +325,7 @@ nsDataSignatureVerifier::VerifySignature(const char* aRSABuf,
     rv = NS_OK;
   }
   if (rv == NS_OK) {
-    context.signingCert.forget(aSigningCert);
+    context.principal.forget(aPrincipal);
   }
 
   return rv;

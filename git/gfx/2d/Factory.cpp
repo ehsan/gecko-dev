@@ -700,8 +700,7 @@ Factory::CreateWrappingDataSourceSurface(uint8_t *aData, int32_t aStride,
 
 TemporaryRef<DataSourceSurface>
 Factory::CreateDataSourceSurface(const IntSize &aSize,
-                                 SurfaceFormat aFormat,
-                                 bool aZero)
+                                 SurfaceFormat aFormat)
 {
   if (!CheckSurfaceSize(aSize)) {
     gfxWarning() << "CreateDataSourceSurface failed with bad size";
@@ -709,7 +708,7 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
   }
 
   RefPtr<SourceSurfaceAlignedRawData> newSurf = new SourceSurfaceAlignedRawData();
-  if (newSurf->Init(aSize, aFormat, aZero)) {
+  if (newSurf->Init(aSize, aFormat)) {
     return newSurf.forget();
   }
 
@@ -720,8 +719,7 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
 TemporaryRef<DataSourceSurface>
 Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
                                            SurfaceFormat aFormat,
-                                           int32_t aStride,
-                                           bool aZero)
+                                           int32_t aStride)
 {
   if (aStride < aSize.width * BytesPerPixel(aFormat)) {
     gfxWarning() << "CreateDataSourceSurfaceWithStride failed with bad stride";
@@ -729,7 +727,7 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
   }
 
   RefPtr<SourceSurfaceAlignedRawData> newSurf = new SourceSurfaceAlignedRawData();
-  if (newSurf->InitWithStride(aSize, aFormat, aStride, aZero)) {
+  if (newSurf->InitWithStride(aSize, aFormat, aStride)) {
     return newSurf.forget();
   }
 

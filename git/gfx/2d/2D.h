@@ -1117,20 +1117,20 @@ public:
    * This creates a simple data source surface for a certain size. It allocates
    * new memory for the surface. This memory is freed when the surface is
    * destroyed.  The caller is responsible for handing the case where nullptr
-   * is returned. The surface is not zeroed unless requested.
+   * is returned.
    */
   static TemporaryRef<DataSourceSurface>
-    CreateDataSourceSurface(const IntSize &aSize, SurfaceFormat aFormat, bool aZero = false);
+    CreateDataSourceSurface(const IntSize &aSize, SurfaceFormat aFormat);
 
   /**
    * This creates a simple data source surface for a certain size with a
    * specific stride, which must be large enough to fit all pixels.
    * It allocates new memory for the surface. This memory is freed when
    * the surface is destroyed.  The caller is responsible for handling the case
-   * where nullptr is returned. The surface is not zeroed unless requested.
+   * where nullptr is returned.
    */
   static TemporaryRef<DataSourceSurface>
-    CreateDataSourceSurfaceWithStride(const IntSize &aSize, SurfaceFormat aFormat, int32_t aStride, bool aZero = false);
+    CreateDataSourceSurfaceWithStride(const IntSize &aSize, SurfaceFormat aFormat, int32_t aStride);
 
   /**
    * This creates a simple data source surface for some existing data. It will

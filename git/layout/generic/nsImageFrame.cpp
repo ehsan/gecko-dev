@@ -812,12 +812,10 @@ nsImageFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                             aPadding);
 }
 
-// XXXdholbert This function's clients should probably just be calling
-// GetContentRectRelativeToSelf() directly.
 nsRect 
 nsImageFrame::GetInnerArea() const
 {
-  return GetContentRectRelativeToSelf();
+  return GetContentRect() - GetPosition();
 }
 
 Element*

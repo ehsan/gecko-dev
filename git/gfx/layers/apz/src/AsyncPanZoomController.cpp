@@ -814,14 +814,6 @@ AsyncPanZoomController::AssertOnControllerThread() {
   MOZ_ASSERT(sControllerThread == PR_GetCurrentThread());
 }
 
-void
-AsyncPanZoomController::AssertOnCompositorThread()
-{
-  if (GetThreadAssertionsEnabled()) {
-    Compositor::AssertOnCompositorThread();
-  }
-}
-
 /*static*/ void
 AsyncPanZoomController::InitializeGlobalState()
 {
@@ -878,7 +870,9 @@ AsyncPanZoomController::~AsyncPanZoomController() {
 PCompositorParent*
 AsyncPanZoomController::GetSharedFrameMetricsCompositor()
 {
-  AssertOnCompositorThread();
+  if (GetThreadAssertionsEnabled()) {
+    Compositor::AssertOnCompositorThread();
+  }
 
   if (mSharingFrameMetricsAcrossProcesses) {
     const CompositorParent::LayerTreeState* state = CompositorParent::GetIndirectShadowTree(mLayersId);
@@ -905,8 +899,6 @@ AsyncPanZoomController::GetGestureEventListener() const {
 void
 AsyncPanZoomController::Destroy()
 {
-  AssertOnCompositorThread();
-
   CancelAnimation();
 
   mTouchBlockQueue.Clear();
@@ -2365,8 +2357,6 @@ AsyncPanZoomController::FireAsyncScrollOnTimeout()
 bool AsyncPanZoomController::UpdateAnimation(const TimeStamp& aSampleTime,
                                              Vector<Task*>* aOutDeferredTasks)
 {
-  AssertOnCompositorThread();
-
   // This function may get called multiple with the same sample time, because
   // there may be multiple layers with this APZC, and each layer invokes this
   // function during composition. However we only want to do one animation step
@@ -2439,8 +2429,6 @@ void AsyncPanZoomController::GetOverscrollTransform(Matrix4x4* aTransform) const
 
 bool AsyncPanZoomController::AdvanceAnimations(const TimeStamp& aSampleTime)
 {
-  AssertOnCompositorThread();
-
   // The eventual return value of this function. The compositor needs to know
   // whether or not to advance by a frame as soon as it can. For example, if a
   // fling is happening, it has to keep compositing so that the animation is
@@ -2586,8 +2574,6 @@ Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() const {
 }
 
 void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetrics, bool aIsFirstPaint) {
-  AssertOnCompositorThread();
-
   ReentrantMonitorAutoEnter lock(mMonitor);
   bool isDefault = mFrameMetrics.IsDefault();
 

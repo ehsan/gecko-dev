@@ -49,7 +49,6 @@ SEARCH_PATHS = [
     'testing/marionette/client/marionette',
     'testing/marionette/transport',
     'testing/mozbase/mozcrash',
-    'testing/mozbase/mozdebug',
     'testing/mozbase/mozdevice',
     'testing/mozbase/mozfile',
     'testing/mozbase/mozhttpd',

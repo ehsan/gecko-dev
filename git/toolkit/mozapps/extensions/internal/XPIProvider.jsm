@@ -1197,12 +1197,12 @@ function getTemporaryFile() {
  *
  * @param  aZip
  *         A nsIZipReader to check
- * @param  aCertificate
- *         The nsIX509Cert to compare against
+ * @param  aPrincipal
+ *         The nsIPrincipal to compare against
  * @return true if all the contents that should be signed were signed by the
  *         principal
  */
-function verifyZipSigning(aZip, aCertificate) {
+function verifyZipSigning(aZip, aPrincipal) {
   var count = 0;
   var entries = aZip.findEntries(null);
   while (entries.hasMore()) {
@@ -1214,10 +1214,9 @@ function verifyZipSigning(aZip, aCertificate) {
     if (entry.substr(-1) == "/")
       continue;
     count++;
-    var entryCertificate = aZip.getSigningCert(entry);
-    if (!entryCertificate || !aCertificate.equals(entryCertificate)) {
+    var entryPrincipal = aZip.getCertificatePrincipal(entry);
+    if (!entryPrincipal || !aPrincipal.equals(entryPrincipal))
       return false;
-    }
   }
   return aZip.manifestEntriesCount == count;
 }
@@ -5128,17 +5127,19 @@ AddonInstall.prototype = {
       throw e;
     }
 
-    let x509 = zipreader.getSigningCert(null);
-    if (x509) {
+    let principal = zipreader.getCertificatePrincipal(null);
+    if (principal && principal.hasCertificate) {
       logger.debug("Verifying XPI signature");
-      if (verifyZipSigning(zipreader, x509)) {
-        this.certificate = x509;
-        if (this.certificate.commonName.length > 0) {
+      if (verifyZipSigning(zipreader, principal)) {
+        let x509 = principal.certificate;
+        if (x509 instanceof Ci.nsIX509Cert)
+          this.certificate = x509;
+        if (this.certificate && this.certificate.commonName.length > 0)
           this.certName = this.certificate.commonName;
-        } else {
-          this.certName = this.certificate.organization;
-        }
-      } else {
+        else
+          this.certName = principal.prettyName;
+      }
+      else {
         zipreader.close();
         throw new Error("XPI is incorrectly signed");
       }

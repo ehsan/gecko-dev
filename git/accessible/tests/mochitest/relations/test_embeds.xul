@@ -59,11 +59,7 @@
       this.match = function browserReorderChecker_match(aEvent)
       {
         // Reorder event might be duped because of temporary document creation.
-        var browserAcc = getAccessible(currentBrowser());
-        if (!browserAcc)
-          ok(false, "opa opa sralslasya");
-
-        if (aEvent.accessible == browserAcc) {
+        if (aEvent.accessible == getAccessible(currentBrowser())) {
           this.cnt++;
           return this.cnt != 2;
         }
@@ -87,11 +83,8 @@
 
       this.finalCheck = function loadURI_finalCheck()
       {
-        var acc = getAccessible(currentTabDocument());
-        if (!acc)
-          ok(false, "ahahahaha");
-
-        testRelation(browserDocument(), RELATION_EMBEDS, acc);
+        testRelation(browserDocument(), RELATION_EMBEDS,
+                     getAccessible(currentTabDocument()));
       }
 
       this.getID = function loadOneTab_getID()

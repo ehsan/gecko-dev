@@ -1358,8 +1358,9 @@ DrawTargetCG::Init(BackendType aType,
     }
     static_assert(sizeof(decltype(mData[0])) == 1,
                   "mData.Realloc() takes an object count, so its objects must be 1-byte sized if we use bufLen");
-    mData.Realloc(/* actually an object count */ bufLen, true);
+    mData.Realloc(/* actually an object count */ bufLen);
     aData = static_cast<unsigned char*>(mData);
+    memset(aData, 0, bufLen);
   }
 
   mSize = aSize;
