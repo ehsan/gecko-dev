@@ -36,7 +36,7 @@
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
 #include "mozilla/Selection.h"
-#include "mozilla/EventListenerManager.h"
+#include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
@@ -1525,17 +1525,17 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
     mTextListener->SetFrame(nullptr);
 
     nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-    EventListenerManager* manager = target->GetExistingListenerManager();
+    nsEventListenerManager* manager = target->GetExistingListenerManager();
     if (manager) {
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keydown"),
-        TrustedEventsAtSystemGroupBubble());
+        dom::TrustedEventsAtSystemGroupBubble());
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keypress"),
-        TrustedEventsAtSystemGroupBubble());
+        dom::TrustedEventsAtSystemGroupBubble());
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keyup"),
-        TrustedEventsAtSystemGroupBubble());
+        dom::TrustedEventsAtSystemGroupBubble());
     }
 
     NS_RELEASE(mTextListener);
@@ -1930,17 +1930,17 @@ nsTextEditorState::InitializeKeyboardEventListeners()
 {
   //register key listeners
   nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-  EventListenerManager* manager = target->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = target->GetOrCreateListenerManager();
   if (manager) {
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keydown"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keypress"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keyup"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstPrincipalChild()));

@@ -57,6 +57,7 @@
 
 #include "nsLayoutUtils.h"
 #include "nsView.h"
+#include "nsAsyncDOMEvent.h"
 
 #include "nsIURI.h"
 #include "nsIURL.h"
@@ -75,7 +76,6 @@
 #include "AppProcessChecker.h"
 #include "ContentParent.h"
 #include "TabParent.h"
-#include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
@@ -375,14 +375,12 @@ nsFrameLoader::LoadFrame()
 void
 nsFrameLoader::FireErrorEvent()
 {
-  if (!mOwnerContent) {
-    return;
+  if (mOwnerContent) {
+    nsRefPtr<nsAsyncDOMEvent> event =
+      new nsLoadBlockingAsyncDOMEvent(mOwnerContent, NS_LITERAL_STRING("error"),
+                                      false, false);
+    event->PostDOMEvent();
   }
-  nsRefPtr<AsyncEventDispatcher > loadBlockingAsyncDispatcher =
-    new LoadBlockingAsyncEventDispatcher(mOwnerContent,
-                                         NS_LITERAL_STRING("error"),
-                                         false, false);
-  loadBlockingAsyncDispatcher->PostDOMEvent();
 }
 
 NS_IMETHODIMP

@@ -3,26 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/AsyncEventDispatcher.h"
+#include "nsAsyncDOMEvent.h"
+#include "nsIDOMEvent.h"
+#include "nsContentUtils.h"
+#include "nsEventDispatcher.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/dom/Event.h" // for nsIDOMEvent::InternalDOMEvent()
 #include "mozilla/dom/EventTarget.h"
-#include "nsContentUtils.h"
-#include "nsEventDispatcher.h"
-#include "nsIDOMEvent.h"
 
-namespace mozilla {
+using namespace mozilla;
+using namespace mozilla::dom;
 
-using namespace dom;
-
-/******************************************************************************
- * mozilla::AsyncEventDispatcher
- ******************************************************************************/
-
-AsyncEventDispatcher::AsyncEventDispatcher(nsINode* aEventNode,
-                                           WidgetEvent& aEvent)
-  : mEventNode(aEventNode)
-  , mDispatchChromeOnly(false)
+nsAsyncDOMEvent::nsAsyncDOMEvent(nsINode* aEventNode, WidgetEvent& aEvent)
+  : mEventNode(aEventNode), mDispatchChromeOnly(false)
 {
   MOZ_ASSERT(mEventNode);
   nsEventDispatcher::CreateEvent(aEventNode, nullptr, &aEvent, EmptyString(),
@@ -32,8 +25,7 @@ AsyncEventDispatcher::AsyncEventDispatcher(nsINode* aEventNode,
   mEvent->SetTrusted(aEvent.mFlags.mIsTrusted);
 }
 
-NS_IMETHODIMP
-AsyncEventDispatcher::Run()
+NS_IMETHODIMP nsAsyncDOMEvent::Run()
 {
   if (mEvent) {
     if (mDispatchChromeOnly) {
@@ -70,27 +62,19 @@ AsyncEventDispatcher::Run()
   return NS_OK;
 }
 
-nsresult
-AsyncEventDispatcher::PostDOMEvent()
+nsresult nsAsyncDOMEvent::PostDOMEvent()
 {
   return NS_DispatchToCurrentThread(this);
 }
 
-void
-AsyncEventDispatcher::RunDOMEventWhenSafe()
+void nsAsyncDOMEvent::RunDOMEventWhenSafe()
 {
   nsContentUtils::AddScriptRunner(this);
 }
 
-/******************************************************************************
- * mozilla::LoadBlockingAsyncEventDispatcher
- ******************************************************************************/
-
-LoadBlockingAsyncEventDispatcher::~LoadBlockingAsyncEventDispatcher()
+nsLoadBlockingAsyncDOMEvent::~nsLoadBlockingAsyncDOMEvent()
 {
   if (mBlockedDoc) {
     mBlockedDoc->UnblockOnload(true);
   }
 }
-
-} // namespace mozilla
