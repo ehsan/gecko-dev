@@ -35,8 +35,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGBoolean.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SMILBoolType.h"
+#endif // MOZ_SMIL
 
 using namespace mozilla;
 
@@ -85,9 +87,11 @@ nsSVGBoolean::SetBaseValueString(const nsAString &aValueAsString,
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
 
   // We don't need to call DidChange* here - we're only called by
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
@@ -114,9 +118,11 @@ nsSVGBoolean::SetBaseValue(bool aValue,
     if (!mIsAnimated) {
       mAnimVal = mBaseVal;
     }
+#ifdef MOZ_SMIL
     else {
       aSVGElement->AnimationNeedsResample();
     }
+#endif
     aSVGElement->DidChangeBoolean(mAttrEnum, true);
   }
 }
@@ -141,6 +147,7 @@ nsSVGBoolean::ToDOMAnimatedBoolean(nsIDOMSVGAnimatedBoolean **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGBoolean::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -194,3 +201,4 @@ nsSVGBoolean::SMILBool::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

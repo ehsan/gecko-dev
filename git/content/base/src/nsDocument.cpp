@@ -185,9 +185,11 @@
 #include "nsDOMNavigationTiming.h"
 #include "nsEventStateManager.h"
 
+#ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
 #include "imgIContainer.h"
 #include "nsSVGUtils.h"
+#endif // MOZ_SMIL
 
 #include "nsRefreshDriver.h"
 
@@ -1589,9 +1591,11 @@ nsDocument::~nsDocument()
     mStyleSheetSetList->Disconnect();
   }
 
+#ifdef MOZ_SMIL
   if (mAnimationController) {
     mAnimationController->Disconnect();
   }
+#endif // MOZ_SMIL
 
   mParentDocument = nsnull;
 
@@ -1874,10 +1878,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
     cb.NoteXPCOMChild(tmp->mAnimationFrameListeners[i]);
   }
 
+#ifdef MOZ_SMIL
   // Traverse animation components
   if (tmp->mAnimationController) {
     tmp->mAnimationController->Traverse(&cb);
   }
+#endif // MOZ_SMIL
 
   if (tmp->mSubDocuments && tmp->mSubDocuments->ops) {
     PL_DHashTableEnumerate(tmp->mSubDocuments, SubDocTraverser, &cb);
@@ -1949,9 +1955,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
 
   tmp->mIdentifierMap.Clear();
 
+#ifdef MOZ_SMIL
   if (tmp->mAnimationController) {
     tmp->mAnimationController->Unlink();
   }
+#endif // MOZ_SMIL
   
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -3760,11 +3768,13 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
                  "Script global object must be an inner window!");
   }
 #endif
+#ifdef MOZ_SMIL
   NS_ABORT_IF_FALSE(aScriptGlobalObject || !mAnimationController ||
                     mAnimationController->IsPausedByType(
                         nsSMILTimeContainer::PAUSE_PAGEHIDE |
                         nsSMILTimeContainer::PAUSE_BEGIN),
                     "Clearing window pointer while animations are unpaused");
+#endif // MOZ_SMIL
 
   if (mScriptGlobalObject && !aScriptGlobalObject) {
     // We're detaching from the window.  We need to grab a pointer to
@@ -5525,6 +5535,7 @@ nsDocument::EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData)
   mExternalResourceMap.EnumerateResources(aCallback, aData);
 }
 
+#ifdef MOZ_SMIL
 nsSMILAnimationController*
 nsDocument::GetAnimationController()
 {
@@ -5559,6 +5570,7 @@ nsDocument::GetAnimationController()
 
   return mAnimationController;
 }
+#endif // MOZ_SMIL
 
 struct DirTable {
   const char* mName;
@@ -7267,9 +7279,11 @@ nsDocument::OnPageShow(bool aPersisted,
     mIsShowing = true;
   }
  
+#ifdef MOZ_SMIL
   if (mAnimationController) {
     mAnimationController->OnPageShow();
   }
+#endif
 
   if (aPersisted) {
     SetImagesNeedAnimating(true);
@@ -7335,9 +7349,11 @@ nsDocument::OnPageHide(bool aPersisted,
     mIsShowing = false;
   }
 
+#ifdef MOZ_SMIL
   if (mAnimationController) {
     mAnimationController->OnPageHide();
   }
+#endif
   
   if (aPersisted) {
     SetImagesNeedAnimating(false);

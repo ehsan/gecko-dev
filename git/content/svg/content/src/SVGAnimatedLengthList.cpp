@@ -38,8 +38,10 @@
 #include "DOMSVGAnimatedLengthList.h"
 #include "nsSVGElement.h"
 #include "nsSVGAttrTearoffTable.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGLengthListSMILType.h"
+#endif // MOZ_SMIL
 
 namespace mozilla {
 
@@ -147,6 +149,7 @@ SVGAnimatedLengthList::ClearAnimValue(nsSVGElement *aElement,
   aElement->DidAnimateLengthList(aAttrEnum);
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 SVGAnimatedLengthList::ToSMILAttr(nsSVGElement *aSVGElement,
                                   PRUint8 aAttrEnum,
@@ -236,5 +239,6 @@ SVGAnimatedLengthList::SMILAnimatedLengthList::ClearAnimValue()
     mVal->ClearAnimValue(mElement, mAttrEnum);
   }
 }
+#endif // MOZ_SMIL
 
 } // namespace mozilla

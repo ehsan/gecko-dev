@@ -120,7 +120,6 @@ function setUp() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL  = "http://localhost:8080/";
   Service.clusterURL = "http://localhost:8080/";
   return generateAndUploadKeys();
 }

@@ -598,11 +598,15 @@ GfxInfoBase::GetFeatureStatusImpl(PRInt32 aFeature,
       NS_FAILED(GetAdapterDeviceID(&adapterDeviceID)) ||
       NS_FAILED(GetAdapterDriverVersion(adapterDriverVersionString)))
   {
-    return NS_OK;
+    return NS_ERROR_FAILURE;
   }
 
   PRUint64 driverVersion;
-  ParseDriverVersion(adapterDriverVersionString, &driverVersion);
+  if (!ParseDriverVersion(adapterDriverVersionString, &driverVersion)) {
+#if !defined(XP_MACOSX)
+    return NS_ERROR_FAILURE;
+#endif
+  }
 
   // special-case the WinXP test slaves: they have out-of-date drivers, but we still want to
   // whitelist them, actually we do know that this combination of device and driver version

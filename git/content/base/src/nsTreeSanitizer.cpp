@@ -323,6 +323,7 @@ nsIAtom** const kURLAttributesHTML[] = {
 };
 
 nsIAtom** const kElementsSVG[] = {
+#ifdef MOZ_SVG
   &nsGkAtoms::a, // a
   &nsGkAtoms::altGlyph, // altGlyph
   &nsGkAtoms::altGlyphDef, // altGlyphDef
@@ -406,29 +407,39 @@ nsIAtom** const kElementsSVG[] = {
   &nsGkAtoms::use, // use
   &nsGkAtoms::view, // view
   &nsGkAtoms::vkern, // vkern
+#endif
   nsnull
 };
 
 nsIAtom** const kAttributesSVG[] = {
+#ifdef MOZ_SVG
   // accent-height
+#ifdef MOZ_SMIL
   &nsGkAtoms::accumulate, // accumulate
   &nsGkAtoms::additive, // additive
+#endif
   &nsGkAtoms::alignment_baseline, // alignment-baseline
   // alphabetic
   &nsGkAtoms::amplitude, // amplitude
   // arabic-form
   // ascent
+#ifdef MOZ_SMIL
   &nsGkAtoms::attributeName, // attributeName
   &nsGkAtoms::attributeType, // attributeType
+#endif
   &nsGkAtoms::azimuth, // azimuth
   &nsGkAtoms::baseFrequency, // baseFrequency
   &nsGkAtoms::baseline_shift, // baseline-shift
   // baseProfile
   // bbox
+#ifdef MOZ_SMIL
   &nsGkAtoms::begin, // begin
+#endif
   &nsGkAtoms::bias, // bias
+#ifdef MOZ_SMIL
   &nsGkAtoms::by, // by
   &nsGkAtoms::calcMode, // calcMode
+#endif
   // cap-height
   &nsGkAtoms::_class, // class
   &nsGkAtoms::clip_path, // clip-path
@@ -449,13 +460,17 @@ nsIAtom** const kAttributesSVG[] = {
   &nsGkAtoms::display, // display
   &nsGkAtoms::divisor, // divisor
   &nsGkAtoms::dominant_baseline, // dominant-baseline
+#ifdef MOZ_SMIL
   &nsGkAtoms::dur, // dur
+#endif
   &nsGkAtoms::dx, // dx
   &nsGkAtoms::dy, // dy
   &nsGkAtoms::edgeMode, // edgeMode
   &nsGkAtoms::elevation, // elevation
   // enable-background
+#ifdef MOZ_SMIL
   &nsGkAtoms::end, // end
+#endif
   &nsGkAtoms::fill, // fill
   &nsGkAtoms::fill_opacity, // fill-opacity
   &nsGkAtoms::fill_rule, // fill-rule
@@ -503,9 +518,11 @@ nsIAtom** const kAttributesSVG[] = {
   &nsGkAtoms::kerning, // kerning
   &nsGkAtoms::kernelMatrix, // kernelMatrix
   &nsGkAtoms::kernelUnitLength, // kernelUnitLength
+#ifdef MOZ_SMIL
   &nsGkAtoms::keyPoints, // keyPoints
   &nsGkAtoms::keySplines, // keySplines
   &nsGkAtoms::keyTimes, // keyTimes
+#endif
   &nsGkAtoms::lang, // lang
   // lengthAdjust
   &nsGkAtoms::letter_spacing, // letter-spacing
@@ -558,11 +575,15 @@ nsIAtom** const kAttributesSVG[] = {
   &nsGkAtoms::radius, // radius
   &nsGkAtoms::refX, // refX
   &nsGkAtoms::refY, // refY
+#ifdef MOZ_SMIL
   &nsGkAtoms::repeatCount, // repeatCount
   &nsGkAtoms::repeatDur, // repeatDur
+#endif
   &nsGkAtoms::requiredExtensions, // requiredExtensions
   &nsGkAtoms::requiredFeatures, // requiredFeatures
+#ifdef MOZ_SMIL
   &nsGkAtoms::restart, // restart
+#endif
   &nsGkAtoms::result, // result
   &nsGkAtoms::rotate, // rotate
   &nsGkAtoms::rx, // rx
@@ -604,7 +625,9 @@ nsIAtom** const kAttributesSVG[] = {
   // textLength
   &nsGkAtoms::text_rendering, // text-rendering
   &nsGkAtoms::title, // title
+#ifdef MOZ_SMIL
   &nsGkAtoms::to, // to
+#endif
   &nsGkAtoms::transform, // transform
   &nsGkAtoms::type, // type
   // u1
@@ -641,6 +664,7 @@ nsIAtom** const kAttributesSVG[] = {
   &nsGkAtoms::yChannelSelector, // yChannelSelector
   &nsGkAtoms::z, // z
   &nsGkAtoms::zoomAndPan, // zoomAndPan
+#endif
   nsnull
 };
 

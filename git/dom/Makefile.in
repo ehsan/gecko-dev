@@ -43,7 +43,6 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= dom
-
 DIRS = \
   interfaces/base \
   interfaces/canvas \
@@ -65,8 +64,11 @@ DIRS = \
   interfaces/geolocation \
   interfaces/notification \
   interfaces/svg \
-  interfaces/smil \
   $(NULL)
+
+ifdef MOZ_SMIL
+DIRS += interfaces/smil
+endif
 
 DIRS += \
   base \
@@ -93,3 +95,4 @@ endif
 endif
 
 include $(topsrcdir)/config/rules.mk
+

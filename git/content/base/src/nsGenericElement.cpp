@@ -2293,8 +2293,10 @@ nsGenericElement::nsDOMSlots::Traverse(nsCycleCollectionTraversalCallback &cb, b
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mStyle");
   cb.NoteXPCOMChild(mStyle.get());
 
+#ifdef MOZ_SMIL
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mSMILOverrideStyle");
   cb.NoteXPCOMChild(mSMILOverrideStyle.get());
+#endif // MOZ_SMIL
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mAttributeMap");
   cb.NoteXPCOMChild(mAttributeMap.get());
@@ -2312,7 +2314,9 @@ void
 nsGenericElement::nsDOMSlots::Unlink(bool aIsXUL)
 {
   mStyle = nsnull;
+#ifdef MOZ_SMIL
   mSMILOverrideStyle = nsnull;
+#endif // MOZ_SMIL
   if (mAttributeMap) {
     mAttributeMap->DropReference();
     mAttributeMap = nsnull;
@@ -2452,11 +2456,13 @@ nsGenericElement::InternalIsSupported(nsISupports* aObject,
       *aReturn = true;
     }
   }
+#ifdef MOZ_SMIL
   else if (NS_SMILEnabled() && PL_strcasecmp(f, "TimeControl") == 0) {
     if (aVersion.IsEmpty() || PL_strcmp(v, "1.0") == 0) {
       *aReturn = true;
     }
   }
+#endif /* MOZ_SMIL */
 
   return NS_OK;
 }
@@ -3349,6 +3355,7 @@ nsGenericElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsIDOMCSSStyleDeclaration*
 nsGenericElement::GetSMILOverrideStyle()
 {
@@ -3391,6 +3398,7 @@ nsGenericElement::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
 
   return NS_OK;
 }
+#endif // MOZ_SMIL
 
 css::StyleRule*
 nsGenericElement::GetInlineStyleRule()
